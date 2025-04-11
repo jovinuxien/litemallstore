@@ -1,0 +1,16 @@
+spring:
+  profiles:
+    active: db
+  messages:
+    encoding: UTF-8
+
+
+
+logging:
+  level:
+    root:  ERROR
+    org.springframework:  ERROR
+    org.mybatis:  ERROR
+    tech.jhipster: DEBUG
+    # org.hibernate.SQL: DEBUG
+    org.linlinjava.litemall.db:  DEBUG
