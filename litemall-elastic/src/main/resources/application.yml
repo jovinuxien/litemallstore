@@ -1,0 +1,23 @@
+spring:
+  profiles:
+    active: db, core, elastic,  wx
+  messages:
+    encoding: UTF-8
+
+server:
+  port: 8083
+
+logging:
+  level:
+    root:  ERROR
+    org.springframework:  ERROR
+    org.mybatis:  ERROR
+    org.linlinjava.litemall.wx:  DEBUG
+    org.linlinjava.litemall:  ERROR
+    org.linlinjava.litemall.elastic: DEBUG
+
+swagger:
+  production: false
+
+spring-doc:
+  packagesToScan: "org.linlinjava.litemall.wx.web"

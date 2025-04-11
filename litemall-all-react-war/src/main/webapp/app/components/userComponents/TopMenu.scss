@@ -1,0 +1,36 @@
+.hamburger-menu {
+    padding: 10px;
+    background: none;
+    border: none;
+  }
+  
+  .hamburger-icon {
+    display: block;
+    width: 30px;
+    height: 20px;
+    position: relative;
+  }
+  
+  .hamburger-icon::before,
+  .hamburger-icon::after,
+  .hamburger-icon span {
+    background-color: #333;
+    content: '';
+    display: block;
+    height: 3px;
+    position: absolute;
+    width: 100%;
+  }
+  
+  .hamburger-icon::before {
+    top: 0;
+  }
+  
+  .hamburger-icon::after {
+    bottom: 0;
+  }
+  
+  .hamburger-icon span {
+    top: 50%;
+    transform: translateY(-50%);
+  }
