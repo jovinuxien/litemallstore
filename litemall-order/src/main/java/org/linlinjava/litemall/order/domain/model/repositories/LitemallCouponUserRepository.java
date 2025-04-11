@@ -11,8 +11,8 @@ import java.util.List;
 
 public interface LitemallCouponUserRepository {
 
-    int countCoupon(LitemallCouponId couponId);
-    void add(LitemallCouponId couponId, LitemallUserId userId);
+    int countCoupon(LitemallCouponUserId couponUserId);
+    void add(LitemallCouponUserAggregate couponUserAggregate);
     int countUserAndCoupon(LitemallCouponId couponId, LitemallUserId userId);
     int updateCouponUser(LitemallCouponUserAggregate couponUserAggregate);
     LitemallCouponUserAggregate findByOrderId(LitemallOrderId orderId);
