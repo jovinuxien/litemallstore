@@ -5,11 +5,9 @@ import com.github.pagehelper.PageHelper;
 import org.linlinjava.litemall.db.dao.LitemallCouponMapper;
 import org.linlinjava.litemall.db.dao.LitemallCouponUserMapper;
 import org.linlinjava.litemall.db.dao.LitemallOrderMapper;
-import org.linlinjava.litemall.db.domain.LitemallCoupon;
 import org.linlinjava.litemall.db.domain.LitemallCouponUser;
 import org.linlinjava.litemall.db.domain.LitemallCouponUserExample;
 import org.linlinjava.litemall.db.util.CouponUserConstant;
-import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponId;
@@ -22,7 +20,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 @Repository
@@ -39,23 +36,28 @@ public class LitemallCouponUserRepositoryImpl implements LitemallCouponUserRepos
     }
 
     @Override
-    public int countCoupon(LitemallCouponId couponId) {
-        return 0;
+    public int countCoupon(LitemallCouponUserId couponId) {
+        LitemallCouponUserExample example = new LitemallCouponUserExample();
+        example.or().andCouponIdEqualTo(couponId.getId()).andDeletedEqualTo(false);
+        return (int)couponUserMapper.countByExample(example);
     }
 
     @Override
-    public void add(LitemallCouponId couponId, LitemallUserId userId) {
-
+    public void add(LitemallCouponUserAggregate couponUserAggregate) {
+          couponUserAggregate.setAddTime(LocalDateTime.now());
+          couponUserMapper.insert(convertToDataModel(couponUserAggregate));
     }
 
     @Override
     public int countUserAndCoupon(LitemallCouponId couponId, LitemallUserId userId) {
-        return 0;
+        LitemallCouponUserExample example = new LitemallCouponUserExample();
+        example.or().andUserIdEqualTo(userId.getId()).andCouponIdEqualTo(couponId.getId()).andDeletedEqualTo(false);
+        return (int)couponUserMapper.countByExample(example);
     }
 
     @Override
     public List<LitemallCouponUserAggregate> queryListCouponUser(LitemallUserId userId, LitemallCouponId couponId, Short status, Integer page, Integer size, String sort, String order) {
-        return List.of();
+        return queryList(userId.getId(), couponId.getId(), status, page, size, sort, order);
     }
 
     @Override
@@ -104,12 +106,14 @@ public class LitemallCouponUserRepositoryImpl implements LitemallCouponUserRepos
 
     @Override
     public LitemallCouponUserAggregate findByOrderId(LitemallOrderId orderId) {
-        return null;
+        LitemallCouponUserExample example = new LitemallCouponUserExample();
+        example.or().andOrderIdEqualTo(orderId.getId()).andDeletedEqualTo(false);
+        return couponUserMapper.selectByExample(example).stream().map(this::convertToDomainModel).findFirst().orElse(null);
     }
 
     @Override
     public LitemallCouponUserAggregate findById(LitemallCouponUserId couponUserId) {
-        return null;
+        return this.convertToDomainModel(couponUserMapper.selectByPrimaryKey(couponUserId.getId()));
     }
 
 
