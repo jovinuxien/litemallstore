@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.db.domain.LitemallAddress;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallAddressId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
 
@@ -9,19 +10,18 @@ import java.util.List;
 public interface LitemallAddressRepository {
 
 
-List<LitemallAddress> getListAddressesByUserId(LitemallUserId userId);
+List<LitemallAddressAggregate> getListAddressesByUserId(LitemallUserId userId);
+LitemallAddressAggregate findAddress(LitemallUserId userId, LitemallAddressId example);
 
-LitemallAddress findAddress(LitemallUserId userId, LitemallAddressId example);
 
+int insertAddress(LitemallAddressAggregate address);
 
-int insertAddress(LitemallAddress address);
-
-int updateAddress(LitemallAddress address);
+int updateAddress(LitemallAddressAggregate address);
 
 int deleteAddress(LitemallAddressId addressId);
 
 void resetDefaultAddress(LitemallUserId userId);
 
-List<LitemallAddress> findAddresses(LitemallUserId userId, String name, Integer page, Integer limit, String sort, String order);
+List<LitemallAddressAggregate> findAddresses(LitemallUserId userId, String name, Integer page, Integer limit, String sort, String order);
 
 }

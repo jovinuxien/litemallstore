@@ -2,13 +2,19 @@ package org.linlinjava.litemall.order.infrastructure.repositories.impl;
 
 import org.linlinjava.litemall.db.dao.LitemallGrouponMapper;
 import org.linlinjava.litemall.db.domain.LitemallGroupon;
+import org.linlinjava.litemall.db.domain.LitemallGrouponExample;
+import org.linlinjava.litemall.db.util.GrouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
+
+@Repository
 public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository {
 
     private final LitemallGrouponMapper grouponMapper;
@@ -36,7 +42,9 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
 
     @Override
     public int countByGrouponId(LitemallGrouponId id) {
-        return 0;
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andIdEqualTo(id.getId()).andDeletedEqualTo(false);
+        return (int) grouponMapper.countByExample(example);
     }
 
     @Override
@@ -45,33 +53,48 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
     }
 
     @Override
-    public LitemallGroupon findById(LitemallGrouponId id) {
-        return null;
+    public LitemallGrouponAggregate findById(LitemallGrouponId id) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andIdEqualTo(id.getId()).andDeletedEqualTo(false);
+        return convertToDomainModel(grouponMapper.selectOneByExample(example));
     }
 
     @Override
-    public LitemallGroupon findByUserId(LitemallGrouponId id, LitemallUserId userId) {
-        return null;
+    public LitemallGrouponAggregate findByUserId(LitemallGrouponId id, LitemallUserId userId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andIdEqualTo(id.getId()).andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        return convertToDomainModel(grouponMapper.selectOneByExample(example));
     }
 
     @Override
-    public LitemallGroupon getMyGroupon(LitemallUserId userId) {
-        return null;
+    public List<LitemallGrouponAggregate> getMyGroupon(LitemallUserId userId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andUserIdEqualTo(userId.getId()).andCreatorUserIdEqualTo(userId.getId()).andGrouponIdEqualTo(0).andStatusNotEqualTo(LitemallGrouponStatus.STATUS_NONE.getCode()).andDeletedEqualTo(false);
+        example.orderBy("add_time desc");
+        return grouponMapper.selectByExample(example).stream().map(this::convertToDomainModel).collect(Collectors.toList());
     }
 
     @Override
-    public List<LitemallGroupon> getJoinRecord(LitemallGrouponId grouponId) {
-        return List.of();
+    public List<LitemallGrouponAggregate> getJoinRecord(LitemallGrouponId grouponId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andGrouponIdEqualTo(grouponId.getId()).andStatusNotEqualTo(LitemallGrouponStatus.STATUS_NONE.getCode()).andDeletedEqualTo(false);
+        example.orderBy("add_time desc");
+        return grouponMapper.selectByExample(example).stream().map(this::convertToDomainModel).collect(Collectors.toList());
     }
 
     @Override
-    public LitemallGroupon getMyJoinGroupon(LitemallUserId userId) {
-        return null;
+    public List<LitemallGrouponAggregate> getMyJoinGroupon(LitemallUserId userId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andUserIdEqualTo(userId.getId()).andGrouponIdNotEqualTo(0).andStatusNotEqualTo(LitemallGrouponStatus.STATUS_NONE.getCode()).andDeletedEqualTo(false);
+        example.orderBy("add_time desc");
+        return grouponMapper.selectByExample(example).stream().map(this::convertToDomainModel).collect(Collectors.toList());
     }
 
     @Override
-    public LitemallGroupon getGrouponByOrderId(LitemallOrderId orderId) {
-        return null;
+    public LitemallGrouponAggregate getGrouponByOrderId(LitemallOrderId orderId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andOrderIdEqualTo(orderId.getId()).andDeletedEqualTo(false);
+        return convertToDomainModel(grouponMapper.selectOneByExample(example));
     }
 
 
@@ -94,7 +117,6 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
 
 
         //Other fields should be completed
-
 
         return dataModel;
     }

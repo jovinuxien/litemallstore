@@ -1,33 +1,32 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.db.domain.LitemallGrouponRules;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 
 import java.util.List;
 
 public interface LitemallGrouponRulesRepository {
 
 
-    LitemallGrouponRules findById(LitemallGrouponRulesId id);
+    LitemallGrouponRulesAggregate findById(LitemallGrouponRulesId id);
 
-    void createGrouponRules(LitemallGrouponRules grouponRules);
-
-    LitemallGrouponRules findGrouponRulesByGoodsId(LitemallGrouponRulesId goodsId);
-
+    int createGrouponRules(LitemallGrouponRulesAggregate grouponRulesAggregate);
 
     int countByGoodsId(LitemallGrouponRulesId goodsId);
-
-
-    List<LitemallGrouponRules> getGrouponByStatus(Short status);
-
-    boolean isGrouponRulesExpired(LitemallGrouponRules grouponRules);
-    List<LitemallGrouponRules> getAllGrouponList(Integer page, Integer limit, String sort, String order);
-
-    List<LitemallGrouponRules> findAllGrouponRulesList(LitemallGrouponId goodsId, Integer page, Integer size, String sort, String order);
-
     void deleteGrouponRulesById(LitemallGrouponRulesId goodsId);
 
-    void updateGrouponRules(LitemallGrouponRules grouponRules);
+    void updateGrouponRules(LitemallGrouponRulesAggregate grouponRulesAggregate);
+
+    LitemallGrouponRulesAggregate findGrouponRulesByGoodsId(LitemallGrouponRulesId goodsId);
+    List<LitemallGrouponRulesAggregate> getAllGrouponList(Integer page, Integer limit, String sort, String order);
+    List<LitemallGrouponRulesAggregate> findAllGrouponRulesList(LitemallGoodsId goodsId, LitemallGrouponStatus status,  Integer page, Integer size, String sort, String order);
+    List<LitemallGrouponRulesAggregate> getGrouponByStatus(LitemallGrouponStatus status);
+
+
+
 
 }
