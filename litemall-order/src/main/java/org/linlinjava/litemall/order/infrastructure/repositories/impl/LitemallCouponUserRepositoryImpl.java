@@ -90,7 +90,7 @@ public class LitemallCouponUserRepositoryImpl implements LitemallCouponUserRepos
 
     @Override
     public LitemallCouponUserAggregate findOne(LitemallCouponId couponId, LitemallUserId userId) {
-        List<LitemallCouponUserAggregate> result = queryList(userId.getId(), couponId.getId(), LitemallCouponUserStatus.USABLE.getValue(), 1, 1, "add_time", "des");
+        List<LitemallCouponUserAggregate> result = queryList(userId.getId(), couponId.getId(), LitemallCouponUserStatus.USABLE.getValue(), 1, 1, "add_time", "desc");
         if (result.isEmpty()) {
             return null;
         }

@@ -38,6 +38,10 @@
         <spring-cloud.version>2022.0.3</spring-cloud.version>
 
 
+
+
+
+
         <!--        <mbatis.version>3.0.2</mbatis.version>-->
     </properties>
 

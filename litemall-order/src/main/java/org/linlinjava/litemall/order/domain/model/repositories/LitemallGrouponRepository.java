@@ -18,11 +18,11 @@ public interface LitemallGrouponRepository {
 
     boolean existsByUserIdOrGrouponId(LitemallUserId userId, LitemallGrouponId grouponId);
 
-    LitemallGroupon findById(LitemallGrouponId id);
-    LitemallGroupon findByUserId(LitemallGrouponId id, LitemallUserId userId);
-    LitemallGroupon getMyGroupon(LitemallUserId userId);
+    LitemallGrouponAggregate findById(LitemallGrouponId id);
+    LitemallGrouponAggregate findByUserId(LitemallGrouponId id, LitemallUserId userId);
+    List<LitemallGrouponAggregate> getMyGroupon(LitemallUserId userId);
 
-    List<LitemallGroupon> getJoinRecord(LitemallGrouponId grouponId);
-    LitemallGroupon getMyJoinGroupon(LitemallUserId userId);
-    LitemallGroupon getGrouponByOrderId(LitemallOrderId orderId);
+    List<LitemallGrouponAggregate> getJoinRecord(LitemallGrouponId grouponId);
+    List<LitemallGrouponAggregate> getMyJoinGroupon(LitemallUserId userId);
+    LitemallGrouponAggregate getGrouponByOrderId(LitemallOrderId orderId);
 }
