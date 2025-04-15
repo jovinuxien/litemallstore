@@ -121,7 +121,6 @@ public class LitemallCouponService {
         if (checkedGoodsPrice.getAmount().compareTo(coupon.getMin()) == -1) {
             return null;
         }
-
         return coupon;
     }
 
@@ -131,5 +130,13 @@ public class LitemallCouponService {
         couponUserAggregate.setUsedTime(LocalDateTime.now());
         couponUserAggregate.setOrderId(orderId);
         couponUserRepository.updateCouponUser(couponUserAggregate);
+    }
+
+    public LitemallCouponUserAggregate getUserCouponById(LitemallCouponUserId couponUserId){
+        return couponUserRepository.findById(couponUserId);
+    }
+
+    public int  updateCouponUser(LitemallCouponUserAggregate couponUserAggregate) {
+        return couponUserRepository.updateCouponUser(couponUserAggregate);
     }
 }

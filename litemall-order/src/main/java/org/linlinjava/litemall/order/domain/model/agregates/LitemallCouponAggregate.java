@@ -3,6 +3,7 @@ package org.linlinjava.litemall.order.domain.model.agregates;
 import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallValidPeriod;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponType;
 
@@ -27,6 +28,8 @@ public class LitemallCouponAggregate {
     private LitemallCouponStatus status;
     private String code;
 
+    private LitemallValidPeriod validPeriod;
+
     private Short  goodsType;
     private Integer[] goodsValue;
     private BigDecimal min;
@@ -44,7 +47,22 @@ public class LitemallCouponAggregate {
 
     public boolean isAvailable() {
         return status == LitemallCouponStatus.NORMAL && !deleted && !isExpired();
+    }
 
+   /* public boolean isApplicableTo(LitemallOrderAggregateRoot orderAggregateRoot){
+
+          return  status == LitemallCouponStatus.NORMAL
+                  && validPeriod.isCurrentPeriodValid()
+                  && orderAggregateRoot.
+    }*/
+
+    public void applyTo(LitemallOrderAggregateRoot orderAggregateRoot){
+
+    }
+
+    public void deactivate(){
+        this.status = LitemallCouponStatus.EXPIRED;
+        this.updateTime = LocalDateTime.now();
     }
 
 

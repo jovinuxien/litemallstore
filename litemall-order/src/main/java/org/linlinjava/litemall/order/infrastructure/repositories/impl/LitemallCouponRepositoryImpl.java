@@ -181,12 +181,6 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
      *
      */
 
-
-
-
-
-
-
     private String getRandomNum(Integer num) {
         String base = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         base += "0123456789";

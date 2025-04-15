@@ -53,4 +53,6 @@ public class LitemallOrderGoodsService {
         example.or().andOrderIdEqualTo(orderId).andDeletedEqualTo(false);
         orderGoodsMapper.logicalDeleteByExample(example);
     }
+
+
 }

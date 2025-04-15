@@ -139,4 +139,6 @@ public class LitemallOrderAggregateRoot {
     public void clearDomainEvents(){
         this.domainEvents.clear();
     }
+
+
 }

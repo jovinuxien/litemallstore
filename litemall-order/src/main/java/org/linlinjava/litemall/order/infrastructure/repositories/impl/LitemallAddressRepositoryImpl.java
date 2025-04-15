@@ -35,6 +35,8 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
        return convertToDomainModel(addressMapper.selectOneByExample(example));
     }
 
+
+
     @Override
     public int insertAddress(LitemallAddressAggregate address) {
         LitemallAddress litemallAddress =  convertToDataModel(address);

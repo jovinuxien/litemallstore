@@ -23,6 +23,8 @@ public interface LitemallCartRepository {
 
     void clearCheckedByUserId(LitemallUserId userId);
 
+    int  updateCheck(LitemallUserId userId, List<LitemallGoodsProductId> productIdList, boolean checked);
+
     void deleteById(LitemallCartId id);
 
     LitemallCartAggregate findByUserIdAndGoodsId(LitemallUserId userId, LitemallGoodsId goodsId, LitemallGoodsProductId productId);

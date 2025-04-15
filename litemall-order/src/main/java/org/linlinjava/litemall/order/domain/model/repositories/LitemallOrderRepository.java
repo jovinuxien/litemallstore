@@ -23,6 +23,8 @@ public interface LitemallOrderRepository {
 
     void deleteByOrderId(LitemallOrderId orderId);
 
+    public String generateOrderSn(LitemallUserId userId);
+
     int count();
 
     List<LitemallOrderAggregateRoot> queryUnPaid(int minutes);
@@ -32,6 +34,8 @@ public interface LitemallOrderRepository {
     Map<Object, Object> orderInfo(LitemallUserId userId);
 
     List<LitemallOrderAggregateRoot> queryComment(int days);
+
+    public int updateSelective(LitemallOrderAggregateRoot orderAggregateRoot);
 
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 }
