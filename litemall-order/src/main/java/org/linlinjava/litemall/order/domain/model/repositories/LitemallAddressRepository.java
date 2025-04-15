@@ -9,7 +9,6 @@ import java.util.List;
 
 public interface LitemallAddressRepository {
 
-
 List<LitemallAddressAggregate> getListAddressesByUserId(LitemallUserId userId);
 LitemallAddressAggregate findAddress(LitemallUserId userId, LitemallAddressId example);
 

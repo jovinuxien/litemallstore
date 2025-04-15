@@ -1,9 +1,8 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
 
 import java.util.List;

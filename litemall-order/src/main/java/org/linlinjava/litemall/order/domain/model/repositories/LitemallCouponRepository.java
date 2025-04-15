@@ -1,11 +1,8 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
 
-import org.linlinjava.litemall.db.domain.LitemallCoupon;
-import org.linlinjava.litemall.db.domain.LitemallCouponUser;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
 
 import java.util.List;
@@ -21,6 +18,8 @@ public interface LitemallCouponRepository {
     Optional<LitemallCouponAggregate> findById(LitemallCouponId id);
     List<LitemallCouponAggregate> queryCouponSelective(String name, Short type, Short status, Integer page, Integer limit, String sort, String order);
 
+
+    LitemallCouponAggregate findByIdAndUserId(LitemallUserId userId);
 
     LitemallCouponAggregate findByCode(String code);
     List<LitemallCouponAggregate> findExpiredCoupons();

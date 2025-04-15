@@ -2,7 +2,6 @@ package org.linlinjava.litemall.order.domain.model.events.order;
 
 import org.linlinjava.litemall.db.domain.LitemallOrder;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallOrderId;
 
 public class LitemallOrderCreatedEvent extends LitemallDomainEvent {
 

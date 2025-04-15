@@ -25,8 +25,8 @@ public class LitemallOrderHandleOption {
                 option.setCancel(true);
                 option.setPay(true);
                 break;
-            case CANCELLED:
-            case SYSTEM_CANCELLED:
+            case CANCELED:
+            case SYSTEM_CANCELED:
                 option.setDelete(true);
                 break;
             case PAID:

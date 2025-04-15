@@ -1,0 +1,12 @@
+package org.linlinjava.litemall.order.application.util.exception.product;
+
+public class LitemallProductNotFoundException extends RuntimeException {
+
+    public LitemallProductNotFoundException(String message) {
+        super("Product not found: " + message);
+    }
+
+    public LitemallProductNotFoundException() {
+        super("Product not found.");
+    }
+}

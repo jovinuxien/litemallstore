@@ -2,13 +2,14 @@ package org.linlinjava.litemall.order.domain.model.events.groupon;
 
 import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
+import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 
 public class LitemallGrouponSucceededEvent extends LitemallDomainEvent {
 
-    private final LitemallGroupon groupon;
+    private final LitemallGrouponId grouponId;
 
-    public LitemallGrouponSucceededEvent(LitemallGroupon groupon) {
-        this.groupon = groupon;
+    public LitemallGrouponSucceededEvent(LitemallGrouponId grouponId) {
+        this.grouponId = grouponId;
     }
 
 

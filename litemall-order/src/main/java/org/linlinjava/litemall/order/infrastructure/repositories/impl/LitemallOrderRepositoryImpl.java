@@ -12,6 +12,7 @@ import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepo
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -307,8 +308,6 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setAddTime(record.getAddTime());
         domainModel.setUpdateTime(record.getUpdateTime());
         domainModel.setDeleted(record.getDeleted());
-
-
 
         // Orther fields
         return  domainModel;

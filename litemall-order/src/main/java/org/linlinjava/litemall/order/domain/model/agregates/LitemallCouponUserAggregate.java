@@ -2,9 +2,9 @@ package org.linlinjava.litemall.order.domain.model.agregates;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
 
