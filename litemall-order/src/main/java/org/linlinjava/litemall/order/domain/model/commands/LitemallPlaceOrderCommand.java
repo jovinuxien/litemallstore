@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.domain.model.commands;
 
 import lombok.Getter;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
 
 @Getter
 public class LitemallPlaceOrderCommand {

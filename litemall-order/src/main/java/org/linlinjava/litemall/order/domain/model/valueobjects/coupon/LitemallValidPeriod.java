@@ -2,12 +2,12 @@ package org.linlinjava.litemall.order.domain.model.valueobjects.coupon;
 
 import java.time.LocalDateTime;
 
-public class ValidPeriod {
+public class LitemallValidPeriod {
 
     private final LocalDateTime startTime;
     private final LocalDateTime endTime;
 
-    public ValidPeriod(LocalDateTime startTime, LocalDateTime endTime) {
+    public LitemallValidPeriod(LocalDateTime startTime, LocalDateTime endTime) {
         this.startTime = startTime;
         this.endTime = endTime;
     }

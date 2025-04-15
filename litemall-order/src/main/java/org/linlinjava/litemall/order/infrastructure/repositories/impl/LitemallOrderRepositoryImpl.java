@@ -16,10 +16,13 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 
@@ -37,6 +40,19 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     @Override
     public LitemallOrderAggregateRoot findById(LitemallOrderId orderId) {
         return convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId()));
+    }
+
+
+
+    private String getRandomNum(Integer num) {
+        String base = "0123456789";
+        Random random = new Random();
+        StringBuffer sb = new StringBuffer();
+        for (int i = 0; i < num; i++) {
+            int number = random.nextInt(base.length());
+            sb.append(base.charAt(number));
+        }
+        return sb.toString();
     }
 
     @Override
@@ -92,6 +108,18 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     @Override
     public void deleteByOrderId(LitemallOrderId orderId) {
         litemallOrderMapper.logicalDeleteByPrimaryKey(orderId.getId());
+    }
+
+    // TODO This should generate a unique order, but in fact there is still the possibility that two orders are the same.
+    @Override
+    public String generateOrderSn(LitemallUserId userId) {
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyyMMdd");
+        String now = df.format(LocalDate.now());
+        String orderSn = now + getRandomNum(6);
+        while (countByOrderSn(userId, orderSn) != 0) {
+            orderSn = now + getRandomNum(6);
+        }
+        return orderSn;
     }
 
     @Override
@@ -165,6 +193,12 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int updateSelective(LitemallOrderAggregateRoot orderAggregateRoot) {
+        LitemallOrder order = convertToDataModel(orderAggregateRoot);
+        return litemallOrderMapper.updateByPrimaryKeySelective(order);
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());
@@ -173,6 +207,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
         litemallOrderMapper.updateByPrimaryKeySelective(order);
     }
+
+
 
     /**
      *

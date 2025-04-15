@@ -3,18 +3,13 @@ package org.linlinjava.litemall.order.infrastructure.repositories.impl;
 import org.linlinjava.litemall.db.dao.LitemallCartMapper;
 import org.linlinjava.litemall.db.domain.LitemallCart;
 import org.linlinjava.litemall.db.domain.LitemallCartExample;
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCartRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
-import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,12 +17,10 @@ import java.util.stream.Collectors;
 public class LitemallCartRepositoryImpl implements LitemallCartRepository {
 
     private final LitemallCartMapper cartMapper;
-
     
     public LitemallCartRepositoryImpl(LitemallCartMapper cartMapper) {
         this.cartMapper = cartMapper;
     }
-
 
     @Override
     public List<LitemallCartAggregate> findCheckedByUserId(LitemallUserId userId) {
@@ -49,7 +42,6 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
         cartdata.setAddTime(LocalDateTime.now());
         cartdata.setUpdateTime(LocalDateTime.now());
         cartMapper.insertSelective(cartdata);
-
     }
 
 
@@ -69,7 +61,26 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
 
     @Override
     public void clearCheckedByUserId(LitemallUserId userId) {
+        LitemallCartExample example = new LitemallCartExample();
+        example.or().andUserIdEqualTo(userId.getId()).andCheckedEqualTo(true);
+        LitemallCart cart = new LitemallCart();
+        cart.setDeleted(true);
+        cartMapper.updateByExampleSelective(cart, example);
+    }
 
+    @Override
+    public int updateCheck(LitemallUserId userId, List<LitemallGoodsProductId> productIdList, boolean checked) {
+
+        LitemallCartExample example = new LitemallCartExample();
+        List<Integer> idsList = new ArrayList<>();
+        for(LitemallGoodsProductId goodsProductId: productIdList){
+            idsList.add(goodsProductId.getId());
+        }
+        example.or().andUserIdEqualTo(userId.getId()).andProductIdIn(idsList).andDeletedEqualTo(false);
+        LitemallCart cart = new LitemallCart();
+        cart.setChecked(checked);
+        cart.setUpdateTime(LocalDateTime.now());
+        return cartMapper.updateByExampleSelective(cart, example);
     }
 
     @Override
@@ -85,9 +96,7 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
     }
 
     /**
-     *
      *    --------- Block of utility methods -----------------
-     *
      */
     public LitemallCart convertToDataModel(LitemallCartAggregate cartAggregate) {
         LitemallCart dataModel = new LitemallCart();
@@ -110,10 +119,8 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
         dataModel.setDeleted(cartAggregate.isDeleted());
 
         //Other fields should be completed
-
         return dataModel;
     }
-
 
     public LitemallCartAggregate convertToDomainModel(LitemallCart record) {
 

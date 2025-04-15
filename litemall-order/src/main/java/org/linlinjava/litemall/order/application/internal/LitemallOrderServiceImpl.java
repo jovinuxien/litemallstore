@@ -2,11 +2,10 @@ package org.linlinjava.litemall.order.application.internal;
 
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.qcode.QCodeService;
+import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
-import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
-import org.linlinjava.litemall.db.domain.LitemallGrouponRules;
-import org.linlinjava.litemall.db.domain.LitemallUser;
+import org.linlinjava.litemall.db.domain.*;
+import org.linlinjava.litemall.db.util.CouponUserConstant;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallValidCouponException;
@@ -23,11 +22,16 @@ import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPubl
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponService;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,11 +45,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallUserRepository userRepository;
     private final LitemallCartRepository cartRepository;
     private final LitemallCouponRepository couponRepository;
+    private final LitemallGoodsProductRepository goodsProductRepository;
     private final LitemallProductRepository productRepository;
     private final LitemallAddressRepository addressRepository;
-    private final LitemallCouponService couponService;
+    private final LitemallOrderGoodsRepository orderGoodsRepository;
 
     private final LitemallDomainEventPublisher domainEventPublisher;
+
+    // Service internal to orderService
+    private final LitemallCouponService couponService;
+
     private final QCodeService qCodeService;
     private final NotifyService notifyService;
     private final TaskService taskService;
@@ -58,6 +67,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                                     LitemallCouponRepository couponRepo,
                                     LitemallProductRepository productRepo,
                                     LitemallAddressRepository addressRepo,
+                                    LitemallOrderGoodsRepository orderGoodsRepo,
+                                    LitemallGoodsProductRepository goodsProductRepository,
                                     LitemallCouponService couponService,
                                     LitemallDomainEventPublisher domainEventPublisher,
                                     QCodeService qCodeService,
@@ -71,6 +82,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         this.couponRepository = couponRepo;
         this.productRepository = productRepo;
         this.addressRepository = addressRepo;
+        this.orderGoodsRepository = orderGoodsRepo;
+        this.goodsProductRepository = goodsProductRepository;
         this.couponService = couponService;
         this.domainEventPublisher = domainEventPublisher;
         this.qCodeService = qCodeService;
@@ -87,39 +100,224 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("User id is required.");
         }
 
+        if(command.getAddressId() == null){
+            throw new IllegalArgumentException("Address info is required");
+        }
+
+        if(command.getGrouponRulesId() == null){
+            throw  new IllegalArgumentException("The groupon is required");
+        }
+        if(command.getGrouponLinkId() == null){
+            throw new IllegalArgumentException("The groupon link is required");
+        }
+
         LitemallUserId userId = new LitemallUserId(command.getUserId());
+        LitemallAddressId addressId = new LitemallAddressId(command.getAddressId());
+        LitemallGrouponRulesId grouponRulesId = new LitemallGrouponRulesId(command.getGrouponRulesId());
+
+
         LitemallUser user = userRepository.findById(userId);
 
+        if(user != null){
+            throw new IllegalArgumentException("User is not found");
+        }
 
         // Validate and process Groupon if applicable
-
+        LitemallGrouponRulesAggregate grouponRulesAggregate = validateAndGetGroupon(userId, command.getGrouponRulesId(), command.getGrouponLinkId());
         // Get the shipping add
-
+        LitemallAddressAggregate addressAggregate = addressRepository.findAddress(userId, addressId);
         // Get the cartItems
+        List<LitemallCartAggregate> checkedItems = getCheckedCartItems(new LitemallCartId(command.getCartId()), userId);
+
+
 
         // Validate the productStock
+        validateProductStock(checkedItems);
 
-        // Get and validate the coupon
+        // Check groupon discount
+        BigDecimal grouponPrice = new BigDecimal(0);
+        LitemallGrouponRulesAggregate rulesAggregate = grouponRulesRepository.findById(grouponRulesId);
+        if(rulesAggregate != null){
+            grouponPrice = rulesAggregate.getDiscount();
+        }
+
+        // Get the checkedItem list
+        List<LitemallCartAggregate> checkedGoodsList = null;
+        if (command.getCartId().equals(0)) {
+            checkedGoodsList = cartRepository.findCheckedByUserId(userId);
+        } else {
+            LitemallCartAggregate cart = cartRepository.findById(new LitemallCartId(command.getCartId()));
+            checkedGoodsList = new ArrayList<>(1);
+            checkedGoodsList.add(cart);
+        }
+        if (checkedGoodsList.isEmpty()) {
+            throw new IllegalArgumentException("The Checked goods list has not to be empty");
+        }
+
+        // Calculate checked goods price
+        BigDecimal checkedGoodsPrice;
+
+        checkedGoodsPrice = priceCalculation(checkedGoodsList, grouponRulesAggregate, grouponPrice);
+        LitemallMoney checkedGoodsPriceMoney = new LitemallMoney(checkedGoodsPrice);
+
+        //Calculate and get the Coupon price info
+        // Amount reduced using coupons
+        BigDecimal couponPrice = new BigDecimal(0);
+        if(command.getCouponId() != 0 && command.getCouponId() != -1){
+            LitemallCouponAggregate couponAggregate = getAndValidateCoupon(userId, new LitemallCouponId(command.getCouponId()), new LitemallCouponUserId(command.getUserCouponId()),  checkedGoodsPriceMoney,  checkedItems);
+
+            if(couponAggregate == null){
+                throw new IllegalArgumentException("The Coupon Aggregate is null");
+            }
+            couponPrice = couponAggregate.getDiscount();
+        }
+
+        // Calculate shipping costs based on total order price，
+        // Meet the conditions (e.g. $88), free shipping，Otherwise you need to pay shipping fee（For example, $8）；
+        BigDecimal freightPrice = new BigDecimal(0);
+        if (checkedGoodsPrice.compareTo(SystemConfig.getFreightLimit()) < 0) {
+            freightPrice = SystemConfig.getFreight();
+        }
+        // Other money available，For example, user points
+        BigDecimal integralPrice = new BigDecimal(0);
+
+        // Order Fee calculation: Adding freightPrice, subtracting couponPrice
+        BigDecimal orderTotalPrice = checkedGoodsPrice.add(freightPrice).subtract(couponPrice).max(new BigDecimal(0));
+
+        // Final payment: removing integralPrice from orderTotalPrice
+        BigDecimal actualPrice = orderTotalPrice.subtract(integralPrice);
+
+        LitemallOrderId orderId = null;
+        LitemallOrderAggregateRoot orderAggregateRoot = new LitemallOrderAggregateRoot();
 
         // Create the order
-        
+        //orderId = new LitemallOrderId(0);// the OrderId to be generated
+        //orderAggregateRoot.setOrderId(orderId);
+        orderAggregateRoot.setOrderSn(orderRepository.generateOrderSn(userId));
+
+        //orderAggregateRoot.setOrderStatus(OrderUtil.STATUS_CREATE);
+        orderAggregateRoot.setOrderStatus(LitemallOrderStatus.CREATED);
+        orderAggregateRoot.setConsignee(addressAggregate.getName());
+        orderAggregateRoot.setMobile(addressAggregate.getTel());
+        orderAggregateRoot.setMessage(command.getMessage());
+        String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
+        orderAggregateRoot.setAddress(detailedAddress);
+
+        orderAggregateRoot.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
+        orderAggregateRoot.setFreightPrice(new LitemallMoney(freightPrice));
+        orderAggregateRoot.setCouponPrice(new LitemallMoney(couponPrice));
+        orderAggregateRoot.setIntegralPrice(new LitemallMoney(integralPrice));
+        orderAggregateRoot.setOrderPrice(new LitemallMoney(orderTotalPrice));
+        orderAggregateRoot.setActualPrice(new LitemallMoney(actualPrice));
+
+        if(grouponRulesAggregate != null){
+            orderAggregateRoot.setGrouponPrice(new LitemallMoney(grouponPrice));
+        }else {
+            orderAggregateRoot.setGrouponPrice(new LitemallMoney(new BigDecimal(0)));
+        }
         // Save the order
+        orderRepository.addOrder(orderAggregateRoot);
 
+        // Get the id from the order
+        LitemallOrderId orderId1 = orderRepository.findById(orderAggregateRoot.getOrderId()).getOrderId();
+
+        // Add order from items
+        for(LitemallCartAggregate cartGoods: checkedGoodsList){
+
+            LitemallOrderGoodsAggregate orderGoodsAggregate = new LitemallOrderGoodsAggregate();
+            orderGoodsAggregate.setOrderId(orderId1);
+            orderGoodsAggregate.setGoodsId(cartGoods.getGoodsId());
+            orderGoodsAggregate.setProductId(cartGoods.getProductId());
+
+            orderGoodsAggregate.setGoodsSn(cartGoods.getGoodsSn());
+            orderGoodsAggregate.setGoodsName(cartGoods.getGoodsName());
+
+            orderGoodsAggregate.setPrice(cartGoods.getPrice());
+            orderGoodsAggregate.setNumber(cartGoods.getNumber().shortValue());
+            orderGoodsAggregate.setSpecifications(cartGoods.getSpecifications());
+
+            orderGoodsAggregate.setAddTime(LocalDateTime.now());
+
+            orderGoodsRepository.add(orderGoodsAggregate);
+        }
         // Clear the cart
-
+        // Delete product information in shopping cart
+        clearCart(userId, new LitemallCartId(command.getCartId()));
         // Reduce the product stock
+        for (LitemallCartAggregate checkGoods : checkedGoodsList) {
+            LitemallGoodsProductId productId = checkGoods.getProductId();
+            LitemallGoodsProductAggregate product = goodsProductRepository.findById(productId).get();
 
+            int remainNumber = product.getNumber() - checkGoods.getNumber();
+            if (remainNumber < 0) {
+                throw new RuntimeException("The quantity of the ordered product is greater than the inventory");
+            }
+            if (goodsProductRepository.reduceStock(productId, checkGoods.getNumber().shortValue()) == 0) {
+                throw new RuntimeException("Product inventory reduction failed");
+            }
+        }
         // Update coupon usage if applicable
+        if (command.getCouponId() != 0 && command.getCouponId() != -1) {
+            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(new LitemallCouponUserId(command.getUserCouponId()));
+            //couponUserAggregate.setStatus(CouponUserConstant.STATUS_USED);
+            couponUserAggregate.setStatus(LitemallCouponUserStatus.USED);
+            couponUserAggregate.setUsedTime(LocalDateTime.now());
+            couponUserAggregate.setOrderId(orderId);
 
 
+            couponService.updateCouponUser(couponUserAggregate);
+        }
+
+        //If it's a groupon purchase project, add group buying information
+        if(command.getGrouponRulesId() != null && command.getGrouponLinkId() > 0){
+
+            LitemallGrouponAggregate grouponAggregate = new LitemallGrouponAggregate();
+            grouponAggregate.setOrderId(orderId1);
+            grouponAggregate.setGrouponStatus(LitemallGrouponStatus.STATUS_NONE);
+            grouponAggregate.setUserId(userId);
+            grouponAggregate.setGrouponRulesId(grouponRulesId);
+
+            Integer grouponLinkId = command.getGrouponLinkId();
+
+            //participants
+            if (grouponLinkId != null && grouponLinkId > 0) {
+
+                //Participated group buying records
+                LitemallGrouponAggregate baseGrouponAggregate = grouponRepository.findById(new LitemallGrouponId(command.getGrouponLinkId()));
+                grouponAggregate.setCreatorUserId(baseGrouponAggregate.getCreatorUserId());
+                grouponAggregate.setGrouponId(new LitemallGrouponId(command.getGrouponLinkId()));
+                grouponAggregate.setShareUrl(baseGrouponAggregate.getShareUrl());
+
+                grouponRepository.saveGroupon(grouponAggregate);
+            } else {
+                grouponAggregate.setCreatorUserId(userId);
+                grouponAggregate.setCreatorUserTime(LocalDateTime.now());
+                grouponAggregate.setGrouponId(new LitemallGrouponId(0));
+                grouponRepository.saveGroupon(grouponAggregate);
+                grouponLinkId = grouponAggregate.getGrouponId().getId();
+            }
+        }
         // Handle coupon create if applicable
-
 
         // Handle payment
 
+        // NOTE: It is recommended that developers verify the following code from the business scenario，
+        //              Prevent users from using business bugs to make orders skip the payment process
+        // If the actual payment fee for the order is 0，
+        //      Then directly skip the payment and become the status of pending shipment.
+
+        boolean payed = false;
+        if(orderAggregateRoot.getActualPrice().getAmount().equals(new BigDecimal(0.0))){
+            payed = true;
+
+            LitemallOrderAggregateRoot newOrderAggr = new LitemallOrderAggregateRoot();
+            newOrderAggr.setOrderId(orderId1);
+            newOrderAggr.setOrderStatus(LitemallOrderStatus.PAID);
+
+            orderRepository.updateSelective(newOrderAggr);
+        }
 
         //publish domain events
-
 
         //Validate and process groupon if available
         return new LitemallOrderSubmitResult();
@@ -132,7 +330,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
      * @param userId
      * @return
      */
-    private LitemallGrouponRulesAggregate validateAndGetGroupon(Integer grouponRulesId, Integer grouponLinkId, LitemallUserId userId) {
+    private LitemallGrouponRulesAggregate validateAndGetGroupon(LitemallUserId userId, Integer grouponRulesId, Integer grouponLinkId) {
 
         if(grouponRulesId == null || grouponRulesId <= 0){
             return null;
@@ -290,6 +488,19 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if(grouponAggregate != null){
             grouponAggregate.getDomainEvents().forEach(this.domainEventPublisher::publish);
         }
+    }
+
+    public BigDecimal priceCalculation(List<LitemallCartAggregate> checkedGoodsList, LitemallGrouponRulesAggregate grouponRules, BigDecimal grouponPrice){
+        BigDecimal checkedGoodsPrice = new BigDecimal(0);
+        for (LitemallCartAggregate checkedGoods : checkedGoodsList) {
+            //  Only when the product ID meets the group purchase specifications will the group purchase discount be available
+            if (grouponRules != null && grouponRules.getGoodsId().equals(checkedGoods.getGoodsId())) {
+                checkedGoodsPrice = checkedGoodsPrice.add(checkedGoods.getPrice().getAmount().subtract(grouponPrice).multiply(new BigDecimal(checkedGoods.getNumber())));
+            } else {
+                checkedGoodsPrice = checkedGoodsPrice.add(checkedGoods.getPrice().getAmount().multiply(new BigDecimal(checkedGoods.getNumber())));
+            }
+        }
+        return checkedGoodsPrice;
     }
 
 
