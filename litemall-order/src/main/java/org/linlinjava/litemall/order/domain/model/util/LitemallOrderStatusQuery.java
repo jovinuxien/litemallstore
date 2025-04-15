@@ -24,8 +24,8 @@ public class LitemallOrderStatusQuery {
 
     public static boolean hasPayed(LitemallOrder order) {
         return order.getOrderStatus() != intToShort(LitemallOrderStatus.CREATED.getCode())
-                && order.getOrderStatus() != intToShort(LitemallOrderStatus.CANCELLED.getCode())
-                && order.getOrderStatus() != intToShort(LitemallOrderStatus.SYSTEM_CANCELLED.getCode());
+                && order.getOrderStatus() != intToShort(LitemallOrderStatus.CANCELED.getCode())
+                && order.getOrderStatus() != intToShort(LitemallOrderStatus.SYSTEM_CANCELED.getCode());
     }
 
     private static Short intToShort(int status) {

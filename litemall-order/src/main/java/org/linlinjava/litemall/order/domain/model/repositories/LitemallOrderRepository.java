@@ -1,8 +1,7 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
-import org.linlinjava.litemall.db.domain.LitemallOrder;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregateRoot;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
 
 import java.util.List;

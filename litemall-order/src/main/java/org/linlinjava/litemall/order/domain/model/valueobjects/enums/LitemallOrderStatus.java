@@ -7,13 +7,13 @@ public enum LitemallOrderStatus {
     CREATED(101, "UNPAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == PAID || newStatus == CANCELLED ;
+            return newStatus == PAID || newStatus == CANCELED ;
         }
     },
     PAID(201, "PAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == SHIPPED || newStatus == CANCELLED;
+            return newStatus == SHIPPED || newStatus == CANCELED;
         }
     },
     SHIPPED(301, "SHIPPED"){
@@ -28,14 +28,14 @@ public enum LitemallOrderStatus {
             return false; // Final state, no transition allowed.
         }
     },
-    CANCELLED(102, "CANCELLED"){
+    CANCELED(102, "CANCELLED"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
             return false; // Final state, no transition allowed.
         }
     },
 
-    SYSTEM_CANCELLED(103, "SYSTEM CANCELLED"){
+    SYSTEM_CANCELED(103, "SYSTEM CANCELLED"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
             return false; // Final state, no transition allowed.

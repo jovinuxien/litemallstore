@@ -2,13 +2,12 @@ package org.linlinjava.litemall.order.domain.model.agregates;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Random;
 
 
 @Getter
@@ -27,6 +26,11 @@ public class LitemallCouponAggregate {
     private LitemallCouponType type;
     private LitemallCouponStatus status;
     private String code;
+
+    private Short  goodsType;
+    private Integer[] goodsValue;
+    private BigDecimal min;
+
     private boolean deleted;
     private LocalDateTime addTime;
     private LocalDateTime updateTime;

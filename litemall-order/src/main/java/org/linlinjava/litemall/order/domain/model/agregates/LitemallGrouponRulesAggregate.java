@@ -28,4 +28,20 @@ public class LitemallGrouponRulesAggregate {
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
     private boolean deleted;
+
+
+
+    public boolean isExpired() {
+        if(status == LitemallGrouponStatus.RULE_STATUS_DOWN_EXPIRE) {
+            return true;
+        }
+        return false;
+    }
+
+    public boolean isOffline() {
+        if (status == LitemallGrouponStatus.RULE_STATUS_DOWN_ADMIN) {
+            return true;
+        }
+        return false;
+    }
 }
