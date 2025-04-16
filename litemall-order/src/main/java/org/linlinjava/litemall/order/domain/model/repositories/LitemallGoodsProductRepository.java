@@ -24,6 +24,5 @@ public interface LitemallGoodsProductRepository {
     int reduceStock(LitemallGoodsProductId productId, Short number);
     int addStock(LitemallGoodsProductId productId, Short number);
 
-
 }
 

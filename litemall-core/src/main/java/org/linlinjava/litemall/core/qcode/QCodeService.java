@@ -21,6 +21,7 @@ import java.net.URL;
 @Service
 public class QCodeService {
     private final Log logger = LogFactory.getLog(QCodeService.class);
+
     @Autowired
     WxMaService wxMaService;
 
