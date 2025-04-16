@@ -56,6 +56,27 @@ Litemall = Spring Boot backend + Vue admin frontend + WeChat mini-program user f
 # Configuration management
 # Statistics and reporting
 
+
+## Build and packaging each module or service
+mvn clean package -pl litemall-core -am
+mvn clean package -pl litemall-wx-api -am
+mvn clean package -pl litemall-admin-api -am
+mvn clean package -pl litemall-all-react-war -am
+
+## with docker
+# Build Docker images for each module
+
+mvn compile jib:dockerBuild -pl litemall-core -Ddocker.image.prefix=litemall
+mvn compile jib:dockerBuild -pl litemall-db -Ddocker.image.prefix=litemall
+mvn compile jib:dockerBuild -pl litemall-wx-api -Ddocker.image.prefix=litemall
+mvn compile jib:dockerBuild -pl litemall-admin-api -Ddocker.image.prefix=litemall
+mvn compile jib:dockerBuild -pl litemall-all-react-war -Ddocker.image.prefix=litemall
+mvn compile jib:dockerBuild -pl litemall-all -Ddocker.image.prefix=litemall
+
+
+# For publishing docker image to dockerHub, we should make sure that the docker registry has
+# login credential informations
+
 ## Quick Start
 
 1. Set up the minimum development environment:

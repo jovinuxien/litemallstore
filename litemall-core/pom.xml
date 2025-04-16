@@ -87,5 +87,47 @@
             <artifactId>litemall-db</artifactId>
         </dependency>
     </dependencies>
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Docker jib plugin properties setings -->
+                <plugin>
+                    <groupId>com.google.cloud.tools</groupId>
+                    <artifactId>jib-maven-plugin</artifactId>
+                    <version>${jib-maven-plugin.version}</version>
+                    <configuration>
+                        <from>
+                            <image>eclipse-temurin:17-jre</image>
+                        </from>
+                        <to>
+                            <image>${docker.image.prefix}/${project.artifactId}:${project.version}</image>
+                        </to>
+                        <container>
+                            <!-- Use a no-op entry point -->
+                            <entrypoint>
+                                <entrypoint>sleep</entrypoint>
+                                <entrypoint>infinity</entrypoint>
+                            </entrypoint>
+                        </container>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <!-- Add a profile for building Docker images -->
+        <profile>
+            <id>docker</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.google.cloud.tools</groupId>
+                        <artifactId>jib-maven-plugin</artifactId>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

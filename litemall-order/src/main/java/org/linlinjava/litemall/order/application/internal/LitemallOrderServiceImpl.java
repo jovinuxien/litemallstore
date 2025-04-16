@@ -1,11 +1,13 @@
 package org.linlinjava.litemall.order.application.internal;
 
 import org.linlinjava.litemall.core.notify.NotifyService;
+import org.linlinjava.litemall.core.notify.NotifyType;
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
 import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.db.util.CouponUserConstant;
+import org.linlinjava.litemall.db.util.GrouponConstant;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallValidCouponException;
@@ -307,7 +309,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         //      Then directly skip the payment and become the status of pending shipment.
 
         boolean payed = false;
-        if(orderAggregateRoot.getActualPrice().getAmount().equals(new BigDecimal(0.0))){
+        if(orderAggregateRoot.getActualPrice().getAmount().equals(new BigDecimal("0.0"))){
             payed = true;
 
             LitemallOrderAggregateRoot newOrderAggr = new LitemallOrderAggregateRoot();
@@ -315,6 +317,26 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             newOrderAggr.setOrderStatus(LitemallOrderStatus.PAID);
 
             orderRepository.updateSelective(newOrderAggr);
+
+            //  Payment successful，There is group buying information，Update group buying information
+            LitemallGrouponAggregate grouponAggregate = grouponRepository.getGrouponByOrderId(orderId1);
+
+            if(grouponAggregate != null){
+                grouponRulesAggregate = grouponRulesRepository.findById(grouponAggregate.getGrouponRulesId());
+                updateGrouponAfterPayment(grouponAggregate, grouponRulesAggregate);
+            }
+
+            //TODO Send email and SMS notifications，Asynchronous sending is used here
+            //          After the order payment is successful，
+            //          A text message will be sent to the user，and send an email to the administrator
+            notifyService.notifyMail("New order notification", orderAggregateRoot.toString());
+            // Here, WeChat’s SMS platform has restrictions on parameter length，
+            //      Therefore, only the last 6 digits of the order number are truncated.
+            notifyService.notifySmsTemplateSync(orderAggregateRoot.getMobile(), NotifyType.PAY_SUCCEED, new String[]{orderAggregateRoot.getOrderSn().substring(8, 14)});
+
+        } else {
+            // Order payment overdue task
+            taskService.addTask(new OrderUnpaidTask(orderId));
         }
 
         //publish domain events
@@ -501,6 +523,34 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             }
         }
         return checkedGoodsPrice;
+    }
+
+    public void updateGrouponAfterPayment(LitemallGrouponAggregate grouponAggregate, LitemallGrouponRulesAggregate grouponRulesAggregate){
+
+            //Shared images are created only if the originator
+            if (grouponAggregate.getGrouponId().getId() == 0) {
+                LitemallGroupon groupon = grouponRepository.convertToDataModel(grouponAggregate)
+                String url = qCodeService.createGrouponShareImage(grouponRulesAggregate.getGoodsName(), grouponRulesAggregate.getPicUrl(), groupon);
+                groupon.setShareUrl(url);
+            }
+            //grouponAggregate.setGrouponStatus(GrouponConstant.STATUS_ON);
+            grouponAggregate.setGrouponStatus(LitemallGrouponStatus.STATUS_ON);
+            if (grouponRepository.updateById(grouponAggregate) == 0) {
+                throw new RuntimeException("Update data has expired");
+            }
+
+            List<LitemallGrouponAggregate> grouponList = grouponRepository.getJoinRecord(grouponAggregate.getGrouponId());
+            if (grouponAggregate.getGrouponId().getId() != 0 && (grouponList.size() >= grouponRulesAggregate.getDiscountMember() - 1)) {
+                for (LitemallGrouponAggregate grouponActivity : grouponList) {
+                    //grouponActivity.setGrouponStatus(GrouponConstant.STATUS_SUCCEED);
+                    grouponActivity.setGrouponStatus(LitemallGrouponStatus.STATUS_SUCCEED);
+                    grouponRepository.updateById(grouponActivity);
+                }
+
+                LitemallGrouponAggregate grouponSource = grouponRepository.findById(grouponAggregate.getGrouponId());
+                grouponSource.setGrouponStatus(LitemallGrouponStatus.STATUS_SUCCEED);
+                grouponRepository.updateById(grouponSource);
+            }
     }
 
 

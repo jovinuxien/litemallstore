@@ -97,6 +97,29 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Add Jib plugin for Docker image creation -->
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+                <version>${jib-maven-plugin.version}</version>
+                <configuration>
+                    <from>
+                        <image>eclipse-temurin:17-jre</image>
+                    </from>
+                    <to>
+                        <image>${docker.image.prefix}/${project.artifactId}:${project.version}</image>
+                    </to>
+                    <container>
+                        <ports>
+                            <port>8082</port> <!-- Default Spring Boot port -->
+                        </ports>
+                        <jvmFlags>
+                            <jvmFlag>-Dspring.profiles.active=prod</jvmFlag>
+                        </jvmFlags>
+                    </container>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

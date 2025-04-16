@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
+import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
@@ -14,6 +15,7 @@ public interface LitemallGrouponRepository {
     void saveGroupon(LitemallGrouponAggregate grouponAggregate);
     int countGroupon(LitemallGrouponId grouponId);
     int countByGrouponId(LitemallGrouponId id);
+    int updateById(LitemallGrouponAggregate grouponAggregate);
 
     boolean existsByUserIdOrGrouponId(LitemallUserId userId, LitemallGrouponId grouponId);
 
@@ -24,4 +26,7 @@ public interface LitemallGrouponRepository {
     List<LitemallGrouponAggregate> getJoinRecord(LitemallGrouponId grouponId);
     List<LitemallGrouponAggregate> getMyJoinGroupon(LitemallUserId userId);
     LitemallGrouponAggregate getGrouponByOrderId(LitemallOrderId orderId);
+
+    LitemallGroupon convertToDataModel(LitemallGrouponAggregate grouponAggregate);
+    LitemallGrouponAggregate convertToDomainModel(LitemallGroupon groupon);
 }
