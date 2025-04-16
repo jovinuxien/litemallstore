@@ -35,6 +35,16 @@
         <lombok.version>1.18.20</lombok.version>
 
 
+        <maven-enforcer.version>3.4.1</maven-enforcer.version>
+
+
+        <!-- Docker properties settings -->
+        <docker.image.prefix>litemall</docker.image.prefix>
+        <jib-maven-plugin.version>3.4.2</jib-maven-plugin.version>
+        <jib-maven-plugin.image>eclipse-temurin:17-jre-focal</jib-maven-plugin.image>
+        <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
+
+        <!--Cloud properties settings -->
         <spring-cloud.version>2022.0.3</spring-cloud.version>
 
         <!--        <mbatis.version>3.0.2</mbatis.version>-->
@@ -254,6 +264,7 @@
                 <version>2.7.18</version>
             </dependency>
 
+
         </dependencies>
     </dependencyManagement>
 
@@ -369,6 +380,31 @@
                         <include>**/*Test.java</include>
                     </includes>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.google.cloud.tools</groupId>
+                <artifactId>jib-maven-plugin</artifactId>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${maven-enforcer.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[17,)</version>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

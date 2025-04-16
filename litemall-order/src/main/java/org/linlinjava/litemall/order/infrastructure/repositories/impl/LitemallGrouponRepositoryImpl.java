@@ -49,6 +49,11 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
     }
 
     @Override
+    public int updateById(LitemallGrouponAggregate grouponAggregate) {
+        return 0;
+    }
+
+    @Override
     public boolean existsByUserIdOrGrouponId(LitemallUserId userId, LitemallGrouponId grouponId) {
         return false;
     }
@@ -99,11 +104,7 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
     }
 
 
-    /**
-     *
-     *    --------- Block of utility methods -----------------
-     *
-     */
+    @Override
     public LitemallGroupon convertToDataModel(LitemallGrouponAggregate grouponAggregate) {
         LitemallGroupon dataModel = new LitemallGroupon();
 
@@ -123,6 +124,7 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
     }
 
 
+    @Override
     public LitemallGrouponAggregate convertToDomainModel(LitemallGroupon record) {
 
         if(record == null){
