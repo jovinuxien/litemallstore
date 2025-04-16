@@ -131,6 +131,11 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
     }
 
     @Override
+    public LitemallCouponAggregate findByIdAndUserId(LitemallUserId userId) {
+        return null;
+    }
+
+    @Override
     public LitemallCouponAggregate findByCode(String code) {
        LitemallCouponExample example = new LitemallCouponExample();
        example.or().andCodeEqualTo(code).andTimeTypeEqualTo(CouponConstant.TYPE_CODE).andStatusEqualTo(CouponConstant.STATUS_NORMAL).andDeletedEqualTo(false);

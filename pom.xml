@@ -19,9 +19,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!--<java.version>1.8</java.version>-->
         <java.version>17</java.version>
+
         <maven.test.skip>true</maven.test.skip>
         <jhipster-dependencies.version>7.9.2</jhipster-dependencies.version>
-        <frontend-maven-plugin.version>1.13.4</frontend-maven-plugin.version>
+        <frontend-maven-plugin.version>1.14.1</frontend-maven-plugin.version>
         <node.version>v20.16.0</node.version>
         <npm.version>10.8.1</npm.version>
         <maven-compiler-plugin.version>3.5.0</maven-compiler-plugin.version>
@@ -405,6 +406,14 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                </configuration>
             </plugin>
         </plugins>
     </build>

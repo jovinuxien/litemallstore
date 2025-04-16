@@ -30,6 +30,8 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponService;
+import org.linlinjava.litemall.wx.task.OrderUnpaidTask;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -48,7 +50,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallCartRepository cartRepository;
     private final LitemallCouponRepository couponRepository;
     private final LitemallGoodsProductRepository goodsProductRepository;
-    private final LitemallProductRepository productRepository;
     private final LitemallAddressRepository addressRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
 
@@ -57,9 +58,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // Service internal to orderService
     private final LitemallCouponService couponService;
 
-    private final QCodeService qCodeService;
-    private final NotifyService notifyService;
-    private final TaskService taskService;
+    @Autowired
+    private  QCodeService qCodeService;
+    @Autowired
+    private  NotifyService notifyService;
+    @Autowired
+    private  TaskService taskService;
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
@@ -67,30 +71,22 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                                     LitemallUserRepository userRepo,
                                     LitemallCartRepository cartRepo,
                                     LitemallCouponRepository couponRepo,
-                                    LitemallProductRepository productRepo,
                                     LitemallAddressRepository addressRepo,
                                     LitemallOrderGoodsRepository orderGoodsRepo,
                                     LitemallGoodsProductRepository goodsProductRepository,
                                     LitemallCouponService couponService,
-                                    LitemallDomainEventPublisher domainEventPublisher,
-                                    QCodeService qCodeService,
-                                    NotifyService notifyService,
-                                    TaskService taskService) {
+                                    LitemallDomainEventPublisher domainEventPublisher) {
         this.orderRepository = orderRepo;
         this.grouponRepository = grouponRepo;
         this.grouponRulesRepository = grouponRulesRepo;
         this.userRepository = userRepo;
         this.cartRepository = cartRepo;
         this.couponRepository = couponRepo;
-        this.productRepository = productRepo;
         this.addressRepository = addressRepo;
         this.orderGoodsRepository = orderGoodsRepo;
         this.goodsProductRepository = goodsProductRepository;
         this.couponService = couponService;
         this.domainEventPublisher = domainEventPublisher;
-        this.qCodeService = qCodeService;
-        this.notifyService = notifyService;
-        this.taskService = taskService;
     }
 
 
@@ -336,13 +332,17 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         } else {
             // Order payment overdue task
-            taskService.addTask(new OrderUnpaidTask(orderId));
+            taskService.addTask(new OrderUnpaidTask(orderId1.getId()));
         }
 
         //publish domain events
 
         //Validate and process groupon if available
-        return new LitemallOrderSubmitResult();
+        return new LitemallOrderSubmitResult(
+                orderId1.getId(),
+               !payed,
+                command.getGrouponLinkId()
+        );
     }
 
     /**
@@ -409,10 +409,9 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private void validateProductStock(List<LitemallCartAggregate> checkedCartItems){
         for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProduct goodsProduct = productRepository.findById(cartItem.getProductId());
-            if(goodsProduct == null){
-                throw new LitemallProductNotFoundException("Product not found.");
-            }
+            LitemallGoodsProductAggregate goodsProduct = goodsProductRepository.findById(cartItem.getProductId()).orElseThrow(
+                    () -> new LitemallProductNotFoundException("Product not found.")
+            );
 
             if(goodsProduct.getNumber() < cartItem.getNumber()){
                 throw new LitemallInsufficientStockException(cartItem.getProductId());
@@ -464,7 +463,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private void reduceProductStock(List<LitemallCartAggregate> checkedCartItems){
         for(LitemallCartAggregate cartItem : checkedCartItems){
             if(cartItem != null){
-                productRepository.reduceStock(cartItem.getProductId(), cartItem.getNumber().shortValue());
+                goodsProductRepository.reduceStock(cartItem.getProductId(), cartItem.getNumber().shortValue());
             }
         }
     }
@@ -529,7 +528,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
             //Shared images are created only if the originator
             if (grouponAggregate.getGrouponId().getId() == 0) {
-                LitemallGroupon groupon = grouponRepository.convertToDataModel(grouponAggregate)
+                LitemallGroupon groupon = grouponRepository.convertToDataModel(grouponAggregate);
                 String url = qCodeService.createGrouponShareImage(grouponRulesAggregate.getGoodsName(), grouponRulesAggregate.getPicUrl(), groupon);
                 groupon.setShareUrl(url);
             }
