@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallAdminMapper;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.domain.LitemallAdmin.Column;
@@ -8,7 +9,6 @@ import org.linlinjava.litemall.db.domain.LitemallAdminExample;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 

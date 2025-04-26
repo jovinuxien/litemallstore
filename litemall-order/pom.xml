@@ -3,6 +3,8 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<modelVersion>4.0.0</modelVersion>
+
+
 	<parent>
 		<groupId>org.linlinjava</groupId>
 		<artifactId>litemall</artifactId>
@@ -13,35 +15,76 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>litemall-order</name>
 	<packaging>jar</packaging>
-	<description>Demo project for Spring Boot</description>
 
 
 	<properties>
-		<java.version>17</java.version>
-		<spring-cloud.version>2022.0.4</spring-cloud.version>
+		<!--<java.version>17</java.version>
 		<mapstruct.version>1.5.2.Final</mapstruct.version>
 		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
-		<litemall.version>0.1.0</litemall.version>
+		<litemall.version>0.1.0</litemall.version>-->
+<!--
+		<spring-boot.version>3.1.5</spring-boot.version>
+-->
 
 
 		<!-- Project coverage and test section properties -->
-		<maven-surefire-plugin.version>3.5.1</maven-surefire-plugin.version>
+		<!--<maven-surefire-plugin.version>3.5.1</maven-surefire-plugin.version>
 		<maven-failsafe-plugin.version>3.5.1</maven-failsafe-plugin.version>
 		<sonar-maven-plugin.version>4.0.0.4121</sonar-maven-plugin.version>
 		<nohttp-checkstyle.version>0.0.11</nohttp-checkstyle.version>
 		<jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
 		<checkstyle.version>10.19.0</checkstyle.version>
-		<properties-maven-plugin.version>1.2.1</properties-maven-plugin.version>
-		<maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+		<properties-maven-plugin.version>1.2.1</properties-maven-plugin.version> -->
+
+		<java.version>17</java.version>
+		<spring-boot.version>3.1.6</spring-boot.version>
+		<spring-cloud.version>2022.0.4</spring-cloud.version>
 		<profile.test/>
 	</properties>
 
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-dependencies</artifactId>
+				<version>${spring-boot.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+
 	<dependencies>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-core</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-db</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-wx-api</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+
+
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+
+
+
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-config</artifactId>
@@ -60,26 +103,29 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-stream</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 
-		<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-core</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>
+
+
 
 		<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-db</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-wx-api</artifactId>
-			<version>${litemall.version}</version>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<version>6.0.0</version>
+			<scope>provided</scope>
 		</dependency>
 
 		<dependency>
@@ -112,29 +158,7 @@
 		</dependency>
 
 	</dependencies>
-	<dependencyManagement>
-		<!--<dependencies>
-			<dependency>
-				<groupId>org.springframework.cloud</groupId>
-				<artifactId>spring-cloud-dependencies</artifactId>
-				<version>${spring-cloud.version}</version>
-				<type>pom</type>
-				<scope>import</scope>
-			</dependency>
-		</dependencies>-->
-		<dependencies>
-			<dependency>
-				<groupId>org.linlinjava</groupId>
-				<artifactId>litemall-core</artifactId>
-			</dependency>
 
-			<dependency>
-				<groupId>org.linlinjava</groupId>
-				<artifactId>litemall-db</artifactId>
-			</dependency>
-		</dependencies>
-
-	</dependencyManagement>
 
 	<build>
 		<plugins>
@@ -142,13 +166,16 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<image>
-						<builder>paketobuildpacks/builder-jammy-base:latest</builder>
-					</image>
-				</configuration>
+				<executions>
+					<execution>
+						<id>repackage</id>
+						<configuration>
+							<executable>true</executable>
+							<classifier>exec</classifier>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
-
 			<!-- Containerization -->
 			<!-- jib-maven plugin management -->
 			<plugin>
@@ -198,10 +225,10 @@
 			</plugin>
 
 			<!-- Code coverage and test section -->
-			<plugin>
+		<!--	<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-checkstyle-plugin</artifactId>
-			</plugin>
+			</plugin>-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
@@ -210,15 +237,16 @@
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
 			</plugin>
-			<plugin>
+			<!--<plugin>
 				<groupId>org.sonarsource.scanner.maven</groupId>
 				<artifactId>sonar-maven-plugin</artifactId>
-			</plugin>
+			</plugin>-->
 		</plugins>
 
 		<pluginManagement>
 			<plugins>
-				<plugin>
+				<!-- Checkstyle plugin management -->
+				<!--<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-checkstyle-plugin</artifactId>
 					<version>${maven-checkstyle-plugin.version}</version>
@@ -226,7 +254,7 @@
 						<dependency>
 							<groupId>com.puppycrawl.tools</groupId>
 							<artifactId>checkstyle</artifactId>
-							<version>${checkstyle.version}</version>
+							<version>${maven-checkstyle-plugin.version}</version>
 						</dependency>
 						<dependency>
 							<groupId>io.spring.nohttp</groupId>
@@ -247,8 +275,9 @@
 							</goals>
 						</execution>
 					</executions>
-			    </plugin>
+			    </plugin>-->
 
+				<!-- failesafe plugin management -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-failsafe-plugin</artifactId>
@@ -280,7 +309,7 @@
 						</execution>
 					</executions>
 				</plugin>
-
+				<!-- jacoco plugin management -->
 				<plugin>
 					<groupId>org.jacoco</groupId>
 					<artifactId>jacoco-maven-plugin</artifactId>
@@ -316,6 +345,7 @@
 						</execution>
 					</executions>
 				</plugin>
+				<!-- properties plugin management -->
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>properties-maven-plugin</artifactId>
@@ -334,6 +364,7 @@
 						</execution>
 					</executions>
 				</plugin>
+				<!-- sonar plugin management -->
 				<plugin>
 					<groupId>org.sonarsource.scanner.maven</groupId>
 					<artifactId>sonar-maven-plugin</artifactId>
@@ -342,6 +373,5 @@
 			</plugins>
 		</pluginManagement>
 	</build>
-
 
 </project>

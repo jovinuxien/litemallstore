@@ -1,12 +1,12 @@
 package org.linlinjava.litemall.core.system;
 
+import jakarta.annotation.PostConstruct;
 import org.linlinjava.litemall.core.util.SystemInfoPrinter;
 import org.linlinjava.litemall.db.service.LitemallSystemConfigService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;

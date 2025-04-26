@@ -1,13 +1,13 @@
 spring:
   application:
     name: eureka-server
-  cloud:
-    config:
-      uri: http://configserver:8888
-    bootstrap:
-      enabled: true
-    compatibility-verifier:
-      enabled: false
+#  cloud:
+#    config:
+#      uri: http://configserver:8888
+#    bootstrap:
+#      enabled: true
+#    compatibility-verifier:
+#      enabled: false
 
 server:
   port: 8761

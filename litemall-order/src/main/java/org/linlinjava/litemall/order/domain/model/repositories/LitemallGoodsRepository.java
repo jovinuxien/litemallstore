@@ -4,7 +4,6 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallGoodsAggrega
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.category.LitemallCategoryId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
-import org.linlinjava.litemall.order.infrastructure.repositories.impl.LitemallGoodsRepositoryImpl;
 
 import java.util.List;
 

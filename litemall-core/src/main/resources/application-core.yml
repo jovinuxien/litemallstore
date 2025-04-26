@@ -120,16 +120,3 @@ litemall:
       accessKey: 111111
       secretKey: xxxxxx
       bucketName: litemall
-  cjdropship:
-    api:
-      auth:
-        cj-email: "bimeni89@gmail.com"
-        cj-apiKey: "8696a1e060b64e1ab99e3f16cac7a87a"
-        access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
-        refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
-      category:
-        category-list-_url: "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
-      product:
-        list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
-        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
-

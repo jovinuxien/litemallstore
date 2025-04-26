@@ -3,7 +3,6 @@ package org.linlinjava.litemall.core.infrastructure.acl.client.cjdropshipclient.
 
 import org.linlinjava.litemall.core.config.CJDropshippingConfig;
 import org.linlinjava.litemall.core.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;

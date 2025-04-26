@@ -12,22 +12,22 @@ import org.springframework.context.annotation.Configuration;
 @Setter
 public class CJDropshippingConfig {
 
-    @Value("${litemall.cjdropship.api.auth.cj-email}")
+    @Value("${spring.cjdropship.api.auth.cj-email}")
     private String cjEmail;
 
-    @Value("${litemall.cjdropship.api.auth.cj-apiKey}")
+    @Value("${spring.cjdropship.api.auth.cj-apiKey}")
     private String cjApiKey;
 
-    @Value("${litemall.cjdropship.api.auth.access-url}")
+    @Value("${spring.cjdropship.api.auth.access-url}")
     private String accessUrl;
 
-    @Value("${litemall.cjdropship.api.auth.refresh-url}")
+    @Value("${spring.cjdropship.api.auth.refresh-url}")
     private String refreshUrl;
 
-    @Value("${litemall.cjdropship.api.product.list-url}")
+    @Value("${spring.cjdropship.api.product.list-url}")
     private String productListUrl;
 
-    @Value("${litemall.cjdropship.api.product.product-detail-url}")
+    @Value("${spring.cjdropship.api.product.product-detail-url}")
     private String productDetailUrl;
 
 }

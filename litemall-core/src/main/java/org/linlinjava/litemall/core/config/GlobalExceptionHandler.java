@@ -1,5 +1,8 @@
 package org.linlinjava.litemall.core.config;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.ValidationException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.hibernate.validator.internal.engine.path.PathImpl;
@@ -7,6 +10,7 @@ import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+//import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,9 +18,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.ConstraintViolationException;
-import javax.validation.ValidationException;
+import jakarta.servlet.ServletException.*;
+
+
 import java.util.Set;
 
 @ControllerAdvice
@@ -39,14 +43,14 @@ public class GlobalExceptionHandler {
         return ResponseUtil.badArgumentValue();
     }
 
-    @ExceptionHandler(MissingServletRequestParameterException.class)
+    /*@ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseBody
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Object badArgumentHandler(MissingServletRequestParameterException e) {
+    public Object badArgumentHandler(MethodArgumentTypeMismatchException e) {
         logger.error("Missing request parameter: {}");
         //logger.error("Missing request parameter: {}", e.getParameterName(), e);
         return ResponseUtil.badArgumentValue();
-    }
+    }*/
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseBody

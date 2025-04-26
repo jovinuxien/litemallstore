@@ -9,16 +9,15 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <!--<version>2.7.6</version>-->
-        <version>2.7.18</version>
-       <!-- <version>3.1.6</version>-->
+        <version>3.1.6</version>
         <relativePath/>
     </parent>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!--<java.version>1.8</java.version>-->
         <java.version>17</java.version>
+        <spring-boot.version>3.1.6</spring-boot.version>
+
 
         <maven.test.skip>true</maven.test.skip>
         <jhipster-dependencies.version>7.9.2</jhipster-dependencies.version>
@@ -26,18 +25,22 @@
         <node.version>v20.16.0</node.version>
         <npm.version>10.8.1</npm.version>
         <maven-compiler-plugin.version>3.5.0</maven-compiler-plugin.version>
-        <mapstruct.version>1.4.2.Final</mapstruct.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
         <maven-idea-plugin.version>2.2.1</maven-idea-plugin.version>
         <druid.version>1.2.23</druid.version>
         <shiro.version>2.0.2</shiro.version>
-        <security.version>2.7.18</security.version>
+<!--        <security.version>2.7.18</security.version>-->
         <pagehelper.version>2.0.0</pagehelper.version>
-        <mbatis.version>2.3.0</mbatis.version>
+        <mbatis.version>3.0.1</mbatis.version>
         <lombok.version>1.18.20</lombok.version>
+        <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
+
+        <litemall.version>0.1.0</litemall.version>
 
 
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
         <maven-enforcer.version>3.4.1</maven-enforcer.version>
-
 
         <!-- Docker properties settings -->
         <docker.image.prefix>litemall</docker.image.prefix>
@@ -46,7 +49,8 @@
         <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
 
         <!--Cloud properties settings -->
-        <spring-cloud.version>2022.0.3</spring-cloud.version>
+        <spring-cloud.version>2022.0.4</spring-cloud.version>
+
 
         <!--        <mbatis.version>3.0.2</mbatis.version>-->
     </properties>
@@ -60,14 +64,16 @@
         <module>litemall-all-war</module>
         <module>litemall-all-react-war</module>
         <module>litemall-elastic</module>
-
-        <module>litemall-eureka</module>
-        <module>litemall-gateway</module>
-        <module>litemall-library</module>
         <module>litemall-order</module>
         <module>litemall-payment</module>
         <module>litemall-notification</module>
-        <module>litemall-user</module>
+        <module>litemall-goods-management</module>
+
+        <module>litemall-eureka</module>
+        <module>litemall-config</module>
+        <module>litemall-gateway</module>
+        <module>litemall-library</module>
+
     </modules>
 
     <dependencyManagement>
@@ -82,29 +88,46 @@
             </dependency>
 
             <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version> <!-- Matching release train -->
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+
+            <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-core</artifactId>
-                <version>${project.version}</version>
+                <version>${litemall.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-db</artifactId>
-                <version>${project.version}</version>
+                <version>${litemall.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-wx-api</artifactId>
-                <version>${project.version}</version>
+                <version>${litemall.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-admin-api</artifactId>
-                <version>${project.version}</version>
+                <version>${litemall.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-all</artifactId>
-                <version>${project.version}</version>
+                <version>${litemall.version}</version>
             </dependency>
 
             <!-- Spring Boot Mybatis 依赖 -->
@@ -120,6 +143,7 @@
                 <artifactId>pagehelper-spring-boot-starter</artifactId>
                 <version>${pagehelper.version}</version>
             </dependency>
+
 
             <dependency>
                 <groupId>org.apache.shiro</groupId>
@@ -190,13 +214,13 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-json</artifactId>
-                <version>2.7.6</version>
+                <version>${spring-boot.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-mail</artifactId>
-                <version>2.7.6</version>
+                <version>${spring-boot.version}</version>
             </dependency>
 
             <!--<dependency>
@@ -249,21 +273,18 @@
             </dependency>
 
             <!--Deps for elastic project -->
-            <dependency>
+           <!-- <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-data-jpa</artifactId>
-                <version>2.7.18</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-integration</artifactId>
-                <version>2.7.18</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
-                <version>2.7.18</version>
-            </dependency>
+            </dependency>-->
 
 
         </dependencies>
@@ -363,6 +384,7 @@
 
     <build>
         <plugins>
+            <!-- Maven compiler plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -372,6 +394,7 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+            <!-- Maven surefire plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -382,11 +405,12 @@
                     </includes>
                 </configuration>
             </plugin>
-            <plugin>
+            <!-- Maven Jiv plugin -->
+           <!-- <plugin>
                 <groupId>com.google.cloud.tools</groupId>
                 <artifactId>jib-maven-plugin</artifactId>
-            </plugin>
-
+            </plugin>-->
+            <!-- Maven enforcer plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
@@ -407,15 +431,70 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
+            <!-- Maven javadoc plugin -->
+          <!--  <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>${maven-javadoc-plugin.version}</version>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
+                    <source>${maven-compiler-plugin.version}</source>
                 </configuration>
+            </plugin>-->
+            <!-- Jacoco plugin -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
         </plugins>
+
+        <pluginManagement>
+            <plugins>
+                <!-- Jacoco plugin management configuration -->
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-maven-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>pre-unit-tests</id>
+                            <goals>
+                                <goal>prepare-agent</goal>
+                            </goals>
+                            <configuration>
+                                <destFile>${project.build.directory}/jacoco.exec</destFile>
+                                <propertyName>surefireArgLine</propertyName>
+                            </configuration>
+                        </execution>
+                        <!-- Ensures that the code coverage report for unit tests is created after unit tests have been run -->
+                        <execution>
+                            <id>post-unit-test</id>
+                            <phase>test</phase>
+                            <goals>
+                                <goal>report</goal>
+                            </goals>
+                            <configuration>
+                                <dataFile>${project.build.directory}/jacoco.exec</dataFile>
+                                <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>pre-integration-tests</id>
+                            <goals>
+                                <goal>prepare-agent-integration</goal>
+                            </goals>
+                        </execution>
+                        <!-- Ensures that the code coverage report for integration tests is created after integration tests have been run -->
+                        <execution>
+                            <id>post-integration-tests</id>
+                            <phase>post-integration-test</phase>
+                            <goals>
+                                <goal>report-integration</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 
     <profiles>
@@ -452,9 +531,13 @@
     </profiles>
     <repositories>
         <repository>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+       <!-- <repository>
             <id>graalvm.com</id>
             <name>GraalVM Repository</name>
             <url>https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-22.3.2/maven-repository/</url>
-        </repository>
+        </repository>-->
     </repositories>
 </project>
