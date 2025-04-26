@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.admin.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.subject.Subject;
 import org.linlinjava.litemall.core.util.IpUtil;
@@ -10,8 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-
-import javax.servlet.http.HttpServletRequest;
 
 /**
  * 这里的日志类型设计成四种（当然开发者需要可以自己扩展）
@@ -97,7 +96,7 @@ public class LogHelper {
         }
 
         HttpServletRequest request =
-                ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+                (HttpServletRequest) ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
         if (request != null) {
             log.setIp(IpUtil.getIpAddr(request));
         }

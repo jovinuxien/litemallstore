@@ -2,6 +2,7 @@ package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallOrderMapper;
 import org.linlinjava.litemall.db.dao.OrderMapper;
 import org.linlinjava.litemall.db.domain.LitemallOrder;
@@ -11,7 +12,6 @@ import org.linlinjava.litemall.db.util.OrderUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.annotation.Resource;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

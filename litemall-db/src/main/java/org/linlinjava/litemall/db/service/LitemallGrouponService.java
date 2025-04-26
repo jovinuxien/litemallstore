@@ -2,13 +2,13 @@ package org.linlinjava.litemall.db.service;
 
 import com.alibaba.druid.util.StringUtils;
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallGrouponMapper;
 import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.db.domain.LitemallGrouponExample;
 import org.linlinjava.litemall.db.util.GrouponConstant;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 

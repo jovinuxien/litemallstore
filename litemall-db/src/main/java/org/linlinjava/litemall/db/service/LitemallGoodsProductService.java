@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.db.service;
 
+import jakarta.annotation.Resource;
 import org.apache.ibatis.annotations.Param;
 import org.linlinjava.litemall.db.dao.GoodsProductMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
@@ -7,7 +8,6 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 

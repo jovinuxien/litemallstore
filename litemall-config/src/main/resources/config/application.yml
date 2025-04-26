@@ -1,0 +1,48 @@
+
+management:
+  endpoints:
+    web:
+      base-path: "/admin"
+      exposure:
+        include: "*"
+  endpoint:
+    env:
+      post:
+        enabled: true
+        
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:8761/eureka/
+  instance:
+    hostname: localhost
+    leaseRenewalIntervalInSeconds: 10
+    statusPageUrlPath: /admin/info
+    healthCheckUrlPath: /admin/health
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: composite
+  config:
+    import: optional:configserver:http://localhost:8888
+#  cloud:
+#    config:
+#      uri: http://localhost:8888
+#      name: your-app-name
+#      profile: dev
+
+  cloud:
+    config:
+      server:
+        composite:
+        - type: native
+          search-locations: classpath:/config
+        - type: git
+          uri: https://github.com/jovinuxien/litemall-config
+          basedir: target/config
+          default-label: main
+        bootstrap: true
+server:
+  port: 8888

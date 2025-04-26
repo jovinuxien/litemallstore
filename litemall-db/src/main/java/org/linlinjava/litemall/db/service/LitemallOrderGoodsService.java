@@ -1,11 +1,11 @@
 package org.linlinjava.litemall.db.service;
 
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallOrderGoodsMapper;
 import org.linlinjava.litemall.db.domain.LitemallOrderGoods;
 import org.linlinjava.litemall.db.domain.LitemallOrderGoodsExample;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 

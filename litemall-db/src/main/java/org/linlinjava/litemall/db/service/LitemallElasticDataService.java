@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.db.service;
 
 
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
@@ -8,7 +9,6 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsExample;
 import org.linlinjava.litemall.db.dto.ElasticDto;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 

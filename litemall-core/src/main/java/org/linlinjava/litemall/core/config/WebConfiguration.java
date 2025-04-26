@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.core.config;
 
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.server.WebServerFactory;
@@ -15,8 +17,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 import tech.jhipster.config.JHipsterProperties;
 
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
+
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
