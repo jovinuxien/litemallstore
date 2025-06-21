@@ -25,8 +25,8 @@ public class QCodeService {
     @Autowired
     WxMaService wxMaService;
 
-    @Autowired
-    private StorageService storageService;
+    //@Autowired
+    //private StorageService storageService;
 
 
     public String createGrouponShareImage(String goodName, String goodPicUrl, LitemallGroupon groupon) {
@@ -39,10 +39,11 @@ public class QCodeService {
             byte[] imageData = drawPicture(inputStream, goodPicUrl, goodName);
             ByteArrayInputStream inputStream2 = new ByteArrayInputStream(imageData);
             //存储分享图
-            LitemallStorage storageInfo = storageService.store(inputStream2, imageData.length, "image/jpeg",
-                    getKeyName(groupon.getId().toString()));
+            /*LitemallStorage storageInfo = storageService.store(inputStream2, imageData.length, "image/jpeg",
+                    getKeyName(groupon.getId().toString()));*/
 
-            return storageInfo.getUrl();
+            //return storageInfo.getUrl();
+            return "";
         } catch (WxErrorException e) {
             logger.error(e.getMessage(), e);
         } catch (FileNotFoundException e) {
@@ -74,10 +75,11 @@ public class QCodeService {
             byte[] imageData = drawPicture(inputStream, goodPicUrl, goodName);
             ByteArrayInputStream inputStream2 = new ByteArrayInputStream(imageData);
             //存储分享图
-            LitemallStorage litemallStorage = storageService.store(inputStream2, imageData.length, "image/jpeg",
-                    getKeyName(goodId));
+            //LitemallStorage litemallStorage = storageService.store(inputStream2, imageData.length, "image/jpeg",
+                    //getKeyName(goodId));
 
-            return litemallStorage.getUrl();
+            //return litemallStorage.getUrl();
+            return "";
         } catch (WxErrorException e) {
             logger.error(e.getMessage(), e);
         } catch (FileNotFoundException e) {

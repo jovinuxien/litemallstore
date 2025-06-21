@@ -7,6 +7,7 @@ import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRulesRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -169,8 +170,6 @@ public class LitemallGrouponRulesRepositoryImpl implements LitemallGrouponRulesR
         // Orther fields
         return  domainModel;
     }
-
-
 
 
 }

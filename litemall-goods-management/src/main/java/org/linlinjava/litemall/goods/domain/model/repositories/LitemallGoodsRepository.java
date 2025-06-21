@@ -10,11 +10,13 @@ import java.util.List;
 
 public interface LitemallGoodsRepository {
 
-
     public void addGoods(LitemallGoodsAggregate goodsAggregate);
     public int count();
     public int updateById(LitemallGoodsAggregate goodsAggregate);
     public void deleteById(LitemallGoodsId goodsId);
+
+
+
 
     public LitemallGoodsAggregate findById(LitemallGoodsId goodsId);
 
@@ -33,6 +35,8 @@ public interface LitemallGoodsRepository {
     public List<Integer> getCategoryIds(Integer brandId, String keywords, Boolean isHot, Boolean isNew);
 
     public boolean checkExistByName(String name);
+
+    public List<LitemallGoodsAggregate> querySelective(LitemallCategoryId categoryId,  LitemallManufacturerId manufacturerId, String keywords, Boolean isHot, Boolean isNew, Integer page, Integer size, String sort);
 
     public List<LitemallGoodsAggregate> querySelectiveManufacturer();
 

@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.core.task;
 
-import jakarta.annotation.PostConstruct;
+import javax.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 import java.util.concurrent.DelayQueue;
 import java.util.concurrent.Executors;

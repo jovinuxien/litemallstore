@@ -1,9 +1,9 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ public interface LitemallGrouponRulesRepository {
 
     LitemallGrouponRulesAggregate findGrouponRulesByGoodsId(LitemallGrouponRulesId goodsId);
     List<LitemallGrouponRulesAggregate> getAllGrouponList(Integer page, Integer limit, String sort, String order);
-    List<LitemallGrouponRulesAggregate> findAllGrouponRulesList(LitemallGoodsId goodsId, LitemallGrouponStatus status,  Integer page, Integer size, String sort, String order);
+    List<LitemallGrouponRulesAggregate> findAllGrouponRulesList(LitemallGoodsId goodsId, LitemallGrouponStatus status, Integer page, Integer size, String sort, String order);
     List<LitemallGrouponRulesAggregate> getGrouponByStatus(LitemallGrouponStatus status);
 
 

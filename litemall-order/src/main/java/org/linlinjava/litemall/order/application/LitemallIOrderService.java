@@ -5,6 +5,5 @@ import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCom
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 
 public interface LitemallIOrderService {
-
     LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command);
 }

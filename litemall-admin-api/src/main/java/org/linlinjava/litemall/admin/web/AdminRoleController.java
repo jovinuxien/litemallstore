@@ -7,9 +7,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
-import org.apache.shiro.subject.Subject;
+//import org.apache.shiro.SecurityUtils;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.subject.Subject;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.util.AdminResponseCode;
 import org.linlinjava.litemall.admin.util.Permission;
@@ -31,7 +31,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import java.security.Security;
 import java.util.*;
 
@@ -52,7 +52,7 @@ public class AdminRoleController {
     @Autowired
     private LitemallAdminService adminService;
 
-    @RequiresPermissions("admin:role:list")
+    //@RequiresPermissions("admin:role:list")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "角色查询")
     //@RequiresPermissionsDesc(menu = {"System management", "role management"}, button = "role query")
     @GetMapping("/list")
@@ -82,7 +82,7 @@ public class AdminRoleController {
         return ResponseUtil.okList(options);
     }
 
-    @RequiresPermissions("admin:role:read")
+    //@RequiresPermissions("admin:role:read")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "角色详情")
     @GetMapping("/read")
     //@Operation(summary = "read roles", description = "Get a list roles with pagination and sorting" )
@@ -102,7 +102,7 @@ public class AdminRoleController {
         return null;
     }
 
-    @RequiresPermissions("admin:role:create")
+    //@RequiresPermissions("admin:role:create")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "角色添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallRole role) {
@@ -120,7 +120,7 @@ public class AdminRoleController {
         return ResponseUtil.ok(role);
     }
 
-    @RequiresPermissions("admin:role:update")
+    //@RequiresPermissions("admin:role:update")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "角色编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallRole role) {
@@ -133,7 +133,7 @@ public class AdminRoleController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:role:delete")
+    //@RequiresPermissions("admin:role:delete")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "角色删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallRole role) {
@@ -192,7 +192,7 @@ public class AdminRoleController {
      *
      * @return List of all system permissions、Role permissions、Administrator has assigned permissions
      */
-    @RequiresPermissions("admin:role:permission:get")
+    //@RequiresPermissions("admin:role:permission:get")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "权限详情")
     @GetMapping("/permissions")
     public Object getPermissions(Integer roleId) {
@@ -208,21 +208,22 @@ public class AdminRoleController {
             assignedPermissions = permissionService.queryByRoleId(roleId);
         }
 
-        Subject currentUser = SecurityUtils.getSubject();
+       /* Subject currentUser = SecurityUtils.getSubject();
         LitemallAdmin currentAdmin = (LitemallAdmin) currentUser.getPrincipal();
         Integer[] roles = currentAdmin.getRoleIds();
         List<Integer> roleIds = Arrays.asList(roles);
-        Set<String> curPermissions = null;
-        if (!permissionService.checkSuperPermission(roleIds)) {
+        Set<String> curPermissions = null;*/
+        /*if (!permissionService.checkSuperPermission(roleIds)) {
             curPermissions = permissionService.queryByRoleId(roleIds);
-        }
+        }*/
 
 
-        Map<String, Object> data = new HashMap<>();
+       /* Map<String, Object> data = new HashMap<>();
         data.put("systemPermissions", systemPermissions);
         data.put("assignedPermissions", assignedPermissions);
         data.put("curPermissions", curPermissions);
-        return ResponseUtil.ok(data);
+        return ResponseUtil.ok(data); */
+        return ResponseUtil.ok();
     }
 
 
@@ -232,7 +233,7 @@ public class AdminRoleController {
      * @param body
      * @return
      */
-    @RequiresPermissions("admin:role:permission:update")
+    //@RequiresPermissions("admin:role:permission:update")
     @RequiresPermissionsDesc(menu = {"系统管理", "角色管理"}, button = "权限变更")
     @PostMapping("/permissions")
     public Object updatePermissions(@RequestBody String body) {

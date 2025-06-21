@@ -1,12 +1,12 @@
 package org.linlinjava.litemall.admin.shiro;
 
 
-import org.apache.shiro.authc.*;
-import org.apache.shiro.authz.AuthorizationException;
+//import org.apache.shiro.authc.*;
+/*import org.apache.shiro.authz.AuthorizationException;
 import org.apache.shiro.authz.AuthorizationInfo;
 import org.apache.shiro.authz.SimpleAuthorizationInfo;
 import org.apache.shiro.realm.AuthorizingRealm;
-import org.apache.shiro.subject.PrincipalCollection;
+import org.apache.shiro.subject.PrincipalCollection;*/
 import org.linlinjava.litemall.core.util.bcrypt.BCryptPasswordEncoder;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.service.LitemallAdminService;
@@ -21,10 +21,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 下面三个Autowired注解需要配合Lazy注解使用，否则会导致这三个service相关的事务失效。
+ * The following three Autowired annotations need to be used with the Lazy annotation,
+ * otherwise the transactions related to these three services will fail.
  * https://gitee.com/linlinjava/litemall/issues/I3I94X#note_4809495
  */
-public class AdminAuthorizingRealm extends AuthorizingRealm {
+//public class AdminAuthorizingRealm extends AuthorizingRealm {
+public class AdminAuthorizingRealm {
 
     @Autowired
     @Lazy
@@ -36,8 +38,8 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
     @Lazy
     private LitemallPermissionService permissionService;
 
-    @Override
-    protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+    //@Override
+    /*protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
         if (principals == null) {
             throw new AuthorizationException("PrincipalCollection method argument cannot be null.");
         }
@@ -50,17 +52,17 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
         info.setRoles(roles);
         info.setStringPermissions(permissions);
         return info;
-    }
+    }*/
 
-    @Override
-    protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
+    //@Override
+    /*protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
 
         UsernamePasswordToken upToken = (UsernamePasswordToken) token;
         String username = upToken.getUsername();
         String password = new String(upToken.getPassword());
 
         if (StringUtils.isEmpty(username)) {
-           // throw new AccountException("用户名不能为空");
+           // throw new AccountException("Username cannot be empty");
             throw new AccountException("Username cannot be empty");
         }
         if (StringUtils.isEmpty(password)) {
@@ -81,6 +83,6 @@ public class AdminAuthorizingRealm extends AuthorizingRealm {
         }
 
         return new SimpleAuthenticationInfo(admin, password, getName());
-    }
+    }*/
 
 }

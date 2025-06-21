@@ -1,0 +1,49 @@
+@import '../../../../sass/adminSass/core/variables';
+@import '../../../../components/adminComponents/Header/Header';
+
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+
+    .app-header {
+        @extend .navbar
+    }   
+  }
+  
+  .app-body {
+    display: flex;
+    flex: 1;
+    overflow-x: hidden;
+  }
+  
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: $navbar-height 0 0;
+    transition: margin-left $layout-transition-speed;
+  
+    &.sidebar-open {
+      margin-left: $sidebar-width;
+    }
+  
+    &.sidebar-closed {
+      margin-left: $sidebar-minimized-width;
+    }
+  }
+  
+  .breadcrumb-wrapper {
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background-color: $breadcrumb-bg;
+    border-radius: $border-radius;
+  }
+  
+  .container-fluid {
+    padding: 0 $grid-gutter-width;
+  }
+  
+  .animated.fadeIn {
+    animation-duration: 0.3s;
+  }

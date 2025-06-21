@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.db.service;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallPermissionMapper;
 import org.linlinjava.litemall.db.dao.LitemallRoleMapper;
 import org.linlinjava.litemall.db.domain.LitemallPermission;

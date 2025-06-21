@@ -2,7 +2,6 @@ package org.linlinjava.litemall.db.service;
 
 import com.alibaba.druid.util.StringUtils;
 import com.github.pagehelper.PageHelper;
-import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallCouponMapper;
 import org.linlinjava.litemall.db.dao.LitemallCouponUserMapper;
 import org.linlinjava.litemall.db.domain.*;
@@ -10,6 +9,7 @@ import org.linlinjava.litemall.db.domain.LitemallCoupon.Column;
 import org.linlinjava.litemall.db.util.CouponConstant;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Random;

@@ -25,8 +25,8 @@
 		<litemall.version>0.1.0</litemall.version>-->
 
 		<java.version>17</java.version>
-		<spring-boot.version>3.1.6</spring-boot.version>
-		<spring-cloud.version>2022.0.4</spring-cloud.version>
+		<!--		<spring-boot.version>3.1.6</spring-boot.version>-->
+		<spring-cloud.version>2021.0.9</spring-cloud.version>
 		<profile.test/>
 
 
@@ -78,13 +78,13 @@
 			<version>${litemall.version}</version>
 		</dependency>
 
+		<!--<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-library</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>-->
 
-		<dependency>
-			<groupId>jakarta.servlet</groupId>
-			<artifactId>jakarta.servlet-api</artifactId>
-			<version>6.0.0</version>
-			<scope>provided</scope>
-		</dependency>
+
 
 		<!-- Cloud section dependency -->
 		<dependency>
@@ -100,6 +100,15 @@
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-stream</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
@@ -120,10 +129,10 @@
 			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
 		</dependency>
 
-		<dependency>
+		<!--<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
-		</dependency>
+		</dependency>-->
 
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
@@ -131,10 +140,63 @@
 		</dependency>
 
 
+		<!-- Spring boot starter elements -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<version>2.7.18</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+		</dependency>
+
+
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>2.3.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.xml.bind</groupId>
+			<artifactId>jaxb-impl</artifactId>
+			<version>2.3.3</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-redis</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>redis.clients</groupId>
+			<artifactId>jedis</artifactId>
+			<type>jar</type>
+		</dependency>
+
 
 
 		<!-- base dependency management -->
@@ -156,6 +218,14 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-client</artifactId>
+		</dependency>
 
 	</dependencies>
 
@@ -176,7 +246,6 @@
 					</execution>
 				</executions>
 			</plugin>
-
 
 			<!-- Containerization -->
 			<!-- jib-maven plugin management -->
@@ -278,7 +347,6 @@
 						</execution>
 					</executions>
 				</plugin>-->
-
 				<!-- failesafe plugin management -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>

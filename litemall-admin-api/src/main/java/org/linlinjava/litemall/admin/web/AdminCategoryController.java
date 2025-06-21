@@ -1,9 +1,9 @@
 package org.linlinjava.litemall.admin.web;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.vo.CategoryVo;
 import org.linlinjava.litemall.core.util.ResponseUtil;
@@ -28,7 +28,7 @@ public class AdminCategoryController {
     @Autowired
     private LitemallCategoryService categoryService;
 
-    @RequiresPermissions("admin:category:list")
+    //@RequiresPermissions("admin:category:list")
     @RequiresPermissionsDesc(menu = {"商场管理", "类目管理"}, button = "查询")
     @GetMapping("/list")
     public Object list() {
@@ -90,7 +90,7 @@ public class AdminCategoryController {
         return null;
     }
 
-    @RequiresPermissions("admin:category:create")
+    //@RequiresPermissions("admin:category:create")
     @RequiresPermissionsDesc(menu = {"商场管理", "类目管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallCategory category) {
@@ -102,7 +102,7 @@ public class AdminCategoryController {
         return ResponseUtil.ok(category);
     }
 
-    @RequiresPermissions("admin:category:read")
+    //@RequiresPermissions("admin:category:read")
     @RequiresPermissionsDesc(menu = {"商场管理", "类目管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
@@ -110,7 +110,7 @@ public class AdminCategoryController {
         return ResponseUtil.ok(category);
     }
 
-    @RequiresPermissions("admin:category:update")
+    //@RequiresPermissions("admin:category:update")
     @RequiresPermissionsDesc(menu = {"商场管理", "类目管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallCategory category) {
@@ -125,7 +125,7 @@ public class AdminCategoryController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:category:delete")
+    //@RequiresPermissions("admin:category:delete")
     @RequiresPermissionsDesc(menu = {"商场管理", "类目管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallCategory category) {
@@ -137,7 +137,7 @@ public class AdminCategoryController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:category:list")
+    //@RequiresPermissions("admin:category:list")
     @GetMapping("/l1")
     public Object catL1() {
         // 所有一级分类目录

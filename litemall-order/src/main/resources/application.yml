@@ -1,6 +1,7 @@
 spring:
+  import: optional:classpath:application.yml
   profiles:
-    active: db, core, elastic, admin, wx
+    active: db, db1, core, elastic, admin, wx
   messages:
     encoding: UTF-8
   servlet:
@@ -9,7 +10,7 @@ spring:
       max-request-size: 20MB
 
 server:
-  port: 8080
+  port: 8086
   compression:
     enabled: true
     min-response-size: 2048
@@ -23,7 +24,14 @@ logging:
       linlinjava:
         litemall:
           db: DEBUG
-  config: classpath:logback-spring.xml
+  #config: classpath:logback-spring.xml
 
 swagger:
   production: false
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true

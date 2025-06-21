@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallElasticMapper">
+
+    <resultMap id="elasticDataResultMap" type="org.linlinjava.litemall.db.dto.ElasticDto">
+        <id column="id" jdbcType="INTEGER" property="id" />
+        <result column="name" jdbcType="VARCHAR" property="goodName" />
+        <result column="brief" jdbcType="VARCHAR" property="brief" />
+        <result column="counter_price"  property="counterPrice" jdbcType="DECIMAL" javaType="java.math.BigDecimal"/>
+        <result column="retail_price" property="retailPrice" jdbcType="DECIMAL" javaType="java.math.BigDecimal"/>
+        <result column="categoryName" jdbcType="VARCHAR" property="categoryName" />
+        <result column="manufacturer" jdbcType="VARCHAR" property="manufacturer" />
+        <result column="attribute" jdbcType="VARCHAR" property="attribute" />
+        <result column="parentCategoryName" jdbcType="VARCHAR" property="parentCategory" />
+       <!-- <result column="previewImage" jdbcType="VARCHAR" property="pic" />
+        <result column="categoryId" jdbcType="INTEGER" property="categoryId" />
+        <result column="parentCategoryId" jdbcType="INTEGER" property="parentCategoryId" />
+        <result column="brand_id" jdbcType="INTEGER" property="brandId" />-->
+    </resultMap>
+
+
+    <select id="selectGoodsWithJoin" resultMap="elasticDataResultMap">
+        SELECT
+        p.name AS goodsName,
+        p.brief,
+        p.counter_price,
+        p.retail_price,
+        a.attribute,
+        parent_c.name AS parentCategoryName,
+        c.name AS categoryName,
+        b.name AS manufacturer
+        FROM
+        litemall.litemall_goods p
+        JOIN
+        litemall.litemall_brand b ON p.brand_id = b.id
+        JOIN
+        litemall.litemall_category c ON p.category_id = c.id
+        LEFT JOIN
+        litemall.litemall_category parent_c ON c.pid = parent_c.id
+        LEFT JOIN
+        litemall.litemall_goods_attribute a ON p.id = a.goods_id
+        WHERE
+        b.name = #{manufacturerName} AND a.attribute = #{attribute}
+    </select>
+</mapper>

@@ -4,9 +4,9 @@ package org.linlinjava.litemall.admin.web;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.authz.annotation.RequiresAuthentication;
-import org.apache.shiro.subject.Subject;
+//import org.apache.shiro.SecurityUtils;
+//import org.apache.shiro.authz.annotation.RequiresAuthentication;
+//import org.apache.shiro.subject.Subject;
 import org.linlinjava.litemall.core.util.JacksonUtil;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.util.bcrypt.BCryptPasswordEncoder;
@@ -46,7 +46,7 @@ public class AdminProfileController {
     @Autowired
     private LitemallNoticeAdminService noticeAdminService;
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @PostMapping("/password")
     public Object create(@RequestBody String body) {
         String oldPassword = JacksonUtil.parseString(body, "oldPassword");
@@ -57,36 +57,37 @@ public class AdminProfileController {
         if (StringUtils.isEmpty(newPassword)) {
             return ResponseUtil.badArgument();
         }
-
+/*
         Subject currentUser = SecurityUtils.getSubject();
         LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
 
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
         if (!encoder.matches(oldPassword, admin.getPassword())) {
             return ResponseUtil.fail(ADMIN_INVALID_ACCOUNT, "账号密码不对");
-        }
+        }*/
 
-        String encodedNewPassword = encoder.encode(newPassword);
-        admin.setPassword(encodedNewPassword);
+        //String encodedNewPassword = encoder.encode(newPassword);
+        //admin.setPassword(encodedNewPassword);
 
-        adminService.updateById(admin);
+        //adminService.updateById(admin);
         return ResponseUtil.ok();
     }
 
     private Integer getAdminId(){
-        Subject currentUser = SecurityUtils.getSubject();
-        LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
-        return admin.getId();
+        //Subject currentUser = SecurityUtils.getSubject();
+        //LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
+        //return admin.getId();
+        return 0;
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @GetMapping("/nnotice")
     public Object nNotice() {
         int count = noticeAdminService.countUnread(getAdminId());
         return ResponseUtil.ok(count);
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @GetMapping("/lsnotice")
     public Object lsNotice(String title, String type,
                             @RequestParam(defaultValue = "1") Integer page,
@@ -97,7 +98,7 @@ public class AdminProfileController {
         return ResponseUtil.okList(noticeList);
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @PostMapping("/catnotice")
     public Object catNotice(@RequestBody String body) {
         Integer noticeId = JacksonUtil.parseInteger(body, "noticeId");
@@ -131,7 +132,7 @@ public class AdminProfileController {
         return ResponseUtil.ok(data);
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @PostMapping("/bcatnotice")
     public Object bcatNotice(@RequestBody String body) {
         List<Integer> ids = JacksonUtil.parseIntegerList(body, "ids");
@@ -139,7 +140,7 @@ public class AdminProfileController {
         return ResponseUtil.ok();
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @PostMapping("/rmnotice")
     public Object rmNotice(@RequestBody String body) {
         Integer id = JacksonUtil.parseInteger(body, "id");
@@ -150,7 +151,7 @@ public class AdminProfileController {
         return ResponseUtil.ok();
     }
 
-    @RequiresAuthentication
+    //@RequiresAuthentication
     @PostMapping("/brmnotice")
     public Object brmNotice(@RequestBody String body) {
         List<Integer> ids = JacksonUtil.parseIntegerList(body, "ids");

@@ -1,10 +1,13 @@
 package org.linlinjava.litemall.admin;
 
 import org.junit.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 
@@ -13,8 +16,15 @@ import java.io.IOException;
 import java.time.LocalDate;
 
 @WebAppConfiguration
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest
+/*@TestPropertySource(
+        locations = "classpath:application.yml",
+        properties = {
+                "spring.profiles.active=db,core,admin",
+                "spring.config.import=optional:classpath:application-db.yml"
+        }
+)*/
 public class DbTest {
     @Autowired
     private Environment environment;

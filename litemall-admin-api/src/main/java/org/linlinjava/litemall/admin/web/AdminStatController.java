@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.vo.StatVo;
 import org.linlinjava.litemall.core.util.ResponseUtil;
@@ -25,7 +25,7 @@ public class AdminStatController {
     @Autowired
     private StatService statService;
 
-    @RequiresPermissions("admin:stat:user")
+    //@RequiresPermissions("admin:stat:user")
     @RequiresPermissionsDesc(menu = {"统计管理", "用户统计"}, button = "查询")
     @GetMapping("/user")
     public Object statUser() {
@@ -37,7 +37,7 @@ public class AdminStatController {
         return ResponseUtil.ok(statVo);
     }
 
-    @RequiresPermissions("admin:stat:order")
+    //@RequiresPermissions("admin:stat:order")
     @RequiresPermissionsDesc(menu = {"统计管理", "订单统计"}, button = "查询")
     @GetMapping("/order")
     public Object statOrder() {
@@ -50,7 +50,7 @@ public class AdminStatController {
         return ResponseUtil.ok(statVo);
     }
 
-    @RequiresPermissions("admin:stat:goods")
+    //@RequiresPermissions("admin:stat:goods")
     @RequiresPermissionsDesc(menu = {"统计管理", "商品统计"}, button = "查询")
     @GetMapping("/goods")
     public Object statGoods() {

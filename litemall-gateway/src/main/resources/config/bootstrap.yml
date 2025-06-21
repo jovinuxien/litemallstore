@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: gateway
+  profiles:
+    active: default
+  main:
+    web-application-type: reactive
+  cloud:
+    config:
+      uri: http://configserver:8888
+      #fail-fast: true
+      #uri: http://localhost:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:9000" #Allow the origin of your request
+            allowedMethods: "*"
+            allowCredentials: true
+      routes:
+        - id: admin-api
+          uri: lb://litemall-admin-api
+          predicates:
+            - Path=/admin/**
+        - id: wx-api
+          uri: lb://litemall-wx-api
+          predicates:
+            - Path=/wx/**
+        - id: goods-management
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/goods/**
+          filters:
+            - TokenRelay=
+            - StripPrefix=0
+
+        - id: token-service
+          uri: lb://litemall-auth-server # or uri: http://localhost:8085
+          predicates:
+            - Path=/oauth/**
+          filters:
+            - RemoveRequestHeader=Cookie
+            #- RewritePath=/oauth/(?<segment>.*), /$\{segment}
+            #- StripPrefix=0
+
+      # Disable default sensitive headers (equivalent to zuul.sensitiveHeaders=)
+      default-filters:
+        - TokenRelay=
+        #- RemoveRequestHeader=Cookie,Set-Cookie,Authorization
+  security:
+   oauth2:
+     client:
+       provider:
+         baeldung-keycloak:
+           issuer-uri: http://localhost:9080/realms/baeldung-keycloak
+       registration:
+         keycloak:
+           provider: baeldung-keycloak
+           authorization-grant-type: authorization_code
+           client-id: baeldung-keycloak-confidential
+           client-secret: secret
+           scope: openid
+
+server:
+  port: 8081
+
+eureka:
+  instance:
+    preferIpAddress: true
+    #hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.reactive: DEBUG
+    org.springframework.web.security: DEBUG

@@ -106,7 +106,13 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
     @Override
     public List<LitemallGoodsAggregate> queryByCategory(LitemallCategoryId categoryId, int offset, int limit) {
-        return List.of();
+
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andCategoryIdEqualTo(categoryId.getId()).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.setOrderByClause("add_time desc");
+        PageHelper.startPage(offset, limit);
+
+        return goodsMapper.selectByExampleSelective(example, columns).stream().map(this::convertToDomainModel).toList();
     }
 
     @Override
@@ -151,13 +157,57 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
     }
 
     @Override
+    public List<LitemallGoodsAggregate> querySelective(LitemallCategoryId categoryId, LitemallManufacturerId manufacturerId, String keywords, Boolean isHot, Boolean isNew, Integer page, Integer size, String sort) {
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        LitemallGoodsExample.Criteria criteria1 = example.or();
+        LitemallGoodsExample.Criteria criteria2 = example.or();
+
+        if (!StringUtils.isEmpty(categoryId.getId()) && categoryId.getId() != 0) {
+            criteria1.andCategoryIdEqualTo(categoryId.getId());
+            criteria2.andCategoryIdEqualTo(categoryId.getId());
+        }
+        if (!StringUtils.isEmpty(manufacturerId.getId())) {
+            criteria1.andBrandIdEqualTo(manufacturerId.getId());
+            criteria2.andBrandIdEqualTo(manufacturerId.getId());
+        }
+        if (!StringUtils.isEmpty(isNew)) {
+            criteria1.andIsNewEqualTo(isNew);
+            criteria2.andIsNewEqualTo(isNew);
+        }
+        if (!StringUtils.isEmpty(isHot)) {
+            criteria1.andIsHotEqualTo(isHot);
+            criteria2.andIsHotEqualTo(isHot);
+        }
+        if (!StringUtils.isEmpty(keywords)) {
+            criteria1.andKeywordsLike("%" + keywords + "%");
+            criteria2.andNameLike("%" + keywords + "%");
+        }
+        criteria1.andIsOnSaleEqualTo(true);
+        criteria2.andIsOnSaleEqualTo(true);
+        criteria1.andDeletedEqualTo(false);
+        criteria2.andDeletedEqualTo(false);
+
+        /*if (!StringUtils.isEmpty(sort) && !StringUtils.isEmpty(order)) {
+            example.setOrderByClause(sort + " " + order);
+        }*/
+
+        //PageHelper.startPage(offset, limit);
+
+        return goodsMapper.selectByExampleSelective(example, columns).stream().map(this::convertToDomainModel).toList();
+    }
+
+    @Override
     public List<LitemallGoodsAggregate> querySelectiveManufacturer() {
         return List.of();
     }
 
     @Override
     public List<LitemallGoodsAggregate> queryByManufacturer(LitemallManufacturerId manufacturerId, int offset, int limit) {
-        return List.of();
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andBrandIdEqualTo(manufacturerId.getId()).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.setOrderByClause("add_time desc");
+        PageHelper.startPage(offset, limit);
+        return goodsMapper.selectByExampleSelective(example, columns).stream().map(this::convertToDomainModel).toList();
     }
 
     public List<LitemallGoodsAggregate> queryListByCategoryAndManufacturer(LitemallCategoryId catId, LitemallManufacturerId manufacturerId, String keywords, Boolean isHot, Boolean isNew, Integer offset, Integer limit, String sort, String order) {
@@ -253,16 +303,37 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
     public LitemallGoodsAggregate convertToDomainModel(LitemallGoods record) {
 
+        LitemallGoodsAggregate domainModel = new LitemallGoodsAggregate();
+
         if(record == null){
             return null;
         }
 
-        LitemallGoodsAggregate domainModel = new LitemallGoodsAggregate();
+        LitemallCategoryId categoryId = null;
+        LitemallManufacturerId manufacturerId = null;
+
+        if (record.getCategoryId() != null && record.getCategoryId() > 0) {
+            categoryId = new LitemallCategoryId(record.getCategoryId());
+        }
+
+        if(record.getBrandId() != null && record.getBrandId() > 0){
+            manufacturerId = new LitemallManufacturerId(record.getBrandId());
+        }
+
+        // Handle null 'deleted' field (default to false if null)
+        boolean isDeleted = record.getDeleted() != null && record.getDeleted().booleanValue();
+
+        // Skip if marked as deleted (if needed)
+        if (isDeleted) {
+            return null;
+        }
+
+
 
         // Relationship mappings
         domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
-        domainModel.setCategoryId(new LitemallCategoryId(record.getCategoryId()));
-        domainModel.setManufacturerId(new LitemallManufacturerId(record.getBrandId()));
+        domainModel.setCategoryId(categoryId);
+        domainModel.setManufacturerId(manufacturerId);
 
         domainModel.setGoodsSn(record.getGoodsSn());
         domainModel.setGoodsName(record.getName());
@@ -282,7 +353,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         // Orther fields
         domainModel.setAddTime(record.getAddTime());
         domainModel.setUpdateTime(record.getUpdateTime());
-        domainModel.setDeleted(record.getDeleted());
+        domainModel.setDeleted(isDeleted);
 
         return  domainModel;
     }

@@ -3,15 +3,8 @@ package org.linlinjava.litemall.core.infrastructure.acl.client.cjdropshipclient.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.linlinjava.litemall.core.config.CJDropshippingConfig;
 import org.linlinjava.litemall.core.infrastructure.acl.service.cjdropshipservice.CJAuthenticationService;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.client.RestTemplate;
-
-import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;

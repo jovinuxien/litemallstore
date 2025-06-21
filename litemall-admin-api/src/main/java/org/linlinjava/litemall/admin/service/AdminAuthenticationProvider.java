@@ -1,9 +1,27 @@
 package org.linlinjava.litemall.admin.service;
 
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 
 @Component
-public class AdminAuthenticationProvider {
+public class AdminAuthenticationProvider implements AuthenticationProvider {
+
+
+    public AdminAuthenticationProvider(/*AdminUserDetailsService userDetailsService, BCryptPasswordEncoder passwordEncoder, AdminTokenManager adminTokenManager*/) {
+
+    }
+
+    @Override
+    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+        return null;
+    }
+
+    @Override
+    public boolean supports(Class<?> authentication) {
+        return false;
+    }
 //public class AdminAuthenticationProvider implements AuthenticationProvider {
 
     /*private final AdminUserDetailsService userDetailsService;

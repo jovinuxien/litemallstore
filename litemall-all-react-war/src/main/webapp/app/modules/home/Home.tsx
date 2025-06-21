@@ -15,7 +15,6 @@ import { useAppDispatch, useAppSelector } from 'app/config/hooks';
 import { IGood } from 'app/shared/model/product/product.model';
 import { Card, Carousel, Col, Container, Row } from 'react-bootstrap';
 import { data } from '../../data';
-import { getCatalogIndexData } from '../Category/categorySlice';
 import { getProductList } from '../product/productSlice';
 import './home.scss';
 
@@ -97,7 +96,7 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
   };
   useEffect(() => {
     dispatch(getProductList());
-    dispatch(getCatalogIndexData);
+    //dispatch(getCatalogIndexData);
 
     //block for infinite scroll
     window.addEventListener('scroll', handleScroll);

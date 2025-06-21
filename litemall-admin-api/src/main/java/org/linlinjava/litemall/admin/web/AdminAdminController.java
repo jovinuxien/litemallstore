@@ -1,11 +1,11 @@
 package org.linlinjava.litemall.admin.web;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.SecurityUtils;
+/*import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
-import org.apache.shiro.subject.Subject;
+import org.apache.shiro.subject.Subject;*/
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.service.LogHelper;
 import org.linlinjava.litemall.core.util.RegexUtil;
@@ -35,7 +35,7 @@ public class AdminAdminController {
     @Autowired
     private LogHelper logHelper;
 
-    @RequiresPermissions("admin:admin:list")
+    //@RequiresPermissions("admin:admin:list")
     @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(String username,
@@ -62,7 +62,7 @@ public class AdminAdminController {
         return null;
     }
 
-    @RequiresPermissions("admin:admin:create")
+    //@RequiresPermissions("admin:admin:create")
     @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallAdmin admin) {
@@ -86,7 +86,7 @@ public class AdminAdminController {
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:read")
+    //@RequiresPermissions("admin:admin:read")
     @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
@@ -94,7 +94,7 @@ public class AdminAdminController {
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:update")
+    //@RequiresPermissions("admin:admin:update")
     @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallAdmin admin) {
@@ -119,7 +119,7 @@ public class AdminAdminController {
         return ResponseUtil.ok(admin);
     }
 
-    @RequiresPermissions("admin:admin:delete")
+    //@RequiresPermissions("admin:admin:delete")
     @RequiresPermissionsDesc(menu = {"系统管理", "管理员管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallAdmin admin) {
@@ -129,11 +129,11 @@ public class AdminAdminController {
         }
 
         // 管理员不能删除自身账号
-        Subject currentUser = SecurityUtils.getSubject();
-        LitemallAdmin currentAdmin = (LitemallAdmin) currentUser.getPrincipal();
+        //Subject currentUser = SecurityUtils.getSubject();
+        /*LitemallAdmin currentAdmin = (LitemallAdmin) currentUser.getPrincipal();
         if (currentAdmin.getId().equals(anotherAdminId)) {
             return ResponseUtil.fail(ADMIN_DELETE_NOT_ALLOWED, "管理员不能删除自己账号");
-        }
+        }*/
 
         adminService.deleteById(anotherAdminId);
         logHelper.logAuthSucceed("删除管理员", admin.getUsername());

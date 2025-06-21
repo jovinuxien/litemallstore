@@ -18,6 +18,8 @@ import org.linlinjava.litemall.order.application.util.exception.groupon.Litemall
 import org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException;
 import org.linlinjava.litemall.order.application.util.exception.product.LitemallProductNotFoundException;
 import org.linlinjava.litemall.order.domain.model.agregates.*;
+import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
+import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPublisher;
@@ -30,6 +32,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponService;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
 import org.linlinjava.litemall.wx.task.OrderUnpaidTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -54,6 +57,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallOrderGoodsRepository orderGoodsRepository;
 
     private final LitemallDomainEventPublisher domainEventPublisher;
+    private final GoodsServiceFeignClient goodsServiceFeignClient;
 
     // Service internal to orderService
     private final LitemallCouponService couponService;
@@ -73,9 +77,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                                     LitemallCouponRepository couponRepo,
                                     LitemallAddressRepository addressRepo,
                                     LitemallOrderGoodsRepository orderGoodsRepo,
-                                    LitemallGoodsProductRepository goodsProductRepository,
+                                    //LitemallGoodsProductRepository goodsProductRepository,
                                     LitemallCouponService couponService,
-                                    LitemallDomainEventPublisher domainEventPublisher) {
+                                    LitemallDomainEventPublisher domainEventPublisher,
+                                    GoodsServiceFeignClient goodsServiceFeignClient) {
         this.orderRepository = orderRepo;
         this.grouponRepository = grouponRepo;
         this.grouponRulesRepository = grouponRulesRepo;
@@ -84,7 +89,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         this.couponRepository = couponRepo;
         this.addressRepository = addressRepo;
         this.orderGoodsRepository = orderGoodsRepo;
-        this.goodsProductRepository = goodsProductRepository;
+        //this.goodsProductRepository = goodsProductRepository;
         this.couponService = couponService;
         this.domainEventPublisher = domainEventPublisher;
     }
@@ -243,16 +248,20 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         clearCart(userId, new LitemallCartId(command.getCartId()));
         // Reduce the product stock
         for (LitemallCartAggregate checkGoods : checkedGoodsList) {
-            LitemallGoodsProductId productId = checkGoods.getProductId();
-            LitemallGoodsProductAggregate product = goodsProductRepository.findById(productId).get();
+            //Here the idea is to get goods product info from Goods microservice
+            // and fetch the corresponding product information
+            LitemallGoodsAggregate goodsAggregate = (LitemallGoodsAggregate) goodsServiceFeignClient.getGoodsAggregate(checkGoods.getGoodsId().getId());
+            LitemallGoodsProductAggregate product = (LitemallGoodsProductAggregate) goodsServiceFeignClient.getGoodsProductAggregate(checkGoods.getProductId().getId());
+            //LitemallGoodsProductId productId = checkGoods.getProductId();
+            //LitemallGoodsProductAggregate product = goodsProductRepository.findById(productId).get();
 
             int remainNumber = product.getNumber() - checkGoods.getNumber();
             if (remainNumber < 0) {
                 throw new RuntimeException("The quantity of the ordered product is greater than the inventory");
             }
-            if (goodsProductRepository.reduceStock(productId, checkGoods.getNumber().shortValue()) == 0) {
+            /*if (goodsProductRepository.reduceStock(productId, checkGoods.getNumber().shortValue()) == 0) {
                 throw new RuntimeException("Product inventory reduction failed");
-            }
+            }*/
         }
         // Update coupon usage if applicable
         if (command.getCouponId() != 0 && command.getCouponId() != -1) {
@@ -409,9 +418,9 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private void validateProductStock(List<LitemallCartAggregate> checkedCartItems){
         for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProductAggregate goodsProduct = goodsProductRepository.findById(cartItem.getProductId()).orElseThrow(
-                    () -> new LitemallProductNotFoundException("Product not found.")
-            );
+            LitemallGoodsProductAggregate goodsProduct = (LitemallGoodsProductAggregate) goodsServiceFeignClient.getGoodsProductAggregate(cartItem.getProductId().getId());
+
+            System.out.println("the goodsProduct is: " + goodsProduct);
 
             if(goodsProduct.getNumber() < cartItem.getNumber()){
                 throw new LitemallInsufficientStockException(cartItem.getProductId());

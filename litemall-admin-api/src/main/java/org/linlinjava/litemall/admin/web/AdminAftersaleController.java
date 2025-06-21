@@ -6,7 +6,7 @@ import com.github.binarywang.wxpay.exception.WxPayException;
 import com.github.binarywang.wxpay.service.WxPayService;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.service.LogHelper;
 import org.linlinjava.litemall.admin.util.AdminResponseCode;
@@ -54,7 +54,7 @@ public class AdminAftersaleController {
     @Autowired
     private NotifyService notifyService;
 
-    @RequiresPermissions("admin:aftersale:list")
+    //@RequiresPermissions("admin:aftersale:list")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(Integer orderId, String aftersaleSn, Short status,
@@ -66,7 +66,7 @@ public class AdminAftersaleController {
         return ResponseUtil.okList(aftersaleList);
     }
 
-    @RequiresPermissions("admin:aftersale:recept")
+    //@RequiresPermissions("admin:aftersale:recept")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "审核通过")
     @PostMapping("/recept")
     public Object recept(@RequestBody LitemallAftersale aftersale) {
@@ -88,7 +88,7 @@ public class AdminAftersaleController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:aftersale:batch-recept")
+    //@RequiresPermissions("admin:aftersale:batch-recept")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "批量通过")
     @PostMapping("/batch-recept")
     public Object batchRecept(@RequestBody String body) {
@@ -116,7 +116,7 @@ public class AdminAftersaleController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:aftersale:reject")
+    //@RequiresPermissions("admin:aftersale:reject")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "审核拒绝")
     @PostMapping("/reject")
     public Object reject(@RequestBody LitemallAftersale aftersale) {
@@ -138,7 +138,7 @@ public class AdminAftersaleController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:aftersale:batch-reject")
+    //@RequiresPermissions("admin:aftersale:batch-reject")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "批量拒绝")
     @PostMapping("/batch-reject")
     public Object batchReject(@RequestBody String body) {
@@ -162,7 +162,7 @@ public class AdminAftersaleController {
         return ResponseUtil.ok();
     }
 
-    @RequiresPermissions("admin:aftersale:refund")
+    //@RequiresPermissions("admin:aftersale:refund")
     @RequiresPermissionsDesc(menu = {"商城管理", "售后管理"}, button = "退款")
     @PostMapping("/refund")
     public Object refund(@RequestBody LitemallAftersale aftersale) {

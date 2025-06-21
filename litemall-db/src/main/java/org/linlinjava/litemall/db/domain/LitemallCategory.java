@@ -326,7 +326,6 @@ public class LitemallCategory {
      * This method returns the value of the database column litemall_category.sort_order
      *
      * @return the value of litemall_category.sort_order
-     *
      * @mbg.generated
      */
     public Byte getSortOrder() {

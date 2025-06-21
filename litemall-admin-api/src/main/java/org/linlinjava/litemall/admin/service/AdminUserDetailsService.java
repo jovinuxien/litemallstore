@@ -1,13 +1,23 @@
 package org.linlinjava.litemall.admin.service;
 
+import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.service.LitemallAdminService;
 import org.linlinjava.litemall.db.service.LitemallPermissionService;
 import org.linlinjava.litemall.db.service.LitemallRoleService;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 @Service
-//public class AdminUserDetailsService implements UserDetailsService {
-public class AdminUserDetailsService  {
+public class AdminUserDetailsService implements UserDetailsService {
     private final LitemallAdminService adminService;
     private final LitemallRoleService roleService;
     private final LitemallPermissionService permissionService;
@@ -18,23 +28,27 @@ public class AdminUserDetailsService  {
         this.roleService = roleService;
         this.permissionService = permissionService;
     }
-    //@Override
-    /*public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        List<LitemallAdmin> adminList = adminService.findAdmin(username);
-        if(adminList.isEmpty()){
-            throw new UsernameNotFoundException("Account information for user (" + username + ") not found");
-        }if (adminList.size() > 1) {
-            throw new IllegalStateException("Multiple accounts exist for the same username");
-        }
-        LitemallAdmin admin = adminList.get(0);
-        Integer[] roleIds = admin.getRoleIds();
-        Set<String> roles = roleService.queryByIds(roleIds);
-        Set<String> permissions = permissionService.queryByRoleIds(roleIds);
 
-        return new org.springframework.security.core.userdetails.User(
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        List<LitemallAdmin> admins = adminService.findAdmin(username);
+
+        if (admins == null) {
+            throw new UsernameNotFoundException(" Admins not found (" + username + ") not found");
+        }
+
+        LitemallAdmin admin = admins.get(0);
+        Set<String> roles = roleService.queryByIds(admin.getRoleIds());
+        Set<String> permissions = permissionService.queryByRoleIds(admin.getRoleIds());
+        Set<GrantedAuthority> authorities = new HashSet<>();
+        roles.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+        permissions.forEach(perm -> authorities.add(new SimpleGrantedAuthority(perm)));
+
+        return new User(
                 admin.getUsername(),
                 admin.getPassword(),
-                roles.stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).collect(Collectors.toList())
+                true, true, true, true,
+                authorities
         );
-    }*/
+    }
 }
