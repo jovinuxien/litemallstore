@@ -6,6 +6,8 @@ import org.linlinjava.litemall.db.domain.LitemallCartExample;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCartRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;

@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import java.util.List;
 
 @RestController
@@ -26,7 +26,7 @@ public class AdminIssueController {
     @Autowired
     private LitemallIssueService issueService;
 
-    @RequiresPermissions("admin:issue:list")
+    //@RequiresPermissions("admin:issue:list")
     @RequiresPermissionsDesc(menu = {"商场管理", "通用问题"}, button = "查询")
     @GetMapping("/list")
     public Object list(String question,
@@ -50,7 +50,7 @@ public class AdminIssueController {
         return null;
     }
 
-    @RequiresPermissions("admin:issue:create")
+    //@RequiresPermissions("admin:issue:create")
     @RequiresPermissionsDesc(menu = {"商场管理", "通用问题"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallIssue issue) {
@@ -62,14 +62,14 @@ public class AdminIssueController {
         return ResponseUtil.ok(issue);
     }
 
-    @RequiresPermissions("admin:issue:read")
+    //@RequiresPermissions("admin:issue:read")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
         LitemallIssue issue = issueService.findById(id);
         return ResponseUtil.ok(issue);
     }
 
-    @RequiresPermissions("admin:issue:update")
+    //@RequiresPermissions("admin:issue:update")
     @RequiresPermissionsDesc(menu = {"商场管理", "通用问题"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallIssue issue) {
@@ -84,7 +84,7 @@ public class AdminIssueController {
         return ResponseUtil.ok(issue);
     }
 
-    @RequiresPermissions("admin:issue:delete")
+    //@RequiresPermissions("admin:issue:delete")
     @RequiresPermissionsDesc(menu = {"商场管理", "通用问题"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallIssue issue) {

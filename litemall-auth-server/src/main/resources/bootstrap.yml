@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: Litemall-auth-server
+#    profiles:
+#      active: @spring.profiles.active@
+  cloud:
+    config:
+      uri: http://configserver:8888
+    bootstrap:
+      enabled: true
+
+server:
+  port: 8087
+  error:
+    whitelabel:
+      enabled: false
+security:
+  oauth2:
+    resource:
+      filter-order: 3
+    client:
+      authenticationScheme: header
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/

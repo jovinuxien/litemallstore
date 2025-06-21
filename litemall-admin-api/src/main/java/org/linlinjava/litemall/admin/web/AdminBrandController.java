@@ -1,9 +1,9 @@
 package org.linlinjava.litemall.admin.web;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
@@ -27,7 +27,7 @@ public class AdminBrandController {
     @Autowired
     private LitemallBrandService brandService;
 
-    @RequiresPermissions("admin:brand:list")
+    //@RequiresPermissions("admin:brand:list")
     @RequiresPermissionsDesc(menu = {"商场管理", "品牌管理"}, button = "查询")
     @GetMapping("/list")
     public Object list(String id, String name,
@@ -57,7 +57,7 @@ public class AdminBrandController {
         return null;
     }
 
-    @RequiresPermissions("admin:brand:create")
+    ////@RequiresPermissions("admin:brand:create")
     @RequiresPermissionsDesc(menu = {"商场管理", "品牌管理"}, button = "添加")
     @PostMapping("/create")
     public Object create(@RequestBody LitemallBrand brand) {
@@ -69,7 +69,7 @@ public class AdminBrandController {
         return ResponseUtil.ok(brand);
     }
 
-    @RequiresPermissions("admin:brand:read")
+    ////@RequiresPermissions("admin:brand:read")
     @RequiresPermissionsDesc(menu = {"商场管理", "品牌管理"}, button = "详情")
     @GetMapping("/read")
     public Object read(@NotNull Integer id) {
@@ -77,7 +77,7 @@ public class AdminBrandController {
         return ResponseUtil.ok(brand);
     }
 
-    @RequiresPermissions("admin:brand:update")
+    //@RequiresPermissions("admin:brand:update")
     @RequiresPermissionsDesc(menu = {"商场管理", "品牌管理"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallBrand brand) {
@@ -91,7 +91,7 @@ public class AdminBrandController {
         return ResponseUtil.ok(brand);
     }
 
-    @RequiresPermissions("admin:brand:delete")
+    //@RequiresPermissions("admin:brand:delete")
     @RequiresPermissionsDesc(menu = {"商场管理", "品牌管理"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallBrand brand) {

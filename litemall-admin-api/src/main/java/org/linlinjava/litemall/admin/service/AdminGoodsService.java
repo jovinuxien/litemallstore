@@ -245,8 +245,9 @@ public class AdminGoodsService {
             return ResponseUtil.fail(GOODS_NAME_EXIST, "商品名已经存在");
         }
 
-        // 商品表里面有一个字段retailPrice记录当前商品的最低价
-        BigDecimal retailPrice = new BigDecimal(Integer.MAX_VALUE);
+// There is a field retailPrice in the product
+// table that records the lowest price of the current product
+       BigDecimal retailPrice = new BigDecimal(Integer.MAX_VALUE);
         for (LitemallGoodsProduct product : products) {
             BigDecimal productPrice = product.getPrice();
             if(retailPrice.compareTo(productPrice) == 1){

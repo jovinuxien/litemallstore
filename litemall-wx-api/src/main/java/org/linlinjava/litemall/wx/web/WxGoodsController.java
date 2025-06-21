@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.wx.web;
 
 import com.github.pagehelper.PageInfo;
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.linlinjava.litemall.core.system.SystemConfig;
@@ -376,6 +376,4 @@ public class WxGoodsController {
 		entity.put("list", goods);
 		return ResponseUtil.ok(entity);
 	}
-
-
 }

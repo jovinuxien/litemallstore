@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 

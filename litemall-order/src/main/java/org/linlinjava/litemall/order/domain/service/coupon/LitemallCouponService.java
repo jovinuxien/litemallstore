@@ -1,16 +1,11 @@
 package org.linlinjava.litemall.order.domain.service.coupon;
 
-import org.linlinjava.litemall.db.domain.LitemallCart;
-import org.linlinjava.litemall.db.domain.LitemallCoupon;
-import org.linlinjava.litemall.db.domain.LitemallCouponUser;
 import org.linlinjava.litemall.db.util.CouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
-import org.linlinjava.litemall.order.domain.model.repositories.LitemallGoodsProductRepository;
-import org.linlinjava.litemall.order.domain.model.repositories.LitemallGoodsRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;

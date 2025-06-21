@@ -1,0 +1,119 @@
+@import '../../../sass/adminSass/bootstrap-variables';
+@import '../../../sass/adminSass/core/variables';
+@import '../../../sass/base/variables';
+
+$sidebar-minimizer-color: #fff; // Replace with your desired color
+
+
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: $navbar-height; // Align with the header height
+  bottom: 0;
+  width: $sidebar-width;
+  background-color: $sidebar-bg;
+  color: $sidebar-color;
+  transition: width $layout-transition-speed;
+  overflow-y: auto;
+  z-index: 1000;
+
+  &.sidebar-minimized {
+    width: $sidebar-minimized-width;
+  }
+
+  &.sidebar-hidden {
+    width: 0;
+    overflow: hidden;
+  }
+
+  .nav {
+    flex-direction: column;
+    padding: $sidebar-padding;
+  }
+
+  .nav-item {
+    width: 100%;
+    margin: 0;
+    position: relative;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    padding: $sidebar-nav-link-padding-y $sidebar-nav-link-padding-x;
+    color: $sidebar-nav-link-color;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      color: $sidebar-nav-link-hover-color;
+      background: $sidebar-nav-link-hover-bg;
+    }
+
+    &.active {
+      color: $sidebar-nav-link-active-color;
+      background: $sidebar-nav-link-active-bg;
+    }
+
+    .nav-icon {
+      margin-right: 1rem;
+      font-size: 1.1rem;
+    }
+  }
+
+  .sidebar-minimizer {
+    position: relative;
+    flex: 0 0 50px;
+    background-color: $sidebar-minimizer-bg;
+    border: 0;
+    color: $sidebar-minimizer-color;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 50px;
+    cursor: pointer;
+
+    &::before {
+      content: "\2039";
+      font-family: sans-serif;
+      font-size: 24px;
+      transition: transform .3s ease;
+    }
+
+    &:hover {
+      background-color: $sidebar-minimizer-hover-bg;
+    }
+  }
+
+  &.sidebar-minimized {
+    .sidebar-minimizer::before {
+      transform: rotate(-180deg);
+    }
+
+    .nav-link {
+      padding: $sidebar-nav-link-padding-y;
+      justify-content: center;
+
+      .nav-icon {
+        margin-right: 0;
+      }
+
+      span {
+        display: none;
+      }
+    }
+  }
+}
+
+@media (max-width: 991.98px) {
+  .sidebar {
+    width: $mobile-sidebar-width;
+    transform: translateX(-100%);
+    transition: transform $layout-transition-speed;
+
+    &.sidebar-open {
+      transform: translateX(0);
+    }
+  }
+}

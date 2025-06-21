@@ -1,0 +1,22 @@
+.cart-item {
+    .img-thumbnail {
+      transition: transform 0.2s ease-in-out;
+      &:hover {
+        transform: scale(1.1);
+      }
+    }
+  
+    .badge {
+      font-size: 0.75rem;
+      font-weight: normal;
+    }
+  
+    h6 {
+      font-weight: 600;
+      color: #333;
+    }
+  
+    .text-muted {
+      font-size: 0.8rem;
+    }
+  }

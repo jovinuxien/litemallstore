@@ -18,12 +18,26 @@
 
 	<properties>
 		<java.version>17</java.version>
-		<spring-cloud.version>2022.0.4</spring-cloud.version>
+		<spring-cloud.version>2021.0.9</spring-cloud.version>
 		<mapstruct.version>1.5.2.Final</mapstruct.version>
 		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
+		<spring-cloud.version>2021.0.9</spring-cloud.version>
 	</properties>
 
 	<dependencies>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+
+		<!-- Spring Cloud Gateway -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-gateway</artifactId>
+		</dependency>
+
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
@@ -39,17 +53,79 @@
 
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+
+
+
+		<dependency>
+			<groupId>tech.jhipster</groupId>
+			<artifactId>jhipster-framework</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+		</dependency>
+
+
+		<dependency>
+			<groupId>commons-lang</groupId>
+			<artifactId>commons-lang</artifactId>
+			<version>2.6</version>
+			<scope>compile</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>javax.servlet-api</artifactId>
+			<version>4.0.1</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<!-- Test section -->
+		<dependency>
+			<groupId>com.github.dasniko</groupId>
+			<artifactId>testcontainers-keycloak</artifactId>
+			<version>3.2.0</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>1.19.6</version>
+			<scope>test</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-config</artifactId>
+		</dependency>
 	</dependencies>
 	<dependencyManagement>
-		<!--<dependencies>
+		<dependencies>
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
@@ -57,7 +133,9 @@
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
-		</dependencies>-->
+		</dependencies>
+
+
 	</dependencyManagement>
 
 	<build>
@@ -72,7 +150,175 @@
 					</image>
 				</configuration>
 			</plugin>
+			<!-- Maven resource build plugin  -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+			</plugin>
 
 		</plugins>
+		<pluginManagement>
+			<plugins>
+				<!-- Resources plugin management -->
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-resources-plugin</artifactId>
+					<version>${maven-resources-plugin.version}</version>
+					<executions>
+						<execution>
+							<id>default-resources</id>
+							<phase>validate</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>${project.build.directory}/classes</outputDirectory>
+								<useDefaultDelimiters>false</useDefaultDelimiters>
+								<delimiters>
+									<delimiter>@</delimiter>
+								</delimiters>
+								<resources>
+									<resource>
+										<directory>src/main/resources/config</directory>
+										<filtering>true</filtering>
+										<includes>
+											<include>*.yml</include>
+										</includes>
+									</resource>
+									<resource>
+										<directory>src/main/resources/</directory>
+										<filtering>false</filtering>
+										<excludes>
+											<exclude>*.yml</exclude>
+										</excludes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 	</build>
+
+	<profiles>
+		<!-- dev profile -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<dependencies>
+				<!-- Sprin boot devtools dependency -->
+				<dependency>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-devtools</artifactId>
+					<optional>true</optional>
+				</dependency>
+			</dependencies>
+			<build>
+				<plugins>
+					<!-- Maven plugin -->
+					<!--<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<configuration>
+							<testExcludes>
+								<testExclude>com/joviste/storjhireact/config/PostgreSqlTestContainer.java</testExclude>
+							</testExcludes>
+						</configuration>
+					</plugin>-->
+
+				</plugins>
+				<pluginManagement>
+					<plugins>
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-failsafe-plugin</artifactId>
+							<version>${maven-failsafe-plugin.version}</version>
+							<configuration>
+								<!-- Due to spring-boot repackage, without adding this property test classes are not found
+                                     See https://github.com/spring-projects/spring-boot/issues/6254 -->
+								<classesDirectory>${project.build.outputDirectory}</classesDirectory>
+								<!-- Force alphabetical order to have a reproducible build -->
+								<runOrder>alphabetical</runOrder>
+								<includes>
+									<include>**/*IT*</include>
+									<include>**/*IntTest*</include>
+								</includes>
+								<argLine>@{argLine} -Dspring.profiles.active=testdev</argLine>
+							</configuration>
+							<executions>
+								<execution>
+									<id>integration-test</id>
+									<goals>
+										<goal>integration-test</goal>
+									</goals>
+								</execution>
+								<execution>
+									<id>verify</id>
+									<goals>
+										<goal>verify</goal>
+									</goals>
+								</execution>
+							</executions>
+						</plugin>
+						<!-- Eirslett  plugin -->
+						<plugin>
+							<groupId>com.github.eirslett</groupId>
+							<artifactId>frontend-maven-plugin</artifactId>
+							<executions>
+								<execution>
+									<id>install-node-and-npm</id>
+									<goals>
+										<goal>install-node-and-npm</goal>
+									</goals>
+									<configuration>
+										<nodeVersion>${node.version}</nodeVersion>
+										<npmVersion>${npm.version}</npmVersion>
+									</configuration>
+								</execution>
+								<execution>
+									<id>npm install</id>
+									<goals>
+										<goal>npm</goal>
+									</goals>
+								</execution>
+								<execution>
+									<id>webapp build test</id>
+									<goals>
+										<goal>npm</goal>
+									</goals>
+									<phase>test</phase>
+									<configuration>
+										<arguments>run webapp:test</arguments>
+										<npmInheritsProxyConfigFromMaven>false</npmInheritsProxyConfigFromMaven>
+									</configuration>
+								</execution>
+								<execution>
+									<id>webapp build prod</id>
+									<goals>
+										<goal>npm</goal>
+									</goals>
+									<phase>generate-resources</phase>
+									<configuration>
+										<arguments>run webapp:prod</arguments>
+										<environmentVariables>
+											<APP_VERSION>${project.version}</APP_VERSION>
+										</environmentVariables>
+										<npmInheritsProxyConfigFromMaven>false</npmInheritsProxyConfigFromMaven>
+									</configuration>
+								</execution>
+							</executions>
+						</plugin>
+					</plugins>
+				</pluginManagement>
+			</build>
+			<properties>
+				<!-- default Spring profiles -->
+				<!--<spring.profiles.active>dev${profile.tls}${profile.no-liquibase}</spring.profiles.active>-->
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+		</profile>
+	</profiles>
 </project>

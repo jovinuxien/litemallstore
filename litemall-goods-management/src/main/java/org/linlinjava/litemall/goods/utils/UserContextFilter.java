@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.goods.utils;
 
-import jakarta.servlet.*;
-import jakarta.servlet.http.HttpServletRequest;
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -50,7 +50,7 @@ public class UserContextFilter implements Filter {
         UserContextHolder.getContext().setCorrelationId(  httpServletRequest.getHeader(UserContext.CORRELATION_ID) );
         UserContextHolder.getContext().setUserId( httpServletRequest.getHeader(UserContext.USER_ID) );
         UserContextHolder.getContext().setAuthToken( httpServletRequest.getHeader(UserContext.AUTH_TOKEN) );
-        UserContextHolder.getContext().setGoodsServiceId(httpServletRequest.getHeader(UserContext.ORDER_SERVICE_ID) );
+        UserContextHolder.getContext().setGoodsServiceId(httpServletRequest.getHeader(UserContext.LITEMALL_GOODS_SERVICE_ID) );
 
         logger.debug("Organization Service Incoming Correlation id: {}" ,UserContextHolder.getContext().getCorrelationId());
         chain.doFilter(httpServletRequest, response);

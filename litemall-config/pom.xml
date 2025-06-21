@@ -19,7 +19,12 @@
 		<java.version>17</java.version>
 		<mapstruct.version>1.5.2.Final</mapstruct.version>
 		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
-		<spring-cloud.version>2022.0.4</spring-cloud.version> <!-- For Spring Boot 3.1.x -->
+		<spring-cloud.version>2021.0.9</spring-cloud.version>
+
+		<jib-maven-plugin.version>3.4.0</jib-maven-plugin.version>
+		<jib-maven-plugin.image>eclipse-temurin:17-jre-focal</jib-maven-plugin.image>
+		<jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
+
 
 	</properties>
 
@@ -86,6 +91,67 @@
 					</image>
 				</configuration>
 			</plugin>
+
+			<!-- jib docker build plugin -->
+			<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+			</plugin>
+
 		</plugins>
+
+
+		<pluginManagement>
+			<plugins>
+				<!-- jib-maven plugin management -->
+				<plugin>
+					<groupId>com.google.cloud.tools</groupId>
+					<artifactId>jib-maven-plugin</artifactId>
+					<version>${jib-maven-plugin.version}</version>
+					<configuration>
+						<from>
+							<image>${jib-maven-plugin.image}</image>
+							<platforms>
+								<platform>
+									<architecture>${jib-maven-plugin.architecture}</architecture>
+									<os>linux</os>
+								</platform>
+							</platforms>
+						</from>
+						<to>
+							<image>announce-service:latest</image>
+						</to>
+						<container>
+							<entrypoint>
+								<shell>bash</shell>
+								<option>-c</option>
+								<arg>/entrypoint.sh</arg>
+							</entrypoint>
+							<ports>
+								<port>8083</port>
+								<port>5701/udp</port>
+							</ports>
+							<!--	<environment>
+                                    <SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
+                                    <JHIPSTER_SLEEP>0</JHIPSTER_SLEEP>
+                                </environment>-->
+							<creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+							<user>1000</user>
+						</container>
+						<extraDirectories>
+							<paths>src/main/docker/jib</paths>
+							<permissions>
+								<permission>
+									<file>/entrypoint.sh</file>
+									<mode>755</mode>
+								</permission>
+							</permissions>
+						</extraDirectories>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 	</build>
+
+
 </project>

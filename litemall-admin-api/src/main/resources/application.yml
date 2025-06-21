@@ -3,6 +3,19 @@ spring:
     active: db, core, admin
   messages:
     encoding: UTF-8
+  cache:
+    cache-names: restApiAuthTokenCache
+    caffeine:
+      spec:
+        expireAfterWrite: 30m
+        maximum-size: 1000
+        record-stats-interval: 60s
+#  devtools:
+#    restart:
+#      poll-interval: 5s
+#      additional-paths: ../litemall-core, ../litemall-db
+#    livereload:
+#      enabled: true
 
 server:
   port: 8083
@@ -11,6 +24,7 @@ logging:
   level:
     root:  ERROR
     org.springframework:  ERROR
+    org.springframework.cache:  DEBUG
     org.mybatis:  ERROR
     org.linlinjava.litemall.admin:  DEBUG
     org.linlinjava.litemall:  ERROR

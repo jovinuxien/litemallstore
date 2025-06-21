@@ -1,8 +1,8 @@
 package org.linlinjava.litemall.admin.service;
 
-import jakarta.servlet.http.HttpServletRequest;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.subject.Subject;
+import javax.servlet.http.HttpServletRequest;
+//import org.apache.shiro.SecurityUtils;
+//import org.apache.shiro.subject.Subject;
 import org.linlinjava.litemall.core.util.IpUtil;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.domain.LitemallLog;
@@ -83,7 +83,7 @@ public class LogHelper {
     public void logAdmin(Integer type, String action, Boolean succeed, String result, String comment) {
         LitemallLog log = new LitemallLog();
 
-        Subject currentUser = SecurityUtils.getSubject();
+     /*   Subject currentUser = SecurityUtils.getSubject();
         if (currentUser != null) {
             LitemallAdmin admin = (LitemallAdmin) currentUser.getPrincipal();
             if (admin != null) {
@@ -93,7 +93,7 @@ public class LogHelper {
             }
         } else {
             log.setAdmin("匿名用户");
-        }
+        }*/
 
         HttpServletRequest request =
                 (HttpServletRequest) ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();

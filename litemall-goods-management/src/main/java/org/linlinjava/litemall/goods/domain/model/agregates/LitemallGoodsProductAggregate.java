@@ -8,6 +8,7 @@ import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
 
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 
 @Getter
@@ -30,6 +31,5 @@ public class LitemallGoodsProductAggregate {
     public boolean isStockEnough(short stockNumber) {
         return number >= stockNumber;
     }
-
 
 }

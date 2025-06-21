@@ -53,4 +53,8 @@ spring:
       quiet-period: 1s
 mybatis:
   type-aliases-package: org.linlinjava.litemall.db.domain
-  mapper-locations: classpath:org/linlinjava/litemall/db/dao/*.xml
+  mapper-locations:
+  - classpath*:**/org/linlinjava/litemall/db/dao/*.xml
+  - classpath*:**/mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

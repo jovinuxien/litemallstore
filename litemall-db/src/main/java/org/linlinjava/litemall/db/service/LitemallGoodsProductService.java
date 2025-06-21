@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.db.service;
 
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.apache.ibatis.annotations.Param;
 import org.linlinjava.litemall.db.dao.GoodsProductMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;

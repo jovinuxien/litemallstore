@@ -33,23 +33,23 @@ const SignInForm: React.FC<SignInFormProps> = () => {
     const existingAdminToken = sessionStorage.getItem('adminToken');
     const existingUserToken = sessionStorage.getItem('token');
 
+    if (existingUserToken) {
+      navigateTo('/');
+      return;
+    }
     if (existingAdminToken) {
       navigateTo('/private/dashboard');
       return;
     }
 
-    if (existingUserToken) {
-      navigateTo('/');
-      return;
-    }
-
     try {
       const adminAuth = await dispatch(loginAdminThunk(data)).unwrap();
+      //const adminAuth = await dispatch(loginUserThunk(data)).unwrap();
       const resultAuth = await dispatch(loginUserThunk(data)).unwrap();
       console.log('Authentication result:', resultAuth);
 
       if (adminAuth.data?.token) {
-        if (adminAuth.data.adminInfo) {
+        if (adminAuth.data.token) {
           sessionStorage.setItem('adminToken', adminAuth.data.token);
           navigateTo('/private/dashboard');
         } else {

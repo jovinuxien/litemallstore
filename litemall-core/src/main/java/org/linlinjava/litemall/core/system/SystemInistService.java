@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.core.system;
 
-import jakarta.annotation.PostConstruct;
+import javax.annotation.PostConstruct;
 import org.linlinjava.litemall.core.util.SystemInfoPrinter;
 import org.linlinjava.litemall.db.service.LitemallSystemConfigService;
 import org.springframework.beans.factory.annotation.Autowired;

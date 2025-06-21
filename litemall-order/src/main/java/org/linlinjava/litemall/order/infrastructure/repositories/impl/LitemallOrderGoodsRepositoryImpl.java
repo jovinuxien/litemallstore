@@ -6,6 +6,7 @@ import org.linlinjava.litemall.db.domain.LitemallOrderGoodsExample;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.springframework.stereotype.Repository;

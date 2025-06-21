@@ -1,0 +1,27 @@
+{
+  "name": "example",
+  "version": "0.0.1",
+  "description": "example project for testing frontend-maven-plugin",
+  "dependencies": {
+    "jquery": "3.6.0"
+  },
+  "scripts": {
+    "test": "web-test-runner src/**/*.test.js --node-resolve",
+    "build": "vite build",
+
+
+    "java:docker": "./mvnw -ntp verify -DskipTests -Pprod jib:dockerBuild",
+    "java:docker:dev": "npm run java:docker -- -Pdev,webapp",
+    "java:docker:prod": "npm run java:docker -- -Pprod",
+
+
+    "app:start": "./mvnw -Dskip.installnodenpm -Dskip.npm",
+    "backend:start": "./mvnw -Dskip.installnodenpm -Dskip.npm",
+    "backend:unit:test": "./mvnw -Dskip.installnodenpm -Dskip.npm verify --batch-mode -Dlogging.level.ROOT=OFF -Dlogging.level.org.zalando=OFF -Dlogging.level.tech.jhipster=OFF -Dlogging.level.com.joviste.newannounce=OFF -Dlogging.level.org.springframework=OFF -Dlogging.level.org.springframework.web=OFF -Dlogging.level.org.springframework.security=OFF"
+  },
+  "devDependencies": {
+    "@esm-bundle/chai": "^4.3.4-fix.0",
+    "@web/test-runner": "^0.16.1",
+    "vite": "^4.3.9"
+  }
+}

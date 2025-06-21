@@ -99,7 +99,7 @@ export const loginUserThunk = createAsyncThunk<AuthResult, Credentials, { reject
 );
 
 export const loginAdminThunk = createAsyncThunk<AdminAuthResult, Credentials, { rejectValue: ApiResult<null> }>(
-  'admin/auh',
+  'admin/auth',
   async ({ username, password }: Credentials, thunkApi) => {
     try {
       const authURL = ADMIN_URL_CONTEXT + '/auth/login';
@@ -112,7 +112,7 @@ export const loginAdminThunk = createAsyncThunk<AdminAuthResult, Credentials, { 
     } catch (error) {
       return thunkApi.rejectWithValue({
         errno: -1,
-        errmsg: error.response?.data?.message || 'Login failed',
+        errmsg: error.response?.data?.message || 'Admin  Login failed',
         data: null,
       });
     }

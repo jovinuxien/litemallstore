@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.web;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.core.storage.StorageService;
 import org.linlinjava.litemall.core.util.ResponseUtil;
@@ -16,7 +16,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import java.io.IOException;
 import java.util.List;
 
@@ -31,7 +31,7 @@ public class AdminStorageController {
     @Autowired
     private LitemallStorageService litemallStorageService;
 
-    @RequiresPermissions("admin:storage:list")
+    //@RequiresPermissions("admin:storage:list")
     @RequiresPermissionsDesc(menu = {"系统管理", "对象存储"}, button = "查询")
     @GetMapping("/list")
     public Object list(String key, String name,
@@ -43,7 +43,7 @@ public class AdminStorageController {
         return ResponseUtil.okList(storageList);
     }
 
-    @RequiresPermissions("admin:storage:create")
+    //@RequiresPermissions("admin:storage:create")
     @RequiresPermissionsDesc(menu = {"系统管理", "对象存储"}, button = "上传")
     @PostMapping("/create")
     public Object create(@RequestParam("file") MultipartFile file) throws IOException {
@@ -53,7 +53,7 @@ public class AdminStorageController {
         return ResponseUtil.ok(litemallStorage);
     }
 
-    @RequiresPermissions("admin:storage:read")
+    //@RequiresPermissions("admin:storage:read")
     @RequiresPermissionsDesc(menu = {"系统管理", "对象存储"}, button = "详情")
     @PostMapping("/read")
     public Object read(@NotNull Integer id) {
@@ -64,7 +64,7 @@ public class AdminStorageController {
         return ResponseUtil.ok(storageInfo);
     }
 
-    @RequiresPermissions("admin:storage:update")
+    //@RequiresPermissions("admin:storage:update")
     @RequiresPermissionsDesc(menu = {"系统管理", "对象存储"}, button = "编辑")
     @PostMapping("/update")
     public Object update(@RequestBody LitemallStorage litemallStorage) {
@@ -74,7 +74,7 @@ public class AdminStorageController {
         return ResponseUtil.ok(litemallStorage);
     }
 
-    @RequiresPermissions("admin:storage:delete")
+    //@RequiresPermissions("admin:storage:delete")
     @RequiresPermissionsDesc(menu = {"系统管理", "对象存储"}, button = "删除")
     @PostMapping("/delete")
     public Object delete(@RequestBody LitemallStorage litemallStorage) {

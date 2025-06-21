@@ -32,6 +32,7 @@
         <dependency>
             <groupId>org.linlinjava</groupId>
             <artifactId>litemall-db</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <dependency>
@@ -53,9 +54,25 @@
             <optional>true</optional>
         </dependency>
 
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.xml</include>
+                    <include>**/*.yml</include>
+                    <include>**/*.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <!-- spring-boot plugin -->
             <plugin>

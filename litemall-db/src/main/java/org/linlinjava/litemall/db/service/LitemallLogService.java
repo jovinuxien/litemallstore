@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.PageHelper;
-import jakarta.annotation.Resource;
+import javax.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallLogMapper;
 import org.linlinjava.litemall.db.domain.LitemallAd;
 import org.linlinjava.litemall.db.domain.LitemallLog;

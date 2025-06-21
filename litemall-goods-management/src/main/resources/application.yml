@@ -1,19 +1,74 @@
 spring:
+  application:
+    name: LITEMALL-GOODS-MANAGEMENT
+  cloud:
+    loadbalancer:
+      ribbon:
+        enabled: true
+    stream:
+      bindings:
+        output:
+          destination: your-topic-name
+          content-type: application/json
+#      kafka:
+#        binder:
+#        brokers: localhost:9092
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9080/realms/baeldung-keycloak/protocol/openid-connect/certs
+          #issuer-uri: http://localhost:9080/auth/realms/baeldung-keycloak
   profiles:
     active: db, core, elastic, admin, wx
   messages:
     encoding: UTF-8
   servlet:
+    context-path: /
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  cjdropship:
+    api:
+      auth:
+        cj-email: "bimeni89@gmail.com"
+        cj-apiKey: "8696a1e060b64e1ab99e3f16cac7a87a"
+        access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
+        refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
+      category:
+        category-list-_url: "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
+      product:
+        list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
+        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
+  datasource:
+    url: jdbc:mysql://localhost:3306/litemall
+    username: root
+    password: Calliste_1006
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
 
 server:
-  port: 8080
+  port: 8082
   compression:
     enabled: true
     min-response-size: 2048
     mime-types: application/javascript,text/css,application/json,application/xml,text/html,text/xml,text/plain
+
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
 
 logging:
   level:
@@ -27,3 +82,16 @@ logging:
 
 swagger:
   production: false
+
+redis:
+  server:
+    host: localhost
+    port: 6379
+    database: 0
+  lettuce:
+    pool:
+      max-active: 8
+      max-idle: 8
+      max-wait: -1ms
+      min-idle: 0
+

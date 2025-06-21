@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.wx.web;
 
-import jakarta.validation.constraints.NotNull;
+import javax.validation.constraints.NotNull;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.linlinjava.litemall.core.util.RegexUtil;

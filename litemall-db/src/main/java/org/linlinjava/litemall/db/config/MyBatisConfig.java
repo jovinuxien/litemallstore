@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.db.config;
 
 
+
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.SqlSessionFactoryBean;
@@ -17,7 +18,7 @@ import java.io.IOException;
 public class MyBatisConfig {
 
 
-    @Bean
+   @Bean
     public SqlSessionFactoryBean sqlSessionFactoryBean(DataSource dataSource) throws IOException {
         SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);
@@ -26,6 +27,16 @@ public class MyBatisConfig {
                 .getResources("classpath:org/linlinjava/litemall/db/dao/*.xml"));
         return factoryBean;
     }
+
+    //@Bean
+   /* public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throws Exception {
+        SqlSessionFactoryBean sessionFactory = new SqlSessionFactoryBean();
+        sessionFactory.setDataSource(dataSource);
+        sessionFactory.setMapperLocations(
+                new PathMatchingResourcePatternResolver()
+                        .getResources("classpath:org/linlinjava/litemall/db/dao/*.xml"));
+        return sessionFactory.getObject();
+    }*/
     @Bean
     public SqlSession sqlSession(SqlSessionFactory sqlSessionFactory) {
         return sqlSessionFactory.openSession();

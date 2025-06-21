@@ -2,7 +2,7 @@ package org.linlinjava.litemall.admin.util;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.MethodUtils;
-import org.apache.shiro.authz.annotation.RequiresPermissions;
+//import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.linlinjava.litemall.admin.annotation.RequiresPermissionsDesc;
 import org.linlinjava.litemall.admin.vo.PermVo;
 import org.springframework.context.ApplicationContext;
@@ -21,7 +21,7 @@ public class PermissionUtil {
     public static List<PermVo> listPermVo(List<Permission> permissions) {
         List<PermVo> root = new ArrayList<>();
         for (Permission permission : permissions) {
-            RequiresPermissions requiresPermissions = permission.getRequiresPermissions();
+            //RequiresPermissions requiresPermissions = permission.getRequiresPermissions();
             RequiresPermissionsDesc requiresPermissionsDesc = permission.getRequiresPermissionsDesc();
             String api = permission.getApi();
 
@@ -70,7 +70,7 @@ public class PermissionUtil {
             }
             if (leftPerm == null) {
                 leftPerm = new PermVo();
-                leftPerm.setId(requiresPermissions.value()[0]);
+                //leftPerm.setId(requiresPermissions.value()[0]);
                 leftPerm.setLabel(requiresPermissionsDesc.button());
                 leftPerm.setApi(api);
                 perm2.getChildren().add(leftPerm);
@@ -97,17 +97,17 @@ public class PermissionUtil {
             Class<?> clz = bean.getClass();
             Class controllerClz = clz.getSuperclass();
             RequestMapping clazzRequestMapping = AnnotationUtils.findAnnotation(controllerClz, RequestMapping.class);
-            List<Method> methods = MethodUtils.getMethodsListWithAnnotation(controllerClz, RequiresPermissions.class);
+           /* List<Method> methods = MethodUtils.getMethodsListWithAnnotation(controllerClz, RequiresPermissions.class);
             for (Method method : methods) {
-                RequiresPermissions requiresPermissions = AnnotationUtils.getAnnotation(method,
-                        RequiresPermissions.class);
+               *//* RequiresPermissions requiresPermissions = AnnotationUtils.getAnnotation(method,
+                        RequiresPermissions.class);*//*
                 RequiresPermissionsDesc requiresPermissionsDesc = AnnotationUtils.getAnnotation(method,
                         RequiresPermissionsDesc.class);
 
-                if (requiresPermissions == null || requiresPermissionsDesc == null) {
+               *//* if (requiresPermissions == null || requiresPermissionsDesc == null) {
                     continue;
                 }
-
+*//*
                 String api = "";
                 if (clazzRequestMapping != null) {
                     api = clazzRequestMapping.value()[0];
@@ -118,7 +118,7 @@ public class PermissionUtil {
                     api = "POST " + api + postMapping.value()[0];
 
                     Permission permission = new Permission();
-                    permission.setRequiresPermissions(requiresPermissions);
+                    //permission.setRequiresPermissions(requiresPermissions);
                     permission.setRequiresPermissionsDesc(requiresPermissionsDesc);
                     permission.setApi(api);
                     permissions.add(permission);
@@ -128,7 +128,7 @@ public class PermissionUtil {
                 if (getMapping != null) {
                     api = "GET " + api + getMapping.value()[0];
                     Permission permission = new Permission();
-                    permission.setRequiresPermissions(requiresPermissions);
+                    //permission.setRequiresPermissions(requiresPermissions);
                     permission.setRequiresPermissionsDesc(requiresPermissionsDesc);
                     permission.setApi(api);
                     permissions.add(permission);
@@ -137,16 +137,16 @@ public class PermissionUtil {
                 // TODO
                 // 这里只支持GetMapping注解或者PostMapping注解，应该进一步提供灵活性
                 throw new RuntimeException("目前权限管理应该在method的前面使用GetMapping注解或者PostMapping注解");
-            }
+            }*/
         }
         return permissions;
     }
 
     public static Set<String> listPermissionString(List<Permission> permissions) {
         Set<String> permissionsString = new HashSet<>();
-        for (Permission permission : permissions) {
+        /*for (Permission permission : permissions) {
             permissionsString.add(permission.getRequiresPermissions().value()[0]);
-        }
+        }*/
         return permissionsString;
     }
 }
