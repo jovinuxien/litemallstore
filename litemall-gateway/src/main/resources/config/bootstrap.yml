@@ -26,14 +26,25 @@ spring:
           uri: lb://litemall-admin-api
           predicates:
             - Path=/admin/**
+
+
         - id: wx-api
           uri: lb://litemall-wx-api
           predicates:
             - Path=/wx/**
-        - id: goods-management
-          uri: lb://litemall-goods-management
+
+
+        - id: goods-service-app
+          uri: lb://goods-service-app
           predicates:
-            - Path=/goods/**
+            - Path=/srv/**
+
+
+        - id: order-service-app
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/**
+
           filters:
             - TokenRelay=
             - StripPrefix=0
@@ -54,19 +65,33 @@ spring:
   security:
    oauth2:
      client:
-       provider:
-         baeldung-keycloak:
-           issuer-uri: http://localhost:9080/realms/baeldung-keycloak
-       registration:
-         keycloak:
-           provider: baeldung-keycloak
-           authorization-grant-type: authorization_code
-           client-id: baeldung-keycloak-confidential
-           client-secret: secret
-           scope: openid
+        provider:
+          oidc:
+            issuer-uri: http://localhost:9080/realms/jhipster
+        registration:
+          oidc:
+            client-id: web_app
+            client-secret: web_app
+            scope: openid, profile, email, offline_access # last one for refresh tokens
+     resourceserver:
+       jwt:
+         jwt-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
+     audience:
+       - account
+       - api://default
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/litemall
+    username: root
+    password: Calliste_1006
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+
+
 
 server:
-  port: 8081
+  port: 8080
 
 eureka:
   instance:

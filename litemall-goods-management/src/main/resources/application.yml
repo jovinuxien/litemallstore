@@ -1,6 +1,6 @@
 spring:
   application:
-    name: LITEMALL-GOODS-MANAGEMENT
+    name: GOODS-SERVICE-APP
   cloud:
     loadbalancer:
       ribbon:
@@ -15,9 +15,18 @@ spring:
 #        brokers: localhost:9092
   security:
     oauth2:
+      client:
+        provider:
+          oidc:
+            issuer-uri: http://localhost:9080/realms/jhipster
+        registration:
+          oidc:
+            client-id: internal
+            client-secret: internal
+            scope: openid, profile, email, offline_access # last one for refresh tokens
       resourceserver:
         jwt:
-          jwk-set-uri: http://localhost:9080/realms/baeldung-keycloak/protocol/openid-connect/certs
+          jwk-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
           #issuer-uri: http://localhost:9080/auth/realms/baeldung-keycloak
   profiles:
     active: db, core, elastic, admin, wx
@@ -40,11 +49,13 @@ spring:
       product:
         list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
         product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
-  datasource:
-    url: jdbc:mysql://localhost:3306/litemall
-    username: root
-    password: Calliste_1006
-    driver-class-name: com.mysql.cj.jdbc.Driver
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/litemall
+#    username: root
+#    password: Calliste_1006
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
   rabbitmq:
     host: localhost
     port: 5672

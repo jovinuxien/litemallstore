@@ -3,12 +3,10 @@ package org.linlinjava.litemall.order.infrastructure.repositories.impl;
 import org.linlinjava.litemall.db.dao.LitemallAddressMapper;
 import org.linlinjava.litemall.db.domain.LitemallAddress;
 import org.linlinjava.litemall.db.domain.LitemallAddressExample;
-import org.linlinjava.litemall.db.domain.LitemallCouponUser;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallAddressRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;

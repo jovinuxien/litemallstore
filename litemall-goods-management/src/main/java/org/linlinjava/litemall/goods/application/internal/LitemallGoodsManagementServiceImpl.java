@@ -12,6 +12,7 @@ import org.linlinjava.litemall.goods.domain.model.agregates.*;
 import org.linlinjava.litemall.goods.domain.model.repositories.*;
 import org.linlinjava.litemall.goods.domain.model.util.dto.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
@@ -107,8 +108,8 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
  }
 
     @Override
-    public void reduceStock(Map<LitemallGoodsId, Integer> productStockMap) {
-
+    public void reduceStock(LitemallGoodsProductId productId, Short number) {
+       goodsProductRepository.reduceStock(productId, number);
     }
 
     @Override

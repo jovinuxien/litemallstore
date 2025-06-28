@@ -1,12 +1,9 @@
 package org.linlinjava.litemall.goods.application;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsSpecificationAggregate;
 import org.linlinjava.litemall.goods.domain.model.util.dto.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsSpecificationId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
 
 import java.util.List;
 import java.util.Map;
@@ -14,7 +11,7 @@ import java.util.Map;
 public interface LitemallGoodsManagementService {
 
     void verifyGoodsAvailability(List<LitemallGoodsId> productIds);
-    void reduceStock(Map<LitemallGoodsId, Integer> productStockMap);
+    void reduceStock(LitemallGoodsProductId goodsProductId, Short number);
 
     Object addAllGoods(List<GoodsAllInOne> allGoodsList);
     Object addGoods(GoodsAllInOne goodsAllInOne);

@@ -1,7 +1,11 @@
 spring:
+  application:
+    name: ORDER-SERVICE-APP
+
   import: optional:classpath:application.yml
   profiles:
-    active: db, db1, core, elastic, admin, wx
+    #active: db, db1, core, elastic, admin, wx
+    active: db, core, elastic, admin, wx
   messages:
     encoding: UTF-8
   servlet:
@@ -9,12 +13,33 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
 
+
+  security:
+    oauth2:
+      client:
+        provider:
+          oidc:
+            issuer-uri: http://localhost:9080/realms/jhipster
+        registration:
+          oidc:
+            client-id: internal
+            client-secret: internal
+            scope: openid, profile, email, offline_access # last one for refresh tokens
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
+          #issuer-uri: http://localhost:9080/auth/realms/baeldung-keycloak
+
 server:
-  port: 8086
+  port: 8085
   compression:
     enabled: true
     min-response-size: 2048
     mime-types: application/javascript,text/css,application/json,application/xml,text/html,text/xml,text/plain
+
+goods:
+  service:
+    url: http://localhost:8083
 
 logging:
   level:
@@ -35,3 +60,5 @@ eureka:
   client:
     registerWithEureka: true
     fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/

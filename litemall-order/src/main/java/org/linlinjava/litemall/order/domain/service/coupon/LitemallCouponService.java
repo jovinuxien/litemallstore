@@ -8,10 +8,11 @@ import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRep
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +27,10 @@ public class LitemallCouponService {
     private LitemallCouponRepository couponRepository;
     @Autowired
     private LitemallCouponUserRepository couponUserRepository;
+    /*@Autowired
+    private LitemallGoodsRepository goodsRepository;*/
     @Autowired
-    private LitemallGoodsRepository goodsRepository;
+    private GoodsServiceFeignClient goodsServiceFeignClient;
 
 
 
@@ -81,7 +84,7 @@ public class LitemallCouponService {
                 goodType.equals((CouponConstant.GOODS_TYPE_ARRAY))) {
             for (LitemallCartAggregate cart : cartList) {
                 Integer key = goodType.equals(CouponConstant.GOODS_TYPE_ARRAY) ? cart.getGoodsId().getId() :
-                        goodsRepository.findById(cart.getGoodsId()).getCategoryId().getId();
+                        goodsServiceFeignClient.getGoodsAggregate(cart.getGoodsId().getId()).getData().getCategoryId().getId();
 
                 List<LitemallCartAggregate> carts = cartMap.get(key);
                 if (carts == null) {

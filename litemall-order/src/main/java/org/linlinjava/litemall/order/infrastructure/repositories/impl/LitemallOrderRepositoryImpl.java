@@ -7,12 +7,14 @@ import org.linlinjava.litemall.db.domain.LitemallOrder;
 import org.linlinjava.litemall.db.domain.LitemallOrderExample;
 import org.linlinjava.litemall.db.util.OrderUtil;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregateRoot;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -38,7 +40,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public LitemallOrderAggregateRoot findById(LitemallOrderId orderId) {
+    public LitemallOrderAggregate findById(LitemallOrderId orderId) {
         return convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId()));
     }
 
@@ -56,7 +58,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public void addOrder(LitemallOrderAggregateRoot order) {
+    public void addOrder(LitemallOrderAggregate order) {
        LitemallOrder litemallOrder = convertToDataModel(order);
        litemallOrder.setAddTime(LocalDateTime.now());
        litemallOrder.setUpdateTime(LocalDateTime.now());
@@ -72,7 +74,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public LitemallOrderAggregateRoot findByIdAndUserId(LitemallUserId userId, LitemallOrderId orderId) {
+    public LitemallOrderAggregate findByIdAndUserId(LitemallUserId userId, LitemallOrderId orderId) {
         LitemallOrderExample example = new LitemallOrderExample();
         example.or().andIdEqualTo(orderId.getId()).andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
         return convertToDomainModel(litemallOrderMapper.selectOneByExample(example));
@@ -87,7 +89,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public List<LitemallOrderAggregateRoot> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order) {
+    public List<LitemallOrderAggregate> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order) {
         LitemallOrderExample example = new LitemallOrderExample();
         example.setOrderByClause(LitemallOrder.Column.addTime.desc());
         LitemallOrderExample.Criteria criteria = example.or();
@@ -130,7 +132,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public List<LitemallOrderAggregateRoot> queryUnPaid(int minutes) {
+    public List<LitemallOrderAggregate> queryUnPaid(int minutes) {
         LitemallOrderExample example = new LitemallOrderExample();
         example.or().andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode()).andDeletedEqualTo(false);
         return litemallOrderMapper.selectByExample(example)
@@ -138,7 +140,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public List<LitemallOrderAggregateRoot> queryUnconfirm(int days) {
+    public List<LitemallOrderAggregate> queryUnconfirm(int days) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expired = now.minusDays(days);
         LitemallOrderExample example = new LitemallOrderExample();
@@ -181,7 +183,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public List<LitemallOrderAggregateRoot> queryComment(int days) {
+    public List<LitemallOrderAggregate> queryComment(int days) {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expired = now.minusDays(days);
 
@@ -193,8 +195,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int updateSelective(LitemallOrderAggregateRoot orderAggregateRoot) {
-        LitemallOrder order = convertToDataModel(orderAggregateRoot);
+    public int updateSelective(LitemallOrderAggregate orderAggregate) {
+        LitemallOrder order = convertToDataModel(orderAggregate);
         return litemallOrderMapper.updateByPrimaryKeySelective(order);
     }
 
@@ -216,7 +218,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
      *
      */
 
-    private  List<LitemallOrderAggregateRoot> queryList(Integer userId, String orderSn, LocalDateTime start, LocalDateTime end, List<Short> orderStatusArray, Integer page, Integer limit, String sort, String order) {
+    private  List<LitemallOrderAggregate> queryList(Integer userId, String orderSn, LocalDateTime start, LocalDateTime end, List<Short> orderStatusArray, Integer page, Integer limit, String sort, String order) {
         LitemallOrderExample example = new LitemallOrderExample();
         LitemallOrderExample.Criteria criteria = example.createCriteria();
 
@@ -248,48 +250,48 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
     }
 
-    public LitemallOrder convertToDataModel(LitemallOrderAggregateRoot orderAggregateRoot) {
+    public LitemallOrder convertToDataModel(LitemallOrderAggregate orderAggregate) {
 
         LitemallOrder dataModel = new LitemallOrder();
 
-        if(orderAggregateRoot.getOrderId().getId() != null){
-            dataModel.setId(orderAggregateRoot.getOrderId().getId());
+        if(orderAggregate.getOrderId().getId() != null){
+            dataModel.setId(orderAggregate.getOrderId().getId());
         }
-        dataModel.setUserId(orderAggregateRoot.getUserId().getId());
-        dataModel.setOrderSn(orderAggregateRoot.getOrderSn());
+        dataModel.setUserId(orderAggregate.getUserId().getId());
+        dataModel.setOrderSn(orderAggregate.getOrderSn());
 
-        dataModel.setOrderStatus(orderAggregateRoot.getOrderStatus().getCode());
-        dataModel.setAftersaleStatus(orderAggregateRoot.getAfterSaleStatus().getCode());
-        dataModel.setConsignee(orderAggregateRoot.getConsignee());
-        dataModel.setMobile(orderAggregateRoot.getMobile());
-        dataModel.setAddress(orderAggregateRoot.getAddress());
-        dataModel.setMessage(orderAggregateRoot.getMessage());
+        dataModel.setOrderStatus(orderAggregate.getOrderStatus().getCode());
+        dataModel.setAftersaleStatus(orderAggregate.getAfterSaleStatus().getCode());
+        dataModel.setConsignee(orderAggregate.getConsignee());
+        dataModel.setMobile(orderAggregate.getMobile());
+        dataModel.setAddress(orderAggregate.getAddress());
+        dataModel.setMessage(orderAggregate.getMessage());
 
-        dataModel.setGoodsPrice(orderAggregateRoot.getGoodsPrice().getAmount());
-        dataModel.setFreightPrice(orderAggregateRoot.getFreightPrice().getAmount());
-        dataModel.setCouponPrice(orderAggregateRoot.getCouponPrice().getAmount());
-        dataModel.setIntegralPrice(orderAggregateRoot.getIntegralPrice().getAmount());
-        dataModel.setGrouponPrice(orderAggregateRoot.getGrouponPrice().getAmount());
-        dataModel.setOrderPrice(orderAggregateRoot.getOrderPrice().getAmount());
-        dataModel.setActualPrice(orderAggregateRoot.getActualPrice().getAmount());
+        dataModel.setGoodsPrice(orderAggregate.getGoodsPrice().getAmount());
+        dataModel.setFreightPrice(orderAggregate.getFreightPrice().getAmount());
+        dataModel.setCouponPrice(orderAggregate.getCouponPrice().getAmount());
+        dataModel.setIntegralPrice(orderAggregate.getIntegralPrice().getAmount());
+        dataModel.setGrouponPrice(orderAggregate.getGrouponPrice().getAmount());
+        dataModel.setOrderPrice(orderAggregate.getOrderPrice().getAmount());
+        dataModel.setActualPrice(orderAggregate.getActualPrice().getAmount());
 
-        dataModel.setPayId(orderAggregateRoot.getPayId());
-        dataModel.setPayTime(orderAggregateRoot.getPayTime());
-        dataModel.setShipSn(orderAggregateRoot.getShipSn());
-        dataModel.setShipChannel(orderAggregateRoot.getShipChannel());
-        dataModel.setShipTime(orderAggregateRoot.getShipTime());
-        dataModel.setRefundAmount(orderAggregateRoot.getRefundAmount().getAmount());
-        dataModel.setRefundType(orderAggregateRoot.getRefundType().toString());
+        dataModel.setPayId(orderAggregate.getPayId());
+        dataModel.setPayTime(orderAggregate.getPayTime());
+        dataModel.setShipSn(orderAggregate.getShipSn());
+        dataModel.setShipChannel(orderAggregate.getShipChannel());
+        dataModel.setShipTime(orderAggregate.getShipTime());
+        dataModel.setRefundAmount(orderAggregate.getRefundAmount().getAmount());
+        dataModel.setRefundType(orderAggregate.getRefundType().toString());
 
-        dataModel.setRefundContent(orderAggregateRoot.getRefundContent());
-        dataModel.setRefundTime(orderAggregateRoot.getRefundTime());
-        dataModel.setConfirmTime(orderAggregateRoot.getConfirmTime());
-        dataModel.setComments(orderAggregateRoot.getComments());
+        dataModel.setRefundContent(orderAggregate.getRefundContent());
+        dataModel.setRefundTime(orderAggregate.getRefundTime());
+        dataModel.setConfirmTime(orderAggregate.getConfirmTime());
+        dataModel.setComments(orderAggregate.getComments());
 
-        dataModel.setEndTime(orderAggregateRoot.getEndTime());
-        dataModel.setAddTime(orderAggregateRoot.getAddTime());
-        dataModel.setUpdateTime(orderAggregateRoot.getUpdateTime());
-        dataModel.setDeleted(orderAggregateRoot.getDeleted());
+        dataModel.setEndTime(orderAggregate.getEndTime());
+        dataModel.setAddTime(orderAggregate.getAddTime());
+        dataModel.setUpdateTime(orderAggregate.getUpdateTime());
+        dataModel.setDeleted(orderAggregate.getDeleted());
 
 
 
@@ -299,9 +301,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
 
-    public LitemallOrderAggregateRoot convertToDomainModel(LitemallOrder record) {
+    public LitemallOrderAggregate convertToDomainModel(LitemallOrder record) {
 
-        LitemallOrderAggregateRoot domainModel = new LitemallOrderAggregateRoot();
+        LitemallOrderAggregate domainModel = new LitemallOrderAggregate();
         LitemallAddressAggregate addressAggregate = new LitemallAddressAggregate();
         if(record == null){
             return null;

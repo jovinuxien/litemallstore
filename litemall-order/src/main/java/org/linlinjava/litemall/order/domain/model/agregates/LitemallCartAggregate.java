@@ -4,10 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
