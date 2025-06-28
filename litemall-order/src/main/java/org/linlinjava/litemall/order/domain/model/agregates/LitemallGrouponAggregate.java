@@ -8,7 +8,7 @@ import org.linlinjava.litemall.order.domain.model.events.groupon.LitemallGroupon
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 
 import java.time.LocalDateTime;

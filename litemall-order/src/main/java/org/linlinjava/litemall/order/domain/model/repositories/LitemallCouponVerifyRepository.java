@@ -4,7 +4,7 @@ import org.linlinjava.litemall.db.domain.LitemallCart;
 import org.linlinjava.litemall.db.domain.LitemallCoupon;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 
 import java.math.BigDecimal;
 import java.util.List;

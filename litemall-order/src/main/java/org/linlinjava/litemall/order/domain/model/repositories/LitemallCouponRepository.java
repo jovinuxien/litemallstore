@@ -3,7 +3,7 @@ package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 
 import java.util.List;
 import java.util.Optional;

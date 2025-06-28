@@ -13,7 +13,7 @@ import org.linlinjava.litemall.db.util.CouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 

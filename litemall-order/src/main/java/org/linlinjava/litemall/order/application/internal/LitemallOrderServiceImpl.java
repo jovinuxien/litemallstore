@@ -1,13 +1,12 @@
 package org.linlinjava.litemall.order.application.internal;
 
+import com.google.protobuf.ServiceException;
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.notify.NotifyType;
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
 import org.linlinjava.litemall.db.domain.*;
-import org.linlinjava.litemall.db.util.CouponUserConstant;
-import org.linlinjava.litemall.db.util.GrouponConstant;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallValidCouponException;
@@ -16,10 +15,10 @@ import org.linlinjava.litemall.order.application.util.exception.groupon.Litemall
 import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallGrouponFullException;
 import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallGrouponRulesNotFoundException;
 import org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException;
-import org.linlinjava.litemall.order.application.util.exception.product.LitemallProductNotFoundException;
 import org.linlinjava.litemall.order.domain.model.agregates.*;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
+import org.linlinjava.litemall.order.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPublisher;
@@ -29,10 +28,15 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCo
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponService;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.FeignResponseHandler;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.ReduceStockRequest;
 import org.linlinjava.litemall.wx.task.OrderUnpaidTask;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -49,15 +53,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallOrderRepository orderRepository;
     private final LitemallGrouponRepository grouponRepository;
     private final LitemallGrouponRulesRepository grouponRulesRepository;
-    private final LitemallUserRepository userRepository;
     private final LitemallCartRepository cartRepository;
     private final LitemallCouponRepository couponRepository;
-    private final LitemallGoodsProductRepository goodsProductRepository;
     private final LitemallAddressRepository addressRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
 
     private final LitemallDomainEventPublisher domainEventPublisher;
-    private final GoodsServiceFeignClient goodsServiceFeignClient;
 
     // Service internal to orderService
     private final LitemallCouponService couponService;
@@ -69,34 +70,34 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private  TaskService taskService;
 
+    @Autowired
+    private GoodsServiceFeignClient goodsServiceFeignClient;
+    @Autowired
+    private UserServiceFeignClient userServiceFeignClient;
+
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
                                     LitemallGrouponRulesRepository grouponRulesRepo,
-                                    LitemallUserRepository userRepo,
                                     LitemallCartRepository cartRepo,
                                     LitemallCouponRepository couponRepo,
                                     LitemallAddressRepository addressRepo,
                                     LitemallOrderGoodsRepository orderGoodsRepo,
-                                    //LitemallGoodsProductRepository goodsProductRepository,
                                     LitemallCouponService couponService,
-                                    LitemallDomainEventPublisher domainEventPublisher,
-                                    GoodsServiceFeignClient goodsServiceFeignClient) {
+                                    LitemallDomainEventPublisher domainEventPublisher) {
         this.orderRepository = orderRepo;
         this.grouponRepository = grouponRepo;
         this.grouponRulesRepository = grouponRulesRepo;
-        this.userRepository = userRepo;
         this.cartRepository = cartRepo;
         this.couponRepository = couponRepo;
         this.addressRepository = addressRepo;
         this.orderGoodsRepository = orderGoodsRepo;
-        //this.goodsProductRepository = goodsProductRepository;
         this.couponService = couponService;
         this.domainEventPublisher = domainEventPublisher;
     }
 
 
     @Override
-    public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command) {
+    public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command) throws ServiceException {
 
         // Validate the command
         if(command.getUserId() == null){
@@ -119,7 +120,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         LitemallGrouponRulesId grouponRulesId = new LitemallGrouponRulesId(command.getGrouponRulesId());
 
 
-        LitemallUser user = userRepository.findById(userId);
+        LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
 
         if(user != null){
             throw new IllegalArgumentException("User is not found");
@@ -196,33 +197,33 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Create the order
         //orderId = new LitemallOrderId(0);// the OrderId to be generated
         //orderAggregateRoot.setOrderId(orderId);
-        orderAggregateRoot.setOrderSn(orderRepository.generateOrderSn(userId));
+        orderAggregateRoot.getOrderAggregate().setOrderSn(orderRepository.generateOrderSn(userId));
 
         //orderAggregateRoot.setOrderStatus(OrderUtil.STATUS_CREATE);
-        orderAggregateRoot.setOrderStatus(LitemallOrderStatus.CREATED);
-        orderAggregateRoot.setConsignee(addressAggregate.getName());
-        orderAggregateRoot.setMobile(addressAggregate.getTel());
-        orderAggregateRoot.setMessage(command.getMessage());
+        orderAggregateRoot.getOrderAggregate().setOrderStatus(LitemallOrderStatus.CREATED);
+        orderAggregateRoot.getOrderAggregate().setConsignee(addressAggregate.getName());
+        orderAggregateRoot.getOrderAggregate().setMobile(addressAggregate.getTel());
+        orderAggregateRoot.getOrderAggregate().setMessage(command.getMessage());
         String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
-        orderAggregateRoot.setAddress(detailedAddress);
+        orderAggregateRoot.getOrderAggregate().setAddress(detailedAddress);
 
-        orderAggregateRoot.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
-        orderAggregateRoot.setFreightPrice(new LitemallMoney(freightPrice));
-        orderAggregateRoot.setCouponPrice(new LitemallMoney(couponPrice));
-        orderAggregateRoot.setIntegralPrice(new LitemallMoney(integralPrice));
-        orderAggregateRoot.setOrderPrice(new LitemallMoney(orderTotalPrice));
-        orderAggregateRoot.setActualPrice(new LitemallMoney(actualPrice));
+        orderAggregateRoot.getOrderAggregate().setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
+        orderAggregateRoot.getOrderAggregate().setFreightPrice(new LitemallMoney(freightPrice));
+        orderAggregateRoot.getOrderAggregate().setCouponPrice(new LitemallMoney(couponPrice));
+        orderAggregateRoot.getOrderAggregate().setIntegralPrice(new LitemallMoney(integralPrice));
+        orderAggregateRoot.getOrderAggregate().setOrderPrice(new LitemallMoney(orderTotalPrice));
+        orderAggregateRoot.getOrderAggregate().setActualPrice(new LitemallMoney(actualPrice));
 
         if(grouponRulesAggregate != null){
-            orderAggregateRoot.setGrouponPrice(new LitemallMoney(grouponPrice));
+            orderAggregateRoot.getOrderAggregate().setGrouponPrice(new LitemallMoney(grouponPrice));
         }else {
-            orderAggregateRoot.setGrouponPrice(new LitemallMoney(new BigDecimal(0)));
+            orderAggregateRoot.getOrderAggregate().setGrouponPrice(new LitemallMoney(new BigDecimal(0)));
         }
         // Save the order
         orderRepository.addOrder(orderAggregateRoot);
 
         // Get the id from the order
-        LitemallOrderId orderId1 = orderRepository.findById(orderAggregateRoot.getOrderId()).getOrderId();
+        LitemallOrderId orderId1 = orderRepository.findById(orderAggregateRoot.getOrderAggregate().getOrderId()).getOrderId();
 
         // Add order from items
         for(LitemallCartAggregate cartGoods: checkedGoodsList){
@@ -250,15 +251,18 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         for (LitemallCartAggregate checkGoods : checkedGoodsList) {
             //Here the idea is to get goods product info from Goods microservice
             // and fetch the corresponding product information
-            LitemallGoodsAggregate goodsAggregate = (LitemallGoodsAggregate) goodsServiceFeignClient.getGoodsAggregate(checkGoods.getGoodsId().getId());
-            LitemallGoodsProductAggregate product = (LitemallGoodsProductAggregate) goodsServiceFeignClient.getGoodsProductAggregate(checkGoods.getProductId().getId());
-            //LitemallGoodsProductId productId = checkGoods.getProductId();
+            LitemallGoodsAggregate goodsAggregate = FeignResponseHandler.handleResponse(goodsServiceFeignClient.getGoodsAggregate(checkGoods.getGoodsId().getId()), "Get Goods Operation");
+            LitemallGoodsProductAggregate product = FeignResponseHandler.handleResponse(goodsServiceFeignClient.getGoodsProductAggregate(checkGoods.getProductId().getId()), "Get Goods Product Operation");
+
+            LitemallGoodsProductId productId = checkGoods.getProductId();
             //LitemallGoodsProductAggregate product = goodsProductRepository.findById(productId).get();
 
             int remainNumber = product.getNumber() - checkGoods.getNumber();
             if (remainNumber < 0) {
                 throw new RuntimeException("The quantity of the ordered product is greater than the inventory");
             }
+            var reduceStockRequest = new ReduceStockRequest(productId.getId(), checkGoods.getNumber());
+            FeignResponseHandler.handleResponse(goodsServiceFeignClient.reduceStock(reduceStockRequest), "reduce Stock Operation");
             /*if (goodsProductRepository.reduceStock(productId, checkGoods.getNumber().shortValue()) == 0) {
                 throw new RuntimeException("Product inventory reduction failed");
             }*/
@@ -314,14 +318,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         //      Then directly skip the payment and become the status of pending shipment.
 
         boolean payed = false;
-        if(orderAggregateRoot.getActualPrice().getAmount().equals(new BigDecimal("0.0"))){
+        if(orderAggregateRoot.getOrderAggregate().getActualPrice().getAmount().equals(new BigDecimal("0.0"))){
             payed = true;
 
             LitemallOrderAggregateRoot newOrderAggr = new LitemallOrderAggregateRoot();
-            newOrderAggr.setOrderId(orderId1);
-            newOrderAggr.setOrderStatus(LitemallOrderStatus.PAID);
+            newOrderAggr.getOrderAggregate().setOrderId(orderId1);
+            newOrderAggr.getOrderAggregate().setOrderStatus(LitemallOrderStatus.PAID);
 
-            orderRepository.updateSelective(newOrderAggr);
+            orderRepository.updateSelective(newOrderAggr.getOrderAggregate());
 
             //  Payment successful，There is group buying information，Update group buying information
             LitemallGrouponAggregate grouponAggregate = grouponRepository.getGrouponByOrderId(orderId1);
@@ -337,7 +341,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             notifyService.notifyMail("New order notification", orderAggregateRoot.toString());
             // Here, WeChat’s SMS platform has restrictions on parameter length，
             //      Therefore, only the last 6 digits of the order number are truncated.
-            notifyService.notifySmsTemplateSync(orderAggregateRoot.getMobile(), NotifyType.PAY_SUCCEED, new String[]{orderAggregateRoot.getOrderSn().substring(8, 14)});
+            notifyService.notifySmsTemplateSync(orderAggregateRoot.getOrderAggregate().getMobile(), NotifyType.PAY_SUCCEED, new String[]{orderAggregateRoot.getOrderAggregate().getOrderSn().substring(8, 14)});
 
         } else {
             // Order payment overdue task
@@ -415,15 +419,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
      *
      * @param checkedCartItems
      */
-    private void validateProductStock(List<LitemallCartAggregate> checkedCartItems){
+    private void validateProductStock(List<LitemallCartAggregate> checkedCartItems) throws ServiceException {
         for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProductAggregate goodsProduct = (LitemallGoodsProductAggregate) goodsServiceFeignClient.getGoodsProductAggregate(cartItem.getProductId().getId());
+            LitemallGoodsProductAggregate goodsProduct = FeignResponseHandler.handleResponse(goodsServiceFeignClient.getGoodsProductAggregate(cartItem.getProductId().getId()), "Get goods Product");
 
             System.out.println("the goodsProduct is: " + goodsProduct);
 
             if(goodsProduct.getNumber() < cartItem.getNumber()){
-                throw new LitemallInsufficientStockException(cartItem.getProductId());
+                throw new LitemallInsufficientStockException();
             }
         }
     }
@@ -465,17 +469,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         }
     }
 
-    /**
-     *
-     * @param checkedCartItems
-     */
-    private void reduceProductStock(List<LitemallCartAggregate> checkedCartItems){
-        for(LitemallCartAggregate cartItem : checkedCartItems){
-            if(cartItem != null){
-                goodsProductRepository.reduceStock(cartItem.getProductId(), cartItem.getNumber().shortValue());
-            }
-        }
-    }
+
 
 
     /**
@@ -501,10 +495,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         LitemallGrouponAggregate baseGroupon = null;
         if (command.getGrouponRulesId() != null && command.getGrouponLinkId() > 0) {
             baseGroupon = grouponRepository.findById(new LitemallGrouponId(command.getGrouponLinkId()));
-            grouponAggregate = LitemallGrouponAggregate.createJoin(orderAggregateRoot.getOrderId(), orderAggregateRoot.getUserId(), rulesAggregate.getGrouponRulesId(), baseGroupon);
+            grouponAggregate = LitemallGrouponAggregate.createJoin(orderAggregateRoot.getOrderAggregate().getOrderId(), orderAggregateRoot.getOrderAggregate().getUserId(), rulesAggregate.getGrouponRulesId(), baseGroupon);
 
         } else {
-            grouponAggregate = LitemallGrouponAggregate.createNewGroupon(orderAggregateRoot.getOrderId(), orderAggregateRoot.getUserId(), rulesAggregate.getGrouponRulesId());
+            grouponAggregate = LitemallGrouponAggregate.createNewGroupon(orderAggregateRoot.getOrderAggregate().getOrderId(), orderAggregateRoot.getOrderAggregate().getUserId(), rulesAggregate.getGrouponRulesId());
         }
 
         grouponRepository.saveGroupon(grouponAggregate);

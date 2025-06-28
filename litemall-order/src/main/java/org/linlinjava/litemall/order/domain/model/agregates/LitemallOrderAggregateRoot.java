@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.db.domain.LitemallCart;
 import org.linlinjava.litemall.db.domain.LitemallGrouponRules;
+import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderCanceledEvent;
 import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderPaidEvent;
@@ -14,6 +15,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCo
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -25,47 +27,9 @@ import java.util.List;
 @Setter
 public class LitemallOrderAggregateRoot {
 
-    private LitemallOrderId orderId;
-    private LitemallUserId userId; // Holding just reference not the actual entity
-    private LitemallCouponId couponId; // Holding just reference to the coupon aggregate. Not the actual entity,because the coupon has its own lifecycle
-
-
-    private String orderSn;
-    private LitemallOrderStatus orderStatus;
-    private LitemallAfterSaleStatus afterSaleStatus;
-    private String consignee;
-    private String mobile;
-    private String message;
-    private String address;
-
-
-    //Information on price
-    private LitemallMoney goodsPrice;
-    private LitemallMoney freightPrice;
-    private LitemallMoney couponPrice;
-    private LitemallMoney integralPrice;
-
-    private LitemallMoney orderPrice;
-    private LitemallMoney actualPrice;
-    private LitemallMoney grouponPrice;
-
-
-    private String payId;
-    private LocalDateTime payTime;
-    private String shipSn;
-    private String shipChannel;
-    private LocalDateTime shipTime;
-    private LitemallMoney refundAmount;
-    private String refundType;
-    private String refundContent;
-    private LocalDateTime refundTime;
-    private LocalDateTime confirmTime;
-    private Short comments;
-
-    private LocalDateTime endTime;
-    private LocalDateTime addTime;
-    private LocalDateTime updateTime;
-    private Boolean deleted;
+    private LitemallOrderAggregate orderAggregate;
+    private LitemallOrderGoodsAggregate orderGoodsAggregate;
+    private LitemallGoodsAggregate goodsAggregate;
 
 
     private List<LitemallCart> checkedGoodsList = new ArrayList<>(); // We hold LitemallCart because it's an entity'
@@ -94,43 +58,43 @@ public class LitemallOrderAggregateRoot {
 
     public void markAsPaid(){
 
-        if(!orderStatus.canTransitionTo(LitemallOrderStatus.PAID)){
-            throw new IllegalStateException("Order status cannot transition to " + orderStatus + "to Paid");
+        if(!orderAggregate.getOrderStatus().canTransitionTo(LitemallOrderStatus.PAID)){
+            throw new IllegalStateException("Order status cannot transition to " + orderAggregate.getOrderStatus() + "to Paid");
         }
 
-        this.orderStatus = LitemallOrderStatus.PAID;
-        this.domainEvents.add(new LitemallOrderPaidEvent(this.orderId));
+        this.orderAggregate.setOrderStatus(LitemallOrderStatus.PAID);
+        this.domainEvents.add(new LitemallOrderPaidEvent(this.orderAggregate.getOrderId()));
     }
 
     public void cancel(String reason) {
-        if(!orderStatus.canTransitionTo(LitemallOrderStatus.CANCELED)){
-            throw new IllegalStateException("Order status cannot transition to " + orderStatus + "to CANCELED");
+        if(!orderAggregate.getOrderStatus().canTransitionTo(LitemallOrderStatus.CANCELED)){
+            throw new IllegalStateException("Order status cannot transition to " + orderAggregate.getOrderStatus() + "to CANCELED");
         }
 
-        this.orderStatus = LitemallOrderStatus.CANCELED;
-        this.domainEvents.add(new LitemallOrderCanceledEvent(this.orderId, reason));
+        this.orderAggregate.setOrderStatus(LitemallOrderStatus.CANCELED);
+        this.domainEvents.add(new LitemallOrderCanceledEvent(this.orderAggregate.getOrderId(), reason));
     }
 
     public void autoCancel() {
-        if(!orderStatus.canTransitionTo(LitemallOrderStatus.SYSTEM_CANCELED)){
-            throw new IllegalStateException("Order status cannot transition to " + orderStatus + "to CANCELED");
+        if(!orderAggregate.getOrderStatus().canTransitionTo(LitemallOrderStatus.SYSTEM_CANCELED)){
+            throw new IllegalStateException("Order status cannot transition to " + orderAggregate.getOrderStatus() + "to CANCELED");
         }
 
-        this.orderStatus = LitemallOrderStatus.SYSTEM_CANCELED;
-        this.domainEvents.add(new LitemallOrderCanceledEvent(this.orderId, " System auto cancel after 24 hours"));
+        this.orderAggregate.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED);
+        this.domainEvents.add(new LitemallOrderCanceledEvent(this.orderAggregate.getOrderId(), " System auto cancel after 24 hours"));
     }
 
     public void ship(){
-        if(!orderStatus.canTransitionTo(LitemallOrderStatus.SHIPPED)){
-            throw new IllegalStateException("Order status cannot transition to " + orderStatus + "to SHIPPED");
+        if(!orderAggregate.getOrderStatus().canTransitionTo(LitemallOrderStatus.SHIPPED)){
+            throw new IllegalStateException("Order status cannot transition to " + orderAggregate.getOrderStatus() + "to SHIPPED");
         }
 
-        this.orderStatus = LitemallOrderStatus.SHIPPED;
-        this.domainEvents.add(new LitemallOrderShippedEvent(this.orderId));
+        this.orderAggregate.setOrderStatus(LitemallOrderStatus.SHIPPED);
+        this.domainEvents.add(new LitemallOrderShippedEvent(this.orderAggregate.getOrderId()));
     }
 
     public LitemallOrderHandleOption getAvailableActions(){
-        return LitemallOrderHandleOption.forStatus(this.orderStatus);
+        return LitemallOrderHandleOption.forStatus(this.orderAggregate.getOrderStatus());
     }
     public List<LitemallDomainEvent> getDomainEvents(){
         return Collections.unmodifiableList(this.domainEvents);
@@ -139,6 +103,4 @@ public class LitemallOrderAggregateRoot {
     public void clearDomainEvents(){
         this.domainEvents.clear();
     }
-
-
 }

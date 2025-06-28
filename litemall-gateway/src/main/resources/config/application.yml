@@ -29,24 +29,29 @@ spring:
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
-            - Path=/goods/**
+            - Path=/srv/**
           filters:
             - TokenRelay=
             - StripPrefix=1
 
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/litemall
+#    username: root
+#    password: Calliste_1006
+#    driver-class-name: com.mysql.cj.jdbc.Driver
 
-jhipster:
-  application:
-    name: gateway
-  security:
-    oauth2:
-      audience:
-        - account
-        - api://default
+#jhipster:
+#  application:
+#    name: gateway
+#  security:
+#    oauth2:
+#      audience:
+#        - account
+#        - api://default
 
 
 server:
-  port: 8081
+  port: 8080
 
 logging:
   level:

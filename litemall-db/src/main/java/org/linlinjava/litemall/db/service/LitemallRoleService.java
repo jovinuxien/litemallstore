@@ -15,6 +15,7 @@ import java.util.Set;
 
 @Service
 public class LitemallRoleService {
+
     @Resource
     private LitemallRoleMapper roleMapper;
 
@@ -34,7 +35,6 @@ public class LitemallRoleService {
         }
 
         return roles;
-
     }
 
     public List<LitemallRole> querySelective(String name, Integer page, Integer limit, String sort, String order) {

@@ -1,21 +1,22 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
 
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregateRoot;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 
 import java.util.List;
 import java.util.Map;
 
 public interface LitemallOrderRepository {
 
-    LitemallOrderAggregateRoot findById(LitemallOrderId orderId);
+    LitemallOrderAggregate findById(LitemallOrderId orderId);
 
     void addOrder(LitemallOrderAggregateRoot order);
 
     int count(LitemallUserId userId);
 
-    LitemallOrderAggregateRoot findByIdAndUserId(LitemallUserId userId, LitemallOrderId orderId);
+    LitemallOrderAggregate findByIdAndUserId(LitemallUserId userId, LitemallOrderId orderId);
 
     int countByOrderSn(LitemallUserId userId, String orderSn);
 
@@ -27,15 +28,15 @@ public interface LitemallOrderRepository {
 
     int count();
 
-    List<LitemallOrderAggregateRoot> queryUnPaid(int minutes);
+    List<LitemallOrderAggregate> queryUnPaid(int minutes);
 
-    List<LitemallOrderAggregateRoot> queryUnconfirm(int days);
+    List<LitemallOrderAggregate> queryUnconfirm(int days);
 
     Map<Object, Object> orderInfo(LitemallUserId userId);
 
-    List<LitemallOrderAggregateRoot> queryComment(int days);
+    List<LitemallOrderAggregate> queryComment(int days);
 
-    public int updateSelective(LitemallOrderAggregateRoot orderAggregateRoot);
+    public int updateSelective(LitemallOrderAggregate orderAggregate);
 
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 }

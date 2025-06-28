@@ -2,13 +2,16 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 
 
 import com.github.pagehelper.PageInfo;
+import org.linlinjava.litemall.core.util.ApiResponse;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.goods.application.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.util.dto.ReduceStockRequest;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
 import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig;
@@ -16,27 +19,17 @@ import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProd
 import org.linlinjava.litemall.goods.interfaces.api.category.LitemallCategoryServiceApi;
 import org.linlinjava.litemall.goods.interfaces.api.goods.LitemallGoodsServiceApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.oidc.StandardClaimNames;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-import javax.annotation.security.RolesAllowed;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/goods")
+@RequestMapping("srv/goods")
 public class LitemallGoodsController {
 
 
@@ -124,7 +117,7 @@ public class LitemallGoodsController {
     }
 
 
-    @GetMapping("/datail")
+    @GetMapping("/detail")
     public Object privateGoodsDetails(@NotNull Integer id) {
         LitemallGoodsId goodsId = new LitemallGoodsId(id);
         return goodsManagementService.goodsDetail(goodsId);
@@ -145,30 +138,19 @@ public class LitemallGoodsController {
         return data;
     }
 
-   /* @PreAuthorize("hasAuthority('SCOPE_NICE')")
-    @GetMapping("/ping")
-    public Object ping() {
-        SecurityContext context = SecurityContextHolder.getContext();
-        Authentication authentication = context.getAuthentication();
-        Map<String, Object> data = new HashMap<>();
-        System.out.println("the scopes are: " + authentication.getAuthorities() + "  --  " + authentication.getPrincipal());
-        data.put("scopes", authentication.getAuthorities());
-        return data;
-    }*/
 
-    @PreAuthorize("hasAuthority('account.view-profile')")
-    @GetMapping("/ping")
-    //@RolesAllowed({"NICE"})
-    //public Object getPing(JwtAuthenticationToken auth) {
-    public Object getPing(Principal principal) {
-       /* return new UserInfoDto(
-                auth.getToken().getClaimAsString(StandardClaimNames.PREFERRED_USERNAME));
-                //auth.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList());
-                //auth.getAuthorities().stream().map  // convert to list));*/
-      Map<String, Object> data = new HashMap<>();
-      data.put("hello", "world");
-      data.put("principal username", principal.getName());
-      return data;
+    @PostMapping("/stock/reduce" )
+    //public Object reduceStock(@NotNull Integer id, @NotNull Short quantity) {
+    public ResponseEntity<ApiResponse<Void>> reduceStock(@RequestBody ReduceStockRequest request) {
+        // Validate input
+        if (request.getProductId() == null || request.getNumber() == null) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.fail(400, "ID and quantity are required"));
+        }
+        // Process the request
+        LitemallGoodsProductId goodsProductId = new LitemallGoodsProductId(request.getProductId());
+        goodsManagementService.reduceStock(goodsProductId, request.getNumber().shortValue());
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
 
