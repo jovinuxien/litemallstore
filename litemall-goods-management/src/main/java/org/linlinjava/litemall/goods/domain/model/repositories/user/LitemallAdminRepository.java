@@ -10,6 +10,7 @@ import java.util.List;
 public interface LitemallAdminRepository {
 
     LitemallAdminAggregate findById(LitemallAdminId adminId);
+    LitemallAdminAggregate findByUsername(String  username);
 
     void saveAdmin(LitemallAdminAggregate admin);
     int updateAdmin(LitemallAdminAggregate admin);

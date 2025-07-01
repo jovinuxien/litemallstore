@@ -104,7 +104,7 @@ public class GatewaySecurityConfig {
 
                 .authorizeExchange(auth -> auth
                         .pathMatchers("/srv/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
-                        .pathMatchers("/srv/**").authenticated()
+                            .pathMatchers("/srv/**").authenticated()
                         .anyExchange().permitAll())
 
                 //.oauth2Login(Customizer.withDefaults())

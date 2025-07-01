@@ -44,6 +44,14 @@ public class LitemallUserManagementServiceImpl implements LitemallUserManagement
     }
 
     @Override
+    public Object userDetailByUsername(String username) {
+        if(username.equals("admin")){
+            return ResponseUtil.ok(litemallAdminRepository.findByUsername(username));
+        }
+        return ResponseUtil.ok(litemallUserRepository.queryByUsername(username));
+    }
+
+    @Override
     public Object listUsers(String username, String mobile, Integer page, Integer limit, String sort, String order) {
         return ResponseUtil.okList(litemallUserRepository.querySelective(username, mobile, page, limit, sort, order));
     }
@@ -56,8 +64,12 @@ public class LitemallUserManagementServiceImpl implements LitemallUserManagement
     @Override
     public Object saveUser(LitemallUserAggregate userAggregate) {
         Map<String, Object> result = new HashMap<>();
-        litemallUserRepository.saveUser(userAggregate);
-        result.put("User Saved", userAggregate.getUsername());
+        if(litemallUserRepository.findById(userAggregate.getUserId()) == null){
+            litemallUserRepository.saveUser(userAggregate);
+            result.put("User Saved", userAggregate.getUsername());
+        };
+        //litemallUserRepository.saveUser(userAggregate);
+        result.put("This user already exists", userAggregate.getUsername());
         return ResponseUtil.ok(result);
     }
 

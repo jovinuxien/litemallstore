@@ -10,6 +10,11 @@ spring:
         output:
           destination: your-topic-name
           content-type: application/json
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
 #      kafka:
 #        binder:
 #        brokers: localhost:9092

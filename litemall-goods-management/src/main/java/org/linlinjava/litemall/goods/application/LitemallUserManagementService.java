@@ -6,6 +6,7 @@ import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAgg
 public interface LitemallUserManagementService {
 
     Object userDetail(Integer  userId);
+    Object userDetailByUsername(String  username);
     Object listUsers(String username, String mobile, Integer page, Integer limit, String sort, String order);
 
     Object updateUser(LitemallUserAggregate userAggregate);

@@ -25,6 +25,13 @@ public class LitemallAdminRepositoryImpl implements LitemallAdminRepository {
     }
 
     @Override
+    public LitemallAdminAggregate findByUsername(String username) {
+        LitemallAdminExample example = new LitemallAdminExample();
+        example.or().andUsernameEqualTo(username).andDeletedEqualTo(false);
+        return convertToDomainModel(adminMapper.selectOneByExample(example));
+    }
+
+    @Override
     public void saveAdmin(LitemallAdminAggregate admin) {
         LitemallAdmin adminDataModel = convertToDataModel(admin);
         admin.setAddTime(LocalDateTime.now());

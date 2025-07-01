@@ -60,7 +60,7 @@ public class GatewayServiceApplication {
 	}
 
 	@GetMapping(value = "/token")
-	public Mono<String> getHome(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
+	public Mono<String> getTokenAuthentication(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
 		return Mono.just(authorizedClient.getAccessToken().getTokenValue());
 	}
 
