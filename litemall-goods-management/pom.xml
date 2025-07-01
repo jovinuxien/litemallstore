@@ -235,6 +235,7 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+
 				<executions>
 					<execution>
 						<id>repackage</id>
@@ -244,6 +245,13 @@
 						</configuration>
 					</execution>
 				</executions>
+				<configuration>
+					<jvmArguments>
+						-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
+					</jvmArguments>
+					<fork>true</fork>
+					<addResources>true</addResources>
+				</configuration>
 			</plugin>
 
 			<!-- Containerization -->
@@ -294,58 +302,21 @@
 				</configuration>
 			</plugin>
 
-			<!-- Code coverage and test section -->
-			<!--<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-checkstyle-plugin</artifactId>
-			</plugin>-->
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${maven-surefire-plugin.version}</version>
+				<configuration>
+					<argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
+					<debugForkedProcess>true</debugForkedProcess>
+				</configuration>
 			</plugin>
-			<!--<plugin>
-				<groupId>org.jacoco</groupId>
-				<artifactId>jacoco-maven-plugin</artifactId>
-			</plugin>-->
-			<!--<plugin>
-				<groupId>org.sonarsource.scanner.maven</groupId>
-				<artifactId>sonar-maven-plugin</artifactId>
-			</plugin>-->
+
 		</plugins>
 
 		<pluginManagement>
 			<plugins>
-				<!-- Checkstyle plugin management -->
-				<!--<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-checkstyle-plugin</artifactId>
-					<version>${maven-checkstyle-plugin.version}</version>
-					<dependencies>
-						<dependency>
-							<groupId>com.puppycrawl.tools</groupId>
-							<artifactId>checkstyle</artifactId>
-							<version>${checkstyle.version}</version>
-						</dependency>
-						<dependency>
-							<groupId>io.spring.nohttp</groupId>
-							<artifactId>nohttp-checkstyle</artifactId>
-							<version>${nohttp-checkstyle.version}</version>
-						</dependency>
-					</dependencies>
-					<configuration>
-						<configLocation>checkstyle.xml</configLocation>
-						<includes>pom.xml,README.md</includes>
-						<excludes>.git/**/*,target/**/*,node_modules/**/*</excludes>
-						<sourceDirectories>./</sourceDirectories>
-					</configuration>
-					<executions>
-						<execution>
-							<goals>
-								<goal>check</goal>
-							</goals>
-						</execution>
-					</executions>
-				</plugin>-->
 				<!-- failesafe plugin management -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
@@ -444,11 +415,19 @@
 	</build>
 
 
-	<!--  Important link for importing public and open repository not for local ones-->
-	<!--<repositories>
-		<repository>
-			<id>central</id>
-			<url>https://repo.maven.apache.org/maven2</url>
-		</repository>
-	</repositories>-->
+	<profiles>
+		<!-- Development Profile -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+			<dependencies>
+				<!-- Additional dev dependencies if needed -->
+			</dependencies>
+		</profile>
+	</profiles>
 </project>

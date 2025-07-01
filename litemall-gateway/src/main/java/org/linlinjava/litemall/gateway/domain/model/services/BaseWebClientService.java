@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.gateway.domain.services;
+package org.linlinjava.litemall.gateway.domain.model.services;
 
 import com.google.protobuf.ServiceException;
 import org.linlinjava.litemall.gateway.domain.valueobjects.user.ApiResponse;

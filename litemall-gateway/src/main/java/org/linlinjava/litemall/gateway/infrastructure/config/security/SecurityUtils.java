@@ -6,7 +6,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.annotation.RegisteredOAuth2AuthorizedClient;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import reactor.core.publisher.Mono;
 
@@ -50,6 +56,63 @@ public final class SecurityUtils {
         }
         return null;
     }
+
+    public static Mono<String> extractPrincipal2(Authentication authentication){
+        return Mono.fromCallable(() -> {
+            if(authentication == null){
+                return null;
+            }
+
+            Object principal = authentication.getPrincipal();
+
+            if(principal instanceof UserDetails userDetails){
+                return userDetails.getUsername();
+            }
+            // Handle JWT case
+            if (principal instanceof Jwt jwt) {
+                return jwt.getClaimAsString("preferred_username");
+            }
+
+            if (principal instanceof OidcUser oidcUser){
+                return oidcUser.getPreferredUsername();
+            }
+
+            if(principal instanceof String){
+                return (String) principal;
+            }
+            return null;
+        });
+
+    }
+
+
+
+    public static Mono<String> getTokenAuthentication(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
+        return Mono.just(authorizedClient.getAccessToken().getTokenValue());
+    }
+
+
+    public static Mono<String> extractToken(Authentication authentication){
+        return Mono.fromCallable(() -> {
+            if(authentication == null){
+                return null;
+            }
+
+            if(authentication instanceof AbstractOAuth2TokenAuthenticationToken<?> tokenAuth){
+                return tokenAuth.getToken().getTokenValue();
+            }
+
+            if(authentication.getCredentials() instanceof OAuth2AccessToken accessToken){
+                return  accessToken.getTokenValue();
+            }
+
+            return null;
+        });
+    }
+
+
+
+
 
 
     /**
