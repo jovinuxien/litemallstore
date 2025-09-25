@@ -25,7 +25,7 @@ import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPubl
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
@@ -128,7 +128,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         // Validate and process Groupon if applicable
         LitemallGrouponRulesAggregate grouponRulesAggregate = validateAndGetGroupon(userId, command.getGrouponRulesId(), command.getGrouponLinkId());
-        // Get the shipping add
+        // Get the shipping address
         LitemallAddressAggregate addressAggregate = addressRepository.findAddress(userId, addressId);
         // Get the cartItems
         List<LitemallCartAggregate> checkedItems = getCheckedCartItems(new LitemallCartId(command.getCartId()), userId);

@@ -22,7 +22,7 @@ import 'bootstrap/js/dist/toast';
 import 'bootstrap/js/dist/tooltip'; */
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from './config/hooks';
+import { useAppDispatch, useAppSelector } from './config/store';
 import { getCatalogIndexData } from './modules/Category/categorySlice';
 import { getCatalogData, getHomeData } from './modules/home/homeSlice';
 import { CategoryData } from './shared/model/category/category.models';

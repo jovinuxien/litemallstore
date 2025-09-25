@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchCart, syncLocalCart, updateCartItem } from 'app/shared/reducers/cartSlice';
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';

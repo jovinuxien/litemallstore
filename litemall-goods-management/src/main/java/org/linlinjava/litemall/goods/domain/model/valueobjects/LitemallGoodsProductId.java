@@ -6,10 +6,10 @@ import lombok.Getter;
 @Getter
 public class LitemallGoodsProductId {
 
-    private final Integer id;
+    private final String id;
 
-    public LitemallGoodsProductId(Integer id) {
-        if(id == null || id <= 0) {
+    public LitemallGoodsProductId(String id) {
+        if(id == null || id.isEmpty()) {
             throw new IllegalArgumentException("Product ID must be a positive integer.");
         }
         this.id = id;

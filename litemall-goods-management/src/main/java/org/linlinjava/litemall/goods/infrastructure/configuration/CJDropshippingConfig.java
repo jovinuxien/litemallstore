@@ -13,22 +13,62 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "spring.cjdropship")
 public class CJDropshippingConfig {
 
-    private String cjEmail;
+    private Api api;
 
-    //@Value("${cjdropship.api.auth.cj-apiKey}")
-    private String cjApiKey;
 
-    //@Value("${cjdropship.api.auth.access-url}")
-    private String accessUrl;
+    @Data
+    public static class Api {
+        private Auth auth;
+        private Category category;
+        private Product product;
+    }
 
-    //@Value("${cjdropship.api.auth.refresh-url}")
-    private String refreshUrl;
 
-    //@Value("${cjdropship.api.product.list-url}")
-    private String productListUrl;
+    @Data
+    public static class Auth {
+        private String cjEmail;
+        private String cjApiKey;
+        private String accessUrl;
+        private String refreshUrl;
+    }
 
-    //@Value("${cjdropship.api.product.product-detail-url}")
-    private String productDetailUrl;
+    @Data
+    public static class Category {
+        private String categoryListUrl;
+    }
 
+    @Data
+    public static class Product {
+        private String listUrl;
+        private String productDetailUrl;
+    }
+
+    // Helper method for easy access to commonly used properties
+    public String getCjEmail(){
+       return api != null && api.getAuth()!= null ? api.getAuth().getCjEmail() : null;
+    }
+    public String getCjApiKey(){
+       return api != null && api.getAuth()!= null ? api.getAuth().getCjApiKey() : null;
+    }
+
+    public String getAccessUrl(){
+       return api != null && api.getAuth()!= null ? api.getAuth().getAccessUrl() : null;
+    }
+
+    public String getRefreshUrl(){
+       return api != null && api.getAuth()!= null ? api.getAuth().getRefreshUrl() : null;
+    }
+
+    public String getCategoryListUrl(){
+       return api != null && api.getCategory()!= null ? api.getCategory().getCategoryListUrl() : null;
+    }
+
+    public String getProductListUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getListUrl() : null;
+    }
+
+    public String getProductDetailUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getProductDetailUrl() : null;
+    }
 
 }

@@ -1,5 +1,5 @@
-export const BASE_URL_CONTEXT = 'http://localhost:9000/wx';
-export const ADMIN_URL_CONTEXT = 'http://localhost:9000/admin';
+export const BASE_URL_CONTEXT = 'http://localhost:9000/srv';
+export const ADMIN_URL_CONTEXT = 'http://localhost:9000/';
 
 /* export async function makeApiRequest<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T> {
   const queryString = new URLSearchParams(params as Record<string, string>).toString();

@@ -10,7 +10,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUse
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponUserStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
 import org.springframework.beans.factory.annotation.Autowired;

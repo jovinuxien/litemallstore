@@ -1,16 +1,12 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
-import org.linlinjava.litemall.db.dao.LitemallGoodsSpecificationMapper;
-import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttributeExample;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsAttributeRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsAttributeId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Resource;
@@ -42,7 +38,7 @@ public class LitemallGoodsAttributeRepositoryImpl implements LitemallGoodsAttrib
     @Override
     public void removeById(LitemallGoodsAttributeId goodsAttributeId) {
         LitemallGoodsAttributeExample example = new LitemallGoodsAttributeExample();
-        example.or().andGoodsIdEqualTo(goodsAttributeId.getId());
+        example.or().andGoodsIdEqualTo(Integer.parseInt(goodsAttributeId.getId()));
         goodsAttributeMapper.logicalDeleteByExample(example);
     }
 
@@ -62,7 +58,7 @@ public class LitemallGoodsAttributeRepositoryImpl implements LitemallGoodsAttrib
 
     @Override
     public LitemallGoodsAttributeAggregate queryById(LitemallGoodsAttributeId id) {
-       return convertToDomainModel(goodsAttributeMapper.selectByPrimaryKey(id.getId()));
+       return convertToDomainModel(goodsAttributeMapper.selectByPrimaryKey(Integer.parseInt(id.getId())));
     }
 
 
@@ -74,7 +70,7 @@ public class LitemallGoodsAttributeRepositoryImpl implements LitemallGoodsAttrib
         LitemallGoodsAttributeAggregate goodsAttributeAggregate = new LitemallGoodsAttributeAggregate();
 
         // Relationship mappings
-        goodsAttributeAggregate.setGoodsAttributeId(new LitemallGoodsAttributeId(record.getId()));
+        goodsAttributeAggregate.setGoodsAttributeId(new LitemallGoodsAttributeId(record.getId().toString()));
         goodsAttributeAggregate.setGoodsId(new LitemallGoodsId(record.getGoodsId()));
 
         goodsAttributeAggregate.setAttributeName(record.getAttribute());
@@ -94,7 +90,7 @@ public class LitemallGoodsAttributeRepositoryImpl implements LitemallGoodsAttrib
         LitemallGoodsAttribute dataModel = new LitemallGoodsAttribute();
 
         if(goodsAttributeAggregate.getGoodsAttributeId() != null){
-            dataModel.setId(goodsAttributeAggregate.getGoodsAttributeId().getId());
+            dataModel.setId(Integer.parseInt(goodsAttributeAggregate.getGoodsAttributeId().getId()));
         }
         dataModel.setGoodsId(goodsAttributeAggregate.getGoodsId().getId());
 

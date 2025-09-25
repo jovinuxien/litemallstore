@@ -6,7 +6,6 @@ import FilterStar from 'app/components/commonComponents/filter/Star';
 import FilterTag from 'app/components/commonComponents/filter/Tag';
 import Breadcrumb from 'app/components/userComponents/Breadcrumb';
 import CardServices from 'app/components/userComponents/card/CardServices';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
 import React, { useEffect, useState } from 'react';
@@ -15,6 +14,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getCurrentCatalogData, GoodCategoryResult, goodsBySubCategoryId } from './categorySlice';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import axios from 'axios';
 import './SubCategory.scss';
 

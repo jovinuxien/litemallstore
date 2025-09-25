@@ -3,14 +3,19 @@ package org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient
 
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationResponse;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+
+import java.util.Objects;
 
 @Component
 public class CJAuthenticationClient {
 
     private final RestTemplate restTemplate;
+
+    @Autowired
     private final CJDropshippingConfig config;
 
     public CJAuthenticationClient(RestTemplate restTemplate, CJDropshippingConfig conf) {
@@ -27,6 +32,11 @@ public class CJAuthenticationClient {
     public CJAuthenticationResponse accessToken(String email, String password){
         HttpHeaders headers =  new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+
+        if(!Objects.equals(email, config.getCjEmail()) || !Objects.equals(password, config.getCjApiKey())){
+            System.out.println("the email and password are: " + email + " " + password + " " + config.getCjEmail() + " " + config.getCjApiKey()  + " " + config.getAccessUrl() + "");
+            throw new RuntimeException("Invalid email or password. Provide valid email or password ");
+        }
 
         String requestBody = String.format("{\"email\": \"%s\", \"password\": \"%s\"}", email, password);
         HttpEntity<String>  request = new HttpEntity<>(requestBody, headers);

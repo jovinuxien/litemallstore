@@ -31,7 +31,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
 
     @Override
     public Optional<LitemallGoodsProductAggregate> findById(LitemallGoodsProductId goodsProductId) {
-        return Optional.of(convertToDomainModel(goodsProductMapper.selectByPrimaryKey(goodsProductId.getId())));
+        return Optional.of(convertToDomainModel(goodsProductMapper.selectByPrimaryKey(Integer.valueOf(goodsProductId.getId()))));
     }
 
     @Override
@@ -43,7 +43,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
 
     @Override
     public void deleteById(LitemallGoodsProductId goodsProductId) {
-        goodsProductMapper.logicalDeleteByPrimaryKey(goodsProductId.getId());
+        goodsProductMapper.logicalDeleteByPrimaryKey(Integer.valueOf(goodsProductId.getId()));
     }
 
     @Override
@@ -78,18 +78,18 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
     @Override
     public boolean isStockEnough(LitemallGoodsProductId productId, Short number) {
         LitemallGoodsProductExample example = new LitemallGoodsProductExample();
-        example.or().andIdEqualTo(productId.getId()).andNumberGreaterThanOrEqualTo(number.intValue()).andDeletedEqualTo(false);
+        example.or().andIdEqualTo(Integer.valueOf(productId.getId())).andNumberGreaterThanOrEqualTo(number.intValue()).andDeletedEqualTo(false);
         return !goodsProductMapper.selectByExample(example).isEmpty();
     }
 
     @Override
     public int reduceStock(LitemallGoodsProductId productId, Short number) {
-        return goodsMapper.reduceStock(productId.getId(), number);
+        return goodsMapper.reduceStock(Integer.valueOf(productId.getId()), number);
     }
 
     @Override
     public int addStock(LitemallGoodsProductId productId, Short number) {
-        return goodsMapper.addStock(productId.getId(), number);
+        return goodsMapper.addStock(Integer.valueOf(productId.getId()), number);
 
     }
 
@@ -102,9 +102,9 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
         LitemallGoodsProduct dataModel = new LitemallGoodsProduct();
 
         if(goodsProductAggregate.getGoodsProductId() != null){
-            dataModel.setId(goodsProductAggregate.getGoodsProductId().getId());
+            dataModel.setId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
         }
-        dataModel.setGoodsId(goodsProductAggregate.getGoodsProductId().getId());
+        dataModel.setGoodsId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
         dataModel.setSpecifications(goodsProductAggregate.getSpecification());
 
         dataModel.setPrice(goodsProductAggregate.getPrice().getAmount());
@@ -130,7 +130,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
         LitemallGoodsProductAggregate domainModel = new LitemallGoodsProductAggregate();
 
         // Relationship mappings
-        domainModel.setGoodsProductId(new LitemallGoodsProductId(record.getId()));
+        domainModel.setGoodsProductId(new LitemallGoodsProductId(record.getId().toString()));
         domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
 
         // Orther fields

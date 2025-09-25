@@ -1,4 +1,4 @@
-import { useAppDispatch } from 'app/config/hooks';
+import { useAppDispatch } from 'app/config/store';
 import IconShieldLock from 'bootstrap-icons/icons/shield-lock.svg';
 import React from 'react';
 import { useForm } from 'react-hook-form';

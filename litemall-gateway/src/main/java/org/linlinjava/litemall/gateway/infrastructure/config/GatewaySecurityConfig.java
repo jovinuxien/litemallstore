@@ -17,6 +17,7 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcReactiveOAuth2UserService;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
@@ -34,15 +35,20 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
+import org.springframework.security.oauth2.server.resource.web.server.ServerBearerTokenAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authentication.RedirectServerAuthenticationSuccessHandler;
+import org.springframework.security.web.server.authentication.ServerAuthenticationSuccessHandler;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
-import org.springframework.security.web.server.csrf.CookieServerCsrfTokenRepository;
 import org.springframework.security.web.server.header.ReferrerPolicyServerHttpHeadersWriter;
 import org.springframework.security.web.server.header.XFrameOptionsServerHttpHeadersWriter;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import tech.jhipster.web.filter.reactive.CookieCsrfFilter;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.Principal;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Consumer;
@@ -77,13 +83,14 @@ public class GatewaySecurityConfig {
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http, ServerLogoutSuccessHandler handler) {
 
         http
-                //.csrf().disable()
+                .csrf().disable()
                 .cors(withDefaults())
-                .csrf(csrf -> csrf
-                                .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
+                //.csrf(csrf -> csrf
+                 //               .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
+
                                 // See https://stackoverflow.com/q/74447118/65681
                                 //.csrfTokenRequestHandler(new ServerCsrfTokenRequestAttributeHandler()))
-                )
+                //)
                 .addFilterAt(new CookieCsrfFilter(), SecurityWebFiltersOrder.REACTOR_CONTEXT)
                 //.addFilterAfter(new SpaWebFilter(), SecurityWebFiltersOrder.HTTPS_REDIRECT)
 
@@ -103,12 +110,22 @@ public class GatewaySecurityConfig {
                 )
 
                 .authorizeExchange(auth -> auth
-                        .pathMatchers("/srv/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
-                            .pathMatchers("/srv/**").authenticated()
-                        .anyExchange().permitAll())
-
+                        .pathMatchers("/", "/*.*", "/srv/**", "/srv/authenticate/**", "/srv/catalog/**", "/srv/cjAuth/**").permitAll()
+                        .pathMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                        //.pathMatchers("/srv/**").authenticated()
+                        .pathMatchers("/srv/private/**").authenticated()
+                        //.anyExchange().permitAll())
+                )
                 //.oauth2Login(Customizer.withDefaults())
-                .oauth2Login(oauth2 -> oauth2.authorizationRequestResolver(authorizationRequestResolver(this.clientRegistrationRepository)))
+                .oauth2Login(oauth2 -> {
+                    try {
+                        oauth2
+                                .authenticationSuccessHandler(authenticationSuccessHandler())
+                                .authorizationRequestResolver(authorizationRequestResolver(this.clientRegistrationRepository));
+                    } catch (URISyntaxException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
                 .oauth2Client(Customizer.withDefaults())
 
                 .logout((logout) -> logout
@@ -117,8 +134,36 @@ public class GatewaySecurityConfig {
 
 
                 //.oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()));
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        // Add this to allow anonymous access to permetted paths
+                        .bearerTokenConverter(new ServerBearerTokenAuthenticationConverter())
+                )
+                //Enable anonymous access
+                .anonymous(anonymous -> anonymous
+                        .principal(createAnonymousUser())
+                        .authorities("ROLE_ANONYMOUS"));
         return http.build();
+    }
+
+    // Helper method to create anonymous user principal
+    private Principal createAnonymousUser() {
+        return new AbstractAuthenticationToken(AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")) {
+            @Override
+            public Object getCredentials() {
+                return null;
+            }
+
+            @Override
+            public Object getPrincipal() {
+                return "anonymousUser";
+            }
+
+            @Override
+            public boolean isAuthenticated() {
+                return false;
+            }
+        };
     }
 
 
@@ -135,6 +180,13 @@ public class GatewaySecurityConfig {
         return oidcLogoutSuccessHandler;
     }
 
+
+    @Bean
+    public ServerAuthenticationSuccessHandler authenticationSuccessHandler() throws URISyntaxException {
+        var handler = new RedirectServerAuthenticationSuccessHandler();
+        handler.setLocation(new URI("/login-success"));
+        return handler;
+    }
 
     private ServerOAuth2AuthorizationRequestResolver authorizationRequestResolver(
             ReactiveClientRegistrationRepository clientRegistrationRepository

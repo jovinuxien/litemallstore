@@ -1,6 +1,6 @@
 import { faBell, faComments, faDollarSign, faEnvelope, faFile, faLock, faShield, faTasks, faUser, faWrench } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useAppDispatch } from 'app/config/hooks';
+import { useAppDispatch } from 'app/config/store';
 import { logoutAdminThunk } from 'app/shared/reducers/authSlice';
 import * as React from 'react';
 import { Badge, Dropdown } from 'react-bootstrap';

@@ -1,7 +1,6 @@
 import { faBell, faHeart, faShoppingCart, faUser } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
 import { logoutThunk } from 'app/shared/reducers/authSlice';
 
 import { getUserInfo } from 'app/shared/reducers/profileSlice';
@@ -11,6 +10,7 @@ import { Form, Link, useNavigate } from 'react-router-dom';
 const Search = lazy(() => import('./Search'));
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import axios from 'axios';
 import './Header.scss';

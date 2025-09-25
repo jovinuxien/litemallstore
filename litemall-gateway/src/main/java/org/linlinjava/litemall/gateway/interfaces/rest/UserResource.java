@@ -1,23 +1,38 @@
 package org.linlinjava.litemall.gateway.interfaces.rest;
 
 
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.KeycloakBuilder;
+import org.keycloak.representations.AccessTokenResponse;
+import org.keycloak.representations.idm.RoleRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.linlinjava.litemall.gateway.domain.model.aggregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.gateway.infrastructure.feignclient.LitemallFeignUserClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/srv/user")
+@RequestMapping("/srv")
 public class UserResource {
 
     @Autowired
@@ -29,7 +44,7 @@ public class UserResource {
 
 
     //Try to create a new user
-    @GetMapping("/new-user")
+    @GetMapping("/register")
     public Mono<ResponseEntity<LitemallUserAggregate>> saveFromAuthenticationUser(
             //@AuthenticationPrincipal Mono<Authentication> authenticationMono){
             @AuthenticationPrincipal Mono<Jwt> jwtMono){
@@ -84,6 +99,50 @@ public class UserResource {
                 .doOnError(err -> log.error("Error processing user", err));
     }
 
+    /**
+     *
+     * @param credentials
+     * @desc: Authentication with keycloak not with local database
+     */
 
+    @PostMapping("/authenticate")
+    public Mono<ResponseEntity<Map<String, Object>>> login(@RequestBody Map<String, String> credentials) {
+        // Create form data
+        MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+        formData.add("grant_type", "password");
+        formData.add("client_id", "web_app");
+        formData.add("username", credentials.get("username"));
+        formData.add("password", credentials.get("password"));
+        formData.add("client_secret", "web_app"); // If client is confidential
+
+        return WebClient.create()
+                .post()
+                .uri("http://localhost:9080/realms/jhipster/protocol/openid-connect/token")
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(BodyInserters.fromFormData(formData))
+                .retrieve()
+                .onStatus(HttpStatus::isError, response -> {
+                    // Log detailed error from Keycloak
+                    return response.bodyToMono(String.class)
+                            .flatMap(body -> {
+                                System.err.println("Keycloak error response: " + body);
+                                return Mono.error(new RuntimeException(body));
+                            });
+                })
+                .bodyToMono(Map.class)
+                .map(response -> ResponseEntity.ok(Map.of(
+                        "token", response.get("access_token"),
+                        "refreshToken", response.get("refresh_token"),
+                        "expiresIn", response.get("expires_in")
+                )))
+                .onErrorResume(e -> {
+                        System.err.println("Authentication error: " + e.getMessage());
+                         return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of(
+                        "error", "Authentication failed",
+                        "details", e.getMessage())));
+                });
+
+    }
 
 }

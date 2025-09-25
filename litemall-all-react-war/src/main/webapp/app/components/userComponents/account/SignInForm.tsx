@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loginAdminThunk, loginUserThunk } from 'app/shared/reducers/authSlice';
 import IconShieldLock from 'bootstrap-icons/icons/shield-lock.svg';
 import Umbrella from 'bootstrap-icons/icons/umbrella.svg';

@@ -2,7 +2,6 @@ package org.linlinjava.litemall.goods.application.internal;
 
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.util.ResponseUtil;
-import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.db.service.LitemallCartService;
 import org.linlinjava.litemall.goods.application.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.util.exception.goods.LitemallGoodsNotFoundException;
@@ -16,9 +15,7 @@ import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProd
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
-import org.linlinjava.litemall.goods.infrastructure.messaging.source.SimpleSourceBean;
-import org.linlinjava.litemall.goods.utils.ActionEnum;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.linlinjava.litemall.goods.interfaces.api.catalog.LitemallCatalogService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -35,7 +32,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
 
 
     private final LitemallGoodsRepository goodsRepository;
-    private final LitemallCategoryRepository categoryRepository;
+    private final LitemallCatalogRepository categoryRepository;
     private final LitemallBrandRepository brandRepository;
 
     private final LitemallGoodsProductRepository goodsProductRepository;
@@ -45,18 +42,21 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
 
     private final QCodeService qCodeService;
     private final LitemallCartService cartService;
+    private final LitemallCatalogService catalogService;
 
     //@Autowired
     //private SimpleSourceBean simpleSourceBean;
 
  public LitemallGoodsManagementServiceImpl(LitemallGoodsRepository goodsRepository,
-                                           LitemallCategoryRepository categoryRepository,
+                                           LitemallCatalogRepository categoryRepository,
                                            LitemallBrandRepository brandRepository,
                                            LitemallGoodsProductRepository goodsProductRepository,
                                            LitemallGoodsAttributeRepository goodsAttributeRepository,
                                            LitemallGoodsSpecificationRepository goodsSpecificationRepository,
                                            QCodeService qCodeService,
-                                           LitemallCartService cartService
+                                           LitemallCartService cartService,
+                                           LitemallCatalogService catalogService
+
                                            // LitemallDomainEventPublisher domainEventPublisher,
                                            // QCodeService qCodeService,
                                            // LitemallCartService cartService,
@@ -73,6 +73,32 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
 
      this.qCodeService = qCodeService;
      this.cartService = cartService;
+     this.catalogService = catalogService;
+    }
+
+    @Override
+    public LitemallCategoryAggregate getCategoryById(LitemallCategoryId categoryId) {
+        return catalogService.getCategoryById(categoryId);
+    }
+
+    @Override
+    public List<LitemallCategoryAggregate> getFirstLevelCategories() {
+        return catalogService.getFirstLevelCategories();
+    }
+
+    @Override
+    public List<LitemallCategoryAggregate> getSecondLevelCategories(Integer parentId) {
+        return catalogService.getSecondLevelCategories(parentId);
+    }
+
+    @Override
+    public List<LitemallCategoryAggregate> queryByPid(Integer pid) {
+        return catalogService.queryByPid(pid);
+    }
+
+    @Override
+    public Object getGoodsByCategoryId(LitemallCategoryId categoryId) {
+        return catalogService.getGoodsByCategoryId(categoryId);
     }
 
     @Override
@@ -131,7 +157,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
         if (categoryAggregate != null) {
             Integer parentCategoryId = categoryAggregate.getParentId();
             categoryIds.add(parentCategoryId);
-            categoryIds.add(categoryId.getId());
+            categoryIds.add(Integer.valueOf(categoryId.getId()));
         }
 
         Map<String, Object> data = new HashMap<>();
@@ -273,7 +299,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
         // 这里需要注意的是购物车litemall_cart有些字段是拷贝商品的一些字段，因此需要及时更新
         // 目前这些字段是goods_sn, goods_name, price, pic_url
         for (LitemallGoodsProductAggregate product : productAggregates) {
-            cartService.updateProduct(product.getGoodsProductId().getId(), goodsAggregate.getGoodsSn(), goodsAggregate.getGoodsName(),
+            cartService.updateProduct(Integer.valueOf(product.getGoodsProductId().getId()), goodsAggregate.getGoodsSn(), goodsAggregate.getGoodsName(),
                     product.getPrice().getAmount(), product.getUrl());
         }
 
@@ -358,11 +384,6 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
             return ResponseUtil.badArgument();
         }
         LitemallCategoryId categoryId = goodsAggregate.getCategoryId();
-        if(categoryId != null && categoryId.getId() != 0){
-            if(categoryRepository.findById(categoryId) != null){
-                ResponseUtil.badArgumentValue();
-            }
-        }
 
         LitemallManufacturerId manufacturerId = goodsAggregate.getManufacturerId();
         if(manufacturerId != null && manufacturerId.getId() != 0){

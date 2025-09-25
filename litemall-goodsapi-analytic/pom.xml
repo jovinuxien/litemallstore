@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.linlinjava</groupId>
+		<artifactId>litemall</artifactId>
+		<version>0.1.0</version>
+	</parent>
+
+	<artifactId>litemall-goodsapi-analytic</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>litemall-goodsapi-analytic</name>
+	<packaging>jar</packaging>
+	<description>Demo project for Spring Boot for goods api analytic</description>
+
+
+	<properties>
+		<!--<java.version>17</java.version>
+		<spring-cloud.version>2022.0.4</spring-cloud.version>
+		<mapstruct.version>1.5.2.Final</mapstruct.version>
+		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
+		<litemall.version>0.1.0</litemall.version>-->
+
+		<java.version>17</java.version>
+		<!--		<spring-boot.version>3.1.6</spring-boot.version>-->
+		<spring-cloud.version>2021.0.9</spring-cloud.version>
+		<profile.test/>
+
+
+		<!-- Project coverage and test section properties -->
+		<!--<maven-surefire-plugin.version>3.5.1</maven-surefire-plugin.version>
+		<maven-failsafe-plugin.version>3.5.1</maven-failsafe-plugin.version>
+		<sonar-maven-plugin.version>4.0.0.4121</sonar-maven-plugin.version>
+		<nohttp-checkstyle.version>0.0.11</nohttp-checkstyle.version>
+		<jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+		<checkstyle.version>10.19.0</checkstyle.version>
+		<properties-maven-plugin.version>1.2.1</properties-maven-plugin.version>
+		<maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>-->
+		<profile.test/>
+
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-dependencies</artifactId>
+				<version>${spring-boot.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+
+	<dependencies>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-core</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-db</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+		<!--<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-library</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>-->
+
+
+
+		<!-- Cloud section dependency -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-config</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-bootstrap</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-stream</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+
+
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+
+		<!-- Spring boot starter elements -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<version>2.7.18</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-integration</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-file</artifactId>
+			<version>6.2.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
+
+		<!-- Security section -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-jose</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-config</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-core</artifactId>
+		</dependency>
+		<!--<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-oauth2-client</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security.oauth</groupId>
+			<artifactId>spring-security-oauth2</artifactId>
+			<version>2.5.2.RELEASE</version>
+			<scope>compile</scope>
+		</dependency>-->
+
+
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>2.3.3</version>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.xml.bind</groupId>
+			<artifactId>jaxb-impl</artifactId>
+			<version>2.3.3</version>
+			<scope>runtime</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-redis</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>redis.clients</groupId>
+			<artifactId>jedis</artifactId>
+			<type>jar</type>
+		</dependency>
+
+
+
+		<!-- base dependency management -->
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-core</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-db</artifactId>
+			<version>${litemall.version}</version>
+		</dependency>
+
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
+        </dependency>
+
+
+    </dependencies>
+
+
+	<build>
+		<plugins>
+			<!-- spring boot build plugin -->
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+
+				<executions>
+					<execution>
+						<id>repackage</id>
+						<configuration>
+							<executable>true</executable>
+							<classifier>exec</classifier>
+						</configuration>
+					</execution>
+				</executions>
+				<configuration>
+					<jvmArguments>
+						-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
+					</jvmArguments>
+					<!--<fork>true</fork>-->
+					<addResources>true</addResources>
+				</configuration>
+			</plugin>
+
+			<!-- Containerization -->
+			<!-- jib-maven plugin management -->
+			<plugin>
+				<groupId>com.google.cloud.tools</groupId>
+				<artifactId>jib-maven-plugin</artifactId>
+				<version>${jib-maven-plugin.version}</version>
+				<configuration>
+					<from>
+						<image>${jib-maven-plugin.image}</image>
+						<platforms>
+							<platform>
+								<architecture>${jib-maven-plugin.architecture}</architecture>
+								<os>linux</os>
+							</platform>
+						</platforms>
+					</from>
+					<to>
+						<image>litemall-order:latest</image>
+					</to>
+					<container>
+						<entrypoint>
+							<shell>bash</shell>
+							<option>-c</option>
+							<arg>/entrypoint.sh</arg>
+						</entrypoint>
+						<ports>
+							<port>8083</port>
+							<port>5701/udp</port>
+						</ports>
+						<!--	<environment>
+								<SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
+								<JHIPSTER_SLEEP>0</JHIPSTER_SLEEP>
+							</environment>-->
+						<creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+						<user>1000</user>
+					</container>
+					<extraDirectories>
+						<paths>src/main/docker/jib</paths>
+						<permissions>
+							<permission>
+								<file>/entrypoint.sh</file>
+								<mode>755</mode>
+							</permission>
+						</permissions>
+					</extraDirectories>
+				</configuration>
+			</plugin>
+
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${maven-surefire-plugin.version}</version>
+				<configuration>
+					<argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
+					<debugForkedProcess>true</debugForkedProcess>
+				</configuration>
+			</plugin>
+
+		</plugins>
+
+		<pluginManagement>
+			<plugins>
+				<!-- failesafe plugin management -->
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-failsafe-plugin</artifactId>
+					<version>${maven-failsafe-plugin.version}</version>
+					<configuration>
+						<!-- Due to spring-boot repackage, without adding this property test classes are not found
+                             See https://github.com/spring-projects/spring-boot/issues/6254 -->
+						<!-- Force alphabetical order to have a reproducible build -->
+						<classesDirectory>${project.build.outputDirectory}</classesDirectory>
+						<runOrder>alphabetical</runOrder>
+						<includes>
+							<include>**/*IT*</include>
+							<include>**/*IntTest*</include>
+						</includes>
+						<argLine>@{argLine} -Dspring.profiles.active=${profile.test}</argLine>
+					</configuration>
+					<executions>
+						<execution>
+							<id>integration-test</id>
+							<goals>
+								<goal>integration-test</goal>
+							</goals>
+						</execution>
+						<execution>
+							<id>verify</id>
+							<goals>
+								<goal>verify</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<!-- jacoco plugin management -->
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>${jacoco-maven-plugin.version}</version>
+					<executions>
+						<execution>
+							<id>pre-unit-tests</id>
+							<goals>
+								<goal>prepare-agent</goal>
+							</goals>
+						</execution>
+						<execution>
+							<!-- Ensures that the code coverage report for unit tests is created after unit tests have been run -->
+							<id>post-unit-test</id>
+							<phase>test</phase>
+							<goals>
+								<goal>report</goal>
+							</goals>
+						</execution>
+						<execution>
+							<id>pre-integration-tests</id>
+							<goals>
+								<goal>prepare-agent-integration</goal>
+							</goals>
+						</execution>
+						<execution>
+							<!-- Ensures that the code coverage report for integration tests is created after integration tests have been run -->
+							<id>post-integration-tests</id>
+							<phase>post-integration-test</phase>
+							<goals>
+								<goal>report-integration</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<!-- properties plugin management -->
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>properties-maven-plugin</artifactId>
+					<version>${properties-maven-plugin.version}</version>
+					<executions>
+						<execution>
+							<phase>initialize</phase>
+							<goals>
+								<goal>read-project-properties</goal>
+							</goals>
+							<configuration>
+								<files>
+									<file>sonar-project.properties</file>
+								</files>
+							</configuration>
+						</execution>
+					</executions>
+				</plugin>
+				<!-- sonar plugin management -->
+				<plugin>
+					<groupId>org.sonarsource.scanner.maven</groupId>
+					<artifactId>sonar-maven-plugin</artifactId>
+					<version>${sonar-maven-plugin.version}</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
+
+	<profiles>
+		<!-- Development Profile -->
+		<profile>
+			<id>dev</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+			<dependencies>
+				<!-- Additional dev dependencies if needed -->
+			</dependencies>
+		</profile>
+	</profiles>
+</project>

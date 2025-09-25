@@ -2,29 +2,25 @@ package org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservi
 
 
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Service
+@Component
 public class TokenManager {
 
+    private static final Logger logger = LoggerFactory.getLogger(TokenManager.class);
     private final ConcurrentHashMap<String, CJAuthenticationResponse> tokenStore = new ConcurrentHashMap<>();
 
 
-    /*public String getAccessToken(String email){
-        CJAuthenticationResponse response = tokenStore.get(email);
-        return response != null ? response.getData().getAccessToken() : null;
-    }*/
     public String getAccessToken(String email) {
         CJAuthenticationResponse response = tokenStore.get(email);
-        if (response == null) {
-            System.err.println("No access token found for email: " + email);
-            return null;
-        }
-        System.out.println("Access token retrieved for email: " + email);
-        return response.getData().getAccessToken();
+        logger.debug("Retrieved token for {}: {}", email, response.getData().getAccessToken());
+        return (response != null && response.getData() != null)? response.getData().getAccessToken() : null;
     }
 
     public CJAuthenticationResponse getResponseAuthAccessData(String email){
@@ -32,9 +28,8 @@ public class TokenManager {
     }
 
     public void storeToken(String email, CJAuthenticationResponse tokenResponse){
+        logger.debug("Storing token for {}: {}", email, tokenResponse.getData().getAccessToken());
         tokenStore.put(email, tokenResponse);
-        System.out.println("Access token stored  for email from tokenManager : " + email + " is " + tokenResponse.getData());
-
     }
 
 }

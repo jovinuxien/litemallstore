@@ -35,9 +35,16 @@ public class GoodsSecurityConfig {
                 .csrf().disable()
 
                 .authorizeRequests()
-                .antMatchers("/srv/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
-                .antMatchers("/srv/**").authenticated()
-                .anyRequest().permitAll()
+                .antMatchers("/", "/*.*", "/srv/**", "/srv/catalog/**", "/srv/cjAuth/**").permitAll()
+                /*.antMatchers("/*.*").permitAll()
+                .antMatchers("/srv/**").permitAll()
+                .antMatchers("/srv/catalog/**").permitAll()
+                .antMatchers("/srv/product/**").permitAll()*/
+
+
+                .antMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                .antMatchers("/srv/private/**").authenticated()
+                //.anyRequest().permitAll()
 
                 .and()
 

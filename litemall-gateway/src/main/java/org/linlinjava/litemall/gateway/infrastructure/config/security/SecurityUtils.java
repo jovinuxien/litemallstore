@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.AbstractOAuth2TokenAuthenticationToken;
+import org.springframework.security.oauth2.server.resource.authentication.BearerTokenAuthentication;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import reactor.core.publisher.Mono;
 
@@ -85,11 +86,9 @@ public final class SecurityUtils {
 
     }
 
-
-
-    public static Mono<String> getTokenAuthentication(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
+    /*public static Mono<String> getTokenAuthentication(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
         return Mono.just(authorizedClient.getAccessToken().getTokenValue());
-    }
+    }*/
 
 
     public static Mono<String> extractToken(Authentication authentication){
@@ -109,6 +108,26 @@ public final class SecurityUtils {
             return null;
         });
     }
+
+    public static Mono<String> extractToken2(Authentication authentication) {
+        return Mono.fromCallable(() -> {
+            if (authentication == null) {
+                throw new IllegalArgumentException("Authentication cannot be null");
+            }
+
+            if (authentication instanceof AbstractOAuth2TokenAuthenticationToken<?> oauthToken) {
+                return oauthToken.getToken().getTokenValue();
+            }
+            else if (authentication instanceof BearerTokenAuthentication) {
+                return ((BearerTokenAuthentication) authentication).getToken().getTokenValue();
+            }
+            else if (authentication.getCredentials() instanceof String) {
+                return (String) authentication.getCredentials();
+            }
+            throw new IllegalStateException("Unsupported authentication type for token extraction");
+        });
+    }
+
 
 
 

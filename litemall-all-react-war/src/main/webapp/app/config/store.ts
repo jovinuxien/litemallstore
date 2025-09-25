@@ -1,46 +1,56 @@
-import { Action, configureStore, ThunkAction } from '@reduxjs/toolkit';
-import profileForm from 'app/components/userComponents/account/FormProfileSlice';
-import category from 'app/modules/Category/categorySlice';
-import home from 'app/modules/home/homeSlice';
-import productDetail from 'app/modules/product/productDetailSlice';
-import product from 'app/modules/product/productSlice';
-import relatedGoods from 'app/modules/product/relatedSlice';
-import cart from 'app/shared/reducers/cartSlice';
-import privateReducers from 'app/shared/reducers/private/privateReducers';
-//import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
-import auth from '../shared/reducers/authSlice';
-import profile from '../shared/reducers/profileSlice';
-import register from '../shared/reducers/registerSlice';
-import errorMiddleware from './middleware/error-middleware';
-import loggerMiddleware from './middleware/logger-middleware';
+import { Action, Reducer, ReducersMapObject, Store, ThunkAction, UnknownAction, combineReducers, configureStore } from '@reduxjs/toolkit';
+import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import { loadingBarMiddleware } from 'react-redux-loading-bar';
+
+import sharedReducers from 'app/shared/reducers';
+//import errorMiddleware from './error-middleware';
+//import loggerMiddleware from './logger-middleware';
+//import notificationMiddleware from './notification-middleware';
+
 const store = configureStore({
-  reducer: {
-    home,
-    category,
-    product,
-    productDetail,
-    profileForm,
-    profile,
-    auth,
-    cart,
-    register,
-    relatedGoods,
-    private: privateReducers,
-    //[adminGoodsApi.reducerPath]: adminGoodsApi.reducer,
-  },
+  reducer: sharedReducers,
   middleware: getDefaultMiddleware =>
     getDefaultMiddleware({
-      serializableCheck: false,
-      /*serializableCheck: {
-       Ignore these field paths in all actions
-      ignoredActionPaths: ['payload.config', 'payload.request', 'error', 'meta.arg'],
-      } */
-      //}).concat(loggerMiddleware, errorMiddleware, adminGoodsApi.middleware),
-    }).concat(loggerMiddleware, errorMiddleware),
+      serializableCheck: {
+        // Ignore these field paths in all actions
+        ignoredActionPaths: ['payload.config', 'payload.request', 'payload.headers', 'error', 'meta.arg'],
+      },
+      //}).concat(errorMiddleware, notificationMiddleware, loadingBarMiddleware(), loggerMiddleware),
+    }).concat(loadingBarMiddleware()),
 });
 
-export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch;
-export type AppThunk<ReturnType = void> = ThunkAction<ReturnType, RootState, unknown, Action<string>>;
+// Allow lazy loading of reducers https://github.com/reduxjs/redux/blob/master/docs/usage/CodeSplitting.md
+interface InjectableStore<S = any, A extends Action = UnknownAction> extends Store<S, A> {
+  asyncReducers: ReducersMapObject;
+  injectReducer(key: string, reducer: Reducer): void;
+}
 
-export default store;
+export function configureInjectableStore(storeToInject) {
+  const injectableStore = storeToInject as InjectableStore<any, any>;
+  injectableStore.asyncReducers = {};
+
+  injectableStore.injectReducer = (key, asyncReducer) => {
+    injectableStore.asyncReducers[key] = asyncReducer;
+    injectableStore.replaceReducer(
+      combineReducers({
+        ...sharedReducers,
+        ...injectableStore.asyncReducers,
+      })
+    );
+  };
+
+  return injectableStore;
+}
+
+const injectableStore = configureInjectableStore(store);
+
+const getStore = () => injectableStore;
+
+export type IRootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+export const useAppSelector: TypedUseSelectorHook<IRootState> = useSelector;
+export const useAppDispatch = () => useDispatch<AppDispatch>();
+export type AppThunk<ReturnType = void> = ThunkAction<ReturnType, IRootState, unknown, UnknownAction>;
+
+export default getStore;

@@ -16,7 +16,7 @@ import org.linlinjava.litemall.goods.domain.model.valueobjects.category.Litemall
 import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
 import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig;
 import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProducer;
-import org.linlinjava.litemall.goods.interfaces.api.category.LitemallCategoryServiceApi;
+import org.linlinjava.litemall.goods.interfaces.api.catalog.LitemallCatalogService;
 import org.linlinjava.litemall.goods.interfaces.api.goods.LitemallGoodsServiceApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -36,7 +36,7 @@ public class LitemallGoodsController {
     @Autowired
     private LitemallGoodsServiceApi goodsServiceApi;
     @Autowired
-    private LitemallCategoryServiceApi categoryServiceApi;
+    private LitemallCatalogService categoryServiceApi;
     @Autowired
     private LitemallGoodsManagementService goodsManagementService;
     
@@ -148,7 +148,7 @@ public class LitemallGoodsController {
                     ApiResponse.fail(400, "ID and quantity are required"));
         }
         // Process the request
-        LitemallGoodsProductId goodsProductId = new LitemallGoodsProductId(request.getProductId());
+        LitemallGoodsProductId goodsProductId = new LitemallGoodsProductId(request.getProductId().toString());
         goodsManagementService.reduceStock(goodsProductId, request.getNumber().shortValue());
         return ResponseEntity.ok(ApiResponse.success());
     }

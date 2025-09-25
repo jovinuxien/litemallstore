@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import React from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { setImagePreview } from './FormProfileSlice';

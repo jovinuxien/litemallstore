@@ -1,6 +1,6 @@
 import { faShoppingCart } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useAppSelector } from 'app/config/hooks';
+import { useAppSelector } from 'app/config/store';
 import React from 'react';
 import { Button, Card, Image } from 'react-bootstrap';
 import { Link } from 'react-router-dom';

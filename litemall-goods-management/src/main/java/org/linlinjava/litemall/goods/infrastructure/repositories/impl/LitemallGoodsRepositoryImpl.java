@@ -108,7 +108,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
     public List<LitemallGoodsAggregate> queryByCategory(LitemallCategoryId categoryId, int offset, int limit) {
 
         LitemallGoodsExample example = new LitemallGoodsExample();
-        example.or().andCategoryIdEqualTo(categoryId.getId()).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.or().andCategoryIdEqualTo(Integer.valueOf(categoryId.getId())).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
         example.setOrderByClause("add_time desc");
         PageHelper.startPage(offset, limit);
 
@@ -162,10 +162,6 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         LitemallGoodsExample.Criteria criteria1 = example.or();
         LitemallGoodsExample.Criteria criteria2 = example.or();
 
-        if (!StringUtils.isEmpty(categoryId.getId()) && categoryId.getId() != 0) {
-            criteria1.andCategoryIdEqualTo(categoryId.getId());
-            criteria2.andCategoryIdEqualTo(categoryId.getId());
-        }
         if (!StringUtils.isEmpty(manufacturerId.getId())) {
             criteria1.andBrandIdEqualTo(manufacturerId.getId());
             criteria2.andBrandIdEqualTo(manufacturerId.getId());
@@ -216,10 +212,6 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         LitemallGoodsExample.Criteria criteria1 = example.or();
         LitemallGoodsExample.Criteria criteria2 = example.or();
 
-        if (!StringUtils.isEmpty(catId.getId()) && catId.getId() != 0) {
-            criteria1.andCategoryIdEqualTo(catId.getId());
-            criteria2.andCategoryIdEqualTo(catId.getId());
-        }
         if (!StringUtils.isEmpty(manufacturerId.getId())) {
             criteria1.andBrandIdEqualTo(manufacturerId.getId());
             criteria2.andBrandIdEqualTo(manufacturerId.getId());
@@ -273,7 +265,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         if(goodsAggregate.getGoodsId() != null){
             dataModel.setId(goodsAggregate.getGoodsId().getId());
         }
-        dataModel.setCategoryId(goodsAggregate.getCategoryId().getId());
+        dataModel.setCategoryId(Integer.valueOf(goodsAggregate.getCategoryId().getId()));
         dataModel.setBrandId(goodsAggregate.getManufacturerId().getId());
 
         dataModel.setGoodsSn(goodsAggregate.getGoodsSn());

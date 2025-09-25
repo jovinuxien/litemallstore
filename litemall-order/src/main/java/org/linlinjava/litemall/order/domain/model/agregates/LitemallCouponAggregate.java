@@ -4,8 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallValidPeriod;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponStatus;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallCouponType;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponTimeType;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class LitemallCouponAggregate {
     private BigDecimal discount;
     private BigDecimal minPrice;
     private LitemallCouponType type;
+    private LitemallCouponTimeType timeType;
     private LitemallCouponStatus status;
     private String code;
 
@@ -37,33 +39,5 @@ public class LitemallCouponAggregate {
     private boolean deleted;
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
-
-    public boolean isExpired(){
-        if(type == LitemallCouponType.REGISTER){
-            return false; // Register coupon don't expire base on time
-        }
-        return endTime != null && endTime.isBefore(LocalDateTime.now());
-    }
-
-    public boolean isAvailable() {
-        return status == LitemallCouponStatus.NORMAL && !deleted && !isExpired();
-    }
-
-   /* public boolean isApplicableTo(LitemallOrderAggregateRoot orderAggregateRoot){
-
-          return  status == LitemallCouponStatus.NORMAL
-                  && validPeriod.isCurrentPeriodValid()
-                  && orderAggregateRoot.
-    }*/
-
-    public void applyTo(LitemallOrderAggregateRoot orderAggregateRoot){
-
-    }
-
-    public void deactivate(){
-        this.status = LitemallCouponStatus.EXPIRED;
-        this.updateTime = LocalDateTime.now();
-    }
-
 
 }

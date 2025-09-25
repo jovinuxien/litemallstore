@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';

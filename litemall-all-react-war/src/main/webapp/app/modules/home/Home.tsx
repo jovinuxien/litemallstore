@@ -11,7 +11,7 @@ import IconUpcScan from 'bootstrap-icons/icons/upc-scan.svg';
 import React, { lazy, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { IGood } from 'app/shared/model/product/product.model';
 import { Card, Carousel, Col, Container, Row } from 'react-bootstrap';
 import { data } from '../../data';

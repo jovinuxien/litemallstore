@@ -5,8 +5,6 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 
 public interface LitemallGoodsFacade {
-
-
     LitemallGoodsProductAggregate getGoodsProductById(LitemallGoodsId goodsId);
     boolean validateStock(LitemallGoodsProductId productId, int quantity);
     void reduceStock(LitemallGoodsProductId productId, int quantity);

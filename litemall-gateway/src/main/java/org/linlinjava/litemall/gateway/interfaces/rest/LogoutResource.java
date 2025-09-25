@@ -7,7 +7,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
-import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,12 +22,10 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/srv")
+@RequestMapping("/srv/private")
 public class LogoutResource {
 
-
     private final ReactiveClientRegistrationRepository registrationRepository;
-
 
     public LogoutResource(ReactiveClientRegistrationRepository registrations) {
         this.registrationRepository = registrations;
@@ -43,8 +40,6 @@ public class LogoutResource {
             ServerHttpRequest request
             //WebSession session) {
          ){
-
-
         //return session.invalidate().then(this.registration.map(oidc -> prepareLogoutUri(request, oidc, idToken)));
 
 

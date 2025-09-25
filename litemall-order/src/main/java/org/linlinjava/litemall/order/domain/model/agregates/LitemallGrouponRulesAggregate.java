@@ -38,17 +38,11 @@ public class LitemallGrouponRulesAggregate {
 
 
     public boolean isExpired() {
-        if(status == LitemallGrouponStatus.RULE_STATUS_DOWN_EXPIRE) {
-            return true;
-        }
-        return false;
+        return status == LitemallGrouponStatus.RULE_STATUS_DOWN_EXPIRE;
     }
 
     public boolean isOffline() {
-        if (status == LitemallGrouponStatus.RULE_STATUS_DOWN_ADMIN) {
-            return true;
-        }
-        return false;
+        return status == LitemallGrouponStatus.RULE_STATUS_DOWN_ADMIN;
     }
 
     public void validateGrouponRules(){
@@ -57,7 +51,11 @@ public class LitemallGrouponRulesAggregate {
         }
     }
 
-
+    /**
+     * @Desc This method has two different value objects, so it has to be moved to a domain service.
+     * @param userId
+     * @param participationInfo
+     */
     public void validateGrouponParticipation(LitemallUserId userId, GrouponParticipationInfo participationInfo){
 
         if (participationInfo.hasGrouponLink()) {
