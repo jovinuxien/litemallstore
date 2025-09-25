@@ -1,5 +1,5 @@
 import StripePaymentComponent from 'app/components/userComponents/card/StripeComponent';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import renderFormField from 'app/helpers/renderFormField';
 import renderFormSelect from 'app/helpers/renderFormSelect';
 import { fetchCart } from 'app/shared/reducers/cartSlice';

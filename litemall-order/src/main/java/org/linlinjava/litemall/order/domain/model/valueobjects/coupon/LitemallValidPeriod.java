@@ -17,7 +17,4 @@ public class LitemallValidPeriod {
         return !now.isBefore(startTime) && now.isAfter(endTime);
     }
 
-    public class UsageLimit {
-
-    }
 }

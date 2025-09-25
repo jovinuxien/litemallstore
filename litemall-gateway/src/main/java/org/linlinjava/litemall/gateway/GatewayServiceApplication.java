@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.gateway;
 
+import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +9,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.annotation.RegisteredOAuth2AuthorizedClient;
@@ -17,18 +20,18 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 import tech.jhipster.config.JHipsterProperties;
 
-import javax.annotation.PostConstruct;
+//import javax.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
 @SpringBootApplication(exclude = {org.springframework.cloud.security.oauth2.gateway.TokenRelayAutoConfiguration.class})
-//@SpringBootApplication
 @EnableEurekaClient
 @RestController
 @EnableConfigurationProperties({JHipsterProperties.class})
@@ -59,42 +62,7 @@ public class GatewayServiceApplication {
 
 	}
 
-	@GetMapping(value = "/token")
-	public Mono<String> getTokenAuthentication(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
-		return Mono.just(authorizedClient.getAccessToken().getTokenValue());
-	}
-
-	@GetMapping("/token-info")
-	public Mono<Map<String, Object>>  getTokenInfo(@RegisteredOAuth2AuthorizedClient OAuth2AuthorizedClient authorizedClient) {
-		Map<String, Object> response = new HashMap<>();
-		response.put("token", authorizedClient.getAccessToken().getTokenValue());
-		//response.put("claims", jwt.getClaims());
-		response.put("principal", authorizedClient.getPrincipalName());
-		response.put("principal", authorizedClient.getAccessToken().getScopes());
-		//response.put("authorities", jwt.getClaim("scope")); // Or "roles" depending on Keycloak
-		return Mono.just(response);
-	}
-
-	/*@GetMapping("/client-info")
-	public Mono<Map<String, Object>> getClientInfo(@AuthenticationPrincipal OAuth2User principal) {
-		Map<String, Object> response = new HashMap<>();
-		response.put("preferred_name", principal.getAttribute(StandardClaimNames.PREFERRED_USERNAME));
-		response.put("scopes", principal.getAttribute("scope"));
-		response.put("authorities", principal.getAuthorities());
-		return Mono.just(response);
-	}
-*/
-	@GetMapping("/client-info")
-	public Mono<Map<String, Object>> getClientInfo(@AuthenticationPrincipal Jwt jwt) {
-		Map<String, Object> response = new HashMap<>();
-		response.put("preferred_name", jwt.getClaimAsString(StandardClaimNames.PREFERRED_USERNAME));
-		response.put("scopes", jwt.getClaim("scope"));
-		response.put("claims", jwt.getClaims());
-		return Mono.just(response);
-   }
-
-
-		private static void loadApplicationStartup(Environment environment) {
+	private static void loadApplicationStartup(Environment environment) {
 		String protocol = Optional.ofNullable(environment.getProperty("server.ssl.key-store")).map(key -> "https").orElse("http");
 		String serverPort = environment.getProperty("server.port");
 		String contextPath = Optional

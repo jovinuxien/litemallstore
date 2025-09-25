@@ -167,5 +167,4 @@ public class WxCatalogController {
         return ResponseUtil.ok(data);
     }
 
-
 }

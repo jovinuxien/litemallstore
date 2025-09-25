@@ -78,6 +78,7 @@
         <module>litemall-payment</module>
         <module>litemall-notification</module>
         <module>litemall-goods-management</module>
+        <module>litemall-goodsapi-analytic</module>
 
         <module>litemall-eureka</module>
         <module>litemall-config</module>

@@ -97,7 +97,6 @@ public class WxSearchController {
         if (userId == null) {
             return ResponseUtil.unlogin();
         }
-
         searchHistoryService.deleteByUid(userId);
         return ResponseUtil.ok();
     }

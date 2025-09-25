@@ -1,5 +1,5 @@
 import Paging, { PaginationData } from 'app/components/userComponents/Paging';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import CustomTable, { TableData } from 'app/helpers/CustomTable';
 import { IGood } from 'app/shared/model/product/product.model';
 import { getAdminGoodsList } from 'app/shared/reducers/private/catalogMgn/adminGoodsSlice';

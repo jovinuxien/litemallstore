@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Footer from 'app/components/adminComponents/Footer';
 import Header from 'app/components/adminComponents/Header';
 import Sidebar from 'app/components/adminComponents/Sidebar';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getAdminCategoryList } from 'app/shared/reducers/private/catalogMgn/adminCategorySlice';
 import { getAdminGrouponList } from 'app/shared/reducers/private/catalogMgn/adminGrouponSlice';
 import 'bootstrap/dist/css/bootstrap.min.css';

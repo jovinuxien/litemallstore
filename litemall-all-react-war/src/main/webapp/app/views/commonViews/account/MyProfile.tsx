@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getUserInfo } from 'app/shared/reducers/profileSlice';
 import React, { lazy, useEffect, useState } from 'react';
 import { Card, Col, Container, Row, Tab, Tabs } from 'react-bootstrap';

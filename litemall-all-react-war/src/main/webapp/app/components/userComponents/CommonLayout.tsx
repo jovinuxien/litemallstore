@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogData, getHomeData } from 'app/modules/home/homeSlice';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import React, { useEffect, useState } from 'react';

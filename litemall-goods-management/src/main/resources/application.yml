@@ -46,7 +46,7 @@ spring:
     api:
       auth:
         cj-email: "bimeni89@gmail.com"
-        cj-apiKey: "8696a1e060b64e1ab99e3f16cac7a87a"
+        cj-apiKey: "9520bc6b70fe45019688c5ae62be331b"
         access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
         refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
       category:

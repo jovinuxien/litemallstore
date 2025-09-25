@@ -1,4 +1,4 @@
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { registerThunk } from 'app/shared/reducers/registerSlice';
 import Envelope from 'bootstrap-icons/icons/envelope.svg';
 import Lock from 'bootstrap-icons/icons/lock.svg';

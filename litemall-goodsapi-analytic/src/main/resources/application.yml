@@ -1,0 +1,139 @@
+spring:
+  application:
+    name: GOODS-SERVICE-APP
+  cloud:
+    loadbalancer:
+      ribbon:
+        enabled: true
+    stream:
+      bindings:
+        output:
+          destination: your-topic-name
+          content-type: application/json
+  devtools:
+    restart:
+      enabled: true
+    livereload:
+      enabled: true
+#      kafka:
+#        binder:
+#        brokers: localhost:9092
+  integration:
+    file:
+      auto-create-directories: true
+      lock:
+        expire: 60000 # 1 minute lock expiry
+  security:
+    oauth2:
+      client:
+        provider:
+          oidc:
+            issuer-uri: http://localhost:9080/realms/jhipster
+        registration:
+          oidc:
+            client-id: internal
+            client-secret: internal
+            scope: openid, profile, email, offline_access # last one for refresh tokens
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
+          #issuer-uri: http://localhost:9080/auth/realms/baeldung-keycloak
+  profiles:
+    active: db, core, elastic, admin, wx
+  messages:
+    encoding: UTF-8
+  servlet:
+    context-path: /
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  cjdropship:
+    api:
+      auth:
+        cj-email: "bimeni89@gmail.com"
+        cj-apiKey: "9520bc6b70fe45019688c5ae62be331b"
+        access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
+        refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
+      category:
+        category-list-_url: "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
+      product:
+        list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
+        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
+
+  task:
+    scheduling:
+      enabled=true:
+
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/litemall
+#    username: root
+#    password: Calliste_1006
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+data:
+  fetch:
+   cron: 0 */10 * * * *
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+initial:
+  data:
+    file: /data/cj-products/initial-products.json
+file:
+  polling:
+    directory: /data/cj-products
+
+cache:
+  directory: /data/product-cache
+output:
+  file:
+    path: /data/cj-products/merged-products.json
+
+server:
+  port: 8083
+  compression:
+    enabled: true
+    min-response-size: 2048
+    mime-types: application/javascript,text/css,application/json,application/xml,text/html,text/xml,text/plain
+
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    org.springframework.integration: DEBUG
+    org.linlinjava.litemall: TrACE
+    org.linlinjava.litemall.db: DEBUG
+
+  config: classpath:logback-spring.xml
+
+swagger:
+  production: false
+
+redis:
+  server:
+    host: localhost
+    port: 6379
+    database: 0
+  lettuce:
+    pool:
+      max-active: 8
+      max-idle: 8
+      max-wait: -1ms
+      min-idle: 0
+

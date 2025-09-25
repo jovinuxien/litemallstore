@@ -1,5 +1,5 @@
 import Breadcrumb from 'app/components/userComponents/Breadcrumb';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
 import React, { useEffect, useState } from 'react';

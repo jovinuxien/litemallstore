@@ -6,7 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import { faShoppingCart, faStar } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import RenderFormGroupField from 'app/helpers/renderFormGroupField';
 import { IItemCart } from 'app/shared/model/cart/cart.models';
 import { CardFeaturedProductData } from 'app/shared/model/product/product.model';

@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: litemall-goods-management
+    profiles:
+    #active: @spring.profiles.active@
+      active: default
+
+  cloud:
+    config:
+      uri: http://configserver:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false

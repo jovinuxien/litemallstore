@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useAppDispatch, useAppSelector } from 'app/config/hooks';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getAdminGoodsDetailThunk } from 'app/shared/reducers/private/catalogMgn/adminGoodsDetailSlice';
 import React from 'react';
 import { Badge, Card, Col, Container, ListGroup, Row } from 'react-bootstrap';

@@ -1,4 +1,4 @@
-import { useAppDispatch } from 'app/config/hooks';
+import { useAppDispatch } from 'app/config/store';
 import RenderFormGroupField from 'app/helpers/renderFormGroupField';
 import React from 'react';
 import { Controller, useForm } from 'react-hook-form';

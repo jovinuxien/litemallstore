@@ -1,46 +1,36 @@
-/* import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { App } from './App';
-
-const app = <App />;
-const appDiv = document.getElementById('app');
-
-appDiv ? createRoot(appDiv).render(app) : console.error('Element with id "root" not found in the document.');
- */
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import store from './config/store';
-//import "./index.css";
-//import rootReducer from './reducers';
+import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
-import * as serviceWorker from './serviceWorker';
-import ErrorBoundary from './views/commonViews/boundaryerror/ErrorBoundary';
-//const persistedState = loadState();
-//const store = createStore(rootReducer, persistedState);
+import { bindActionCreators } from 'redux';
 
-/* store.subscribe(() => {
-  saveState(store);
-}); */
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(
+import AppComponent from 'app/App1';
+import setupAxiosInterceptors from 'app/config/axios-interceptor';
+//import { loadIcons } from 'app/config/icon-loader';
+import getStore from 'app/config/store';
+//import { registerLocale } from 'app/config/translation';
+import ErrorBoundary from 'app/shared/error/error-boundary';
+import { clearAuthentication } from 'app/shared/reducers/authentication';
+
+const store = getStore();
+//registerLocale(store);
+
+const actions = bindActionCreators({ clearAuthentication }, store.dispatch);
+setupAxiosInterceptors(() => actions.clearAuthentication('login.error.unauthorized'));
+
+//loadIcons();
+
+const rootEl = document.getElementById('root');
+const root = createRoot(rootEl);
+
+const render = Component =>
+  root.render(
     <ErrorBoundary>
       <Provider store={store}>
-        <App />
+        <div>
+          <Component />
+        </div>
       </Provider>
     </ErrorBoundary>
   );
-} else {
-  console.error('Element with id "root" not found in the document.');
-}
-/* root.render(
-  <Provider store={store}>
-    <App />
-  </Provider>
-); */
-//root.render(<App />);
-// If you want your app to work offline and load faster, you can change
-// unregister() to register() below. Note this comes with some pitfalls.
-// Learn more about service workers: https://bit.ly/CRA-PWA
-serviceWorker.register();
+
+render(AppComponent);

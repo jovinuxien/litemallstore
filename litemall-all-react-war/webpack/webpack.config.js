@@ -52,21 +52,22 @@ module.exports = async options =>
         directory: path.resolve(__dirname, '../src/main/webapp/content/public'),
         publicPath: '/',
       },
-      port: 9000,
+      port: 9060,
+
       proxy: [
         {
-          //context: ['/wx', '/management', '/h2-console', '/auth'],
-          /* target: `http${options.tls ? 's' : ''}://localhost:8080/wx`, */
-          context: ['/wx', '/admin'],
-          target: 'http://localhost:8080',
+          //context: [ '/srv', '/wx', '/admin', '/management', '/h2-console', '/auth'],
+          context: ['/catalog', '/admin', '/management', '/h2-console', '/auth', '/oauth2', '/login'],
+          target: `http${options.tls ? 's' : ''}://localhost:8080/srv`,
           secure: false,
-          //changeOrigin: true,
+          changeOrigin: true,
         },
       ],
       https: options.tls,
       historyApiFallback: true,
     },
     stats: process.env.JHI_DISABLE_WEBPACK_LOGS ? 'none' : options.stats,
+
     plugins: [
       process.env.JHI_DISABLE_WEBPACK_LOGS
         ? null
@@ -74,36 +75,42 @@ module.exports = async options =>
             format: options.stats === 'minimal' ? 'compact' : 'expanded',
           }),
 
-      /* new BrowserSyncPlugin(
+      new BrowserSyncPlugin(
         {
           https: options.tls,
           host: 'localhost',
           port: 9000,
           proxy: {
-            target: `http${options.tls ? 's' : ''}://localhost:${options.watch ? '8081' : '9060'}`,
+            target: `http${options.tls ? 's' : ''}://localhost:${options.watch ? '8080' : '9060'}`,
             ws: true,
             proxyOptions: {
               changeOrigin: false, //pass the Host header to the backend unchanged  https://github.com/Browsersync/browser-sync/issues/430
             },
           },
-          socket: {
+          /* socket: {
             clients: {
               heartbeatTimeout: 60000,
             },
-          },
+          }, */
 
-          ghostMode: {
+          serveStatic: [
+            {
+              route: '/content/public',
+              dir: path.resolve(__dirname, '../src/main/webapp/content/public'),
+            },
+          ],
+          /*  ghostMode: {
             // uncomment this part to disable BrowserSync ghostMode; https://github.com/jhipster/generator-jhipster/issues/11116
             clicks: false,
             location: false,
             forms: false,
             scroll: false,
-          },
+          }, */
         },
         {
           reload: false,
         }
-      ), */
+      ),
       new WebpackNotifierPlugin({
         title: 'Web Store',
         contentImage: path.join(__dirname, 'logo-jhipster.png'),
