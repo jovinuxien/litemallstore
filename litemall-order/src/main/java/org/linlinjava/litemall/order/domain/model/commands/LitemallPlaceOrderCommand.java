@@ -6,8 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
 
-@Setter
-@Getter
+@Data
 public class LitemallPlaceOrderCommand {
 
     private final Integer userId;
@@ -34,36 +33,4 @@ public class LitemallPlaceOrderCommand {
         this.grouponLinkId = grouponLinkId;
     }
 
-
-    public Integer getUserId() {
-        return userId;
-    }
-
-    public Integer getCartId() {
-        return cartId;
-    }
-
-    public Integer getAddressId() {
-        return addressId;
-    }
-
-    public Integer getCouponId() {
-        return couponId;
-    }
-
-    public Integer getUserCouponId() {
-        return userCouponId;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public Integer getGrouponRulesId() {
-        return grouponRulesId;
-    }
-
-    public Integer getGrouponLinkId() {
-        return grouponLinkId;
-    }
 }

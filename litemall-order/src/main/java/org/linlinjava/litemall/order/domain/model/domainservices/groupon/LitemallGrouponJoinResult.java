@@ -5,7 +5,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallG
 
 import java.util.Objects;
 
-public class GrouponJoinResult {
+public class LitemallGrouponJoinResult {
 
     public enum JoinStatus {
         SUCCESS_NEW_GROUPON_CREATED,
@@ -31,9 +31,9 @@ public class GrouponJoinResult {
     private final boolean immediateCompletion;
 
     // Private constructor - use static factory methods
-    private GrouponJoinResult(JoinStatus status, String message, LitemallGrouponId activityId,
-                              String shareUrl, Integer currentParticipants, Integer requiredParticipants,
-                              boolean immediateCompletion) {
+    private LitemallGrouponJoinResult(JoinStatus status, String message, LitemallGrouponId activityId,
+                                      String shareUrl, Integer currentParticipants, Integer requiredParticipants,
+                                      boolean immediateCompletion) {
         this.status = status;
         this.message = message;
         this.activityId = activityId;
@@ -45,41 +45,41 @@ public class GrouponJoinResult {
 
     // --- Static Factory Methods for Success Results ---
 
-    public static GrouponJoinResult successNewActivity(LitemallGrouponId activityId, String shareUrl,
-                                                       Integer requiredParticipants) {
-        return new GrouponJoinResult(JoinStatus.SUCCESS_NEW_GROUPON_CREATED,
+    public static LitemallGrouponJoinResult successNewActivity(LitemallGrouponId activityId, String shareUrl,
+                                                               Integer requiredParticipants) {
+        return new LitemallGrouponJoinResult(JoinStatus.SUCCESS_NEW_GROUPON_CREATED,
                 "Successfully created new groupon activity", activityId, shareUrl, 1,
                 requiredParticipants, false);
     }
 
-    public static GrouponJoinResult successJoinedExisting(LitemallGrouponId activityId, String shareUrl,
-                                                          Integer currentParticipants, Integer requiredParticipants) {
-        return new GrouponJoinResult(JoinStatus.SUCCESS_JOINED_EXISTING_GROUPON,
+    public static LitemallGrouponJoinResult successJoinedExisting(LitemallGrouponId activityId, String shareUrl,
+                                                                  Integer currentParticipants, Integer requiredParticipants) {
+        return new LitemallGrouponJoinResult(JoinStatus.SUCCESS_JOINED_EXISTING_GROUPON,
                 "Successfully joined existing groupon activity", activityId, shareUrl,
                 currentParticipants, requiredParticipants, false);
     }
 
-    public static GrouponJoinResult successGrouponCompleted(LitemallGrouponId activityId,
-                                                            Integer requiredParticipants) {
-        return new GrouponJoinResult(JoinStatus.SUCCESS_GROUPON_COMPLETED,
+    public static LitemallGrouponJoinResult successGrouponCompleted(LitemallGrouponId activityId,
+                                                                    Integer requiredParticipants) {
+        return new LitemallGrouponJoinResult(JoinStatus.SUCCESS_GROUPON_COMPLETED,
                 "Groupon activity completed successfully", activityId, null,
                 requiredParticipants, requiredParticipants, true);
     }
 
     // --- Static Factory Methods for Failure Results ---
 
-    public static GrouponJoinResult failedValidation(String message) {
-        return new GrouponJoinResult(JoinStatus.FAILED_VALIDATION_ERROR, message,
+    public static LitemallGrouponJoinResult failedValidation(String message) {
+        return new LitemallGrouponJoinResult(JoinStatus.FAILED_VALIDATION_ERROR, message,
                 null, null, null, null, false);
     }
 
-    public static GrouponJoinResult failedSystemError(String message) {
-        return new GrouponJoinResult(JoinStatus.FAILED_SYSTEM_ERROR, message,
+    public static LitemallGrouponJoinResult failedSystemError(String message) {
+        return new LitemallGrouponJoinResult(JoinStatus.FAILED_SYSTEM_ERROR, message,
                 null, null, null, null, false);
     }
 
-    public static GrouponJoinResult failedConcurrencyConflict() {
-        return new GrouponJoinResult(JoinStatus.FAILED_CONCURRENCY_CONFLICT,
+    public static LitemallGrouponJoinResult failedConcurrencyConflict() {
+        return new LitemallGrouponJoinResult(JoinStatus.FAILED_CONCURRENCY_CONFLICT,
                 "Groupon activity was modified by another user. Please try again.",
                 null, null, null, null, false);
     }
@@ -138,7 +138,7 @@ public class GrouponJoinResult {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        GrouponJoinResult that = (GrouponJoinResult) o;
+        LitemallGrouponJoinResult that = (LitemallGrouponJoinResult) o;
         return immediateCompletion == that.immediateCompletion &&
                 status == that.status &&
                 Objects.equals(message, that.message) &&

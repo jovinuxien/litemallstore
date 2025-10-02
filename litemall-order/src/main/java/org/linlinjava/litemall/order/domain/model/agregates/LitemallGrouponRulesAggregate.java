@@ -41,8 +41,22 @@ public class LitemallGrouponRulesAggregate {
         return status == LitemallGrouponStatus.RULE_STATUS_DOWN_EXPIRE;
     }
 
-    public boolean isOffline() {
+    public boolean isActive (){
+        return status == LitemallGrouponStatus.RULE_STATUS_ON
+                && LocalDateTime.now().isBefore(expireTime);
+    }
+
+    public boolean isOfflineByAdmin() {
         return status == LitemallGrouponStatus.RULE_STATUS_DOWN_ADMIN;
+    }
+
+    public boolean canStartGroupon(){
+        return isActive() && discountMember > 0;
+    }
+
+
+    private BigDecimal calculateGrouponPrice(BigDecimal originalPrice) {
+       return originalPrice.multiply(discount).setScale(2, BigDecimal.ROUND_HALF_UP);
     }
 
     public void validateGrouponRules(){

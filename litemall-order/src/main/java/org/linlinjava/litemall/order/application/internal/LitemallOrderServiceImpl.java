@@ -6,6 +6,7 @@ import org.linlinjava.litemall.core.notify.NotifyType;
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
+import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
@@ -21,7 +22,9 @@ import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsP
 import org.linlinjava.litemall.order.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPublisher;
+import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderCanceledEvent;
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
@@ -63,6 +66,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // Service internal to orderService
     private final LitemallCouponService couponService;
 
+
+    @Autowired
+    private LitemallCartServiceLayer cartServiceLayer;
+    @Autowired
+    private LitemallGrouponServiceLayer grouponServiceLayer;
     @Autowired
     private  QCodeService qCodeService;
     @Autowired
@@ -128,35 +136,26 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         // Validate and process Groupon if applicable
         LitemallGrouponRulesAggregate grouponRulesAggregate = validateAndGetGroupon(userId, command.getGrouponRulesId(), command.getGrouponLinkId());
-        // Get the shipping address
+        // Get and Check the shipping address
         LitemallAddressAggregate addressAggregate = addressRepository.findAddress(userId, addressId);
-        // Get the cartItems
-        List<LitemallCartAggregate> checkedItems = getCheckedCartItems(new LitemallCartId(command.getCartId()), userId);
+        // Group purchase discount
+        //BigDecimal grouponPrice = new BigDecimal(0); // initialize grouponPrice is redundant
+        BigDecimal grouponPrice;
+        grouponPrice = grouponServiceLayer.getGrouponDiscount(grouponRulesId);
 
+        List<LitemallCartAggregate> checkedGoodsList = null;
+        // Get the Checked cart items
+        checkedGoodsList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(command.getCartId()), userId);
 
+        if(checkedGoodsList == null){
+            return ResponseUtil.badArgumentValue();
+        }
 
         // Validate the productStock
-        validateProductStock(checkedItems);
+        validateProductStock(checkedGoodsList);
 
-        // Check groupon discount
-        BigDecimal grouponPrice = new BigDecimal(0);
-        LitemallGrouponRulesAggregate rulesAggregate = grouponRulesRepository.findById(grouponRulesId);
-        if(rulesAggregate != null){
-            grouponPrice = rulesAggregate.getDiscount();
-        }
 
-        // Get the checkedItem list
-        List<LitemallCartAggregate> checkedGoodsList = null;
-        if (command.getCartId().equals(0)) {
-            checkedGoodsList = cartRepository.findCheckedByUserId(userId);
-        } else {
-            LitemallCartAggregate cart = cartRepository.findById(new LitemallCartId(command.getCartId()));
-            checkedGoodsList = new ArrayList<>(1);
-            checkedGoodsList.add(cart);
-        }
-        if (checkedGoodsList.isEmpty()) {
-            throw new IllegalArgumentException("The Checked goods list has not to be empty");
-        }
+
 
         // Calculate checked goods price
         BigDecimal checkedGoodsPrice;
@@ -396,24 +395,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
       return grouponRules;
     }
 
-    /**
-     *
-     * @param cartId
-     * @param userId
-     * @return
-     */
-    private List<LitemallCartAggregate> getCheckedCartItems(LitemallCartId cartId, LitemallUserId userId){
-
-        if(cartId.getId() == 0){
-            return cartRepository.findCheckedByUserId(userId);
-        } else {
-            List<LitemallCartAggregate> checkedCartItems = new ArrayList<>(0);
-            LitemallCartAggregate checkedItems  = cartRepository.findById(cartId);
-            checkedCartItems.add(checkedItems);
-            return checkedCartItems;
-        }
-    }
-
 
     /**
      *
@@ -468,10 +449,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             cartRepository.deleteById(cartId);
         }
     }
-
-
-
-
     /**
      *
      * @param command
@@ -553,6 +530,25 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 grouponSource.setGrouponStatus(LitemallGrouponStatus.STATUS_SUCCEED);
                 grouponRepository.updateById(grouponSource);
             }
+    }
+
+
+    public LitemallOrderAggregate getOrderAggregate(LitemallOrderId orderId) {
+        return orderRepository.findById(orderId);
+    }
+
+    public void cancelOrder(LitemallOrderId orderId, String reason) {
+        LitemallOrderAggregate orderAggregate =  orderRepository.findById(orderId);
+
+        if(orderAggregate == null){
+            //throw new LitemallOrderNotFoundException("Order not found");
+            throw new IllegalArgumentException("Order not found");
+        }
+        orderAggregate.cancel(reason);
+        // 4. Publish a domain event to notify other parts of the system: Moved to LitemallOrderServiceImpl class.
+        // The steps 1,2 and 3 of this cancel method are implemented in LitemallOrderAggregate class
+        List<LitemallDomainEvent> domainEvents = orderAggregate.getDomainEvents();
+        // The logic of publishing domain events is moved to LitemallDomainEventPublisher class
     }
 
 

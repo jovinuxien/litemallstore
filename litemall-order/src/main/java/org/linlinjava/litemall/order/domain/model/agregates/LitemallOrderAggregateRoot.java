@@ -33,7 +33,6 @@ public class LitemallOrderAggregateRoot {
 
 
     private List<LitemallCart> checkedGoodsList = new ArrayList<>(); // We hold LitemallCart because it's an entity'
-    private List<LitemallDomainEvent> domainEvents = new ArrayList<>();
 
 
 

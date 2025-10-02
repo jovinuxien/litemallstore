@@ -6,7 +6,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 
 import java.util.Objects;
 
-public class CouponValidationResult {
+public class LitemallCouponValidationResult {
 
     public enum Status {
         VALID,
@@ -27,7 +27,7 @@ public class CouponValidationResult {
 
     private final LitemallMoney discountAmount;
 
-    private CouponValidationResult(Status status, String message, LitemallMoney discountAmount) {
+    private LitemallCouponValidationResult(Status status, String message, LitemallMoney discountAmount) {
         this.status = status;
         this.message = message;
         this.discountAmount = discountAmount;
@@ -38,40 +38,40 @@ public class CouponValidationResult {
      * *******************My static factory methods*************************
      */
 
-    public static CouponValidationResult valid(LitemallMoney discountAmount, String message) {
-        return new CouponValidationResult(Status.VALID, message, discountAmount);
+    public static LitemallCouponValidationResult valid(LitemallMoney discountAmount, String message) {
+        return new LitemallCouponValidationResult(Status.VALID, message, discountAmount);
     }
 
-    public static CouponValidationResult expired(String message) {
-        return new CouponValidationResult(Status.EXPIRED, message, null);
+    public static LitemallCouponValidationResult expired(String message) {
+        return new LitemallCouponValidationResult(Status.EXPIRED, message, null);
     }
 
-    public static CouponValidationResult couponNotFound() {
-        return new CouponValidationResult(Status.COUPON_NOT_FOUND, "Coupon not found", null);
+    public static LitemallCouponValidationResult couponNotFound() {
+        return new LitemallCouponValidationResult(Status.COUPON_NOT_FOUND, "Coupon not found", null);
     }
 
-    public static CouponValidationResult couponUserNotFound() {
-        return new CouponValidationResult(Status.COUPON_USER_NOT_FOUND, "Coupon user not found", null);
+    public static LitemallCouponValidationResult couponUserNotFound() {
+        return new LitemallCouponValidationResult(Status.COUPON_USER_NOT_FOUND, "Coupon user not found", null);
     }
 
-    public static CouponValidationResult insufficientMinAmount() {
-        return new CouponValidationResult(Status.INSUFFICIENT_MIN_AMOUNT, "Insufficient minimum amount", null);
+    public static LitemallCouponValidationResult insufficientMinAmount() {
+        return new LitemallCouponValidationResult(Status.INSUFFICIENT_MIN_AMOUNT, "Insufficient minimum amount", null);
     }
 
-    public static CouponValidationResult insufficientApplicableGoodsAmount() {
-        return new CouponValidationResult(Status.INSUFFICIENT_APPLICABLE_GOODS_AMOUNT, "Insufficient applicable goods amount", null);
+    public static LitemallCouponValidationResult insufficientApplicableGoodsAmount() {
+        return new LitemallCouponValidationResult(Status.INSUFFICIENT_APPLICABLE_GOODS_AMOUNT, "Insufficient applicable goods amount", null);
     }
 
-    public static CouponValidationResult invalidStatus() {
-        return new CouponValidationResult(Status.INVALID_STATUS, "Invalid coupon status", null);
+    public static LitemallCouponValidationResult invalidStatus() {
+        return new LitemallCouponValidationResult(Status.INVALID_STATUS, "Invalid coupon status", null);
     }
 
-    public static CouponValidationResult invalidUserStatus(String message) {
-        return new CouponValidationResult(Status.INVALID_USER_STATUS, message, null);
+    public static LitemallCouponValidationResult invalidUserStatus(String message) {
+        return new LitemallCouponValidationResult(Status.INVALID_USER_STATUS, message, null);
     }
 
-    public static CouponValidationResult invalid(String message) {
-        return new CouponValidationResult(Status.INVALID, message, null);
+    public static LitemallCouponValidationResult invalid(String message) {
+        return new LitemallCouponValidationResult(Status.INVALID, message, null);
     }
 
 
@@ -113,7 +113,7 @@ public class CouponValidationResult {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        CouponValidationResult that = (CouponValidationResult) o;
+        LitemallCouponValidationResult that = (LitemallCouponValidationResult) o;
         // Compare all fields that define the value's identity.
         return status == that.status &&
                 Objects.equals(message, that.message) &&

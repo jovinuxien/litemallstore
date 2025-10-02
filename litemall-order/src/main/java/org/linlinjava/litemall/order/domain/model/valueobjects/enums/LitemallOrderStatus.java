@@ -7,13 +7,13 @@ public enum LitemallOrderStatus {
     CREATED(101, "UNPAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == PAID || newStatus == CANCELED ;
+            return newStatus == PAID || newStatus == CANCELED || newStatus == SYSTEM_CANCELED;
         }
     },
     PAID(201, "PAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == SHIPPED || newStatus == CANCELED;
+            return newStatus == SHIPPED || newStatus == CANCELED || newStatus == SYSTEM_CANCELED;
         }
     },
     SHIPPED(301, "SHIPPED"){
