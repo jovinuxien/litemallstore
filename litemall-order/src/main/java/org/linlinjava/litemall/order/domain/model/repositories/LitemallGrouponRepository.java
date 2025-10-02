@@ -17,7 +17,7 @@ public interface LitemallGrouponRepository {
     int countByGrouponId(LitemallGrouponId id);
     int updateById(LitemallGrouponAggregate grouponAggregate);
 
-    boolean existsByUserIdOrGrouponId(LitemallUserId userId, LitemallGrouponId grouponId);
+    boolean hasJoin(LitemallUserId userId, LitemallGrouponId grouponId);
 
     LitemallGrouponAggregate findById(LitemallGrouponId id);
     LitemallGrouponAggregate findByUserId(LitemallGrouponId id, LitemallUserId userId);
@@ -29,4 +29,6 @@ public interface LitemallGrouponRepository {
 
     LitemallGroupon convertToDataModel(LitemallGrouponAggregate grouponAggregate);
     LitemallGrouponAggregate convertToDomainModel(LitemallGroupon groupon);
+
+
 }

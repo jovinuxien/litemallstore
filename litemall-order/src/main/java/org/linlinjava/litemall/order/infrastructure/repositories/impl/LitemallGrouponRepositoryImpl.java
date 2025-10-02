@@ -3,6 +3,7 @@ package org.linlinjava.litemall.order.infrastructure.repositories.impl;
 import org.linlinjava.litemall.db.dao.LitemallGrouponMapper;
 import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.db.domain.LitemallGrouponExample;
+import org.linlinjava.litemall.db.util.GrouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
@@ -54,8 +55,10 @@ public class LitemallGrouponRepositoryImpl implements LitemallGrouponRepository 
     }
 
     @Override
-    public boolean existsByUserIdOrGrouponId(LitemallUserId userId, LitemallGrouponId grouponId) {
-        return false;
+    public boolean hasJoin(LitemallUserId userId, LitemallGrouponId grouponId) {
+        LitemallGrouponExample example = new LitemallGrouponExample();
+        example.or().andUserIdEqualTo(userId.getId()).andGrouponIdEqualTo(grouponId.getId()).andStatusNotEqualTo(GrouponConstant.STATUS_NONE).andDeletedEqualTo(false);
+        return  grouponMapper.countByExample(example) != 0;
     }
 
     @Override

@@ -21,14 +21,14 @@ import java.util.Set;
  * @Desc: We decided to focus on domain service here because
  * the validation rules touches two values objects: Coupon and order.
  */
-public class CouponServiceChecker {
+public class LitemallCouponServiceChecker {
 
 
 
-    public CouponValidationResult validateCouponForUser(LitemallCouponAggregate coupon, LitemallCartAggregate cart) {
+    public LitemallCouponValidationResult validateCouponForUser(LitemallCouponAggregate coupon, LitemallCartAggregate cart) {
 
         if(coupon.getStatus() == LitemallCouponStatus.EXPIRED) {
-            return CouponValidationResult.expired();
+            return LitemallCouponValidationResult.expired();
         }
 
         if(cart.get)
@@ -40,11 +40,11 @@ public class CouponServiceChecker {
      * @param coupon aggregate
      * @return
      */
-    private CouponValidationResult validateCouponStatus(LitemallCouponAggregate coupon) {
+    private LitemallCouponValidationResult validateCouponStatus(LitemallCouponAggregate coupon) {
         if(coupon.getStatus().equals(LitemallCouponStatus.NORMAL)){
-            return CouponValidationResult.invalidStatus();
+            return LitemallCouponValidationResult.invalidStatus();
         }
-        return CouponValidationResult.valid(null);
+        return LitemallCouponValidationResult.valid(null);
     }
 
     /**
@@ -53,33 +53,33 @@ public class CouponServiceChecker {
      * @param couponUser
      * @return
      */
-    private CouponValidationResult validateCouponUser(LitemallCouponAggregate coupon, LitemallCouponUserAggregate couponUser) {
+    private LitemallCouponValidationResult validateCouponUser(LitemallCouponAggregate coupon, LitemallCouponUserAggregate couponUser) {
 
         // Check if couponUser has been used
         if(!couponUser.getStatus().equals(LitemallCouponUserStatus.USABLE)){
-            return CouponValidationResult.invalidUserStatus("Coupon is already used or expired.");
+            return LitemallCouponValidationResult.invalidUserStatus("Coupon is already used or expired.");
         }
 
         // Check the expiration based on coupon type
         LocalDateTime now = LocalDateTime.now();
         if(coupon.getTimeType().equals(LitemallCouponTimeType.TIME_TYPE_TIME)){
             if(now.isBefore(coupon.getStartTime()) || now.isAfter(coupon.getEndTime())){
-                return CouponValidationResult.expired("Coupon is not within the valid range");
+                return LitemallCouponValidationResult.expired("Coupon is not within the valid range");
             }
         }else if (coupon.getTimeType().equals(LitemallCouponTimeType.TIME_TYPE_DAYS)){
             LocalDateTime expiredDate = couponUser.getAddTime().plusDays(coupon.getDays());
             if(now.isAfter(expiredDate)){
-                return CouponValidationResult.expired("Coupon has expired based on days validity");
+                return LitemallCouponValidationResult.expired("Coupon has expired based on days validity");
             }
         }else {
-            return CouponValidationResult.invalid("Invalid coupon time type. Please check your data.");
+            return LitemallCouponValidationResult.invalid("Invalid coupon time type. Please check your data.");
         }
-        return CouponValidationResult.valid(null, "Coupon validation is ok");
+        return LitemallCouponValidationResult.valid(null, "Coupon validation is ok");
     }
 
 
-    private CouponValidationResult validateGoodsApplicability(LitemallCouponAggregate coupon,
-                                                              List<LitemallCartAggregate> cartList, LitemallMoney checkedGoodsPrice) {}
+    private LitemallCouponValidationResult validateGoodsApplicability(LitemallCouponAggregate coupon,
+                                                                      List<LitemallCartAggregate> cartList, LitemallMoney checkedGoodsPrice) {}
 
 
     private LitemallMoney calculateCouponDiscount(LitemallCouponAggregate coupon, List<LitemallCartAggregate> cartList) {
