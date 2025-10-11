@@ -24,7 +24,7 @@ public interface LitemallGrouponRulesRepository {
     List<LitemallGrouponRulesAggregate> findAllGrouponRulesList(LitemallGoodsId goodsId, LitemallGrouponStatus status, Integer page, Integer size, String sort, String order);
     List<LitemallGrouponRulesAggregate> getGrouponByStatus(LitemallGrouponStatus status);
 
-
+    Boolean isExpired(LitemallGrouponRulesAggregate rulesAggregate);
 
 
 }

@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.agregates;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
@@ -20,6 +21,7 @@ import java.util.Set;
 
 @Getter
 @Setter
+@Builder
 public class LitemallGrouponAggregate {// Or the GrouponActivityAggregate
 
     private LitemallGrouponId grouponId;
@@ -36,7 +38,7 @@ public class LitemallGrouponAggregate {// Or the GrouponActivityAggregate
 
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
-    private LocalDateTime deleteTime;
+    private boolean deleted;
 
     private List<LitemallDomainEvent> domainEvents = new ArrayList<>();
 
@@ -86,34 +88,6 @@ public class LitemallGrouponAggregate {// Or the GrouponActivityAggregate
         return 2; // Default for example
     }
 
-    /*public static LitemallGrouponAggregate createNewGroupon(LitemallOrderId orderId,
-                                    LitemallUserId userId,
-                                   LitemallGrouponRulesId grouponRulesId) {
-        LitemallGrouponAggregate grouponAggregate = new LitemallGrouponAggregate();
-
-        grouponAggregate.setGrouponId(new LitemallGrouponId(0)); // For ths new groupon, set id to 0
-        grouponAggregate.setOrderId(orderId);
-        grouponAggregate.setGrouponStatus(LitemallGrouponStatus.STATUS_NONE);
-        grouponAggregate.setUserId(userId);
-        grouponAggregate.setGrouponRulesId(grouponRulesId);
-        grouponAggregate.creatorUserTime = LocalDateTime.now();
-
-        grouponAggregate.domainEvents.add(new LitemallGrouponCreatedEvent(grouponAggregate));
-        return grouponAggregate;
-    }*/
-    /*public static LitemallGrouponAggregate createJoin(LitemallOrderId orderId, LitemallUserId userId, LitemallGrouponRulesId grouponRulesId, LitemallGrouponAggregate baseGrouponAggregate){
-        LitemallGrouponAggregate LitemallGrouponAggregate = new LitemallGrouponAggregate();
-        LitemallGrouponAggregate.orderId = orderId;
-        LitemallGrouponAggregate.userId = userId;
-        LitemallGrouponAggregate.setGrouponRulesId(grouponRulesId);
-        LitemallGrouponAggregate.creatorUserId = baseGrouponAggregate.getCreatorUserId();
-        LitemallGrouponAggregate.grouponId = baseGrouponAggregate.getGrouponId();
-        LitemallGrouponAggregate.shareUrl = baseGrouponAggregate.getShareUrl();
-        LitemallGrouponAggregate.setGrouponStatus(LitemallGrouponStatus.STATUS_NONE);
-
-        LitemallGrouponAggregate.domainEvents.add(new LitemallGrouponCreatedEvent(LitemallGrouponAggregate));
-        return LitemallGrouponAggregate;
-    }*/
 
     public void markAsOn() {
         this.grouponStatus = LitemallGrouponStatus.STATUS_ON;
@@ -124,5 +98,6 @@ public class LitemallGrouponAggregate {// Or the GrouponActivityAggregate
         this.setGrouponStatus(LitemallGrouponStatus.STATUS_SUCCEED);
         this.domainEvents.add(new LitemallGrouponSucceededEvent(this.grouponId));
     }
+
 
 }

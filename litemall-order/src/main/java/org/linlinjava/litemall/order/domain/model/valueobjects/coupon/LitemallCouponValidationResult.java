@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.order.domain.model.domainservices.coupon;
+package org.linlinjava.litemall.order.domain.model.valueobjects.coupon;
 
 
 import lombok.Getter;
@@ -24,7 +24,7 @@ public class LitemallCouponValidationResult {
     private final Status status;
     @Getter
     private final String message;
-
+    @Getter
     private final LitemallMoney discountAmount;
 
     private LitemallCouponValidationResult(Status status, String message, LitemallMoney discountAmount) {
@@ -54,12 +54,12 @@ public class LitemallCouponValidationResult {
         return new LitemallCouponValidationResult(Status.COUPON_USER_NOT_FOUND, "Coupon user not found", null);
     }
 
-    public static LitemallCouponValidationResult insufficientMinAmount() {
-        return new LitemallCouponValidationResult(Status.INSUFFICIENT_MIN_AMOUNT, "Insufficient minimum amount", null);
+    public static LitemallCouponValidationResult insufficientMinAmount(String message) {
+        return new LitemallCouponValidationResult(Status.INSUFFICIENT_MIN_AMOUNT, message, null);
     }
 
-    public static LitemallCouponValidationResult insufficientApplicableGoodsAmount() {
-        return new LitemallCouponValidationResult(Status.INSUFFICIENT_APPLICABLE_GOODS_AMOUNT, "Insufficient applicable goods amount", null);
+    public static LitemallCouponValidationResult insufficientApplicableGoodsAmount(String message) {
+        return new LitemallCouponValidationResult(Status.INSUFFICIENT_APPLICABLE_GOODS_AMOUNT, message, null);
     }
 
     public static LitemallCouponValidationResult invalidStatus() {

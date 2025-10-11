@@ -13,7 +13,7 @@ public class LitemallGrouponValidationResult {
         INVALID_RULE_NOT_ACTIVE,
         INVALID_RULE_EXPIRED,
         INVALID_ALREADY_PARTICIPATED,
-        INVALID_USER_NOT_ELIGIBLE,
+        INVALID_USER_NOT_ELIGIBLE_OWN_GROUPON,
         INVALID_INSUFFICIENT_INVENTORY,
         INVALID_ORDER_NOT_QUALIFIED,
 
@@ -66,9 +66,9 @@ public class LitemallGrouponValidationResult {
                 "Groupon rule has expired", null);
     }
 
-    public static LitemallGrouponValidationResult grouponJoin() {
+    public static LitemallGrouponValidationResult invalidAlreadyJoined() {
         return new LitemallGrouponValidationResult(GrouponValidationStatusResults.GROUPON_JOIN,
-                "User has already participated in this groupon activity", null);
+                "Groupon has already be joined", null);
     }
 
     public static LitemallGrouponValidationResult grouponFull() {
@@ -86,9 +86,9 @@ public class LitemallGrouponValidationResult {
                 "Groupon activity is already full", null);
     }
 
-    public static LitemallGrouponValidationResult invalidUserNotEligible() {
-        return new LitemallGrouponValidationResult(GrouponValidationStatusResults.INVALID_USER_NOT_ELIGIBLE,
-                "User is not eligible for this groupon", null);
+    public static LitemallGrouponValidationResult invalidUserNotEligibleOwnGroupon() {
+        return new LitemallGrouponValidationResult(GrouponValidationStatusResults.INVALID_USER_NOT_ELIGIBLE_OWN_GROUPON,
+                "User is not eligible for his own groupon", null);
     }
 
     public static LitemallGrouponValidationResult invalidInsufficientInventory() {
@@ -100,11 +100,11 @@ public class LitemallGrouponValidationResult {
         return new LitemallGrouponValidationResult(GrouponValidationStatusResults.INVALID_ORDER_NOT_QUALIFIED,
                 "Order does not qualify for groupon discount", null);
     }
-
-    // Generic invalid result for custom messages
-    public static LitemallGrouponValidationResult invalid(String message) {
-        return new LitemallGrouponValidationResult(GrouponValidationStatusResults.INVALID_USER_NOT_ELIGIBLE, message, null);
+    public static LitemallGrouponValidationResult invalidAlreadyParticipated(String message) {
+        return new LitemallGrouponValidationResult(GrouponValidationStatusResults.INVALID_ALREADY_PARTICIPATED,
+                "Order does not qualify for groupon discount", null);
     }
+
 
     // --- Domain Logic & Accessors ---
 

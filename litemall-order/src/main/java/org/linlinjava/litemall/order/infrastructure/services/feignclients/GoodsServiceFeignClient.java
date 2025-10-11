@@ -11,6 +11,8 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.constraints.NotNull;
+import java.util.Map;
+import java.util.Set;
 
 @FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class)
 public interface GoodsServiceFeignClient {
@@ -26,4 +28,12 @@ public interface GoodsServiceFeignClient {
 
     @PostMapping(value = "/goods/stock/reduce")
     ApiResponse<Void> reduceStock(@RequestBody ReduceStockRequest request);
+
+    /**
+     * Batch fetch goods aggregates by their IDs
+     * @param goodsIds Set of goods IDs to fetch
+     * @return Map of GoodsId to GoodsAggregate
+     */
+    @PostMapping("/api/goods/batch")
+    ApiResponse<Map<Long, LitemallGoodsAggregate>> batchGetGoodsAggregates(@RequestBody Set<Integer> goodsIds);
 }

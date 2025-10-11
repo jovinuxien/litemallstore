@@ -76,9 +76,6 @@ public class LitemallOrderRestController {
         return buildResponse(result);
     }
 
-
-
-
 }
 
 

@@ -2,7 +2,6 @@ package org.linlinjava.litemall.order.application;
 
 
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
-import org.linlinjava.litemall.order.application.internal.util.OrderActionRequest;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
@@ -16,7 +15,6 @@ import org.linlinjava.litemall.order.domain.model.util.LitemallOrderStatusQuery;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +66,7 @@ public class LitemallOrderOrchestratorService {
     private LitemallOrderOperationResult handleOrderCreation(LitemallPlaceOrderCommand command) {
         try {
             // DELEGATE TO YOUR EXISTING SERVICE for complex order creation
-            LitemallOrderSubmitResult submitResult = orderServiceImpl.placeOrder(command);
+            Object submitResult = orderServiceImpl.placeOrder(command);
             // Convert your existing result to the new operation result
             return convertSubmitResultToOperationResult(submitResult, command);
 

@@ -177,4 +177,10 @@ public class LitemallGoodsController {
         LitemallGoodsId goodsId = new LitemallGoodsId(id);
         return goodsManagementService.getGoodsSpecificationAggregateByGoodsId(goodsId);
     }
+
+
+    public Map<Integer, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
+        List<LitemallGoodsAggregate> goodsList = goodsServiceApi.(goodsIds);
+    }
 }
+

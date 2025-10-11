@@ -11,20 +11,15 @@ import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallValidCouponException;
-import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallAlreadyJoinGrouponException;
-import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallCannotJoinOwnGrouponException;
-import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallGrouponFullException;
-import org.linlinjava.litemall.order.application.util.exception.groupon.LitemallGrouponRulesNotFoundException;
-import org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException;
 import org.linlinjava.litemall.order.domain.model.agregates.*;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.domainservices.groupon.LitemallGrouponValidationResult;
+import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderDomainService;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPublisher;
-import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderCanceledEvent;
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
@@ -35,7 +30,6 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
-import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponService;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.FeignResponseHandler;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
@@ -46,7 +40,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -55,7 +48,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     private final LitemallOrderRepository orderRepository;
     private final LitemallGrouponRepository grouponRepository;
-    private final LitemallGrouponRulesRepository grouponRulesRepository;
     private final LitemallCartRepository cartRepository;
     private final LitemallCouponRepository couponRepository;
     private final LitemallAddressRepository addressRepository;
@@ -64,9 +56,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallDomainEventPublisher domainEventPublisher;
 
     // Service internal to orderService
-    private final LitemallCouponService couponService;
+    private final LitemallCouponServiceLayer couponService;
 
 
+    @Autowired
+    private LitemallOrderDomainService orderDomainService;
     @Autowired
     private LitemallCartServiceLayer cartServiceLayer;
     @Autowired
@@ -85,16 +79,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
-                                    LitemallGrouponRulesRepository grouponRulesRepo,
                                     LitemallCartRepository cartRepo,
                                     LitemallCouponRepository couponRepo,
                                     LitemallAddressRepository addressRepo,
                                     LitemallOrderGoodsRepository orderGoodsRepo,
-                                    LitemallCouponService couponService,
+                                    LitemallCouponServiceLayer couponService,
                                     LitemallDomainEventPublisher domainEventPublisher) {
         this.orderRepository = orderRepo;
         this.grouponRepository = grouponRepo;
-        this.grouponRulesRepository = grouponRulesRepo;
         this.cartRepository = cartRepo;
         this.couponRepository = couponRepo;
         this.addressRepository = addressRepo;
@@ -105,7 +97,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
 
     @Override
-    public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command) throws ServiceException {
+    //public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command)  {
+    public Object placeOrder(LitemallPlaceOrderCommand command) throws ServiceException {
 
         // Validate the command
         if(command.getUserId() == null){
@@ -128,41 +121,44 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         LitemallGrouponRulesId grouponRulesId = new LitemallGrouponRulesId(command.getGrouponRulesId());
 
 
-        LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
+       /* LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
 
-        if(user != null){
+        if(user == null){
             throw new IllegalArgumentException("User is not found");
-        }
+        }*/
 
         // Validate and process Groupon if applicable
-        LitemallGrouponRulesAggregate grouponRulesAggregate = validateAndGetGroupon(userId, command.getGrouponRulesId(), command.getGrouponLinkId());
+        LitemallGrouponValidationResult grouponValidationResult = grouponServiceLayer.validateGrouponRules(command.getUserId(), command.getGrouponRulesId(), command.getGrouponLinkId());
+
         // Get and Check the shipping address
         LitemallAddressAggregate addressAggregate = addressRepository.findAddress(userId, addressId);
-        // Group purchase discount
-        //BigDecimal grouponPrice = new BigDecimal(0); // initialize grouponPrice is redundant
-        BigDecimal grouponPrice;
-        grouponPrice = grouponServiceLayer.getGrouponDiscount(grouponRulesId);
 
-        List<LitemallCartAggregate> checkedGoodsList = null;
+
         // Get the Checked cart items
+        List<LitemallCartAggregate> checkedGoodsList = null;
         checkedGoodsList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(command.getCartId()), userId);
-
         if(checkedGoodsList == null){
             return ResponseUtil.badArgumentValue();
         }
 
+
         // Validate the productStock
-        validateProductStock(checkedGoodsList);
+        this.orderDomainService.validateProductStock(checkedGoodsList, goodsServiceFeignClient);
 
 
-
+        // Group purchase discount
+        BigDecimal grouponPrice = new BigDecimal(0);  // initialize grouponPrice is not redundant;
+        if(grouponValidationResult.isValid()) {
+            grouponPrice = grouponServiceLayer.getGrouponDiscount(grouponRulesId);
+        }
 
         // Calculate checked goods price
-        BigDecimal checkedGoodsPrice;
+        BigDecimal checkedGoodsPrice;  // initialize checkedGoodsPrice is redundant;
+        LitemallGrouponRulesAggregate grouponRulesAggregate = grouponServiceLayer.getGrouponRulesAggregate(grouponRulesId);
+        checkedGoodsPrice = this.orderDomainService.priceCalculation(checkedGoodsList, grouponRulesAggregate, new LitemallMoney(grouponPrice));
 
-        checkedGoodsPrice = priceCalculation(checkedGoodsList, grouponRulesAggregate, grouponPrice);
+
         LitemallMoney checkedGoodsPriceMoney = new LitemallMoney(checkedGoodsPrice);
-
         //Calculate and get the Coupon price info
         // Amount reduced using coupons
         BigDecimal couponPrice = new BigDecimal(0);
@@ -357,61 +353,9 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         );
     }
 
-    /**
-     *
-     * @param grouponRulesId
-     * @param grouponLinkId
-     * @param userId
-     * @return
-     */
-    private LitemallGrouponRulesAggregate validateAndGetGroupon(LitemallUserId userId, Integer grouponRulesId, Integer grouponLinkId) {
-
-        if(grouponRulesId == null || grouponRulesId <= 0){
-            return null;
-        }
-
-        LitemallGrouponRulesAggregate grouponRules = grouponRulesRepository.findById(new LitemallGrouponRulesId(grouponRulesId));
-        if(grouponRules == null){
-            throw new LitemallGrouponRulesNotFoundException("Groupon rules not found.");
-        }
-
-        if(grouponLinkId != null && grouponLinkId > 0){
-            LitemallGrouponId linkId = new LitemallGrouponId(grouponLinkId);
-
-            if(grouponRepository.countByGrouponId(linkId) >= (grouponRules.getDiscountMember() - 1)){
-                throw new LitemallGrouponFullException();
-            }
-
-            if(grouponRepository.existsByUserIdOrGrouponId(userId, linkId)){
-                throw new LitemallAlreadyJoinGrouponException();
-            }
-
-            LitemallGrouponAggregate groupon = grouponRepository.findById(linkId);
-
-            if(groupon.getCreatorUserId().getId().equals(userId.getId())){
-                throw new LitemallCannotJoinOwnGrouponException("You cannot join your own groupon.");
-            }
-        }
-      return grouponRules;
-    }
 
 
-    /**
-     *
-     * @param checkedCartItems
-     */
-    private void validateProductStock(List<LitemallCartAggregate> checkedCartItems) throws ServiceException {
-        for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProductAggregate goodsProduct = FeignResponseHandler.handleResponse(goodsServiceFeignClient.getGoodsProductAggregate(cartItem.getProductId().getId()), "Get goods Product");
-
-            System.out.println("the goodsProduct is: " + goodsProduct);
-
-            if(goodsProduct.getNumber() < cartItem.getNumber()){
-                throw new LitemallInsufficientStockException();
-            }
-        }
-    }
 
     /**
      *
@@ -491,18 +435,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         }
     }
 
-    public BigDecimal priceCalculation(List<LitemallCartAggregate> checkedGoodsList, LitemallGrouponRulesAggregate grouponRules, BigDecimal grouponPrice){
-        BigDecimal checkedGoodsPrice = new BigDecimal(0);
-        for (LitemallCartAggregate checkedGoods : checkedGoodsList) {
-            //  Only when the product ID meets the group purchase specifications will the group purchase discount be available
-            if (grouponRules != null && grouponRules.getGoodsId().equals(checkedGoods.getGoodsId())) {
-                checkedGoodsPrice = checkedGoodsPrice.add(checkedGoods.getPrice().getAmount().subtract(grouponPrice).multiply(new BigDecimal(checkedGoods.getNumber())));
-            } else {
-                checkedGoodsPrice = checkedGoodsPrice.add(checkedGoods.getPrice().getAmount().multiply(new BigDecimal(checkedGoods.getNumber())));
-            }
-        }
-        return checkedGoodsPrice;
-    }
+
 
     public void updateGrouponAfterPayment(LitemallGrouponAggregate grouponAggregate, LitemallGrouponRulesAggregate grouponRulesAggregate){
 
