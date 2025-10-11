@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderCanceledEvent;
+import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderPaidEvent;
+import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderShippedEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
@@ -76,5 +78,41 @@ public class LitemallOrderAggregate {
         this.domainEvents.add(new LitemallOrderCanceledEvent(this.getOrderId(), reason));
 
     }
+
+
+    /**
+     * Mark the order as paid.
+     */
+    public void markAsPaid(){
+
+        if(!this.orderStatus.canTransitionTo(LitemallOrderStatus.PAID)){
+            throw new IllegalStateException("Order status cannot transition to " + this.getOrderStatus() + "to Paid");
+        }
+
+        this.setOrderStatus(LitemallOrderStatus.PAID);
+        this.domainEvents.add(new LitemallOrderPaidEvent(this.getOrderId()));
+    }
+
+    /**
+     * Mark the order as canceled by system.
+     */
+    public void autoCancel() {
+        if(!this.orderStatus.canTransitionTo(LitemallOrderStatus.SYSTEM_CANCELED)){
+            throw new IllegalStateException("Order status cannot transition to " + this.getOrderStatus() + "to CANCELED");
+        }
+
+        this.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED);
+        this.domainEvents.add(new LitemallOrderCanceledEvent(this.getOrderId(), " System auto cancel after 24 hours"));
+    }
+
+    public void ship(){
+        if(!this.orderStatus.canTransitionTo(LitemallOrderStatus.SHIPPED)){
+            throw new IllegalStateException("Order status cannot transition to " + this.getOrderStatus() + "to SHIPPED");
+        }
+
+        this.setOrderStatus(LitemallOrderStatus.SHIPPED);
+        this.domainEvents.add(new LitemallOrderShippedEvent(this.getOrderId()));
+    }
+
 
 }

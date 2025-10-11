@@ -89,6 +89,11 @@ public class LitemallGrouponRulesRepositoryImpl implements LitemallGrouponRulesR
         return queryList(null, status, null, null, "add_time", "desc");
     }
 
+    @Override
+    public Boolean isExpired(LitemallGrouponRulesAggregate rulesAggregate) {
+        return (rulesAggregate == null || rulesAggregate.getExpireTime().isBefore(LocalDateTime.now()));
+    }
+
 
     /**
      *

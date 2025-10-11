@@ -45,6 +45,11 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
     }
 
     @Override
+    public List<LitemallGoodsAggregate> getAllGoodByIds(List<LitemallGoodsId> ids) {
+        return goodsRepository.queryByIds(ids);
+    }
+
+    @Override
     public List<LitemallGoodsAggregate> getGoodsByHot() {
         return goodsRepository.queryByHot(0, 10);
     }

@@ -8,7 +8,6 @@ import org.linlinjava.litemall.db.domain.LitemallOrderExample;
 import org.linlinjava.litemall.db.util.OrderUtil;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregateRoot;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;

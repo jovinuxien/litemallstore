@@ -19,6 +19,7 @@ public interface LitemallGoodsServiceApi {
     List<LitemallGoodsAggregate> getGoodsByBrand(LitemallManufacturerId brandId, String keywords, Boolean isHot, Boolean isNew, Integer page, Integer size, String sort, String order);
 
     LitemallGoodsAggregate getGoodsById(LitemallGoodsId goodsId);
+    List<LitemallGoodsAggregate> getAllGoodByIds(List<LitemallGoodsId> ids);
 
     List<LitemallGoodsAggregate> getGoodsByHot();
     List<LitemallGoodsAggregate> getGoodsByNew();

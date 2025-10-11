@@ -2,6 +2,7 @@ package org.linlinjava.litemall.order.domain.model.repositories;
 
 import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
@@ -18,6 +19,7 @@ public interface LitemallGrouponRepository {
     int updateById(LitemallGrouponAggregate grouponAggregate);
 
     boolean hasJoin(LitemallUserId userId, LitemallGrouponId grouponId);
+    boolean isGrouponCreator(LitemallUserId userId, LitemallGrouponId grouponId);
 
     LitemallGrouponAggregate findById(LitemallGrouponId id);
     LitemallGrouponAggregate findByUserId(LitemallGrouponId id, LitemallUserId userId);
@@ -28,7 +30,14 @@ public interface LitemallGrouponRepository {
     LitemallGrouponAggregate getGrouponByOrderId(LitemallOrderId orderId);
 
     LitemallGroupon convertToDataModel(LitemallGrouponAggregate grouponAggregate);
-    LitemallGrouponAggregate convertToDomainModel(LitemallGroupon groupon);
+    LitemallGrouponAggregate convertToAggregate(LitemallGroupon groupon);
 
+    int countUserActiveParticipationsInRules(LitemallUserId userId, LitemallGrouponRulesId rulesId);
+
+
+
+
+
+    List<LitemallGrouponAggregate> findActiveParticipationsByUserAndRules(LitemallUserId userId, LitemallGrouponRulesId rulesId);
 
 }
