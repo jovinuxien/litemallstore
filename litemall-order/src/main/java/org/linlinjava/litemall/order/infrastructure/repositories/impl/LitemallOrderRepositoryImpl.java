@@ -20,10 +20,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -39,8 +36,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public LitemallOrderAggregate findById(LitemallOrderId orderId) {
-        return convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId()));
+    public Optional<LitemallOrderAggregate> findById(LitemallOrderId orderId) {
+        return Optional.of(convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId())));
     }
 
 

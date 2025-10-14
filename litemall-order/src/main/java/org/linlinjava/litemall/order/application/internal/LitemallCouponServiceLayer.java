@@ -9,15 +9,18 @@ import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsA
 import org.linlinjava.litemall.order.domain.model.domainservices.coupon.LitemallCouponDomainService;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
+import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext;
+import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponValidationResult;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchGoodsRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -42,75 +45,35 @@ public class LitemallCouponServiceLayer {
 
 
 
-    public LitemallCouponAggregate checkCoupon(LitemallUserId userId, LitemallCouponId couponId, LitemallCouponUserId userCouponId, LitemallMoney checkedGoodsPrice, List<LitemallCartAggregate> cartList){
+    public LitemallCouponValidationResult validateCouponApplication(
+            LitemallUserId userId,
+            LitemallCouponId couponId,
+            List<LitemallCartAggregate> cartList) {
 
-        LitemallCouponAggregate coupon = couponRepository.findById(couponId).get();
-        LitemallCouponUserAggregate couponUser = couponUserRepository.findById(userCouponId);
+        // Step 1: Load all required data efficiently
+        CouponValidationContext context = loadValidationContext(userId, couponId, cartList);
 
+        // Step 2: Validate coupon status and user eligibility
+        LitemallCouponValidationResult statusValidation = couponService.validateCouponStatus(context.getCoupon());
+        if (!statusValidation.isValid()) return statusValidation;
 
-        if (couponUser == null) {
-            couponUser = couponUserRepository.findOne(couponId, userId);
-        } else if (!couponId.equals(couponUser.getCouponId())) {
-            return null;
-        }
+        // Step 3: Validate user coupon and eligibility
+        LitemallCouponValidationResult userCouponValidation = couponService.validateCouponUser(context.getCoupon(), context.getCouponUser());
+        if(!userCouponValidation.isValid()) return userCouponValidation;
 
-        if (couponUser == null) {
-            return null;
-        }
+        // Step 4: Validate goods applicability (Method 2 approach)
+        LitemallCouponValidationResult goodsValidation = couponService.validateGoodsApplicability(context.getCoupon(), cartList, context.getGoodsMap());
+        if (!goodsValidation.isValid()) return goodsValidation;
 
-        // Check if it is overdue
-        couponService.validateCouponUser(coupon, couponUser);
-
-
-        // Check whether the product meets the
-        Map<Integer, List<LitemallCartAggregate>> cartMap = new HashMap<>();
-        //Items or categories where coupons can be used
-        List<Integer> goodsValueList = new ArrayList<>(Arrays.asList(coupon.getGoodsValue()));
-        Short goodType = coupon.getGoodsType();
-
-        if (goodType.equals(CouponConstant.GOODS_TYPE_CATEGORY) || goodType.equals((CouponConstant.GOODS_TYPE_ARRAY))) {
-            for (LitemallCartAggregate cart : cartList) {
-                Integer key = goodType.equals(CouponConstant.GOODS_TYPE_ARRAY) ? cart.getGoodsId().getId() :
-                        goodsServiceFeignClient.getGoodsAggregate(cart.getGoodsId().getId()).getData().getCategoryId().getId();
-
-                List<LitemallCartAggregate> carts = cartMap.get(key);
-                if (carts == null) {
-                    carts = new LinkedList<>();
-                }
-                carts.add(cart);
-                cartMap.put(key, carts);
-            }
-            //Items or categories in the shopping cart that can use the coupon
-            goodsValueList.retainAll(cartMap.keySet());
-            //The total price of the items that can be used with the coupon
-            BigDecimal total = new BigDecimal(0);
-
-            for (Integer goodsId : goodsValueList) {
-                List<LitemallCartAggregate> carts = cartMap.get(goodsId);
-                for (LitemallCartAggregate cart : carts) {
-                    total = total.add(cart.getPrice().getAmount().multiply(new BigDecimal(cart.getNumber())));
-                }
-            }
-            //Whether the coupon discount amount has been reached
-            if (total.compareTo(coupon.getMin()) == -1) {
-                return null;
-            }
-        }
-
-        // Check order status
-        Short status = coupon.getStatus().getValue();
-        if (!status.equals(CouponConstant.STATUS_NORMAL)) {
-            return null;
-        }
-        // Check whether the minimum consumption is met
-        if (checkedGoodsPrice.getAmount().compareTo(coupon.getMin()) == -1) {
-            return null;
-        }
-        return coupon;
+        // Step 5: Calculate and return final discount
+        LitemallMoney discount = couponService.calculateCouponDiscount(context.getCoupon(), cartList, context.getGoodsMap());
+        return LitemallCouponValidationResult.valid(discount, "Coupon is applicable");
     }
 
+
+
     public void couponUserUpdateUsage(LitemallCouponUserId couponUserId, LitemallOrderId orderId){
-        LitemallCouponUserAggregate couponUserAggregate = couponUserRepository.findById(couponUserId);
+        LitemallCouponUserAggregate couponUserAggregate = couponUserRepository.findById(couponUserId).orElseThrow(() -> new NoSuchElementException("User Coupon Aggregate could not be found"));
         couponUserAggregate.setStatus(LitemallCouponUserStatus.USED);
         couponUserAggregate.setUsedTime(LocalDateTime.now());
         couponUserAggregate.setOrderId(orderId);
@@ -118,14 +81,30 @@ public class LitemallCouponServiceLayer {
     }
 
     public LitemallCouponUserAggregate getUserCouponById(LitemallCouponUserId couponUserId){
-        return couponUserRepository.findById(couponUserId);
+        return couponUserRepository.findById(couponUserId).orElseThrow(() -> new NoSuchElementException("User Coupon Aggregate could not be found"));
     }
 
     public int  updateCouponUser(LitemallCouponUserAggregate couponUserAggregate) {
         return couponUserRepository.updateCouponUser(couponUserAggregate);
     }
 
+    /**
+     *
+     * @param couponId
+     * @return
+     */
+    public LitemallCouponAggregate getCouponAggregate(LitemallCouponId couponId){
+        return couponRepository.findById(couponId).orElseThrow(() -> new NoSuchElementException("Coupon Aggregate could not be found"));
+    }
 
+
+    /**
+     *
+     * @param userId
+     * @param couponId
+     * @param cartList
+     * @return
+     */
     private CouponValidationContext loadValidationContext(
             LitemallUserId userId,
             LitemallCouponId couponId,
@@ -134,31 +113,30 @@ public class LitemallCouponServiceLayer {
         try {
             // Load coupon and user coupon in parallel
             CompletableFuture<LitemallCouponAggregate> couponFuture =
-                    CompletableFuture.supplyAsync(() -> couponRepository.findById(couponId).orElseThrow(() -> new NoSuchElementException("Coupon not found")));
+                    CompletableFuture.supplyAsync(() -> couponRepository.findById(couponId).orElseThrow(() -> new NoSuchElementException("Coupon Aggregate could not be found")));
 
             CompletableFuture<LitemallCouponUserAggregate> couponUserFuture =
-                    CompletableFuture.supplyAsync(() -> couponUserRepository.findByUserAndCoupon(userId, couponId));
-
+                    CompletableFuture.supplyAsync(() -> couponUserRepository.findCouponByUser(couponId, userId).orElseThrow(() -> new NoSuchElementException("User Coupon Aggregate could not be found")));;
             // Batch load all required goods data
-            Set<LitemallGoodsId> goodsIds = cartList.stream()
-                    .map(LitemallCartAggregate::getGoodsId)
+            Set<Integer> goodsIds = cartList.stream()
+                    .map(item -> item.getGoodsId().getId())
                     .collect(Collectors.toSet());
 
-            Map<LitemallGoodsId, LitemallGoodsAggregate> goodsMap =
-                    goodsServiceFeignClient.batchGetGoodsAggregates(goodsIds);
+            ApiResponse<Map<LitemallGoodsId, LitemallGoodsAggregate>> goodsMap = goodsServiceFeignClient.batchGetGoodsAggregates(new BatchGoodsRequest(goodsIds));
 
             // Use the factory method
             return org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext.create(
                     couponFuture.join(),
                     couponUserFuture.join(),
-                    goodsMap
+                    goodsMap.getData()
             );
 
         } catch (Exception e) {
             // Handle exceptions gracefully
-            log.error("Failed to load coupon validation context for user {} and coupon {}",
+            log.error("Failed to load goods from the feign client validation context for user {} and coupon {}",
                     userId, couponId, e);
-            return org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext.couponNotFound();
+            return org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext.mapGoodsNotFound();
         }
     }
+
 }

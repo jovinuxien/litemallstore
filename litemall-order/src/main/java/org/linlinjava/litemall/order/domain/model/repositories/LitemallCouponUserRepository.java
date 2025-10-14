@@ -7,6 +7,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface LitemallCouponUserRepository {
 
@@ -17,8 +18,8 @@ public interface LitemallCouponUserRepository {
     LitemallCouponUserAggregate findByOrderId(LitemallOrderId orderId);
 
 
-    LitemallCouponUserAggregate findById(LitemallCouponUserId couponUserId);
-    LitemallCouponUserAggregate findOne(LitemallCouponId couponId, LitemallUserId userId);
+    Optional<LitemallCouponUserAggregate> findById(LitemallCouponUserId couponUserId);
+    Optional<LitemallCouponUserAggregate> findCouponByUser(LitemallCouponId couponId, LitemallUserId userId);
 
     List<LitemallCouponUserAggregate> findAll (LitemallCouponId couponId, LitemallUserId userId);
     List<LitemallCouponUserAggregate> findAllByUser(LitemallUserId userId);

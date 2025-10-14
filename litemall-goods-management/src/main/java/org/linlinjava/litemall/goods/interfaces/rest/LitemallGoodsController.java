@@ -27,6 +27,9 @@ import javax.validation.constraints.NotNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("srv/goods")
@@ -179,8 +182,10 @@ public class LitemallGoodsController {
     }
 
 
-    public Map<Integer, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
-        List<LitemallGoodsAggregate> goodsList = goodsServiceApi.(goodsIds);
+    @PostMapping("/batch")
+    public Map<LitemallGoodsId, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
+        List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getAllGoodByIds(goodsIds.stream().map(LitemallGoodsId::new).toList());
+        return goodsList.stream().collect(Collectors.toMap(LitemallGoodsAggregate::getGoodsId, Function.identity()));
     }
 }
 

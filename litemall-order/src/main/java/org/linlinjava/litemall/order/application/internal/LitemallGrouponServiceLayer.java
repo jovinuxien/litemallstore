@@ -7,20 +7,20 @@ import org.linlinjava.litemall.order.domain.model.domainservices.groupon.Litemal
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRulesRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
 @Service
 public class LitemallGrouponServiceLayer {
+
     private final LitemallGrouponRulesRepository grouponRulesRepository;
     private final LitemallGrouponRepository grouponRepository;
 
-    @Autowired
     public LitemallGrouponServiceLayer(LitemallGrouponRulesRepository grouponRulesRepository, LitemallGrouponRepository grouponRepository) {
         this.grouponRulesRepository = grouponRulesRepository;
         this.grouponRepository = grouponRepository;
@@ -69,7 +69,7 @@ public class LitemallGrouponServiceLayer {
             LitemallUserId userIdentity = new LitemallUserId(userId);
             LitemallGrouponAggregate grouponAggregate = grouponRepository.findByUserId(grouponId, userIdentity);
 
-            if(grouponAggregate !=null) {
+            if(grouponAggregate != null) {
                 if(grouponAggregate.getCreatorUserId().equals(userId)){
                     return LitemallGrouponValidationResult.invalidAlreadyJoined();
                 }
@@ -79,13 +79,13 @@ public class LitemallGrouponServiceLayer {
         return LitemallGrouponValidationResult.valid();
     }
 
-    public BigDecimal getGrouponDiscount(LitemallGrouponRulesId grouponRulesId){
+    public LitemallMoney getGrouponDiscount(LitemallGrouponRulesId grouponRulesId){
         LitemallGrouponRulesAggregate rulesAggregate = grouponRulesRepository.findById(grouponRulesId);
 
         if(rulesAggregate == null){
             throw  new  IllegalArgumentException("Groupon rules not found");
         }
-        return rulesAggregate.getDiscount();
+        return new LitemallMoney(rulesAggregate.getDiscount());
     }
 
 
