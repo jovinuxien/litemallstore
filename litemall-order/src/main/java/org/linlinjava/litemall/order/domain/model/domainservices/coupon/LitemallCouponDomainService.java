@@ -5,15 +5,12 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggreg
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext;
-import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponValidationResult;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponGoodsType;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponTimeType;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,30 +25,6 @@ import java.util.*;
 @Service
 public class LitemallCouponDomainService {
 
-
-
-    public LitemallCouponValidationResult validateCouponApplication(
-            LitemallUserId userId,
-            LitemallCouponId couponId,
-            List<LitemallCartAggregate> cartList) {
-
-        // Step 1: Load all required data efficiently
-        CouponValidationContext context = loadValidationContext(userId, couponId, cartList);
-
-        // Step 2: Validate coupon status and user eligibility
-        LitemallCouponValidationResult statusValidation =
-                validateCouponStatus(context.getCoupon(), context.getCouponUser());
-        if (!statusValidation.isValid()) return statusValidation;
-
-        // Step 3: Validate goods applicability (Method 2 approach)
-        LitemallCouponValidationResult goodsValidation =
-                validateGoodsApplicability(context.getCoupon(), cartList, context.getGoodsMap());
-        if (!goodsValidation.isValid()) return goodsValidation;
-
-        // Step 4: Calculate and return final discount
-        LitemallMoney discount = calculateCouponDiscount(context.getCoupon(), cartList, context.getGoodsMap());
-        return LitemallCouponValidationResult.valid(discount, "Coupon is applicable");
-    }
     /**
      *
      * @param coupon aggregate
@@ -93,9 +66,6 @@ public class LitemallCouponDomainService {
         }
         return LitemallCouponValidationResult.valid(null, "Coupon validation is ok");
     }
-
-
-
 
     /**
      *
@@ -144,13 +114,13 @@ public class LitemallCouponDomainService {
      * @param goodsAggregate
      * @return
      */
-    public LitemallMoney calculateCouponDiscount(LitemallCouponAggregate coupon, List<LitemallCartAggregate> cartList, LitemallGoodsAggregate goodsAggregate) {
+    public LitemallMoney calculateCouponDiscount(LitemallCouponAggregate coupon, List<LitemallCartAggregate> cartList, Map<LitemallGoodsId, LitemallGoodsAggregate> goodsAggregate) {
         // Simple implementation - adjust based on your discount calculation logic
         BigDecimal discountAmount = coupon.getDiscount();
         // For more complex calculations, you might need the applicable goods total
-        BigDecimal applicableTotal = calculateApplicableGoodsTotal(coupon, cartList, goodsAggregate);
+        LitemallMoney applicableTotal = calculateApplicableGoodsTotal(coupon, cartList, goodsAggregate);
         // Apply discount logic based on applicable total
-        discountAmount = applicableTotal.multiply(coupon.getDiscount().divide(BigDecimal.valueOf(100)));
+        discountAmount = applicableTotal.getAmount().multiply(coupon.getDiscount().divide(BigDecimal.valueOf(100)));
 
         return new LitemallMoney(discountAmount);
     }
@@ -209,8 +179,6 @@ public class LitemallCouponDomainService {
         }
         return new LitemallMoney(total);
     }
-
-
 
 
 

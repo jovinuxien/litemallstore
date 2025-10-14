@@ -125,6 +125,10 @@ public class ResponseUtil {
         return fail(402, "Parameter value is wrong");
     }
 
+    public static Object badArgumentType(String errorMsg) {
+        return fail(403, errorMsg);
+    }
+
     public static Object unlogin() {
         return fail(501, "Please log in");
     }

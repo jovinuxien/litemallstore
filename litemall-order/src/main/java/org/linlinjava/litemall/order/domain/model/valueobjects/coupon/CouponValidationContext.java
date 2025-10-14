@@ -15,7 +15,6 @@ public final class CouponValidationContext {
 
     private final LitemallCouponAggregate coupon;
     private final LitemallCouponUserAggregate couponUser;
-
     @Getter
     private final Map<LitemallGoodsId, LitemallGoodsAggregate> goodsMap;
     @Getter
@@ -49,6 +48,13 @@ public final class CouponValidationContext {
 
     public static CouponValidationContext userCouponNotFound(LitemallCouponUserAggregate couponUser){
         return new CouponValidationContext(null, couponUser, null);
+    }
+    public static CouponValidationContext couponAndCouponNotFound(){
+        return new CouponValidationContext(null, null, null);
+    }
+
+    public static CouponValidationContext mapGoodsNotFound(){
+        return new CouponValidationContext(null, null, null);
     }
 
     // ============================================

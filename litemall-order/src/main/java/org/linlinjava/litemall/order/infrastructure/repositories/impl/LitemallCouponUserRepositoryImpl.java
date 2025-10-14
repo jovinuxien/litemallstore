@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Repository
@@ -88,14 +89,14 @@ public class LitemallCouponUserRepositoryImpl implements LitemallCouponUserRepos
     }
 
 
-    @Override
-    public LitemallCouponUserAggregate findOne(LitemallCouponId couponId, LitemallUserId userId) {
+   /* @Override
+    public LitemallCouponUserAggregate findCouponByUser(LitemallCouponId couponId, LitemallUserId userId) {
         List<LitemallCouponUserAggregate> result = queryList(userId.getId(), couponId.getId(), LitemallCouponUserStatus.USABLE.getValue(), 1, 1, "add_time", "desc");
         if (result.isEmpty()) {
             return null;
         }
         return result.get(0);
-    }
+    }*/
 
     @Override
     public int updateCouponUser(LitemallCouponUserAggregate couponUserAggregate) {
@@ -112,8 +113,17 @@ public class LitemallCouponUserRepositoryImpl implements LitemallCouponUserRepos
     }
 
     @Override
-    public LitemallCouponUserAggregate findById(LitemallCouponUserId couponUserId) {
-        return this.convertToDomainModel(couponUserMapper.selectByPrimaryKey(couponUserId.getId()));
+    public Optional<LitemallCouponUserAggregate> findById(LitemallCouponUserId couponUserId) {
+        return Optional.of(this.convertToDomainModel(couponUserMapper.selectByPrimaryKey(couponUserId.getId())));
+    }
+
+    @Override
+    public Optional<LitemallCouponUserAggregate> findCouponByUser(LitemallCouponId couponId, LitemallUserId userId) {
+        List<LitemallCouponUserAggregate> result = queryList(userId.getId(), couponId.getId(), LitemallCouponUserStatus.USABLE.getValue(), 1, 1, "add_time", "desc");
+        if (result.isEmpty()) {
+            return null;
+        }
+        return Optional.of(result.get(0));
     }
 
 

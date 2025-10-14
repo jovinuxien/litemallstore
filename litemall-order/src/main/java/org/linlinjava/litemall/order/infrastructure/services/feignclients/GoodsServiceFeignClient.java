@@ -5,26 +5,27 @@ import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsA
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.infrastructure.configuration.FeignConfig;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.ReduceStockRequest;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.*;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.constraints.NotNull;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class)
 public interface GoodsServiceFeignClient {
 
     @GetMapping(value = "/goods/goodsdetail" )
-    ApiResponse<LitemallGoodsAggregate> getGoodsAggregate(@NotNull Integer goodsId);
+    ApiResponse<LitemallGoodsAggregate> getGoodsAggregate(@PathVariable Integer goodsId);
 
     @RequestMapping(method = RequestMethod.GET, value = "/goods/attribute")
-    ApiResponse<LitemallGoodsAttributeAggregate> getGoodsAttributeAggregate(@NotNull Integer goodsId);
+    ApiResponse<LitemallGoodsAttributeAggregate> getGoodsAttributeAggregate(@PathVariable Integer goodsId);
 
     @GetMapping(value = "/goods/product")
-    ApiResponse<LitemallGoodsProductAggregate> getGoodsProductAggregate(@NotNull Integer goodsId);
+    ApiResponse<LitemallGoodsProductAggregate> getGoodsProductAggregate(@PathVariable Integer goodsId);
 
     @PostMapping(value = "/goods/stock/reduce")
     ApiResponse<Void> reduceStock(@RequestBody ReduceStockRequest request);
@@ -34,6 +35,13 @@ public interface GoodsServiceFeignClient {
      * @param goodsIds Set of goods IDs to fetch
      * @return Map of GoodsId to GoodsAggregate
      */
-    @PostMapping("/api/goods/batch")
-    ApiResponse<Map<Long, LitemallGoodsAggregate>> batchGetGoodsAggregates(@RequestBody Set<Integer> goodsIds);
+    @PostMapping("/goods/batch")
+    ApiResponse<Map<LitemallGoodsId, LitemallGoodsAggregate>> batchGetGoodsAggregates(@RequestBody BatchGoodsRequest goodsIds);
+
+    @PostMapping("/products/batch")
+    ApiResponse<Map<LitemallGoodsProductId, LitemallGoodsProductAggregate>> batchGetGoodsProductsAggregate(@RequestBody BatchProductsRequest request);
+
+    @PostMapping("/stock/batch-reduce")
+    //ApiResponse<BatchStockReduceResult> batchReduceStock(@RequestBody List<BatchStockReduceRequest> request);
+    ApiResponse<Map<Integer, Boolean>> batchReduceStock(@RequestBody List<ReduceStockRequest> request);
 }

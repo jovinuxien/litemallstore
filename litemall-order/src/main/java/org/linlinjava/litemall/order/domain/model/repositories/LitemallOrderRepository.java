@@ -6,12 +6,13 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUser
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public interface LitemallOrderRepository {
 
-    LitemallOrderAggregate findById(LitemallOrderId orderId);
+    Optional<LitemallOrderAggregate> findById(LitemallOrderId orderId);
 
-    void addOrder(LitemallOrderAggregateRoot order);
+    void addOrder(LitemallOrderAggregate order);
 
     int count(LitemallUserId userId);
 
@@ -19,7 +20,7 @@ public interface LitemallOrderRepository {
 
     int countByOrderSn(LitemallUserId userId, String orderSn);
 
-    List<LitemallOrderAggregateRoot> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order);
+    List<LitemallOrderAggregate> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order);
 
     void deleteByOrderId(LitemallOrderId orderId);
 
