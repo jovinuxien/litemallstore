@@ -1,8 +1,5 @@
 package org.linlinjava.litemall.order.infrastructure.messaging.source;
 
-import org.linlinjava.litemall.order.infrastructure.messaging.model.OrderServiceChangeModel;
-import org.linlinjava.litemall.order.utils.ActionEnum;
-import org.linlinjava.litemall.order.utils.UserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.stream.function.StreamBridge;

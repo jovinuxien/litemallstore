@@ -3,7 +3,6 @@ package org.linlinjava.litemall.order.domain.model.valueobjects.order;
 import lombok.Getter;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
-import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 

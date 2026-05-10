@@ -1,10 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.commands;
 
 import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
 
 @Data
 public class LitemallPlaceOrderCommand {

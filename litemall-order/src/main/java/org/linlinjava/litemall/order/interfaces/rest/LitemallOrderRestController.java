@@ -3,7 +3,6 @@ package org.linlinjava.litemall.order.interfaces.rest;
 
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
-import org.linlinjava.litemall.db.domain.LitemallUser;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
@@ -12,7 +11,6 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
 import org.linlinjava.litemall.wx.annotation.LoginUser;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
