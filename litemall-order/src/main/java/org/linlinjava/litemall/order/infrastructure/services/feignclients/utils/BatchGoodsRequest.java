@@ -2,7 +2,6 @@ package org.linlinjava.litemall.order.infrastructure.services.feignclients.utils
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.Getter;
 
 import java.util.Set;
 

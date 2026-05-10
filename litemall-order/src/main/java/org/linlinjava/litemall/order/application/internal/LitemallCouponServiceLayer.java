@@ -1,7 +1,6 @@
 package org.linlinjava.litemall.order.application.internal;
 
 import lombok.extern.slf4j.Slf4j;
-import org.linlinjava.litemall.db.util.CouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
@@ -24,7 +23,6 @@ import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;

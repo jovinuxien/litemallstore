@@ -1,6 +1,5 @@
 package org.linlinjava.litemall.order.domain.model.util;
 
-import org.linlinjava.litemall.db.domain.LitemallOrder;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;

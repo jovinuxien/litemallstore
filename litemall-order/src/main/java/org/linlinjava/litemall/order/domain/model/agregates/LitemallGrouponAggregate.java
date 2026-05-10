@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
-import org.linlinjava.litemall.order.domain.model.events.groupon.LitemallGrouponCreatedEvent;
 import org.linlinjava.litemall.order.domain.model.events.groupon.LitemallGrouponSucceededEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.GrouponParticipant;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;

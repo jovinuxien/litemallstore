@@ -1,11 +1,16 @@
 package org.linlinjava.litemall.order.application;
 
 
+import org.linlinjava.litemall.core.notify.NotifyService;
+import org.linlinjava.litemall.core.notify.NotifyType;
+import org.linlinjava.litemall.core.task.TaskService;
+import org.linlinjava.litemall.order.application.internal.LitemallGrouponServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
+import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
 import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderOperationResult;
@@ -15,8 +20,12 @@ import org.linlinjava.litemall.order.domain.model.util.LitemallOrderStatusQuery;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.wx.task.OrderUnpaidTask;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 @Transactional
@@ -24,10 +33,18 @@ public class LitemallOrderOrchestratorService {
 
     private final LitemallOrderServiceImpl orderServiceImpl;
     private final LitemallOrderRepository orderRepository;
+    private final LitemallGrouponServiceLayer grouponServiceLayer;
 
-    public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository) {
+    @Autowired
+    private NotifyService notifyService;
+    @Autowired
+    private TaskService taskService;
+
+    public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
+                                            LitemallGrouponServiceLayer grouponService) {
         this.orderServiceImpl = orderService;
         this.orderRepository = orderRepository;
+        this.grouponServiceLayer = grouponService;
     }
 
 
@@ -66,7 +83,7 @@ public class LitemallOrderOrchestratorService {
     private LitemallOrderOperationResult handleOrderCreation(LitemallPlaceOrderCommand command) {
         try {
             // DELEGATE TO YOUR EXISTING SERVICE for complex order creation
-            Object submitResult = orderServiceImpl.placeOrder(command);
+            LitemallOrderSubmitResult submitResult = orderServiceImpl.placeOrder(command);
             // Convert your existing result to the new operation result
             return convertSubmitResultToOperationResult(submitResult, command);
 
@@ -81,8 +98,11 @@ public class LitemallOrderOrchestratorService {
     }
 
     private LitemallOrderOperationResult handleOrderCancellation(LitemallOrderCancelCommand cancelCommand) {
-        LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(new LitemallOrderId(cancelCommand.getOrderId()));
-        LitemallOrderId orderId = new LitemallOrderId(cancelCommand.getOrderId());
+
+        LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(new LitemallOrderId(cancelCommand.getOrderId().getId())).orElseThrow(
+                () -> new IllegalArgumentException("Order not found")
+        );
+        LitemallOrderId orderId = new LitemallOrderId(cancelCommand.getOrderId().getId());
         // Validate using StatusQuery
         if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.CANCEL)) {
             return LitemallOrderOperationResult.invalidStateTransition(
@@ -101,6 +121,46 @@ public class LitemallOrderOrchestratorService {
         return LitemallOrderOperationResult.cancelSuccess(
                 order.getOrderId(), previousStatus,
                 LitemallOrderHandleOption.forStatus(order.getOrderStatus()));
+    }
+
+    private LitemallOrderOperationResult handlePaymentAction(LitemallOrderPaymentCommand paymentCommand) {
+        LitemallOrderId orderId = new LitemallOrderId(paymentCommand.getOrderId().getId());
+        LitemallOrderAggregate order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+
+        // Validate payment action
+        if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId,
+                    LitemallOrderOperationResult.OperationType.PAY,
+                    order.getOrderStatus());
+        }
+
+        // Process payment (simplified - integrate with your payment gateway)
+        boolean paymentSuccess = processPayment(order, paymentCommand.getPaymentInfo());
+
+        if (paymentSuccess) {
+            // Update order status
+            updateOrderStatusToPaid(orderId);
+
+            // Handle post-payment logic
+            handlePostPayment(orderId, paymentCommand);
+
+            // Publish events
+            domainEventPublisher.publish(new OrderPaymentSuccessEvent(
+                    orderId,
+                    order.getActualPrice(),
+                    LocalDateTime.now()
+            ));
+
+            return LitemallOrderOperationResult.paySuccess(
+                    orderId,
+                    order.getOrderStatus(),
+                    LitemallOrderHandleOption.forStatus(LitemallOrderStatus.PAID));
+        } else {
+            return LitemallOrderOperationResult.payFailed(
+                    orderId, "Payment processing failed");
+        }
     }
 
     /*private LitemallOrderOperationResult handlePayAction(OrderActionRequest request) {
@@ -126,37 +186,23 @@ public class LitemallOrderOrchestratorService {
     }*/
 
     // =========================================================================
-    // INTEGRATION WITH YOUR EXISTING SERVICE LOGIC
+    // UTILITY METHODS - FOR POST-PROCESSING AND OTHER LOGIC
     // =========================================================================
 
+   private void handlePostPayment(LitemallOrderId orderId, LitemallOrderPaymentCommand paymentCommand) {
+       handleGrouponAfterPayment(orderId);
+       sendPaymentSuccessNotifications(orderRepository.findById(orderId).get());
 
+       // Remove unpaid task
+       taskService.removeTask(new OrderUnpaidTask(orderId.getId()));
 
-   /* private void handlePostPayment(LitemallOrderAggregate order, PaymentInfo paymentInfo) {
-        // Reuse logic from your existing service's payment handling
+   }
 
-        // Groupon handling (from your existing service)
-        if (order.hasGroupon()) {
-            LitemallGrouponAggregate grouponAggregate = orderService.getGrouponRepository()
-                    .getGrouponByOrderId(order.getOrderId());
-
-            if (grouponAggregate != null) {
-                LitemallGrouponRulesAggregate grouponRules = orderService.getGrouponRulesRepository()
-                        .findById(grouponAggregate.getGrouponRulesId());
-                updateGrouponAfterPayment(grouponAggregate, grouponRules);
-            }
-        }
-
-        // Notifications (from your existing service)
-        orderService.getNotifyService().notifyMail("New order notification", order.toString());
-        orderService.getNotifyService().notifySmsTemplateSync(
-                order.getMobile(),
-                NotifyType.PAY_SUCCEED,
-                new String[]{order.getOrderSn().substring(8, 14)}
-        );
-
-        // Remove unpaid task (from your existing service)
-        orderService.getTaskService().removeTask(new OrderUnpaidTask(order.getOrderId().getId()));
-    }*/
+    private boolean processPayment(LitemallOrderAggregate order, Object paymentInfo) {
+        // Integrate with your payment gateway here
+        // This is a simplified implementation
+        return true; // Assume success for demo
+    }
 
     private void handlePostCancellation(LitemallOrderAggregate order) {
         // Reuse inventory restoration logic from your service if needed
@@ -199,6 +245,47 @@ public class LitemallOrderOrchestratorService {
         }
     }
 
+
+    /**
+     *
+     * @param orderAggregate
+     */
+    private void sendPaymentSuccessNotifications(LitemallOrderAggregate orderAggregate) {
+        // Send email notification to admin
+        notifyService.notifyMail("New order notification", orderAggregate.toString());
+
+        // Send SMS notification to user
+        String orderSnSuffix = orderAggregate.getOrderSn().substring(8, 14);
+        notifyService.notifySmsTemplateSync(
+                orderAggregate.getMobile(),
+                NotifyType.PAY_SUCCEED,
+                new String[]{orderSnSuffix}
+        );
+    }
+
+    private void scheduleUnpaidOrderTask(LitemallOrderId orderId) {
+        taskService.addTask(new OrderUnpaidTask(orderId.getId()));
+    }
+
+    private void handleGrouponAfterPayment(LitemallOrderId orderId) {
+        LitemallGrouponAggregate grouponAggregate = grouponServiceLayer.getGrouponAggregateByOrderId(orderId);
+
+        if (grouponAggregate != null) {
+            LitemallGrouponRulesAggregate grouponRulesAggregate =
+                    grouponServiceLayer.getGrouponRulesById(grouponAggregate.getGrouponRulesId());
+            grouponServiceLayer.updateGrouponAfterPayment(grouponAggregate, grouponRulesAggregate);
+
+            // Publish groupon participation event
+            domainEventPublisher.publish(new GrouponParticipatedEvent(
+                    grouponAggregate.getGrouponId(),
+                    orderId,
+                    grouponAggregate.getCreatorUserId(),
+                    LocalDateTime.now()
+            ));
+        }
+    }
+
+
     // =========================================================================
     // CONVENIENCE METHODS FOR SPECIFIC OPERATIONS
     // =========================================================================
@@ -218,5 +305,31 @@ public class LitemallOrderOrchestratorService {
         return performOrderAction(OrderAction.PAY, request);
     }*/
 
+
+    // =========================================================================
+    // DOMAIN EVENT PUBLISHING
+    // =========================================================================
+
+    private void publishOrderCreationEvents(Integer orderId, boolean paymentProcessed) {
+        LitemallOrderId orderIdObj = new LitemallOrderId(orderId);
+        LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(orderIdObj).orElseThrow(() -> new RuntimeException("Order not found"));
+
+        // Publish order created event
+        domainEventPublisher.publish(new OrderCreatedEvent(
+                orderIdObj,
+                order.getActualPrice(),
+                order.getUserId(),
+                order.getOrderSn(),
+                LocalDateTime.now()
+        ));
+
+        if (paymentProcessed) {
+            domainEventPublisher.publish(new OrderPaymentSuccessEvent(
+                    orderIdObj,
+                    order.getActualPrice(),
+                    LocalDateTime.now()
+            ));
+        }
+    }
 
 }

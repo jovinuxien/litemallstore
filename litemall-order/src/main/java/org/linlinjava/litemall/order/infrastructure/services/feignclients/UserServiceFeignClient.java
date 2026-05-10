@@ -1,8 +1,5 @@
 package org.linlinjava.litemall.order.infrastructure.services.feignclients;
 
-import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAttributeAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.infrastructure.configuration.FeignConfig;
