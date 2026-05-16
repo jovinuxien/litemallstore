@@ -45,40 +45,9 @@ spring:
           predicates:
             - Path=/srv/**
 
-          filters:
-            - TokenRelay=
-            - StripPrefix=0
-
-        - id: token-service
-          uri: lb://litemall-auth-server # or uri: http://localhost:8085
-          predicates:
-            - Path=/oauth/**
-          filters:
-            - RemoveRequestHeader=Cookie
-            #- RewritePath=/oauth/(?<segment>.*), /$\{segment}
-            #- StripPrefix=0
-
-      # Disable default sensitive headers (equivalent to zuul.sensitiveHeaders=)
-      default-filters:
-        - TokenRelay=
-        #- RemoveRequestHeader=Cookie,Set-Cookie,Authorization
-  security:
-   oauth2:
-     client:
-        provider:
-          oidc:
-            issuer-uri: http://localhost:9080/realms/jhipster
-        registration:
-          oidc:
-            client-id: web_app
-            client-secret: web_app
-            scope: openid, profile, email, offline_access # last one for refresh tokens
-     resourceserver:
-       jwt:
-         jwt-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
-     audience:
-       - account
-       - api://default
+      # Phase 3b: Keycloak/OIDC removed. The TokenRelay default-filters, the
+      # /oauth/** token-service route and the spring.security.oauth2.* tree
+      # are gone. Per-route service machine-token relay is added in Phase 4.
 
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
