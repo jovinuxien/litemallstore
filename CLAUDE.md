@@ -94,3 +94,26 @@ gateway.**
 `~/.claude/projects/-home-bimeni-shopping-apps-litemall-app-litemall/memory/`
 - `project_frontend_split_auth.md` — full locked architecture + live progress.
 - `feedback_plan_before_code.md` — plan-before-code preference.
+
+---
+
+## ACTIVE WORKTREE — Phase 4: authserver + resource servers
+
+Branch `refactor/phase-4-authserver`. **Depends on Phase 3b merged** (the
+removed `TokenRelay` filters are replaced here).
+
+- New module `litemall-authserver` — Spring Authorization Server,
+  `client_credentials` grant only, RS256, JWKS endpoint. Pick a free port
+  (e.g. 8089 or 8091 — see port map). Add to root `pom.xml`.
+- Register both gateways as `client_credentials` clients.
+- Add a machine-token relay/exchange filter to gateway routes (replacing the
+  `TokenRelay` filters removed in Phase 3b) for `admin-api`,
+  `goods-service-app`, `order-service-app`, and customer routes.
+- Make `litemall-order`, `litemall-wallet`, `litemall-loyalty`,
+  `litemall-promotion`, `litemall-goodsapi-analytic` resource servers, and
+  re-point `litemall-goods-management` — all validating the authserver JWKS.
+- DDD services trust forwarded `X-User-*` headers **only** when accompanied
+  by a valid machine token. Edge customer/admin JWTs are never relayed.
+
+**Verify:** compile authserver + each touched service offline; confirm JWKS
+endpoint and that a missing/invalid machine token is rejected.
