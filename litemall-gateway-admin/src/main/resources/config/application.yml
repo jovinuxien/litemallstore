@@ -42,7 +42,8 @@ spring:
           predicates:
             - Path=/srv/**
           filters:
-            - TokenRelay=
+            # TokenRelay removed (Phase 3b): no OAuth2 client. The Phase 4
+            # service machine-token filter replaces it.
             - name: CircuitBreaker
               args:
                 name: goodsService
@@ -53,7 +54,7 @@ spring:
           predicates:
             - Path=/**
           filters:
-            - TokenRelay=
+            # TokenRelay removed (Phase 3b): no OAuth2 client.
             - StripPrefix=1
 
 
