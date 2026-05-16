@@ -1,15 +1,15 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttributeExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsAttributeRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsAttributeId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsAttributeId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.domain.model.valueobjects;
+package org.linlinjava.litemall.goods.domain.model.valueobjects.goods;
 
 public class LitemallGoodsSpecificationId {
     private final Integer id;

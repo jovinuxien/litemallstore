@@ -1,10 +1,13 @@
 package org.linlinjava.litemall.order.domain.model.agregates;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
-import org.linlinjava.litemall.order.domain.model.events.groupon.LitemallGrouponSucceededEvent;
+import org.linlinjava.litemall.core.events.LitemallDomainEvent;
+import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponSucceededEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.GrouponParticipant;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
@@ -21,6 +24,7 @@ import java.util.Set;
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
 public class LitemallGrouponAggregate {// Or the GrouponActivityAggregate
 
     private LitemallGrouponId grouponId;

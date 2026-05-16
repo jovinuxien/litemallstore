@@ -7,7 +7,7 @@ import { HomeData } from '../../shared/model/home.models';
 //export const getHomeData = createAsyncThunk<HomeData, void, { dispatch: AppDispatch; state: IRootState }>('home/data', async () => {
 
 export const getHomeData = createAsyncThunk('home/data', async (_, thunkApi) => {
-  const HomeUrl = BASE_URL_CONTEXT + '/home/index';
+  const HomeUrl = BASE_URL_CONTEXT + '/catalog/all';
   const response = await axios.get(HomeUrl);
   return response.data.data;
 });
@@ -19,7 +19,7 @@ export const getHomeAboutData = createAsyncThunk('home/about', async (_, thunkAp
 });
 
 export const getCatalogData = createAsyncThunk<CategoryIndexResult>('catalog/data', async (_, thunkApi) => {
-  const CatalogUrl = BASE_URL_CONTEXT + '/catalog/index';
+  const CatalogUrl = BASE_URL_CONTEXT + '/catalog/all';
   const response = await axios.get(CatalogUrl);
   return response.data.data;
 });

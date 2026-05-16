@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.domain.model.util.dto;
+package org.linlinjava.litemall.goods.domain.model.dto.goods;
 
 public class GoodsServiceResponseCode {
 

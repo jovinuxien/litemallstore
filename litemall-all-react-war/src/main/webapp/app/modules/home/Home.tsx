@@ -17,6 +17,7 @@ import { Card, Carousel, Col, Container, Row } from 'react-bootstrap';
 import { data } from '../../data';
 import { getProductList } from '../product/productSlice';
 import './home.scss';
+import axios, { isCancel, AxiosError } from 'axios';
 
 const Support = lazy(() => import('../../components/userComponents/Support'));
 const Banner = lazy(() => import('../../components/userComponents/carousel/Banner'));
@@ -94,6 +95,18 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
   const handleSelect = (selectedIndex: number) => {
     setActiveIndex(selectedIndex);
   };
+
+  /* const getAllCat = () => {
+    try {
+      const response = axios.get('http://localhost:8080/srv/catalog/all');
+      console.log(response);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+ */
+  //getAllCat();
+
   useEffect(() => {
     dispatch(getProductList());
     //dispatch(getCatalogIndexData);

@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.valueobjects.enums;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 public enum LitemallAfterSaleStatus {
 

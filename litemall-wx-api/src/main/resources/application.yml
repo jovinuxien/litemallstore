@@ -5,7 +5,10 @@ spring:
     encoding: UTF-8
 
 server:
-  port: 8082
+  # Moved off 8082 to resolve the collision with litemall-goods-management
+  # (which keeps 8082). 8083 is litemall-admin-api, so 8084.
+  # litemall-gateway-api routes /wx/** here.
+  port: 8084
 
 logging:
   level:

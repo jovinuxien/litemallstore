@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.infrastructure.services.feignclients.utils;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Data;
 

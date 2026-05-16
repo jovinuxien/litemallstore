@@ -3,7 +3,7 @@ package org.linlinjava.litemall.goods.infrastructure.messaging.model;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 
 @Getter
 @Setter

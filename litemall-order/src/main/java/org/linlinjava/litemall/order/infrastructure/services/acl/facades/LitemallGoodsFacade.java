@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;

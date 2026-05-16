@@ -1,4 +1,6 @@
-package org.linlinjava.litemall.order.domain.model.events.coupon;
+package org.linlinjava.litemall.order.domain.events.coupon;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
@@ -14,7 +16,7 @@ public class LitemallCouponUsedEvent extends LitemallDomainEvent {
 
     public LitemallCouponUsedEvent(LitemallCouponId couponId, LitemallOrderId orderId,
                            Integer userId, LitemallMoney discountAmount) {
-        super("COUPON_USED");
+        //super("COUPON_USED");
         this.couponId = couponId;
         this.orderId = orderId;
         this.userId = userId;

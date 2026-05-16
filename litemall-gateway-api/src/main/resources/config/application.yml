@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: gateway-api
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      # Explicit routes only (no discovery locator) for a predictable customer edge.
+      discovery:
+        locator:
+          enabled: false
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            # Customer SPA dev origin. Revisit when the customer SPA gets its
+            # own dev port in step 4.
+            allowedOrigins:
+              - "http://localhost:9000"
+              - "http://127.0.0.1:9000"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+      routes:
+        # Customer API surface. wx-api is not Eureka-registered -> direct URI.
+        # wx-api moved off 8082 (collided with goods-management) -> 8084.
+        - id: customer-wx-api
+          uri: http://localhost:8084
+          predicates:
+            - Path=/wx/**
+
+        # ---------------------------------------------------------------------
+        # STEP 2 (auth) will add the protected customer routes below, guarded by
+        # the customer self-signed JWT validated AT THIS GATEWAY, e.g.:
+        #   - id: customer-goods
+        #     uri: lb://goods-service-app
+        #     predicates: [ Path=/srv/catalog/**, Path=/srv/goods/** ]
+        #   - id: customer-order
+        #     uri: lb://order-service-app
+        #     predicates: [ Path=/srv/private/customer/** ]
+        # No TokenRelay / no Keycloak OIDC on this gateway (customer JWT only).
+        # ---------------------------------------------------------------------
+
+      # Intentionally NO default TokenRelay filter: this is the customer edge,
+      # not the Keycloak BFF (that is litemall-gateway-admin).
+
+spring:
+  # The 'db' profile (litemall-db/application-db.yml) brings the Druid
+  # datasource + Flyway. Migrations are owned by the DDD services / db module,
+  # so the customer edge must NOT run them.
+  flyway:
+    enabled: false
+
+# Customer JWT realm. Distinct issuer/audience from litemall-gateway-admin so
+# a customer token can never be accepted as an admin token (and vice versa).
+# In dev, leave the PEM keys blank -> an ephemeral RSA pair is generated
+# (logged as a warning). Supply litemall.jwt.private-key-pem /
+# litemall.jwt.public-key-pem (or via litemall-config) for real use.
+litemall:
+  jwt:
+    issuer: litemall-customer
+    audience: litemall-customer-api
+    access-ttl-seconds: 7200
+    private-key-pem: ""
+    public-key-pem: ""
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web.reactive: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

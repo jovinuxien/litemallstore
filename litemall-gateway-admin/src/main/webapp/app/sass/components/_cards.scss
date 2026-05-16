@@ -1,0 +1,131 @@
+
+.badge-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.discount-badge{
+  margin-bottom: 0px;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: bold;  
+  text-transform: lowercase;
+  border-radius: 0px;
+}
+.badge-new,
+.badge-hot {
+  margin-bottom: 0px;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: bold;  
+  text-transform: lowercase;
+  border-radius: 0px;
+}
+
+.badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.badge-new {
+  background-color: #00a87e;
+  color: white;
+}
+
+.badge-hot {
+  background-color: #f28b00;
+  color: white;
+}
+  .deal-card {
+    border: none;
+    border-radius: 10px;
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  
+  .deal-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  }
+  
+  .image-container {
+    position: relative;
+  }
+  
+  .product-image {
+    height: 200px;
+    object-fit: cover;
+    border-bottom: 1px solid #ddd;
+  }
+
+ 
+  
+  .product-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .product-brief {
+    font-size: 14px;
+    color: #777;
+    margin-bottom: 15px;
+  }
+  
+  .price-container {
+    display: flex;
+    //flex-direction: column;
+    // new
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .price-wrapper {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .discount-badge {
+    background-color: #486f32;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 2px 4px;
+    border: 0px solid #486f32;
+    border-radius: 4px;
+    //color: #fff;
+  } 
+  
+  .current-price {
+    font-size: 18px;
+    font-weight: bold;
+    color: #b4593d;
+  }
+  
+  .original-price {
+    font-size: 14px;
+    color: #595454;
+    text-decoration: line-through;
+  }
+  
+  .view-deal-button {
+    font-size: 14px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background-color: #a49e9e;
+    border: none;
+  }
+  
+  .view-deal-button:hover {
+    background-color: #3f542b;
+  }

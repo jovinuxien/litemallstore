@@ -1,11 +1,13 @@
 package org.linlinjava.litemall.order.application.internal;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
+import lombok.Getter;
 import org.linlinjava.litemall.core.qcode.QCodeService;
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
-import org.linlinjava.litemall.order.domain.model.domainservices.groupon.LitemallGrouponValidationResult;
+import org.linlinjava.litemall.order.domain.service.groupon.LitemallGrouponValidationResult;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRulesRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
@@ -24,6 +26,7 @@ import java.util.List;
 public class LitemallGrouponServiceLayer {
 
     private final LitemallGrouponRulesRepository grouponRulesRepository;
+    @Getter
     private final LitemallGrouponRepository grouponRepository;
     @Autowired
     private QCodeService qCodeService;
@@ -77,7 +80,7 @@ public class LitemallGrouponServiceLayer {
             LitemallGrouponAggregate grouponAggregate = grouponRepository.findByUserId(grouponId, userIdentity);
 
             if(grouponAggregate != null) {
-                if(grouponAggregate.getCreatorUserId().equals(userId)){
+                if(grouponAggregate.getCreatorUserId().getId().equals(userId)){
                     return LitemallGrouponValidationResult.invalidAlreadyJoined();
                 }
             }
@@ -301,7 +304,6 @@ public class LitemallGrouponServiceLayer {
     private boolean isJoiningExistingGroupon(Integer grouponLinkId) {
         return grouponLinkId != null && grouponLinkId > 0;
     }
-
 
 
 

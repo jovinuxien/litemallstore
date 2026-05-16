@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.infrastructure.services.feignclients;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;

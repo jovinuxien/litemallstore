@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: wallet-service
+  cloud:
+    config:
+      uri: http://configserver:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true

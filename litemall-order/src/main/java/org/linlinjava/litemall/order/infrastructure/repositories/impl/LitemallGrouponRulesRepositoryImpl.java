@@ -1,8 +1,7 @@
 package org.linlinjava.litemall.order.infrastructure.repositories.impl;
+import org.linlinjava.litemall.db.dao.*;
 
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
-import org.linlinjava.litemall.db.dao.LitemallGrouponRulesMapper;
 import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallGrouponRulesRepository;

@@ -1,9 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallBrandMapper;
-import org.linlinjava.litemall.db.domain.LitemallBrand;
-import org.linlinjava.litemall.db.domain.LitemallBrandExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallBrandAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallBrandRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;

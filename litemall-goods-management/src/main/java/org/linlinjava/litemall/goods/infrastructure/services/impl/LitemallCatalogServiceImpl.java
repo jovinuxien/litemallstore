@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.infrastructure.services.apiimpl.catalog;
+package org.linlinjava.litemall.goods.infrastructure.services.impl;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;

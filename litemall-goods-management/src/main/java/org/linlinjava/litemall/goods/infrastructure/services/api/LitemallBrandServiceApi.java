@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.infrastructure.services.api.brand;
+package org.linlinjava.litemall.goods.infrastructure.services.api;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallBrandAggregate;
 

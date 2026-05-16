@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.infrastructure.services.api.goods;
+package org.linlinjava.litemall.goods.infrastructure.services.api;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.*;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;

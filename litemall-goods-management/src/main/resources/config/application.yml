@@ -1,6 +1,8 @@
 spring:
   application:
     name: GOODS-SERVICE-APP
+  main:
+    allow-bean-definition-overriding: true
   cloud:
     loadbalancer:
       ribbon:
@@ -13,6 +15,8 @@ spring:
   devtools:
     restart:
       enabled: true
+      exclude: static/**,public/**,templates/**
+      additional-exclude: META-INF/maven/**,META-INF/resources/**
     livereload:
       enabled: true
 #      kafka:
