@@ -9,19 +9,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 //import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.core.env.Environment;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-//import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
-//import org.springframework.security.oauth2.client.annotation.RegisteredOAuth2AuthorizedClient;
-import org.springframework.security.oauth2.core.oidc.StandardClaimNames;
-import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 import tech.jhipster.config.JHipsterProperties;
@@ -31,11 +18,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-@SpringBootApplication(
-		//exclude = {org.springframework.cloud.security.oauth2.gateway.TokenRelayAutoConfiguration.class}
-)
+@SpringBootApplication(scanBasePackages = {
+		"org.linlinjava.litemall.gatewayadmin",
+		"org.linlinjava.litemall.db"})
 //@EnableEurekaClient
-@RestController
 @EnableConfigurationProperties({JHipsterProperties.class})
 public class GatewayServiceApplication {
 

@@ -2,9 +2,16 @@ spring:
   application:
     name: gateway-admin
   profiles:
-    active: default
+    # 'db' loads litemall-db's application-db.yml (Druid datasource + MyBatis)
+    # so the edge can verify admin credentials and persist V16 refresh tokens.
+    active: default,db
   main:
     web-application-type: reactive
+  # The 'db' profile (litemall-db/application-db.yml) brings the Druid
+  # datasource + Flyway. Migrations are owned by the DDD services / db module,
+  # so the admin edge must NOT run them.
+  flyway:
+    enabled: false
   cloud:
     config:
       uri: http://configserver:8888
@@ -45,40 +52,9 @@ spring:
           predicates:
             - Path=/srv/**
 
-          filters:
-            - TokenRelay=
-            - StripPrefix=0
-
-        - id: token-service
-          uri: lb://litemall-auth-server # or uri: http://localhost:8085
-          predicates:
-            - Path=/oauth/**
-          filters:
-            - RemoveRequestHeader=Cookie
-            #- RewritePath=/oauth/(?<segment>.*), /$\{segment}
-            #- StripPrefix=0
-
-      # Disable default sensitive headers (equivalent to zuul.sensitiveHeaders=)
-      default-filters:
-        - TokenRelay=
-        #- RemoveRequestHeader=Cookie,Set-Cookie,Authorization
-  security:
-   oauth2:
-     client:
-        provider:
-          oidc:
-            issuer-uri: http://localhost:9080/realms/jhipster
-        registration:
-          oidc:
-            client-id: web_app
-            client-secret: web_app
-            scope: openid, profile, email, offline_access # last one for refresh tokens
-     resourceserver:
-       jwt:
-         jwt-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
-     audience:
-       - account
-       - api://default
+      # Phase 3b: Keycloak/OIDC removed. The TokenRelay default-filters, the
+      # /oauth/** token-service route and the spring.security.oauth2.* tree
+      # are gone. Per-route service machine-token relay is added in Phase 4.
 
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
@@ -89,6 +65,19 @@ spring:
 
 
 
+
+# Admin JWT realm. Distinct issuer/audience from litemall-gateway-api so an
+# admin token can never be accepted as a customer token (and vice versa).
+# In dev, leave the PEM keys blank -> an ephemeral RSA pair is generated
+# (logged as a warning). Supply litemall.jwt.private-key-pem /
+# litemall.jwt.public-key-pem (or via litemall-config) for real use.
+litemall:
+  jwt:
+    issuer: litemall-admin
+    audience: litemall-admin-api
+    access-ttl-seconds: 7200
+    private-key-pem: ""
+    public-key-pem: ""
 
 server:
   port: 8080

@@ -104,41 +104,22 @@
 			<artifactId>spring-security-oauth2-resource-server</artifactId>
 		</dependency>-->
 
+		<!-- Reactive Spring Security for the admin edge (Boot autoconfigures
+		     the reactive stack under WebFlux; brings no spring-webmvc). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- Admin store (LitemallAdminService) + V16 admin refresh tokens +
+		     edge JWT toolkit (org.linlinjava.litemall.db.auth). litemall-db is
+		     servlet-free so it does not break Spring Cloud Gateway. -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-oauth2-jose</artifactId>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-db</artifactId>
+			<version>0.1.0</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.keycloak</groupId>
-			<artifactId>keycloak-admin-client</artifactId>
-			<version>23.0.1</version>
-			<exclusions>
-				<exclusion>
-					<groupId>javax.xml.bind</groupId>
-					<artifactId>jaxb-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.activation</groupId>
-					<artifactId>activation</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<!-- Jakarta REST (JAX-RS) -->
-		<dependency>
-			<groupId>jakarta.ws.rs</groupId>
-			<artifactId>jakarta.ws.rs-api</artifactId>
-			<version>3.1.0</version>
-		</dependency>
 		<dependency>
 			<groupId>jakarta.mail</groupId>
 			<artifactId>jakarta.mail-api</artifactId>
@@ -165,23 +146,6 @@
 			<version>4.0.2</version>
 		</dependency>-->
 
-		<!-- RESTEasy Client (implementation) -->
-
-		<dependency>
-			<groupId>org.jboss.resteasy</groupId>
-			<artifactId>resteasy-jackson2-provider</artifactId>
-			<version>6.2.5.Final</version>
-		</dependency>
-		<dependency>
-			<groupId>org.jboss.resteasy</groupId>
-			<artifactId>resteasy-client</artifactId>
-			<version>6.2.5.Final</version>
-		</dependency>
-		<dependency>
-			<groupId>org.jboss.resteasy</groupId>
-			<artifactId>resteasy-jaxb-provider</artifactId>
-			<version>6.2.5.Final</version>
-		</dependency>
 
 
 		<dependency>
@@ -204,12 +168,6 @@
 		</dependency>
 
 		<!-- Test section -->
-		<dependency>
-			<groupId>com.github.dasniko</groupId>
-			<artifactId>testcontainers-keycloak</artifactId>
-			<version>3.2.0</version>
-			<scope>test</scope>
-		</dependency>
 		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>junit-jupiter</artifactId>
