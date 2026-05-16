@@ -104,6 +104,22 @@
 			<artifactId>spring-security-oauth2-resource-server</artifactId>
 		</dependency>-->
 
+		<!-- Reactive Spring Security for the admin edge (Boot autoconfigures
+		     the reactive stack under WebFlux; brings no spring-webmvc). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Admin store (LitemallAdminService) + V16 admin refresh tokens +
+		     edge JWT toolkit (org.linlinjava.litemall.db.auth). litemall-db is
+		     servlet-free so it does not break Spring Cloud Gateway. -->
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-db</artifactId>
+			<version>0.1.0</version>
+		</dependency>
+
 		<dependency>
 			<groupId>jakarta.mail</groupId>
 			<artifactId>jakarta.mail-api</artifactId>

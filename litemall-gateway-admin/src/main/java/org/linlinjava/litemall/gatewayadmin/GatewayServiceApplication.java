@@ -18,7 +18,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+		"org.linlinjava.litemall.gatewayadmin",
+		"org.linlinjava.litemall.db"})
 //@EnableEurekaClient
 @EnableConfigurationProperties({JHipsterProperties.class})
 public class GatewayServiceApplication {
