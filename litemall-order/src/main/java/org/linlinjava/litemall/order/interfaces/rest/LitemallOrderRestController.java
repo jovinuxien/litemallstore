@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.interfaces.rest;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
 import org.linlinjava.litemall.core.validator.Order;
@@ -6,7 +8,7 @@ import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
-import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
@@ -20,11 +22,11 @@ import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponse
 @RequestMapping("/srv/order")
 public class LitemallOrderRestController {
 
-    private LitmallOrderService wxOrderService;
+    //private LitmallOrderService wxOrderService;
     private  LitemallOrderOrchestratorService orderOrchestrationService;
 
 
-    @GetMapping("list")
+   /* @GetMapping("list")
     public Object list(@LoginUser Integer userId,
                        @RequestParam(defaultValue = "0") Integer showType,
                        @RequestParam(defaultValue = "1") Integer page,
@@ -32,11 +34,11 @@ public class LitemallOrderRestController {
                        @Sort @RequestParam(defaultValue = "add_time") String sort,
                        @Order @RequestParam(defaultValue = "desc") String order) {
         return wxOrderService.list(userId, showType, page, limit, sort, order);
-    }
+    }*/
 
 
     // Order creation - uses orchestration service which delegates to your existing service
-    @PostMapping
+    /*@PostMapping
     public ResponseEntity<OrderOperationDtoResponse> createOrder(
             @RequestBody LitemallPlaceOrderCommand command,
             @RequestHeader Integer userId) {
@@ -45,7 +47,7 @@ public class LitemallOrderRestController {
 
         LitemallOrderOperationResult result = orderOrchestrationService.createOrder(command);
         return buildResponse(result);
-    }
+    }*/
 
     // Order actions - use orchestration service directly
     @PostMapping("/{orderId}/actions/cancel")
@@ -62,8 +64,8 @@ public class LitemallOrderRestController {
         return buildResponse(result);
     }
 
-    @PostMapping("/{orderId}/actions/pay")
-    public ResponseEntity<OrderOperationDtoResponse> payOrder(
+    //@PostMapping("/{orderId}/actions/pay")
+    /*public ResponseEntity<OrderOperationDtoResponse> payOrder(
             @PathVariable Long orderId,
             @RequestHeader Long userId,
             @RequestBody PaymentRequest paymentRequest) {
@@ -72,7 +74,7 @@ public class LitemallOrderRestController {
                 new LitemallOrderId(orderId), new UserId(userId), paymentRequest.toPaymentInfo());
 
         return buildResponse(result);
-    }
+    }*/
 
 }
 

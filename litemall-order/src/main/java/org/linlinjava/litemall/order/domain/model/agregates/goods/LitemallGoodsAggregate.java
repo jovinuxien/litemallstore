@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.agregates.goods;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Getter;
 import lombok.Setter;

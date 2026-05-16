@@ -1,14 +1,16 @@
 package org.linlinjava.litemall.db.service;
 
 
-import org.linlinjava.litemall.db.dao.*;
+import jakarta.annotation.Resource;
+import org.linlinjava.litemall.db.dao.LitemallBrandMapper;
+import org.linlinjava.litemall.db.dao.LitemallCategoryMapper;
+import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
+import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
 import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallGoodsExample;
-import org.linlinjava.litemall.db.dto.ElasticDto;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,8 +20,8 @@ public class LitemallElasticDataService {
     private LitemallGoodsMapper goodsMapper;
     @Resource
     private LitemallCategoryMapper categoryMapper;
-    @Resource
-    private LitemallElasticMapper elasticDataMapper;
+    //@Resource
+    //private LitemallElasticMapper elasticDataMapper;
     @Resource
     private LitemallBrandMapper brandMapper;
     @Resource
@@ -54,9 +56,9 @@ public class LitemallElasticDataService {
         return categoryList;
     }
 
-    public List<ElasticDto> getGoods(String manufacturerName, String attribute) {
+   /* public List<ElasticDto> getGoods(String manufacturerName, String attribute) {
         return elasticDataMapper.selectGoodsWithJoin(manufacturerName, attribute);
-    }
+    }*/
 
 
 

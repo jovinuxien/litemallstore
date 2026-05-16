@@ -1,14 +1,14 @@
-package org.linlinjava.litemall.goods.application.internal;
+package org.linlinjava.litemall.goods.application;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
-import org.linlinjava.litemall.goods.application.LitemallUserManagementService;
+import org.linlinjava.litemall.goods.application.goods.LitemallUserManagementService;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallAdminAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallAdminRepository;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallPermissionRepository;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallRoleRepository;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallUserRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallUserId;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;

@@ -6,7 +6,7 @@ import org.linlinjava.litemall.db.domain.LitemallBrand;
 import org.linlinjava.litemall.db.domain.LitemallBrandExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallBrandAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallBrandRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 

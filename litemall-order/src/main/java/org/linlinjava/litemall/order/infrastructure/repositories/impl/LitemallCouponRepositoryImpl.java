@@ -1,14 +1,9 @@
 package org.linlinjava.litemall.order.infrastructure.repositories.impl;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import com.alibaba.druid.util.StringUtils;
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallCouponMapper;
-import org.linlinjava.litemall.db.dao.LitemallCouponUserMapper;
-import org.linlinjava.litemall.db.domain.LitemallCoupon.Column;
-import org.linlinjava.litemall.db.domain.LitemallCoupon;
-import org.linlinjava.litemall.db.domain.LitemallCouponExample;
-import org.linlinjava.litemall.db.domain.LitemallCouponUser;
-import org.linlinjava.litemall.db.domain.LitemallCouponUserExample;
 import org.linlinjava.litemall.db.util.CouponConstant;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
@@ -29,9 +24,9 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
 
     private  final LitemallCouponMapper couponMapper;
     private  final LitemallCouponUserMapper couponUserMapper;
-    private final  Column[] result = new Column[]{Column.id, Column.name, Column.desc, Column.tag,
-                                            Column.days, Column.startTime, Column.endTime,
-                                            Column.discount, Column.min};
+    private final  LitemallCoupon.Column[] result = new LitemallCoupon.Column[]{LitemallCoupon.Column.id, LitemallCoupon.Column.name, LitemallCoupon.Column.desc, LitemallCoupon.Column.tag,
+                                            LitemallCoupon.Column.days, LitemallCoupon.Column.startTime, LitemallCoupon.Column.endTime,
+                                            LitemallCoupon.Column.discount, LitemallCoupon.Column.min};
 
     @Autowired
     public LitemallCouponRepositoryImpl(LitemallCouponMapper litemallCouponMapper, LitemallCouponUserMapper litemallCouponUserMapper) {

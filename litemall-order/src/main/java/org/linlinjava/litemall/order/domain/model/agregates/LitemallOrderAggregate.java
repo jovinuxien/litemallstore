@@ -1,11 +1,13 @@
 package org.linlinjava.litemall.order.domain.model.agregates;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
-import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderCanceledEvent;
-import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderPaidEvent;
-import org.linlinjava.litemall.order.domain.model.events.order.LitemallOrderShippedEvent;
+import org.linlinjava.litemall.core.events.LitemallDomainEvent;
+import org.linlinjava.litemall.order.domain.events.order.LitemallOrderCancelledEvent;
+import org.linlinjava.litemall.order.domain.events.order.LitemallOrderPaidEvent;
+import org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
@@ -75,7 +77,7 @@ public class LitemallOrderAggregate {
         this.setOrderStatus(LitemallOrderStatus.CANCELED);
 
         // 3. Publish a domain event to notify other parts of the system: Moved to LitemallOrderServiceImpl class.
-        this.domainEvents.add(new LitemallOrderCanceledEvent(this.getOrderId(), reason));
+        this.domainEvents.add(new LitemallOrderCancelledEvent(this.getOrderId(), reason));
 
     }
 
@@ -102,7 +104,7 @@ public class LitemallOrderAggregate {
         }
 
         this.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED);
-        this.domainEvents.add(new LitemallOrderCanceledEvent(this.getOrderId(), " System auto cancel after 24 hours"));
+        this.domainEvents.add(new LitemallOrderCancelledEvent(this.getOrderId(), "System cancelled"));
     }
 
     public void ship(){

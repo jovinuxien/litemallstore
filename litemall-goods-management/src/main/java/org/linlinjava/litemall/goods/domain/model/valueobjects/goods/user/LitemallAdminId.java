@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.user;
+package org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user;
 
 public class LitemallAdminId {
 

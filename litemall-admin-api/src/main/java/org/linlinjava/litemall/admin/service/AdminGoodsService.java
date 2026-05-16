@@ -51,11 +51,11 @@ public class AdminGoodsService {
     private Object validate(GoodsAllinone goodsAllinone) {
         LitemallGoods goods = goodsAllinone.getGoods();
         String name = goods.getName();
-        if (StringUtils.isEmpty(name)) {
+        if (!StringUtils.hasLength(name)) {
             return ResponseUtil.badArgument();
         }
         String goodsSn = goods.getGoodsSn();
-        if (StringUtils.isEmpty(goodsSn)) {
+        if (!StringUtils.hasLength(goodsSn)) {
             return ResponseUtil.badArgument();
         }
         // 品牌商可以不设置，如果设置则需要验证品牌商存在
@@ -76,7 +76,7 @@ public class AdminGoodsService {
         LitemallGoodsAttribute[] attributes = goodsAllinone.getAttributes();
         for (LitemallGoodsAttribute attribute : attributes) {
             String attr = attribute.getAttribute();
-            if (StringUtils.isEmpty(attr)) {
+            if (!StringUtils.hasLength(attr)) {
                 return ResponseUtil.badArgument();
             }
             String value = attribute.getValue();
@@ -244,9 +244,8 @@ public class AdminGoodsService {
         if (goodsService.checkExistByName(name)) {
             return ResponseUtil.fail(GOODS_NAME_EXIST, "商品名已经存在");
         }
-
-// There is a field retailPrice in the product
-// table that records the lowest price of the current product
+        // There is a field retailPrice in the product
+        // table that records the lowest price of the current product
        BigDecimal retailPrice = new BigDecimal(Integer.MAX_VALUE);
         for (LitemallGoodsProduct product : products) {
             BigDecimal productPrice = product.getPrice();

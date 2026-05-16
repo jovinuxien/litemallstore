@@ -1,9 +1,5 @@
 package org.linlinjava.litemall.goods.domain.model.util.dto;
 
-import org.linlinjava.litemall.db.domain.LitemallGoods;
-import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
-import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
-import org.linlinjava.litemall.db.domain.LitemallGoodsSpecification;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;

@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: gateway-api
+  profiles:
+    # 'db' loads litemall-db's application-db.yml (Druid datasource + MyBatis)
+    # so the edge can verify credentials and persist V15 refresh tokens.
+    active: default,db
+  main:
+    web-application-type: reactive
+  cloud:
+    config:
+      # Spring Cloud Config server. Non-fatal if unreachable (fail-fast not set):
+      # the gateway boots from local config and logs a warning.
+      uri: http://localhost:8888
+      #uri: http://configserver:8888   # docker-compose network name
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false
+
+server:
+  port: 8090
+
+eureka:
+  instance:
+    preferIpAddress: true
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/

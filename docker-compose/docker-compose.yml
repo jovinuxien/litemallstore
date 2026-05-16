@@ -1,35 +1,115 @@
-version: "3.8"
+version: "3.5"
 
 
 services:
-  rabbitmq:
-    image: rabbitmq:management
-    ports:
-      - "5672:5672" #JMS Port
-      - "15672:15672" #Management Port - default user:pass = guest:guest
-  keycloak:
-    container_name: baeldung-keycloak.openid-provider
-    image: quay.io/keycloak/keycloak:24.0.1
-    # image: quay.io/keycloak/keycloak:25.0.1
-    command: 'start-dev --import-realm'
-    volumes:
-      - ./realm-config:/opt/keycloak/data/import
-      - ./realm-config/keycloak-health-check.sh:/opt/keycloak/health-check.sh
-    environment:
-      - KC_DB=dev-file
-      - KEYCLOAK_ADMIN=admin
-      - KEYCLOAK_ADMIN_PASSWORD=admin
-      - KC_FEATURES=scripts
-      - KC_HTTP_PORT=9080
-      - KC_HTTPS_PORT=9443
-      - KC_HEALTH_ENABLED=true
-      - KC_METRICS_ENABLED=true
-      - KC_HTTP_ENABLED=true
-    ports:
-      - 9080:9080
-      - 9443:9443
-    healthcheck:
-      test: 'bash /opt/keycloak/health-check.sh'
-      interval: 5s
-      timeout: 5s
-      retries: 20
+    indexer:
+      container_name: ocs_indexer
+      image: commerceexperts/ocs-indexer-service:latest
+      environment:
+        - "ES_HOSTS=http://elasticsearch:9200"
+      ports:
+        - 8535:8535
+      depends_on:
+        - elasticsearch
+      networks:
+        - ocs
+
+    searcher:
+      container_name: ocs_searcher
+      image: commerceexperts/ocs-search-service:latest
+      environment:
+        - "ES_HOSTS=http://elasticsearch:9200"
+      ports:
+        - 8534:8534
+      depends_on:
+        - elasticsearch
+      networks:
+        - ocs
+
+    suggest:
+      container_name: ocs_suggest
+      image: commerceexperts/ocs-suggest-service:searchhub-latest
+      ports:
+        - 8081:8081
+      depends_on:
+        - elasticsearch
+      networks:
+        - ocs
+
+    elasticsearch:
+      container_name: ocs_elasticsearch
+      image: docker.elastic.co/elasticsearch/elasticsearch:7.17.25
+      # to install plugins at elasticsearch, we add a docker-entrypoint.sh that makes sure certain plugins are installed
+      # make sure the ./elasticsearch/docker-entrypoint-es.sh file is executable
+      volumes:
+        - ./elasticsearch:/mnt
+        - ocs_esdata:/usr/share/elasticsearch/data
+      entrypoint:
+        - /mnt/docker-entrypoint-es.sh
+      ports:
+        - 9200:9200
+      environment:
+        - "discovery.type=single-node"
+        - "http.cors.enabled=true"
+        - "http.cors.allow-origin=/https?://localhost(:[0-9]+)?/"
+        - "ES_JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,address=*:8000,suspend=n -Xms1024m -Xmx1024m"
+      ulimits:
+        memlock:
+          soft: -1
+          hard: -1
+      networks:
+        - ocs
+
+
+    kibana:
+      container_name: ocs_kibana
+      image: docker.elastic.co/kibana/kibana:7.17.0
+      ports:
+        - 5601:5601
+      environment:
+        - "ELASTICSEARCH_HOST=http://elasticsearch:9200/"
+      links:
+        - elasticsearch
+      networks:
+        - ocs
+    rabbitmq:
+      image: rabbitmq:management
+      ports:
+        - "5672:5672" #JMS Port
+        - "15672:15672" #Management Port - default user:pass = guest:guest
+    keycloak:
+      container_name: baeldung-keycloak.openid-provider
+      image: quay.io/keycloak/keycloak:24.0.1
+      # image: quay.io/keycloak/keycloak:25.0.1
+      command: 'start-dev --import-realm'
+      volumes:
+        - ./realm-config:/opt/keycloak/data/import
+        - ./realm-config/keycloak-health-check.sh:/opt/keycloak/health-check.sh
+      environment:
+        - KC_DB=dev-file
+        - KEYCLOAK_ADMIN=admin
+        - KEYCLOAK_ADMIN_PASSWORD=admin
+        - KC_FEATURES=scripts
+        - KC_HTTP_PORT=9080
+        - KC_HTTPS_PORT=9443
+        - KC_HEALTH_ENABLED=true
+        - KC_METRICS_ENABLED=true
+        - KC_HTTP_ENABLED=true
+      ports:
+        - 9080:9080
+        - 9443:9443
+      healthcheck:
+        test: 'bash /opt/keycloak/health-check.sh'
+        interval: 5s
+        timeout: 5s
+        retries: 20
+
+
+volumes:
+  ocs_esdata:
+    driver: local
+
+networks:
+  ocs:
+    name: ocs
+    driver: bridge

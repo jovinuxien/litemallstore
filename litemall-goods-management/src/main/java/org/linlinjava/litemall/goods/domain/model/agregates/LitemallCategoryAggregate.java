@@ -2,7 +2,7 @@ package org.linlinjava.litemall.goods.domain.model.agregates;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 
 import java.time.LocalDateTime;
 

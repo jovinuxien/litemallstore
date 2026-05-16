@@ -1,9 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
-import org.linlinjava.litemall.db.domain.LitemallGoods;
-import org.linlinjava.litemall.db.domain.LitemallGoodsExample;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsRepository;
@@ -15,7 +12,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 

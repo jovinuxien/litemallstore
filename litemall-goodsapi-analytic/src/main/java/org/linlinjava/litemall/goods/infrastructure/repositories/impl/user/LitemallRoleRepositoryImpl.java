@@ -1,7 +1,5 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl.user;
 
-import org.linlinjava.litemall.db.dao.LitemallRoleMapper;
-import org.linlinjava.litemall.db.domain.LitemallRole;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallRoleAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallRoleRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallRoleId;

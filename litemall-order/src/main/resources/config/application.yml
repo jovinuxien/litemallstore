@@ -5,7 +5,7 @@ spring:
   import: optional:classpath:application.yml
   profiles:
     #active: db, db1, core, elastic, admin, wx
-    active: db, core, elastic, admin, wx
+    active: dev, db, core, elastic, admin, wx
   messages:
     encoding: UTF-8
   servlet:

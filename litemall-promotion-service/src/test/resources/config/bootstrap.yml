@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: promotion-service-test
+  cloud:
+    config:
+      enabled: false
+    bootstrap:
+      enabled: false
+    compatibility-verifier:
+      enabled: false

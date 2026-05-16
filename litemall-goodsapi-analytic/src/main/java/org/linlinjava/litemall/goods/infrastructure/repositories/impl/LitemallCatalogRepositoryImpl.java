@@ -1,9 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallCategoryMapper;
-import org.linlinjava.litemall.db.domain.LitemallCategory;
-import org.linlinjava.litemall.db.domain.LitemallCategoryExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallCatalogRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;

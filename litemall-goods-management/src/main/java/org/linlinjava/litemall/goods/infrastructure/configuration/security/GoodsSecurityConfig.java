@@ -23,7 +23,7 @@ import static org.springframework.security.oauth2.core.oidc.StandardClaimNames.P
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled =  true, securedEnabled = true)
+//@EnableGlobalMethodSecurity(prePostEnabled =  true, securedEnabled = true)
 public class GoodsSecurityConfig {
 
     public static final String issuerUri = "http://localhost:9080/realms/jhipster";
@@ -32,21 +32,28 @@ public class GoodsSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf().disable()
+                .csrf(Customizer.withDefaults())
+                .authorizeHttpRequests(authz -> authz
+                        .requestMatchers("/", "/*.*").permitAll()
+                        .requestMatchers("/srv/**").permitAll()
+                        .requestMatchers("/srv/cjAuth/**").permitAll()
+                        .requestMatchers("/srv/catalog/**").permitAll()
+                        .requestMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                        .requestMatchers("/srv/private/**").authenticated()
+                )
 
-                .authorizeRequests()
-                .antMatchers("/", "/*.*", "/srv/**", "/srv/catalog/**", "/srv/cjAuth/**").permitAll()
+                //.antMatchers("/", "/*.*", "/srv/**", "/srv/catalog/**", "/srv/cjAuth/**").permitAll()
                 /*.antMatchers("/*.*").permitAll()
                 .antMatchers("/srv/**").permitAll()
                 .antMatchers("/srv/catalog/**").permitAll()
                 .antMatchers("/srv/product/**").permitAll()*/
 
 
-                .antMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
-                .antMatchers("/srv/private/**").authenticated()
+                //.antMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                //.antMatchers("/srv/private/**").authenticated()
                 //.anyRequest().permitAll()
 
-                .and()
+                //.and()
 
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth2 ->

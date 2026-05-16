@@ -1,8 +1,5 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
-import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
-import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
-import org.linlinjava.litemall.db.domain.LitemallGoodsAttributeExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsAttributeRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsAttributeId;

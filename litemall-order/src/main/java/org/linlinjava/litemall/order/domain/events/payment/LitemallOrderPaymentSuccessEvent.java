@@ -1,4 +1,6 @@
-package org.linlinjava.litemall.order.domain.model.events.payment;
+package org.linlinjava.litemall.order.domain.events.payment;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Getter;
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
@@ -15,7 +17,7 @@ public class LitemallOrderPaymentSuccessEvent extends LitemallDomainEvent {
     private final LocalDateTime paidTime;
 
     public LitemallOrderPaymentSuccessEvent(LitemallOrderId orderId, LitemallMoney paidAmount, LocalDateTime paidTime) {
-        super("ORDER_PAYMENT_SUCCESS");
+       //super("ORDER_PAYMENT_SUCCESS");
         this.orderId = orderId;
         this.paidAmount = paidAmount;
         this.paidTime = paidTime;

@@ -5,11 +5,11 @@ import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.domain.LitemallAdminExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallAdminAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallAdminRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallAdminId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallAdminId;
 import org.springframework.stereotype.Repository;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
+import jakarta.annotation.Resource;
 import java.util.List;
 
 @Repository

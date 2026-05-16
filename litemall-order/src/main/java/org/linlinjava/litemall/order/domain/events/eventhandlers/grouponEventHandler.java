@@ -1,4 +1,6 @@
-package org.linlinjava.litemall.order.domain.model.events.eventhandlers;
+package org.linlinjava.litemall.order.domain.events.eventhandlers;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
@@ -7,7 +9,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class grouponEventHandler {
-    @EventListener
+    /*@EventListener
     public void handleGrouponSuccessful(GrouponSuccessfulEvent event) {
         // Send notifications to participants
         notificationService.sendGrouponSuccessNotification(
@@ -25,5 +27,5 @@ public class grouponEventHandler {
     @Scheduled(fixedRate = 300000) // Every 5 minutes
     public void checkExpiringGroupons() {
         grouponAppService.checkAndHandleExpiringGroupons();
-    }
+    } */
 }

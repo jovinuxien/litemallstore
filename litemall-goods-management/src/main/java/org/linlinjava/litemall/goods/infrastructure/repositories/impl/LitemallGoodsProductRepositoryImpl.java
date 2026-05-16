@@ -1,15 +1,15 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import org.linlinjava.litemall.db.dao.GoodsProductMapper;
+
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
-
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsProductRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -105,7 +105,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
             dataModel.setId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
         }
         dataModel.setGoodsId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
-        dataModel.setSpecifications(goodsProductAggregate.getSpecification());
+        dataModel.setSpecifications(goodsProductAggregate.getSpecifications());
 
         dataModel.setPrice(goodsProductAggregate.getPrice().getAmount());
         dataModel.setNumber(goodsProductAggregate.getNumber());
@@ -135,7 +135,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
 
         // Orther fields
         //domainModel.setGrouponStatus(record.getStatus());
-        domainModel.setSpecification(record.getSpecifications());
+        domainModel.setSpecifications(record.getSpecifications());
         domainModel.setPrice(new LitemallMoney(record.getPrice()));
         domainModel.setNumber(record.getNumber());
         domainModel.setUrl(record.getUrl());

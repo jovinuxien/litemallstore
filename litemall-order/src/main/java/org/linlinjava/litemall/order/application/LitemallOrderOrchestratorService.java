@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.application;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
 import org.linlinjava.litemall.core.notify.NotifyService;
@@ -6,14 +8,18 @@ import org.linlinjava.litemall.core.notify.NotifyType;
 import org.linlinjava.litemall.core.task.TaskService;
 import org.linlinjava.litemall.order.application.internal.LitemallGrouponServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
+import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
+import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponParticipatedEvent;
+import org.linlinjava.litemall.order.domain.events.order.LitemallOrderCreatedEvent;
+import org.linlinjava.litemall.order.domain.events.payment.LitemallOrderPaymentSuccessEvent;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
-import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderPaymentCommand;
+import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
-import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderHandleOption;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderStatusQuery;
@@ -39,6 +45,10 @@ public class LitemallOrderOrchestratorService {
     private NotifyService notifyService;
     @Autowired
     private TaskService taskService;
+
+    @Autowired
+    LitemallDomainEventPublisher domainEventPublisher;
+
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
                                             LitemallGrouponServiceLayer grouponService) {
@@ -72,7 +82,8 @@ public class LitemallOrderOrchestratorService {
             // ... other actions
 
             default:
-                return handleGenericOrderAction(action, actionData);
+                return handleOrderCancellation((LitemallOrderCancelCommand) actionData);
+                //return handleGenericOrderAction(action, actionData);
         }
     }
 
@@ -141,13 +152,13 @@ public class LitemallOrderOrchestratorService {
 
         if (paymentSuccess) {
             // Update order status
-            updateOrderStatusToPaid(orderId);
+            //updateOrderStatusToPaid(orderId);
 
             // Handle post-payment logic
             handlePostPayment(orderId, paymentCommand);
 
             // Publish events
-            domainEventPublisher.publish(new OrderPaymentSuccessEvent(
+            domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
                     orderId,
                     order.getActualPrice(),
                     LocalDateTime.now()
@@ -209,29 +220,27 @@ public class LitemallOrderOrchestratorService {
         // This would be similar to your stock reduction but in reverse
 
         // Notify relevant services about cancellation
-        orderService.getNotifyService().notifyMail("Order cancelled", order.toString());
+        //orderServiceImpl.getNotifyService().notifyMail("Order cancelled", order.toString());
     }
 
     private void updateGrouponAfterPayment(LitemallGrouponAggregate groupon,
                                            LitemallGrouponRulesAggregate rules) {
         // Reuse your existing groupon update logic
         groupon.setGrouponStatus(LitemallGrouponStatus.STATUS_ON);
-        orderService.getGrouponRepository().saveGroupon(groupon);
+        orderServiceImpl.getGrouponRepository().saveGroupon(groupon);
     }
 
     // =========================================================================
     // RESULT CONVERSION - BRIDGING OLD AND NEW
     // =========================================================================
 
-    private LitemallOrderOperationResult convertSubmitResultToOperationResult(
-            LitemallOrderSubmitResult submitResult, LitemallPlaceOrderCommand command) {
+    private LitemallOrderOperationResult convertSubmitResultToOperationResult(LitemallOrderSubmitResult submitResult, LitemallPlaceOrderCommand command) {
 
         // Extract order ID from your existing result
         LitemallOrderId orderId = new LitemallOrderId(submitResult.getOrderId());
 
         // Determine the appropriate operation result based on your existing logic
-        if (submitResult.isPayed()) {
-            // Order was automatically paid (zero amount)
+        if (submitResult.isNeedsPayment()){
             return LitemallOrderOperationResult.submitSuccessPaid(
                     orderId,
                     LitemallOrderHandleOption.forStatus(LitemallOrderStatus.PAID)
@@ -276,10 +285,10 @@ public class LitemallOrderOrchestratorService {
             grouponServiceLayer.updateGrouponAfterPayment(grouponAggregate, grouponRulesAggregate);
 
             // Publish groupon participation event
-            domainEventPublisher.publish(new GrouponParticipatedEvent(
+            domainEventPublisher.publish(new LitemallGrouponParticipatedEvent(
                     grouponAggregate.getGrouponId(),
                     orderId,
-                    grouponAggregate.getCreatorUserId(),
+                    grouponAggregate.getCreatorUserId().getId(),
                     LocalDateTime.now()
             ));
         }
@@ -315,16 +324,16 @@ public class LitemallOrderOrchestratorService {
         LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(orderIdObj).orElseThrow(() -> new RuntimeException("Order not found"));
 
         // Publish order created event
-        domainEventPublisher.publish(new OrderCreatedEvent(
+        domainEventPublisher.publish(new LitemallOrderCreatedEvent(
                 orderIdObj,
                 order.getActualPrice(),
-                order.getUserId(),
-                order.getOrderSn(),
-                LocalDateTime.now()
+                order.getUserId().getId(),
+                order.getOrderSn()
+                //LocalDateTime.now()
         ));
 
         if (paymentProcessed) {
-            domainEventPublisher.publish(new OrderPaymentSuccessEvent(
+            domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
                     orderIdObj,
                     order.getActualPrice(),
                     LocalDateTime.now()

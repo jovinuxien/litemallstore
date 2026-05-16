@@ -1,9 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import org.linlinjava.litemall.db.dao.GoodsProductMapper;
-import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
-import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
-import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsProductRepository;

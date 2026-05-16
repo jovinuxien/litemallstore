@@ -1,4 +1,7 @@
 {
     "java.compile.nullAnalysis.mode": "automatic",
-    "djlint.showInstallError": false
+    "djlint.showInstallError": false,
+    "files.watcherExclude": {
+        "**/target": true
+    }
 }

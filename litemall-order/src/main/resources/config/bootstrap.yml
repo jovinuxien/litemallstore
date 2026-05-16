@@ -3,7 +3,8 @@ spring:
     name: order-service
   cloud:
     config:
-      uri: http://configserver:8888
+      uri: http://localhost:8888
+      #uri: http://configserver:8888
     bootstrap:
       enabled: true
     compatibility-verifier:

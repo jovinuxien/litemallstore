@@ -1,50 +1,54 @@
-package org.linlinjava.litemall.goods.application;
+package org.linlinjava.litemall.goods.application.goods;
 
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.util.dto.GoodsAllInOne;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
+import org.linlinjava.litemall.core.qcode.QCodeService;
+import org.linlinjava.litemall.goods.domain.model.agregates.*;
+import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public interface LitemallGoodsManagementService {
 
     /**
      * desc: catalog section contract
      */
-
     LitemallCategoryAggregate getCategoryById(LitemallCategoryId categoryId);
     List<LitemallCategoryAggregate> getFirstLevelCategories();
-    List<LitemallCategoryAggregate> getSecondLevelCategories(Integer parentId);
+    List<LitemallCategoryAggregate> getSecondLevelCategories(List<Integer> ids);
     List<LitemallCategoryAggregate> queryByPid(Integer pid);
     Object getGoodsByCategoryId(LitemallCategoryId categoryId);
-
-    /**
-     * desc: stock verification section
-     */
-    void verifyGoodsAvailability(List<LitemallGoodsId> productIds);
-    void reduceStock(LitemallGoodsProductId goodsProductId, Short number);
 
 
     /**
      *
      * @desc goods Management section
      */
+    List<LitemallGoodsAggregate> goodsByNew(int offset, int limit);
+    List<LitemallGoodsAggregate> goodsByHot(int offset, int limit);
     Object addAllGoods(List<GoodsAllInOne> allGoodsList);
-    Object addGoods(GoodsAllInOne goodsAllInOne);
 
 
-    Object goodsDetail(LitemallGoodsId goodsId);
-    Object updateGoods(GoodsAllInOne goodsAllInOne);
-    Object deleteGoods(LitemallGoodsAggregate goodsAggregate);
+    void addGoods(GoodsAllInOne goodsAllInOne);
+    Object goodsDetail(LitemallGoodsId goodsId, ThreadPoolExecutor executor, RejectedExecutionHandler handler, ArrayBlockingQueue<Runnable> queue);
+    void updateGoods(GoodsAllInOne goodsAllInOne);
+    void deleteGoods(LitemallGoodsAggregate goodsAggregate);
 
 
-    Object getGoodsAggregateById(LitemallGoodsId goodsId);
-    Object getGoodsProductAggregateByGoodsId(LitemallGoodsId goodsId);
-    Object getGoodsAttributeAggregateByGoodsId(LitemallGoodsId goodsId);
-    Object getGoodsSpecificationAggregateByGoodsId(LitemallGoodsId goodsId);
+    LitemallGoodsAggregate getGoodsAggregateById(LitemallGoodsId goodsId);
+    List<LitemallGoodsProductAggregate> getGoodsProductAggregateByGoodsId(LitemallGoodsId goodsId);
+    List<LitemallGoodsAttributeAggregate> getGoodsAttributeAggregateByGoodsId(LitemallGoodsId goodsId);
+    List<LitemallGoodsSpecificationAggregate> getGoodsSpecificationAggregateByGoodsId(LitemallGoodsId goodsId);
+
+
+    /**
+     * desc: stock verification section
+     */
+    void verifyGoodsAvailability(List<LitemallGoodsId> productIds);
+    void reduceStock(LitemallGoodsProductId goodsProductId, Short number);
 
 }

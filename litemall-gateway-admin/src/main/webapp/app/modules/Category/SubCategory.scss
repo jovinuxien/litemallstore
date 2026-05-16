@@ -1,0 +1,18 @@
+
+
+@import '../../sass//base/variables';
+@import '../../sass/components/button';
+@import '../../sass/components/card_cat';
+.subcategory-button {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: $btn-border-radius;
+    
+    &:hover {
+      background-color: $btn-primary-bg;
+      color: $btn-primary-color;
+    }
+  }
+
