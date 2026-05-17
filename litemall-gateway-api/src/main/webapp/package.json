@@ -5,7 +5,10 @@
   "description": "Customer storefront SPA, served by litemall-gateway-api (same-origin BFF).",
   "scripts": {
     "webapp:dev": "cross-env NODE_ENV=development webpack serve --config webpack/webpack.config.js",
-    "webapp:prod": "cross-env NODE_ENV=production webpack --config webpack/webpack.config.prod.js"
+    "webapp:prod": "cross-env NODE_ENV=production webpack --config webpack/webpack.config.prod.js",
+    "backend:deps": "mvn -f ../../../../pom.xml -pl litemall-db -am -DskipTests -Dskip.npm=true install",
+    "backend:start": "npm run backend:deps && mvn -f ../../../../pom.xml -pl litemall-gateway-api spring-boot:run -Dskip.npm=true",
+    "backend:debug": "npm run backend:deps && mvn -f ../../../../pom.xml -pl litemall-gateway-api spring-boot:run -Dspring-boot.run.jvmArguments=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000\" -Dskip.npm=true"
   },
   "dependencies": {
     "@litemall/shared": "0.1.0",
