@@ -6,6 +6,6 @@
   "workspaces": [
     "litemall-shared",
     "litemall-gateway-api/src/main/webapp",
-    "litemall-gateway-admin/src/main/webapp"
+    "litemall-gateway-admin"
   ]
 }
