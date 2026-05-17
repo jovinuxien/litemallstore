@@ -17,6 +17,7 @@
 
 	<properties>
 		<spring-cloud.version>2022.0.4</spring-cloud.version>
+		<skip.npm>false</skip.npm>
 	</properties>
 
 	<dependencies>
@@ -106,6 +107,49 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+
+			<!-- Phase 5: build & bundle the customer SPA into the gateway jar
+			     (mirrors litemall-gateway-admin). Skippable with -Dskip.npm. -->
+			<plugin>
+				<groupId>com.github.eirslett</groupId>
+				<artifactId>frontend-maven-plugin</artifactId>
+				<version>1.14.1</version>
+				<configuration>
+					<workingDirectory>src/main/webapp</workingDirectory>
+					<skip>${skip.npm}</skip>
+				</configuration>
+				<executions>
+					<execution>
+						<id>install-node-and-npm</id>
+						<goals>
+							<goal>install-node-and-npm</goal>
+						</goals>
+						<configuration>
+							<nodeVersion>v20.11.1</nodeVersion>
+							<npmVersion>10.2.4</npmVersion>
+						</configuration>
+					</execution>
+					<execution>
+						<id>npm install</id>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<configuration>
+							<arguments>install</arguments>
+						</configuration>
+					</execution>
+					<execution>
+						<id>webapp build prod</id>
+						<goals>
+							<goal>npm</goal>
+						</goals>
+						<phase>generate-resources</phase>
+						<configuration>
+							<arguments>run webapp:prod</arguments>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
