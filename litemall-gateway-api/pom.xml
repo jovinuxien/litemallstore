@@ -59,6 +59,13 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- Phase 4: machine client_credentials only (NOT OIDC login) to mint
+		     the service token relayed downstream to load-balanced services. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+		</dependency>
+
 		<!-- Customer store + V15 refresh tokens + edge JWT toolkit
 		     (org.linlinjava.litemall.db.auth). litemall-db is servlet-free so
 		     it does not break Spring Cloud Gateway. -->

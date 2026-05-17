@@ -3,11 +3,11 @@ spring:
     name: WALLET-SERVICE-APP
   profiles:
     active: dev, db, core, elastic, admin, wx
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
+litemall:
+  svcsecurity:
+    # Phase 4: validate the machine JWT against litemall-authserver JWKS
+    # (replaces Keycloak). Dev default; config-server overrides for non-dev.
+    jwk-set-uri: http://localhost:8089/oauth2/jwks
 server:
   port: 8086
 eureka:

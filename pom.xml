@@ -94,6 +94,7 @@
     <modules>
         <module>litemall-core</module>
         <module>litemall-db</module>
+        <module>litemall-svcsecurity</module>
         <module>litemall-wx-api</module>
         <module>litemall-admin-api</module>
         <!--<module>litemall-all</module>-->
@@ -107,6 +108,7 @@
         <module>litemall-wallet-service</module>
         <module>litemall-promotion-service</module>
         <module>litemall-eureka</module>
+        <module>litemall-authserver</module>
         <module>litemall-config</module>
         <module>litemall-gateway-admin</module>
         <module>litemall-gateway-api</module>
