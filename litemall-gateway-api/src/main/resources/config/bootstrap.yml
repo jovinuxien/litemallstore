@@ -7,6 +7,20 @@ spring:
     active: default,db
   main:
     web-application-type: reactive
+  # Phase 4: machine client_credentials registration (authserver). NOT OIDC
+  # login — only used to mint the service token relayed downstream.
+  security:
+    oauth2:
+      client:
+        registration:
+          authserver:
+            client-id: gateway-api
+            client-secret: gateway-api-dev-secret
+            authorization-grant-type: client_credentials
+            scope: svc
+        provider:
+          authserver:
+            token-uri: http://localhost:8089/oauth2/token
   cloud:
     config:
       # Spring Cloud Config server. Non-fatal if unreachable (fail-fast not set):
