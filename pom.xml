@@ -99,7 +99,9 @@
         <module>litemall-admin-api</module>
         <!--<module>litemall-all</module>-->
         <!--<module>litemall-all-war</module>-->
-        <module>litemall-all-react-war</module>
+        <!-- Phase 5: retired — split into the customer SPA (litemall-gateway-api)
+             and admin SPA (litemall-gateway-admin). Directory removed in 5c. -->
+        <!--<module>litemall-all-react-war</module>-->
         <module>litemall-order</module>
         <module>litemall-loyalty-service</module>
         <module>litemall-goods-management</module>

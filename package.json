@@ -1,0 +1,11 @@
+{
+  "name": "litemall-frontend-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "description": "npm workspace: shared FE package + the two edge SPAs (customer @ gateway-api, admin @ gateway-admin). Replaces the combined litemall-all-react-war.",
+  "workspaces": [
+    "litemall-shared",
+    "litemall-gateway-api/src/main/webapp",
+    "litemall-gateway-admin/src/main/webapp"
+  ]
+}
