@@ -1,17 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.messaging.source;
 
 
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.infrastructure.messaging.model.GoodsServiceChangeModel;
-import org.linlinjava.litemall.goods.utils.ActionEnum;
-import org.linlinjava.litemall.goods.utils.UserContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cloud.stream.messaging.Source;
-import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.stereotype.Component;
-
 //@Component
 public class SimpleSourceBean {
 

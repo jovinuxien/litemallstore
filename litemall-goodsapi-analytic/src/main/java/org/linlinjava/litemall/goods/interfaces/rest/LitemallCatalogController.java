@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 
+import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.goods.application.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.constraints.NotNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

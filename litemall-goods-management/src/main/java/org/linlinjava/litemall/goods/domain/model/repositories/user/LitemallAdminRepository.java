@@ -1,9 +1,7 @@
 package org.linlinjava.litemall.goods.domain.model.repositories.user;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallAdminAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallAdminId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallAdminId;
 
 import java.util.List;
 

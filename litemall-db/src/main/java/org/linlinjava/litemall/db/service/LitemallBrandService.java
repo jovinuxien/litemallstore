@@ -1,14 +1,13 @@
 package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallBrandMapper;
 import org.linlinjava.litemall.db.domain.LitemallBrand;
-import org.linlinjava.litemall.db.domain.LitemallBrand.Column;
 import org.linlinjava.litemall.db.domain.LitemallBrandExample;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,7 +15,7 @@ import java.util.List;
 public class LitemallBrandService {
     @Resource
     private LitemallBrandMapper brandMapper;
-    private Column[] columns = new Column[]{Column.id, Column.name, Column.desc, Column.picUrl, Column.floorPrice};
+    private LitemallBrand.Column[] columns = new LitemallBrand.Column[]{LitemallBrand.Column.id, LitemallBrand.Column.name, LitemallBrand.Column.desc, LitemallBrand.Column.picUrl, LitemallBrand.Column.floorPrice};
 
     public List<LitemallBrand> query(Integer page, Integer limit, String sort, String order) {
         LitemallBrandExample example = new LitemallBrandExample();

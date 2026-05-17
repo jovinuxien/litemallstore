@@ -1,8 +1,8 @@
 package org.linlinjava.litemall.goods.domain.model.repositories;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsAttributeId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsAttributeId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 
 import java.util.List;
 

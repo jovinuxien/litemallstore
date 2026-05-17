@@ -1,0 +1,8 @@
+# Test profile — overrides production application-db.yml settings.
+# @SpringBootTest tests use a real MySQL connection (same as dev).
+# Flyway is disabled here because:
+#   1. Spring-context tests use real MySQL where Flyway already ran at startup (dev workflow).
+#   2. The dedicated FlywayMigrationTest handles migration validation via Testcontainers.
+spring:
+  flyway:
+    enabled: false

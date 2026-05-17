@@ -2,13 +2,12 @@ package org.linlinjava.litemall.goods.domain.model.agregates;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
 
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 
 @Getter
@@ -18,7 +17,7 @@ public class LitemallGoodsProductAggregate {
     private LitemallGoodsProductId goodsProductId;
     private LitemallGoodsId goodsId;
     
-    private String[] specification;
+    private String[] specifications;
     private LitemallMoney price;
     private Integer number;
     private String url;

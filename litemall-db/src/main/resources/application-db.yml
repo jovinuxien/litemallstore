@@ -51,10 +51,26 @@ spring:
       enabled: false
       poll-interval: 2s
       quiet-period: 1s
+  flyway:
+    enabled: true
+    # baseline-on-migrate: marks an existing DB as already at V1 without running V1.
+    # Set to true the first time you apply migrations to an existing database.
+    # After the first run you can leave it true — it becomes a no-op once the baseline row exists.
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    table: flyway_schema_history
+    validate-on-migrate: true
+    out-of-order: false
+    encoding: UTF-8
+    # Flyway uses its own JDBC connection independent of Druid.
+    # Mirror the same coordinates used by the Druid pool above.
+    url: jdbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&verifyServerCertificate=false&useSSL=false
+    user: litemall
+    password: Calliste_1006
 mybatis:
   type-aliases-package: org.linlinjava.litemall.db.domain
   mapper-locations:
-  - classpath*:**/org/linlinjava/litemall/db/dao/*.xml
-  - classpath*:**/mapper/*.xml
+   - classpath*:**/org/linlinjava/litemall/db/dao/*.xml
   configuration:
     map-underscore-to-camel-case: true

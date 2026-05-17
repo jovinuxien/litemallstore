@@ -9,7 +9,8 @@ logging:
   level:
     root:  ERROR
     org.springframework:  ERROR
-    org.mybatis:  ERROR, DEBUG
+    org.mybatis:  ERROR
+    org.mybatis.spring: INFO
     tech.jhipster: DEBUG
     # org.hibernate.SQL: DEBUG
     org.linlinjava.litemall.db:  DEBUG

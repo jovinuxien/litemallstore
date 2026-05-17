@@ -1,11 +1,13 @@
 package org.linlinjava.litemall.order.application.internal;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.extern.slf4j.Slf4j;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCouponUserAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
-import org.linlinjava.litemall.order.domain.model.domainservices.coupon.LitemallCouponDomainService;
+import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponDomainService;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;

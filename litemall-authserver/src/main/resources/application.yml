@@ -1,0 +1,31 @@
+server:
+  port: 8089
+
+# Machine-token realm. Distinct issuer from the customer/admin EDGE realms:
+# this signs service-to-service client_credentials tokens only. RS256; the
+# public key is published at /oauth2/jwks for the resource servers.
+# Leave the PEM blank in dev -> ephemeral key (restart invalidates issued
+# machine tokens). Supply litemall.jwt.private-key-pem / public-key-pem
+# (or via litemall-config) for a stable key.
+litemall:
+  jwt:
+    issuer: litemall-authserver
+    audience: litemall-services
+    access-ttl-seconds: 600
+    private-key-pem: ""
+    public-key-pem: ""
+  authserver:
+    # Dev plaintext client_credentials secrets (NoOpPasswordEncoder).
+    # Override via config-server / env for non-dev.
+    gateway-admin-secret: gateway-admin-dev-secret
+    gateway-api-secret: gateway-api-dev-secret
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    org.springframework.security: INFO

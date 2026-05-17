@@ -1,5 +1,8 @@
 package org.linlinjava.litemall.order.infrastructure.services.feignclients;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
+import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.order.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.infrastructure.configuration.FeignConfig;
@@ -7,7 +10,6 @@ import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-import javax.validation.constraints.NotNull;
 
 
 @FeignClient(name = "user-service", url = "${goods.service.url}", configuration = FeignConfig.class)

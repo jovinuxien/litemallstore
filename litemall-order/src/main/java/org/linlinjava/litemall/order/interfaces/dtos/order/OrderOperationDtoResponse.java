@@ -1,8 +1,10 @@
 package org.linlinjava.litemall.order.interfaces.dtos.order;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.interfaces.dtos.groupon.GrouponInfoDtoResponse;
 
 import java.time.LocalDateTime;

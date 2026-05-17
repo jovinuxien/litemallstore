@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.valueobjects;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 public class LitemallCouponUserId {
 

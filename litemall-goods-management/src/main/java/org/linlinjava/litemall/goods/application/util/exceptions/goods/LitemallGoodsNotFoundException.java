@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.application.util.exception.goods;
+package org.linlinjava.litemall.goods.application.util.exceptions.goods;
 
 public class LitemallGoodsNotFoundException extends RuntimeException  {
 

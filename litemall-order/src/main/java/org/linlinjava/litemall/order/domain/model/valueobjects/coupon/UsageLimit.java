@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.valueobjects.coupon;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallCouponUsageLimitExceededException;
 

@@ -9,16 +9,36 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <!-- <version>3.1.6</version>-->
-        <version>2.7.18</version>
+       <!-- <version>3.5.11</version>-->
+        <!--<version>3.2.0</version>-->
+        <version>3.1.6</version>
         <relativePath/>
     </parent>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>17</java.version>
-        <!--<spring-boot.version>3.1.6</spring-boot.version>-->
-        <spring-boot.version>2.7.18</spring-boot.version>
+
+        <!-- java version -->
+        <java.version>21</java.version>
+        <!-- spring-boot version -->
+        <spring-boot.version>3.1.6</spring-boot.version>
+        <!--<spring-boot.version>3.2.0</spring-boot.version>-->
+        <!--<spring-boot.version>3.5.11</spring-boot.version>-->
+
+        <!-- spring security -->
+        <!--<security.version>3.1.11</security.version>-->
+        <!--<security.version>6.2.0</security.version>-->
+        <security.version>6.5.0</security.version>
+
+        <!-- spring cloud version -->
+        <!--<spring-cloud.version>2025.0.0</spring-cloud.version>-->
+        <spring-cloud.version>2022.0.5</spring-cloud.version>
+        <!--<spring-cloud.version>2023.0.0</spring-cloud.version>-->
+        <!--<spring-cloud.version>2021.0.9</spring-cloud.version>-->
+
+
+
+
         <spring-boot-devtools.version>${spring-boot.version}</spring-boot-devtools.version>
 
 
@@ -27,63 +47,75 @@
         <frontend-maven-plugin.version>1.14.1</frontend-maven-plugin.version>
         <node.version>v20.16.0</node.version>
         <npm.version>10.8.1</npm.version>
-        <maven-compiler-plugin.version>3.5.0</maven-compiler-plugin.version>
-        <mapstruct.version>1.5.5.Final</mapstruct.version>
-        <maven-idea-plugin.version>2.2.1</maven-idea-plugin.version>
-        <druid.version>1.2.23</druid.version>
-        <caffeing.version>3.1.1</caffeing.version>
-<!--        <shiro.version>2.1.0</shiro.version>-->
-        <!--<shiro.version>2.0.4</shiro.version>-->
-<!--        <security.version>3.1.6</security.version>-->
-        <security.version>2.7.18</security.version>
-        <pagehelper.version>2.1.0</pagehelper.version>
-<!--    <mbatis.version>3.0.4</mbatis.version>-->
-        <mbatis.version>2.3.0</mbatis.version>
 
+
+        <!-- Maven properties -->
+        <maven-clean-plugin.version>3.3.2</maven-clean-plugin.version>
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-enforcer.version>3.4.1</maven-enforcer.version>
+        <maven-idea-plugin.version>2.2.1</maven-idea-plugin.version>
+        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
+        <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
+        <maven-war-plugin.version>3.4.0</maven-war-plugin.version>
+        <maven-javadoc-plugin.version>3.10.1</maven-javadoc-plugin.version>
+
+        <checksum-maven-plugin.version>1.11</checksum-maven-plugin.version>
+
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <jaxb-runtime.version>4.0.0</jaxb-runtime.version>
+
+        <druid.version>1.2.24</druid.version>
+        <mbatis-spring-boot.version>3.0.5</mbatis-spring-boot.version>
         <mbatis.version>3.0.2</mbatis.version>
-        <lombok.version>1.18.20</lombok.version>
+
+
+
+        <caffeing.version>3.1.1</caffeing.version>
+        <pagehelper.version>2.1.1</pagehelper.version>
+
+        <lombok.version>1.18.42</lombok.version>
         <maven-surefire-plugin.version>2.22.2</maven-surefire-plugin.version>
 
         <litemall.version>0.1.0</litemall.version>
 
 
-        <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
         <jacoco-maven-plugin.version>0.8.8</jacoco-maven-plugin.version>
-        <maven-enforcer.version>3.4.1</maven-enforcer.version>
-
         <!-- Docker properties settings -->
         <docker.image.prefix>litemall</docker.image.prefix>
         <jib-maven-plugin.version>3.4.2</jib-maven-plugin.version>
         <jib-maven-plugin.image>eclipse-temurin:17-jre-focal</jib-maven-plugin.image>
         <jib-maven-plugin.architecture>amd64</jib-maven-plugin.architecture>
 
-        <!--Cloud properties settings -->
-        <!--<spring-cloud.version>2022.0.4</spring-cloud.version>-->
-        <spring-cloud.version>2021.0.9</spring-cloud.version>
 
 
-        <!--        <mbatis.version>3.0.2</mbatis.version>-->
+
     </properties>
 
     <modules>
         <module>litemall-core</module>
         <module>litemall-db</module>
+        <module>litemall-svcsecurity</module>
         <module>litemall-wx-api</module>
         <module>litemall-admin-api</module>
-        <module>litemall-all</module>
-        <module>litemall-all-war</module>
-        <module>litemall-all-react-war</module>
-        <module>litemall-elastic</module>
+        <!--<module>litemall-all</module>-->
+        <!--<module>litemall-all-war</module>-->
+        <!-- Phase 5: retired — split into the customer SPA (litemall-gateway-api)
+             and admin SPA (litemall-gateway-admin). Directory removed in 5c. -->
+        <!--<module>litemall-all-react-war</module>-->
         <module>litemall-order</module>
-        <module>litemall-payment</module>
-        <module>litemall-notification</module>
+        <module>litemall-loyalty-service</module>
         <module>litemall-goods-management</module>
         <module>litemall-goodsapi-analytic</module>
 
+        <module>litemall-wallet-service</module>
+        <module>litemall-promotion-service</module>
         <module>litemall-eureka</module>
+        <module>litemall-authserver</module>
         <module>litemall-config</module>
-        <module>litemall-gateway</module>
-        <module>litemall-library</module>
+        <module>litemall-gateway-admin</module>
+        <module>litemall-gateway-api</module>
+       <!-- <module>litemall-library</module>
+        <module>litemall-cqrs-library</module>-->
 
     </modules>
 
@@ -129,7 +161,7 @@
                 <artifactId>litemall-core</artifactId>
                 <version>${litemall.version}</version>
             </dependency>
-            <dependency>
+           <dependency>
                 <groupId>org.linlinjava</groupId>
                 <artifactId>litemall-db</artifactId>
                 <version>${litemall.version}</version>
@@ -154,40 +186,20 @@
             <dependency>
                 <groupId>org.mybatis.spring.boot</groupId>
                 <artifactId>mybatis-spring-boot-starter</artifactId>
-                <version>${mbatis.version}</version>
-            </dependency>
-
-          <!--  <dependency>
-                <groupId>org.mybatis</groupId>
-                <artifactId>mybatis</artifactId>
-                <version>3.5.13</version>
+                <version>${mbatis-spring-boot.version}</version>
             </dependency>
 
             <dependency>
                 <groupId>org.mybatis</groupId>
                 <artifactId>mybatis-spring</artifactId>
-                <version>3.0.3</version>
-            </dependency>-->
-
-
-            <dependency>
-                <groupId>com.github.pagehelper</groupId>
-                <artifactId>pagehelper-spring-boot-starter</artifactId>
-                <version>${pagehelper.version}</version>
+                <version>${mbatis.version}</version>
             </dependency>
 
-            <!-- shiro deps -->
-            <!--<dependency>
-                <groupId>org.apache.shiro</groupId>
-                <artifactId>shiro-spring-boot-web-starter</artifactId>
-                <version>${shiro.version}</version>
-            </dependency>-->
-
-            <dependency>
+           <!-- <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-starter-security</artifactId>
                 <version>${security.version}</version>
-            </dependency>
+            </dependency>-->
 
 
 
@@ -199,12 +211,10 @@
                 <version>8.0.29</version>
             </dependency>
 
-
             <dependency>
                 <groupId>com.alibaba</groupId>
-                <artifactId>druid-spring-boot-starter</artifactId>
+                <artifactId>druid-spring-boot-3-starter</artifactId>
                 <version>${druid.version}</version>
-                <!--<version>1.2.1</version>-->
             </dependency>
 
             <dependency>
@@ -310,6 +320,12 @@
                 <version>4.0.3</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
 
         </dependencies>
     </dependencyManagement>
@@ -342,6 +358,20 @@
             <scope>test</scope>
         </dependency>
 
+       <!-- <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>2.0.7</version>
+            <scope>compile</scope>
+        </dependency>-->
+
+        <dependency>
+           <groupId>org.mybatis</groupId>
+           <artifactId>mybatis-spring</artifactId>
+           <version>3.0.3</version>
+           <scope>compile</scope>
+       </dependency>
+
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
@@ -350,8 +380,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Caching -->
@@ -382,12 +410,7 @@
             <version>2.28.2</version> <!-- Mockito 2.x -->
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.mybatis</groupId>
-            <artifactId>mybatis-spring</artifactId>
-            <version>2.0.7</version>
-            <scope>compile</scope>
-        </dependency>
+
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-tx</artifactId>
@@ -412,22 +435,11 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                </configuration>
             </plugin>
             <!-- Maven surefire plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M5</version>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                </configuration>
             </plugin>
             <!-- Maven Jiv plugin -->
            <!-- <plugin>
@@ -438,32 +450,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
-                <version>${maven-enforcer.version}</version>
-                <executions>
-                    <execution>
-                        <id>enforce-java</id>
-                        <goals>
-                            <goal>enforce</goal>
-                        </goals>
-                        <configuration>
-                            <rules>
-                                <requireJavaVersion>
-                                    <version>[17,)</version>
-                                </requireJavaVersion>
-                            </rules>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
-            <!-- Maven javadoc plugin -->
-          <!--  <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <version>${maven-javadoc-plugin.version}</version>
-                <configuration>
-                    <source>${maven-compiler-plugin.version}</source>
-                </configuration>
-            </plugin>-->
             <!-- Jacoco plugin -->
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -473,6 +460,27 @@
 
         <pluginManagement>
             <plugins>
+                <!-- Maven compiler plugin -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                    </configuration>
+                </plugin>
+                <!-- Maven surefire plugin -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.0.0-M5</version>
+                    <configuration>
+                        <includes>
+                            <include>**/*Test.java</include>
+                        </includes>
+                    </configuration>
+                </plugin>
                 <!-- Jacoco plugin management configuration -->
                 <plugin>
                     <groupId>org.jacoco</groupId>
@@ -517,11 +525,82 @@
                         </execution>
                     </executions>
                 </plugin>
+                <!-- maven-war-plugin -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-war-plugin</artifactId>
+                    <version>${maven-war-plugin.version}</version>
+                    <executions>
+                        <execution>
+                            <id>default-war</id>
+                            <goals>
+                                <goal>war</goal>
+                            </goals>
+                            <phase>package</phase>
+                        </execution>
+                    </executions>
+                    <configuration>
+                        <warSourceIncludes>WEB-INF/**,META-INF/**</warSourceIncludes>
+                        <failOnMissingWebXml>false</failOnMissingWebXml>
+                        <warSourceDirectory>target/classes/static/</warSourceDirectory>
+                        <webResources>
+                            <resource>
+                                <directory>src/main/webapp</directory>
+                                <includes>
+                                    <include>WEB-INF/**</include>
+                                </includes>
+                            </resource>
+                        </webResources>
+                    </configuration>
+                </plugin>
+                <!-- Javadoc plugin management configuration -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>${maven-javadoc-plugin.version}</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <encoding>UTF-8</encoding>
+                        <doclint>none</doclint>
+                        <quiet>true</quiet>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>attach-javadocs</id>
+                            <goals>
+                                <goal>jar</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <!-- Maven enforcer plugin -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>${maven-enforcer.version}</version>
+                    <executions>
+                        <execution>
+                            <id>enforce-java</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireJavaVersion>
+                                        <version>[17,)</version>
+                                    </requireJavaVersion>
+                                </rules>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+
             </plugins>
         </pluginManagement>
     </build>
 
     <profiles>
+        <!-- IDE profile section -->
         <profile>
             <!--
                 Profile for applying IDE-specific configuration.
@@ -542,6 +621,7 @@
             </dependencies>
         </profile>
         <!-- For executing a specific profile from litemall-all folder -->
+
         <!-- Cmd: mvn spring-boot:run -Pdev-litemall-db -->
         <profile>
             <id>dev-litemall-db</id>
@@ -553,6 +633,8 @@
             </activation>
         </profile>
     </profiles>
+
+
     <repositories>
         <repository>
             <id>central</id>

@@ -1,10 +1,14 @@
 package org.linlinjava.litemall.order.interfaces.util;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
-import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderOperationResult;
+import lombok.extern.slf4j.Slf4j;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+@Slf4j
 public class LitemallHttpResponseUtil {
 
 
@@ -24,7 +28,7 @@ public class LitemallHttpResponseUtil {
         return buildHttpResponse(result, response);
     }
 
-    public ResponseEntity<OrderOperationDtoResponse> buildHttpResponse(
+    public static ResponseEntity<OrderOperationDtoResponse> buildHttpResponse(
             LitemallOrderOperationResult result,
             OrderOperationDtoResponse response) {
 

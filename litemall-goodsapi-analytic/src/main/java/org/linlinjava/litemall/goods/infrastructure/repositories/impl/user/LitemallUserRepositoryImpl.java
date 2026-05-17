@@ -1,9 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl.user;
 
 import com.github.pagehelper.PageHelper;
-import org.linlinjava.litemall.db.dao.LitemallUserMapper;
-import org.linlinjava.litemall.db.domain.LitemallUser;
-import org.linlinjava.litemall.db.domain.LitemallUserExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallUserRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallUserId;

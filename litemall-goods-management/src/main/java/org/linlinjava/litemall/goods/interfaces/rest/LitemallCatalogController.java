@@ -1,10 +1,11 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 
+import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
-import org.linlinjava.litemall.goods.application.LitemallGoodsManagementService;
+import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.utils.HomeCacheManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.constraints.NotNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +71,7 @@ public class LitemallCatalogController {
     }
 
 
-    @GetMapping("/second-categories")
+    /*@GetMapping("/second-categories")
     public Object getSecondCategory(@NotNull Integer id) {
         // All first-level categories
 
@@ -79,7 +79,7 @@ public class LitemallCatalogController {
         Map<String, Object> data = new HashMap<>();
         data.put("l2CatList", l1CatList);
         return ResponseUtil.ok(data);
-    }
+    }*/
 
     @GetMapping("all")
     public Object queryAll() {

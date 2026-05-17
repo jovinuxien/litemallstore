@@ -1,8 +1,8 @@
 package org.linlinjava.litemall.admin.service;
 
-import javax.servlet.http.HttpServletRequest;
 //import org.apache.shiro.SecurityUtils;
 //import org.apache.shiro.subject.Subject;
+import jakarta.servlet.http.HttpServletRequest;
 import org.linlinjava.litemall.core.util.IpUtil;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
 import org.linlinjava.litemall.db.domain.LitemallLog;

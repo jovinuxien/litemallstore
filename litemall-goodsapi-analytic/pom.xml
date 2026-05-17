@@ -24,9 +24,8 @@
 		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
 		<litemall.version>0.1.0</litemall.version>-->
 
-		<java.version>17</java.version>
 		<!--		<spring-boot.version>3.1.6</spring-boot.version>-->
-		<spring-cloud.version>2021.0.9</spring-cloud.version>
+		<!--<spring-cloud.version>2021.0.9</spring-cloud.version>-->
 		<profile.test/>
 
 
@@ -43,6 +42,7 @@
 
 	</properties>
 
+	<!-- Dependencies management -->
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
@@ -63,7 +63,7 @@
 		</dependencies>
 	</dependencyManagement>
 
-
+	<!-- Dependencies  -->
 	<dependencies>
 
 		<dependency>
@@ -157,9 +157,16 @@
 
 
 		<!-- Security section -->
-		<dependency>
+		<!--<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>-->
+
+		<!-- Phase 4: shared machine-JWT resource-server auto-config -->
+		<dependency>
+			<groupId>org.linlinjava</groupId>
+			<artifactId>litemall-svcsecurity</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
@@ -235,22 +242,25 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>javax.servlet-api</artifactId>
-        </dependency>
+
+
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
 
 
     </dependencies>
 
 
 	<build>
+		<defaultGoal>spring-boot:run</defaultGoal>
 		<plugins>
 			<!-- spring boot build plugin -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-
 				<executions>
 					<execution>
 						<id>repackage</id>
@@ -260,64 +270,13 @@
 						</configuration>
 					</execution>
 				</executions>
-				<configuration>
-					<jvmArguments>
-						-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
-					</jvmArguments>
-					<!--<fork>true</fork>-->
-					<addResources>true</addResources>
-				</configuration>
 			</plugin>
-
-			<!-- Containerization -->
-			<!-- jib-maven plugin management -->
+			<!-- jib-maven plugin -->
 			<plugin>
 				<groupId>com.google.cloud.tools</groupId>
 				<artifactId>jib-maven-plugin</artifactId>
-				<version>${jib-maven-plugin.version}</version>
-				<configuration>
-					<from>
-						<image>${jib-maven-plugin.image}</image>
-						<platforms>
-							<platform>
-								<architecture>${jib-maven-plugin.architecture}</architecture>
-								<os>linux</os>
-							</platform>
-						</platforms>
-					</from>
-					<to>
-						<image>litemall-order:latest</image>
-					</to>
-					<container>
-						<entrypoint>
-							<shell>bash</shell>
-							<option>-c</option>
-							<arg>/entrypoint.sh</arg>
-						</entrypoint>
-						<ports>
-							<port>8083</port>
-							<port>5701/udp</port>
-						</ports>
-						<!--	<environment>
-								<SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
-								<JHIPSTER_SLEEP>0</JHIPSTER_SLEEP>
-							</environment>-->
-						<creationTime>USE_CURRENT_TIMESTAMP</creationTime>
-						<user>1000</user>
-					</container>
-					<extraDirectories>
-						<paths>src/main/docker/jib</paths>
-						<permissions>
-							<permission>
-								<file>/entrypoint.sh</file>
-								<mode>755</mode>
-							</permission>
-						</permissions>
-					</extraDirectories>
-				</configuration>
 			</plugin>
-
-
+			<!-- surefire plugin -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
@@ -327,11 +286,31 @@
 					<debugForkedProcess>true</debugForkedProcess>
 				</configuration>
 			</plugin>
-
 		</plugins>
 
 		<pluginManagement>
 			<plugins>
+				<!-- spring-boot plugin management -->
+				<plugin>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-maven-plugin</artifactId>
+					<executions>
+						<execution>
+							<id>repackage</id>
+							<configuration>
+								<executable>true</executable>
+								<classifier>exec</classifier>
+								<fork>true</fork>
+							</configuration>
+						</execution>
+					</executions>
+					<configuration>
+						<jvmArguments>
+							-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
+						</jvmArguments>
+						<addResources>true</addResources>
+					</configuration>
+				</plugin>
 				<!-- failesafe plugin management -->
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
@@ -425,6 +404,61 @@
 					<artifactId>sonar-maven-plugin</artifactId>
 					<version>${sonar-maven-plugin.version}</version>
 				</plugin>
+				<!-- jib-maven plugin management -->
+				<plugin>
+					<groupId>com.google.cloud.tools</groupId>
+					<artifactId>jib-maven-plugin</artifactId>
+					<version>${jib-maven-plugin.version}</version>
+					<configuration>
+						<from>
+							<image>${jib-maven-plugin.image}</image>
+							<platforms>
+								<platform>
+									<architecture>${jib-maven-plugin.architecture}</architecture>
+									<os>linux</os>
+								</platform>
+							</platforms>
+						</from>
+						<to>
+							<image>litemall-order:latest</image>
+						</to>
+						<container>
+							<entrypoint>
+								<shell>bash</shell>
+								<option>-c</option>
+								<arg>/entrypoint.sh</arg>
+							</entrypoint>
+							<ports>
+								<port>8083</port>
+								<port>5701/udp</port>
+							</ports>
+							<!--	<environment>
+                                    <SPRING_OUTPUT_ANSI_ENABLED>ALWAYS</SPRING_OUTPUT_ANSI_ENABLED>
+                                    <JHIPSTER_SLEEP>0</JHIPSTER_SLEEP>
+                                </environment>-->
+							<creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+							<user>1000</user>
+						</container>
+						<extraDirectories>
+							<paths>src/main/docker/jib</paths>
+							<permissions>
+								<permission>
+									<file>/entrypoint.sh</file>
+									<mode>755</mode>
+								</permission>
+							</permissions>
+						</extraDirectories>
+					</configuration>
+				</plugin>
+				<!-- eirslett plugin management -->
+				<plugin>
+					<groupId>com.github.eirslett</groupId>
+					<artifactId>frontend-maven-plugin</artifactId>
+					<version>${frontend-maven-plugin.version}</version>
+					<configuration>
+						<installDirectory>target</installDirectory>
+					</configuration>
+				</plugin>
 			</plugins>
 		</pluginManagement>
 	</build>
@@ -437,12 +471,166 @@
 			<activation>
 				<activeByDefault>true</activeByDefault>
 			</activation>
-			<properties>
-				<spring.profiles.active>dev</spring.profiles.active>
-			</properties>
 			<dependencies>
+				<dependency>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-devtools</artifactId>
+					<optional>true</optional>
+				</dependency>
+				<dependency>
+					<groupId>org.testcontainers</groupId>
+					<artifactId>mysql</artifactId>
+					<scope>test</scope>
+				</dependency>
 				<!-- Additional dev dependencies if needed -->
 			</dependencies>
+			<build>
+				<pluginManagement>
+					<plugins>
+						<!-- failsafe plugin -->
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-failsafe-plugin</artifactId>
+							<version>${maven-failsafe-plugin.version}</version>
+							<configuration>
+								<!--; Due to spring-boot repackage, without adding this property test classes are not found
+                                     See https://github.com/spring-projects/spring-boot/issues/6254 -->
+								<classesDirectory>${project.build.outputDirectory}</classesDirectory>
+								<!-- Force alphabetical order to have a reproducible build -->
+								<runOrder>alphabetical</runOrder>
+								<includes>
+									<include>**/*IT*</include>
+									<include>**/*IntTest*</include>
+								</includes>
+								<argLine> -XX:+IgnoreUnrecognizedVMOptions -XX:+AllowRedefinitionToAddDeleteMethods -Dspring.profiles.active=testdev </argLine>
+							</configuration>
+							<executions>
+								<execution>
+									<id>integration-test</id>
+									<goals>
+										<goal>integration-test</goal>
+									</goals>
+								</execution>
+								<execution>
+									<id>verify</id>
+									<goals>
+										<goal>verify</goal>
+									</goals>
+								</execution>
+							</executions>
+						</plugin>
+						<!-- surefire plugin -->
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-surefire-plugin</artifactId>
+							<version>${maven-surefire-plugin.version}</version>
+							<configuration>
+								<skipTests>false</skipTests>
+
+								<includes>
+									<include>**/Test*.java</include>
+									<include>**/*Test.java</include>
+									<include>**/*Tests.java</include>
+									<include>**/*TestCase.java</include>
+								</includes>
+								<excludes>
+									<exclude>**/*IT*</exclude>
+									<exclude>**/*ITCase.java</exclude>
+								</excludes>
+								<!-- Fix tests at java 13+ https://github.com/reactor/BlockHound/issues/33 -->
+								<!-- <argLine>@{argLine} -XX:+IgnoreUnrecognizedVMOptions -XX:+AllowRedefinitionToAddDeleteMethods</argLine> -->
+								<argLine>-XX:+IgnoreUnrecognizedVMOptions -XX:+AllowRedefinitionToAddDeleteMethods</argLine>
+								<!--<argLine>-Dspring.profiles.active=${profile.test}</argLine>-->
+							</configuration>
+						</plugin>
+					</plugins>
+				</pluginManagement>
+			</build>
+			<properties>
+				<!-- default Spring profiles -->
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
+		</profile>
+
+		<!-- Web profile -->
+		<profile>
+			<id>webapp</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<dependencies>
+			</dependencies>
+			<build>
+				<plugins>
+					<!-- Maven antrun plugin -->
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-antrun-plugin</artifactId>
+						<version>${maven-antrun-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>eval-frontend-checksum</id>
+								<phase>generate-resources</phase>
+								<goals>
+									<goal>run</goal>
+								</goals>
+								<configuration>
+									<target>
+										<condition property="skip.npm" value="true" else="false" >
+											<and>
+												<available file="checksums.csv" filepath="${project.build.directory}" />
+												<available file="checksums.csv.old" filepath="${project.build.directory}" />
+												<filesmatch file1="${project.build.directory}/checksums.csv" file2="${project.build.directory}/checksums.csv.old" />
+											</and>
+										</condition>
+									</target>
+									<exportAntProperties>true</exportAntProperties>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<!-- frontend eirslett plugin -->
+					<!--<plugin>
+						<groupId>com.github.eirslett</groupId>
+						<artifactId>frontend-maven-plugin</artifactId>
+						<version>${frontend-maven-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>install node and npm</id>
+								<goals>
+									<goal>install-node-and-npm</goal>
+								</goals>
+								<configuration>
+									&lt;!&ndash; See https://nodejs.org/en/download/ for latest node and npm (lts) versions &ndash;&gt;
+									<nodeVersion>${node.version}</nodeVersion>
+									<npmVersion>${npm.version}</npmVersion>
+								</configuration>
+							</execution>
+							<execution>
+								<id>npm ci</id>
+								<goals>
+									<goal>npm</goal>
+								</goals>
+							</execution>
+							<execution>
+								<id>npm run build</id>
+								<goals>
+									<goal>npm</goal>
+								</goals>
+								<configuration>
+									<arguments>run build</arguments>
+								</configuration>
+							</execution>
+
+						</executions>
+					</plugin>-->
+				</plugins>
+			</build>
+			<properties>
+				<!-- default Spring profiles -->
+				<!--<spring.profiles.active>dev${profile.no-liquibase}</spring.profiles.active>-->
+				<spring.profiles.active>dev</spring.profiles.active>
+			</properties>
 		</profile>
 	</profiles>
 </project>

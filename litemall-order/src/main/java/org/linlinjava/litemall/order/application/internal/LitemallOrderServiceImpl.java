@@ -1,7 +1,10 @@
 package org.linlinjava.litemall.order.application.internal;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import com.google.protobuf.ServiceException;
 import lombok.extern.slf4j.Slf4j;
+import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
@@ -13,10 +16,9 @@ import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsA
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
-import org.linlinjava.litemall.order.domain.model.domainservices.groupon.LitemallGrouponValidationResult;
-import org.linlinjava.litemall.order.domain.model.domainservices.order.LitemallOrderDomainService;
-import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEvent;
-import org.linlinjava.litemall.order.domain.model.events.LitemallDomainEventPublisher;
+import org.linlinjava.litemall.order.domain.service.groupon.LitemallGrouponValidationResult;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderDomainService;
+import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
@@ -53,11 +55,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private final LitemallAddressRepository addressRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
 
+
+    @Autowired
     private final LitemallDomainEventPublisher domainEventPublisher;
-
     // Service internal to orderService
+    @Autowired
     private final LitemallCouponServiceLayer couponService;
-
     @Autowired
     private LitemallOrderDomainService orderDomainService;
     @Autowired
@@ -69,7 +72,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private  NotifyService notifyService;
     @Autowired
     private  TaskService taskService;
-
     @Autowired
     private GoodsServiceFeignClient goodsServiceFeignClient;
     @Autowired
@@ -167,7 +169,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if(cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1){
             LitemallCouponValidationResult couponValidationResult = couponService.validateCouponApplication(cmdUserId, cmdCouponId, cartList);
             if(!couponValidationResult.isValid()){
-                ResponseUtil.badArgumentType(couponValidationResult.getMessage());
+                //ResponseUtil.badArgumentType(couponValidationResult.getMessage());
+                ResponseUtil.badArgument();
             }
 
             LitemallCouponAggregate couponAggregate = couponService.getCouponAggregate(cmdCouponId);
@@ -332,7 +335,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     public void publishDomainEvents(LitemallGrouponAggregate grouponAggregate){
         grouponAggregate.getDomainEvents().forEach(this.domainEventPublisher::publish);
 
-        grouponAggregate.getDomainEvents().forEach(this.domainEventPublisher::publish);
     }
 
     public Optional<LitemallOrderAggregate> getOrderAggregate(LitemallOrderId orderId) {
@@ -528,6 +530,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new RuntimeException("Stock reduction failed for product IDs: " + failedReductions);
         }
 
+    }
+
+    public LitemallGrouponRepository getGrouponRepository() {
+        return this.grouponServiceLayer.getGrouponRepository();
     }
 
 

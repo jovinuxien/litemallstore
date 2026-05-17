@@ -822,6 +822,91 @@ CREATE TABLE `litemall_user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_name` (`username`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+--
+-- Table structure for table `litemall_recommendation`
+--
+DROP TABLE IF EXISTS `litemall_recommendation`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `litemall_recommendation` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `recommendation_type` varchar(50) NOT NULL,
+  `algorithm_version` varchar(20) NOT NULL,
+  `confidence_score` decimal(5,4) DEFAULT '0.0000',
+  `status` varchar(20) DEFAULT 'ACTIVE',
+  `context_page_type` varchar(50) DEFAULT NULL,
+  `context_device_type` varchar(50) DEFAULT NULL,
+  `context_user_segment` varchar(50) DEFAULT NULL,
+  `context_data` json DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `updated_at` datetime NOT NULL,
+  `metadata` json DEFAULT NULL,
+  `deleted` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_type_status` (`recommendation_type`,`status`),
+  KEY `idx_expires_at` (`expires_at`),
+  CONSTRAINT `fk_recommendation_user` FOREIGN KEY (`user_id`) REFERENCES `litemall_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='recommendation table';
+
+--
+-- Table structure for table `litemall_recommendation`
+--
+DROP TABLE IF EXISTS `litemall_recommendation_item`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `litemall_recommendation_item` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `recommendation_id` int(11) NOT NULL,
+  `goods_id` int(11) NOT NULL,
+  `goods_name` varchar(255) NOT NULL,
+  `price` decimal(10,2) DEFAULT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
+  `reason_code` varchar(50) DEFAULT NULL,
+  `reason_description` text,
+  `reason_data` json DEFAULT NULL,
+  `confidence_score` decimal(5,4) DEFAULT '0.0000',
+  `recommended_at` datetime NOT NULL,
+  `clicked_at` datetime DEFAULT NULL,
+  `purchased_at` datetime DEFAULT NULL,
+  `click_count` int(11) DEFAULT '0',
+  `is_expired` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `idx_recommendation_id` (`recommendation_id`),
+  KEY `idx_goods_id` (`goods_id`),
+  CONSTRAINT `fk_recommendation_item` FOREIGN KEY (`recommendation_id`) REFERENCES `litemall_recommendation` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='recommendation items table';
+
+
+--
+-- Table structure for table `litemall_user_behavior`
+--
+
+DROP TABLE IF EXISTS `litemall_user_behavior`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+ CREATE TABLE `litemall_user_behavior` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `goods_id` int(11) DEFAULT NULL,
+  `behavior_type` varchar(50) NOT NULL,
+  `page_type` varchar(50) DEFAULT NULL,
+  `device_type` varchar(50) DEFAULT NULL,
+  `behavior_data` json DEFAULT NULL,
+  `created_at` datetime NOT NULL,
+ PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_goods_id` (`goods_id`),
+  KEY `idx_behavior_type` (`behavior_type`),
+  KEY `idx_created_at` (`created_at`),
+ CONSTRAINT `fk_behavior_user` FOREIGN KEY (`user_id`) REFERENCES `litemall_user` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='user behavior tracking table';
+
+
+
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

@@ -1,0 +1,146 @@
+spring:
+  application:
+    name: gateway-admin
+  profiles:
+    # 'db' loads litemall-db's application-db.yml (Druid datasource + MyBatis)
+    # so the edge can verify admin credentials and persist V16 refresh tokens.
+    active: default,db
+  main:
+    web-application-type: reactive
+  # The 'db' profile (litemall-db/application-db.yml) brings the Druid
+  # datasource + Flyway. Migrations are owned by the DDD services / db module,
+  # so the admin edge must NOT run them.
+  flyway:
+    enabled: false
+  # Phase 4: machine client_credentials registration (authserver). NOT OIDC
+  # login — only used to mint the service token relayed downstream.
+  security:
+    oauth2:
+      client:
+        registration:
+          authserver:
+            client-id: gateway-admin
+            client-secret: gateway-admin-dev-secret
+            authorization-grant-type: client_credentials
+            scope: svc
+        provider:
+          authserver:
+            token-uri: http://localhost:8089/oauth2/token
+  cloud:
+    config:
+      uri: http://configserver:8888
+      #fail-fast: true
+      #uri: http://localhost:8888
+    bootstrap:
+      enabled: true
+    compatibility-verifier:
+      enabled: false
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: "http://localhost:9000" #Allow the origin of your request
+            allowedMethods: "*"
+            allowCredentials: true
+      routes:
+        - id: admin-api
+          uri: lb://litemall-admin-api
+          predicates:
+            - Path=/admin/**
+
+
+#        - id: wx-api
+#          uri: lb://litemall-wx-api
+#          predicates:
+#            - Path=/wx/**
+
+
+        - id: goods-service-app
+          uri: lb://goods-service-app
+          predicates:
+            - Path=/srv/**
+
+
+        - id: order-service-app
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/**
+
+      # Phase 3b: Keycloak/OIDC removed. The TokenRelay default-filters, the
+      # /oauth/** token-service route and the spring.security.oauth2.* tree
+      # are gone. Per-route service machine-token relay is added in Phase 4.
+
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/litemall
+#    username: root
+#    password: Calliste_1006
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+
+
+
+# Admin JWT realm. Distinct issuer/audience from litemall-gateway-api so an
+# admin token can never be accepted as a customer token (and vice versa).
+# In dev, leave the PEM keys blank -> an ephemeral RSA pair is generated
+# (logged as a warning). Supply litemall.jwt.private-key-pem /
+# litemall.jwt.public-key-pem (or via litemall-config) for real use.
+litemall:
+  jwt:
+    issuer: litemall-admin
+    audience: litemall-admin-api
+    access-ttl-seconds: 7200
+    private-key-pem: ""
+    public-key-pem: ""
+
+server:
+  port: 8080
+
+eureka:
+  instance:
+    preferIpAddress: true
+    #hostname: localhost
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.reactive: DEBUG
+    org.springframework.web.security: DEBUG
+
+
+jhipster:
+  clientApp:
+    name: 'gateway-admin'
+  # By default CORS is disabled. Uncomment to enable.
+  # cors:
+  #   allowed-origins: "http://localhost:8100,http://localhost:9000"
+  #   allowed-methods: "*"
+  #   allowed-headers: "*"
+  #   exposed-headers: "Authorization,Link,X-Total-Count,X-${jhipster.clientApp.name}-alert,X-${jhipster.clientApp.name}-error,X-${jhipster.clientApp.name}-params"
+  #   allow-credentials: true
+  #   max-age: 1800
+  mail:
+    from: gateway@localhost
+  api-docs:
+    default-include-pattern: /srv/**
+    management-include-pattern: /management/**
+    title: Gateway API
+    description: Gateway API documentation
+    version: 0.0.1
+    terms-of-service-url:
+    contact-name:
+    contact-url:
+    contact-email:
+    license: unlicensed
+    license-url:
+  security:
+    content-security-policy: "default-src 'self'; frame-src 'self' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
+    oauth2:
+      audience:
+        - account
+        - api://default

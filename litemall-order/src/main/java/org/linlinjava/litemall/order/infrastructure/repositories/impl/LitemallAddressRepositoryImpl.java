@@ -1,8 +1,7 @@
 package org.linlinjava.litemall.order.infrastructure.repositories.impl;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
-import org.linlinjava.litemall.db.dao.LitemallAddressMapper;
-import org.linlinjava.litemall.db.domain.LitemallAddress;
-import org.linlinjava.litemall.db.domain.LitemallAddressExample;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallAddressRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;

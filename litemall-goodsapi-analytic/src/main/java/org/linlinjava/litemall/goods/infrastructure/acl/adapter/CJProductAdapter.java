@@ -2,7 +2,6 @@ package org.linlinjava.litemall.goods.infrastructure.acl.adapter;
 
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.model.UnifiedProduct;
-import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;

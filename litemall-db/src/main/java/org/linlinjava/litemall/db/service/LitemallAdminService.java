@@ -1,20 +1,19 @@
 package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallAdminMapper;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
-import org.linlinjava.litemall.db.domain.LitemallAdmin.Column;
 import org.linlinjava.litemall.db.domain.LitemallAdminExample;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class LitemallAdminService {
-    private final Column[] result = new Column[]{Column.id, Column.username, Column.avatar, Column.roleIds};
+    private final LitemallAdmin.Column[] result = new LitemallAdmin.Column[]{LitemallAdmin.Column.id, LitemallAdmin.Column.username, LitemallAdmin.Column.avatar, LitemallAdmin.Column.roleIds};
     @Resource
     private LitemallAdminMapper adminMapper;
 

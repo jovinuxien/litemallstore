@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.commands;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Getter;
 
@@ -50,5 +52,11 @@ public class LitemallOrderSubmitResult {
         return new LitemallOrderSubmitResult(null, null, false, null,
                 null, null, LitemallOrderSubmitResultStatus.FAILED);
     }
+
+    public static LitemallOrderSubmitResult isPayed() {
+        return new LitemallOrderSubmitResult(null, null, false, null,
+                null, null, LitemallOrderSubmitResultStatus.SUCCESS);
+    }
+
 
 }

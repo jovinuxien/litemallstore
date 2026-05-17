@@ -1,0 +1,77 @@
+spring:
+  logging:
+    level:
+      de.cxp.ocs: DEBUG
+
+
+ocs:
+  index-config:
+    litemall_index:  # This should match your JSON's finalIndexName
+      field-configuration:
+        fields:
+
+          id:
+            name: product_id
+            type: id
+            usage:
+              - Result
+
+          title:
+            name: title
+            type: string
+            usage:
+              - Search
+              - Result
+              - Sort
+          price:
+            name: price
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Facet
+
+          discount_price:
+            name: discount_price
+            type: number
+            usage:
+              - Result
+              - Sort
+
+          description:
+            name: description
+            type: string
+            usage:
+              - Search
+              - Result
+
+          image_url:
+            name: image_url
+            type: string
+            usage:
+              - Result
+
+          brand:
+            name: brand
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+
+          category_names:
+            name: category_names
+            type: string
+            usage:
+              - Search
+              - Result
+              - Facet
+
+          category_ids:
+            name: category_ids
+            type: string
+            usage:
+              - Facet
+
+

@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.goods.domain.model.repositories;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallBrandAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
 
 import java.util.List;
 

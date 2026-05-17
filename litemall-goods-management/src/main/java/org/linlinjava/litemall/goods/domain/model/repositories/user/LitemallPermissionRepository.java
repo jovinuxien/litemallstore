@@ -1,8 +1,7 @@
 package org.linlinjava.litemall.goods.domain.model.repositories.user;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallPermissionAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallPermissionId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallRoleId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallRoleId;
 
 import java.util.List;
 import java.util.Set;

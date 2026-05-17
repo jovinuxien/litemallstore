@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 //import org.mybatis.spring.annotation.MapperScan;
 import org.apache.commons.lang.StringUtils;
@@ -6,13 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.core.env.Environment;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
@@ -21,7 +22,6 @@ import java.util.Optional;
 
 @SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.db", "org.linlinjava.litemall.core"})
 //@MapperScan("org.linlinjava.litemall.db.dao")
-@EnableEurekaClient
 @EnableFeignClients
 //@EnableCircuitBreaker
 public class LitemallOrderServiceApplication {
