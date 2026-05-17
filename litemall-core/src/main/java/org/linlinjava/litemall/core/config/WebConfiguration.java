@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.core.config;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.web.server.WebServerFactory;
@@ -16,8 +18,6 @@ import org.springframework.web.filter.CorsFilter;
 import tech.jhipster.config.JHipsterProperties;
 
 
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
@@ -39,14 +39,6 @@ public class WebConfiguration implements ServletContextInitializer, WebServerFac
         this.jHipsterProperties = jHipsterProperties;
     }
 
-
-    @Override
-    public void onStartup(ServletContext servletContext) throws ServletException {
-        if (env.getActiveProfiles().length != 0) {
-            log.info("Web application configuration, using profiles: {}", (Object[]) env.getActiveProfiles());
-        }
-        log.info("Web application fully configured");
-    }
 
 
     @Override
@@ -97,5 +89,11 @@ public class WebConfiguration implements ServletContextInitializer, WebServerFac
     }
 
 
-
+    @Override
+    public void onStartup(ServletContext servletContext) throws ServletException {
+        if (env.getActiveProfiles().length != 0) {
+            log.info("Web application configuration, using profiles: {}", (Object[]) env.getActiveProfiles());
+        }
+        log.info("Web application fully configured");
+    }
 }

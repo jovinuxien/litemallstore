@@ -15,10 +15,10 @@ import java.io.IOException;
 
 @Configuration
 @MapperScan("org.linlinjava.litemall.db.dao")
-public class MyBatisConfig {
+public class MyBatisConfig{
 
 
-   @Bean
+  @Bean
     public SqlSessionFactoryBean sqlSessionFactoryBean(DataSource dataSource) throws IOException {
         SqlSessionFactoryBean factoryBean = new SqlSessionFactoryBean();
         factoryBean.setDataSource(dataSource);

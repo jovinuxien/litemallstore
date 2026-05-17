@@ -1,18 +1,14 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 
-import org.linlinjava.litemall.core.util.ResponseUtil;
+import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
-import org.linlinjava.litemall.db.domain.LitemallUser;
 import org.linlinjava.litemall.goods.application.LitemallUserManagementService;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallUserId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
-import javax.validation.constraints.NotNull;
-import java.util.List;
 
 @RestController
 @RequestMapping("/srv/account")

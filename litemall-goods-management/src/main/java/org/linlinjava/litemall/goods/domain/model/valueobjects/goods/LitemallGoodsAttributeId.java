@@ -1,7 +1,6 @@
-package org.linlinjava.litemall.goods.domain.model.valueobjects;
+package org.linlinjava.litemall.goods.domain.model.valueobjects.goods;
 
 import lombok.Getter;
-import org.springframework.web.bind.annotation.GetMapping;
 
 @Getter
 public class LitemallGoodsAttributeId {

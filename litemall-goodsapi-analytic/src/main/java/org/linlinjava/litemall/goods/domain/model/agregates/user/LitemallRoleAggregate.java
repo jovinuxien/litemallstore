@@ -2,7 +2,6 @@ package org.linlinjava.litemall.goods.domain.model.agregates.user;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.linlinjava.litemall.db.domain.LitemallRole;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallRoleId;
 
 import java.time.LocalDateTime;

@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.interfaces.dtos.groupon;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;

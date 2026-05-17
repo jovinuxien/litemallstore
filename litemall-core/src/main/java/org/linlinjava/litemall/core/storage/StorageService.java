@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.core.storage;
 
 import org.linlinjava.litemall.core.util.CharUtil;
+//import org.linlinjava.litemall.db.domain.LitemallStorage;
+//import org.linlinjava.litemall.db.service.LitemallStorageService;
 import org.linlinjava.litemall.db.domain.LitemallStorage;
 import org.linlinjava.litemall.db.service.LitemallStorageService;
 import org.springframework.beans.factory.annotation.Autowired;

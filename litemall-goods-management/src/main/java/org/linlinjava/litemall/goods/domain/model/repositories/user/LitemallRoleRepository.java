@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.goods.domain.model.repositories.user;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallRoleAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallRoleId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallRoleId;
 
 public interface LitemallRoleRepository {
 

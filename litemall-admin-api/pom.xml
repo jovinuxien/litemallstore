@@ -20,10 +20,10 @@
             <artifactId>litemall-core</artifactId>
         </dependency>
 
-        <dependency>
+       <!-- <dependency>
             <groupId>org.linlinjava</groupId>
             <artifactId>litemall-db</artifactId>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>com.github.binarywang</groupId>
             <artifactId>weixin-java-miniapp</artifactId>

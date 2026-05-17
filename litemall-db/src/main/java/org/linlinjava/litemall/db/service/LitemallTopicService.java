@@ -1,14 +1,13 @@
 package org.linlinjava.litemall.db.service;
 
 import com.github.pagehelper.PageHelper;
-import javax.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallTopicMapper;
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.db.domain.LitemallTopic;
-import org.linlinjava.litemall.db.domain.LitemallTopic.Column;
 import org.linlinjava.litemall.db.domain.LitemallTopicExample;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import jakarta.annotation.Resource;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,7 +16,7 @@ import java.util.List;
 public class LitemallTopicService {
     @Resource
     private LitemallTopicMapper topicMapper;
-    private Column[] columns = new Column[]{Column.id, Column.title, Column.subtitle, Column.price, Column.picUrl, Column.readCount};
+    private LitemallTopic.Column[] columns = new LitemallTopic.Column[]{LitemallTopic.Column.id, LitemallTopic.Column.title, LitemallTopic.Column.subtitle, LitemallTopic.Column.price, LitemallTopic.Column.picUrl, LitemallTopic.Column.readCount};
 
     public List<LitemallTopic> queryList(int offset, int limit) {
         return queryList(offset, limit, "add_time", "desc");

@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.domain.model.valueobjects;
+package org.linlinjava.litemall.goods.domain.model.valueobjects.goods;
 
 import lombok.Getter;
 

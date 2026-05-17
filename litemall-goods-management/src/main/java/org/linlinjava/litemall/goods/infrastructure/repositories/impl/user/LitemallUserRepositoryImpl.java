@@ -6,7 +6,7 @@ import org.linlinjava.litemall.db.domain.LitemallUser;
 import org.linlinjava.litemall.db.domain.LitemallUserExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallUserRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.user.LitemallUserId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -20,7 +20,7 @@ public class LitemallUserRepositoryImpl implements LitemallUserRepository {
 
 
     @Autowired
-    private  LitemallUserMapper userMapper;
+    private LitemallUserMapper userMapper;
 
 
 

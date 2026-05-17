@@ -1,13 +1,7 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
-import org.linlinjava.litemall.db.dao.LitemallGoodsSpecificationMapper;
-import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
-import org.linlinjava.litemall.db.domain.LitemallGoodsSpecification;
-import org.linlinjava.litemall.db.domain.LitemallGoodsSpecificationExample;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsSpecificationAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsSpecificationRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsAttributeId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsSpecificationId;
 import org.springframework.stereotype.Repository;

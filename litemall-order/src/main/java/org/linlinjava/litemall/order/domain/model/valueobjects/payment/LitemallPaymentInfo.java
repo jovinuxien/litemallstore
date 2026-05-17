@@ -1,29 +1,34 @@
 package org.linlinjava.litemall.order.domain.model.valueobjects.payment;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 
 import com.stripe.model.PaymentMethod;
 import lombok.Data;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Data
 public class LitemallPaymentInfo {
 
-    private final LitemallPaymentAmount paymentMethod;
+    private final PaymentMethod paymentMethod;
     private final String paymentGateway;
     private final LitemallPaymentAmount amount;
-    private final PaymentCard cardInfo;
-    private final DigitalWallet digitalWallet;
+    private final LitemallPaymentCard cardInfo;
+    private final LitemallDigitalWallet digitalWallet;
     private final String paymentIntentId;
     private final String customerId;
     private final Map<String, String> metadata;
-    private final BillingAddress billingAddress;
+    private final LitemallBillingAddress billingAddress;
     private final String returnUrl;
     private final String callbackUrl;
 
-    private PaymentInfo(PaymentMethod paymentMethod, String paymentGateway,
-                        PaymentAmount amount, PaymentCard cardInfo,
-                        DigitalWallet digitalWallet, String paymentIntentId,
+    private LitemallPaymentInfo(PaymentMethod paymentMethod, String paymentGateway,
+                        LitemallPaymentAmount amount, LitemallPaymentCard cardInfo,
+                        LitemallDigitalWallet digitalWallet, String paymentIntentId,
                         String customerId, Map<String, String> metadata,
-                        BillingAddress billingAddress, String returnUrl,
+                        LitemallBillingAddress billingAddress, String returnUrl,
                         String callbackUrl) {
         this.paymentMethod = paymentMethod;
         this.paymentGateway = paymentGateway;
@@ -41,13 +46,13 @@ public class LitemallPaymentInfo {
     public static class Builder {
         private PaymentMethod paymentMethod;
         private String paymentGateway;
-        private PaymentAmount amount;
-        private PaymentCard cardInfo;
-        private DigitalWallet digitalWallet;
+        private LitemallPaymentAmount amount;
+        private LitemallPaymentCard cardInfo;
+        private LitemallDigitalWallet digitalWallet;
         private String paymentIntentId;
         private String customerId;
         private Map<String, String> metadata = new HashMap<>();
-        private BillingAddress billingAddress;
+        private LitemallBillingAddress billingAddress;
         private String returnUrl;
         private String callbackUrl;
 
@@ -61,17 +66,17 @@ public class LitemallPaymentInfo {
             return this;
         }
 
-        public Builder amount(PaymentAmount amount) {
+        public Builder amount(LitemallPaymentAmount amount) {
             this.amount = amount;
             return this;
         }
 
-        public Builder cardInfo(PaymentCard cardInfo) {
+        public Builder cardInfo(LitemallPaymentCard cardInfo) {
             this.cardInfo = cardInfo;
             return this;
         }
 
-        public Builder digitalWallet(DigitalWallet digitalWallet) {
+        public Builder digitalWallet(LitemallDigitalWallet digitalWallet) {
             this.digitalWallet = digitalWallet;
             return this;
         }
@@ -96,7 +101,7 @@ public class LitemallPaymentInfo {
             return this;
         }
 
-        public Builder billingAddress(BillingAddress billingAddress) {
+        public Builder billingAddress(LitemallBillingAddress billingAddress) {
             this.billingAddress = billingAddress;
             return this;
         }
@@ -111,7 +116,7 @@ public class LitemallPaymentInfo {
             return this;
         }
 
-        public PaymentInfo build() {
+        public LitemallPaymentInfo build() {
             // Validation
             if (paymentMethod == null) {
                 throw new IllegalArgumentException("Payment method is required");
@@ -123,7 +128,7 @@ public class LitemallPaymentInfo {
                 throw new IllegalArgumentException("Payment amount is required");
             }
 
-            return new PaymentInfo(paymentMethod, paymentGateway, amount, cardInfo,
+            return new LitemallPaymentInfo(paymentMethod, paymentGateway, amount, cardInfo,
                     digitalWallet, paymentIntentId, customerId, metadata,
                     billingAddress, returnUrl, callbackUrl);
         }

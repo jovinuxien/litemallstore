@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;

@@ -1,4 +1,6 @@
-package org.linlinjava.litemall.order.domain.model.events.groupon;
+package org.linlinjava.litemall.order.domain.events.groupon;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;
@@ -15,7 +17,7 @@ public class LitemallGrouponParticipatedEvent extends LitemallDomainEvent {
 
     public LitemallGrouponParticipatedEvent(LitemallGrouponId grouponId, LitemallOrderId orderId,
                                             Integer participantUserId, LocalDateTime participationTime) {
-        super("GROUPON_PARTICIPATED");
+        //super("GROUPON_PARTICIPATED");
         this.grouponId = grouponId;
         this.orderId = orderId;
         this.participantUserId = participantUserId;

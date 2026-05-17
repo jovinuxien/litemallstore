@@ -1,16 +1,18 @@
 package org.linlinjava.litemall.goods.domain.model.repositories;
 
 
+import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
 
 import java.util.List;
 
 public interface LitemallGoodsRepository {
 
-    public void addGoods(LitemallGoodsAggregate goodsAggregate);
+    public void insertGoods(LitemallGoodsAggregate goodsAggregate);
     public int count();
     public int updateById(LitemallGoodsAggregate goodsAggregate);
     public void deleteById(LitemallGoodsId goodsId);
@@ -32,7 +34,7 @@ public interface LitemallGoodsRepository {
 
     public List<LitemallGoodsAggregate> queryByCategory(LitemallCategoryId categoryId, int offset, int limit);
 
-    public List<Integer> getCategoryIds(Integer brandId, String keywords, Boolean isHot, Boolean isNew);
+    public List<Integer> getCatsId(Integer brandId, String keywords, Boolean isHot, Boolean isNew);
 
     public boolean checkExistByName(String name);
 

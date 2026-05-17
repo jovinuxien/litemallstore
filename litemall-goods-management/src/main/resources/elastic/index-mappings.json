@@ -1,0 +1,262 @@
+{
+  "properties": {
+    "category": {
+      "properties": {
+        "all_parents": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "direct_parents": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "paths": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      }
+    },
+    "category_scores": {
+      "properties": {
+        "number_of_impressions": {
+          "type": "long"
+        },
+        "number_of_orders": {
+          "type": "long"
+        }
+      }
+    },
+    "completion_terms": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "number_sort": {
+      "properties": {
+        "final_gross_price": {
+          "type": "long"
+        }
+      }
+    },
+    "scores": {
+      "properties": {
+        "data_quality": {
+          "type": "float"
+        },
+        "delivery_speed": {
+          "type": "float"
+        },
+        "pdp_impressions": {
+          "type": "float"
+        },
+        "random": {
+          "type": "float"
+        },
+        "sale_impressions_rate": {
+          "type": "float"
+        },
+        "stock": {
+          "type": "long"
+        },
+        "top_seller": {
+          "type": "float"
+        }
+      }
+    },
+    "search_data": {
+      "properties": {
+        "full_text": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "full_text_boosted": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "number_facet": {
+          "properties": {
+            "facet-name": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "facet-value": {
+              "type": "long"
+            }
+          }
+        },
+        "string_facet": {
+          "properties": {
+            "facet-name": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "facet-value": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "search_result_data": {
+      "properties": {
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "counter_price": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "retail_price": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "number_of_products": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "pic_url": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "goods_sn": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "url": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "is_on_sale": {
+          "type": "boolean"
+        },
+        "remaining_in_stock": {
+          "type": "integer"
+        },
+        "brand": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "category": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "last_updated": {
+          "type": "date"
+        }
+      }
+    },
+    "string_sort": {
+      "properties": {
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      }
+    },
+    "suggestion_terms": {
+      "type": "text",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    }
+  }
+}

@@ -1,8 +1,6 @@
 package org.linlinjava.litemall.order.domain.dao;
 
 import org.junit.jupiter.api.Test;
-import org.linlinjava.litemall.db.dao.LitemallOrderMapper;
-import org.linlinjava.litemall.db.domain.LitemallOrder;
 import org.linlinjava.litemall.order.AbstractMyBatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 

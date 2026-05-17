@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
-import org.linlinjava.litemall.db.domain.LitemallGroupon;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallGrouponRulesId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.groupon.LitemallGrouponId;

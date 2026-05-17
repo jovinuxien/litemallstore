@@ -1,6 +1,4 @@
-package org.linlinjava.litemall.goods.application.util.exception.goods;
-
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsProductId;
+package org.linlinjava.litemall.goods.application.util.exceptions.goods;
 
 public class LitemallInsufficientStockException extends RuntimeException{
 

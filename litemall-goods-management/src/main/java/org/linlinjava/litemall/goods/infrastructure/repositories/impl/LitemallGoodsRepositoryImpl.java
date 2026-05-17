@@ -1,29 +1,31 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import com.github.pagehelper.PageHelper;
+import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
-import org.linlinjava.litemall.db.domain.LitemallGoods;
-import org.linlinjava.litemall.db.domain.LitemallGoodsExample;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.domain.model.repositories.*;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Repository
 public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
-    LitemallGoods.Column[] columns = new LitemallGoods.Column[]{LitemallGoods.Column.id, LitemallGoods.Column.name, LitemallGoods.Column.brief, LitemallGoods.Column.picUrl, LitemallGoods.Column.isHot, LitemallGoods.Column.isNew, LitemallGoods.Column.counterPrice, LitemallGoods.Column.retailPrice};
+    LitemallGoods.Column[] columns = new LitemallGoods.Column[]{LitemallGoods.Column.id, LitemallGoods.Column.goodsSn,  LitemallGoods.Column.name, LitemallGoods.Column.categoryId, LitemallGoods.Column.brandId, LitemallGoods.Column.gallery, LitemallGoods.Column.keywords, LitemallGoods.Column.brief, LitemallGoods.Column.isOnSale, LitemallGoods.Column.sortOrder, LitemallGoods.Column.picUrl, LitemallGoods.Column.shareUrl, LitemallGoods.Column.isHot, LitemallGoods.Column.isNew, LitemallGoods.Column.counterPrice, LitemallGoods.Column.retailPrice, LitemallGoods.Column.addTime, LitemallGoods.Column.updateTime, LitemallGoods.Column.deleted, LitemallGoods.Column.detail};
+    //LitemallGoods.Column[] columns = new LitemallGoods.Column[]{LitemallGoods.Column.id, LitemallGoods.Column.name, LitemallGoods.Column.brief, LitemallGoods.Column.picUrl, LitemallGoods.Column.isHot, LitemallGoods.Column.isNew, LitemallGoods.Column.counterPrice, LitemallGoods.Column.retailPrice};
+    @Resource
     private final LitemallGoodsMapper goodsMapper;
+
 
     public LitemallGoodsRepositoryImpl(LitemallGoodsMapper goodsMapper){
         this.goodsMapper = goodsMapper;
@@ -31,23 +33,25 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
 
     @Override
-    public void addGoods(LitemallGoodsAggregate goodsAggregate) {
-
+    public void insertGoods(LitemallGoodsAggregate goodsAggregate) {
+        goodsMapper.insertSelective(convertToDataModel(goodsAggregate));
     }
 
     @Override
     public int count() {
-        return 0;
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andDeletedEqualTo(false);
+        return (int) goodsMapper.countByExample(example);
     }
 
     @Override
     public int updateById(LitemallGoodsAggregate goodsAggregate) {
-        return 0;
+        return goodsMapper.updateByPrimaryKeySelective(convertToDataModel(goodsAggregate));
     }
 
     @Override
     public void deleteById(LitemallGoodsId goodsId) {
-
+        goodsMapper.logicalDeleteByPrimaryKey(goodsId.getId());
     }
 
     @Override
@@ -59,7 +63,9 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
     @Override
     public int queryOnSale() {
-        return 0;
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        return (int) goodsMapper.countByExample(example);
     }
 
     @Override
@@ -116,7 +122,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
     }
 
     @Override
-    public List<Integer> getCategoryIds(Integer brandId, String keywords, Boolean isHot, Boolean isNew) {
+    public List<Integer> getCatsId(Integer brandId, String keywords, Boolean isHot, Boolean isNew) {
         LitemallGoodsExample example = new LitemallGoodsExample();
         LitemallGoodsExample.Criteria criteria1 = example.or();
         LitemallGoodsExample.Criteria criteria2 = example.or();
@@ -150,10 +156,25 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         return cats;
     }
 
+    /**
+     * SQL like version
+     * SELECT COUNT(*) FROM litemall_goods WHERE name = ? AND is_on_sale = true AND deleted = false and returning an integer representing the number of rows found in the database
+     * the !=0 is the boolean comparison that checks if the count returned is not zero
+     * The entire expression returns a boolean value (true or false)
+     *
+     * @param name
+     * @return
+     */
+    private boolean checkExistByGoodsName(String name) {
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andNameEqualTo(name).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        return goodsMapper.countByExample(example) !=0;
+    }
+
 
     @Override
     public boolean checkExistByName(String name) {
-        return false;
+        return checkExistByGoodsName(name);
     }
 
     @Override
@@ -196,6 +217,16 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
     public List<LitemallGoodsAggregate> querySelectiveManufacturer() {
         return List.of();
     }
+
+  /*  @Override
+    public List<LitemallGoodsAggregate> querySelectiveManufacturer(Integer manufacturerId, int offset, int limit) {
+        LitemallGoodsExample example = new LitemallGoodsExample();
+        example.or().andBrandIdEqualTo(manufacturerId).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
+        example.setOrderByClause("add_time desc");
+        PageHelper.startPage(offset, limit);
+        return goodsMapper.selectByExampleSelective(example, columns).stream().map(this::convertToDomainModel).toList();
+        //return List.of();
+    }*/
 
     @Override
     public List<LitemallGoodsAggregate> queryByManufacturer(LitemallManufacturerId manufacturerId, int offset, int limit) {
@@ -244,11 +275,8 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         }
 
         PageHelper.startPage(offset, limit);
-
-
         return goodsMapper.selectByExample(example).stream().map(this::convertToDomainModel).collect(Collectors.toList());
     }
-
 
 
 
@@ -273,12 +301,13 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         dataModel.setGallery(goodsAggregate.getGallery());
         dataModel.setKeywords(goodsAggregate.getKeyword());
         dataModel.setBrief(goodsAggregate.getBrief());
-        dataModel.setDetail(goodsAggregate.getDetail());
 
         dataModel.setIsOnSale(goodsAggregate.isOnSale());
         dataModel.setSortOrder(goodsAggregate.getSortOrder());
         dataModel.setPicUrl(goodsAggregate.getPicUrl());
         dataModel.setShareUrl(goodsAggregate.getShareUrl());
+
+
         dataModel.setIsHot(goodsAggregate.isHot());
         dataModel.setIsNew(goodsAggregate.isNew());
 
@@ -288,6 +317,8 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         dataModel.setAddTime(goodsAggregate.getAddTime());
         dataModel.setUpdateTime(goodsAggregate.getUpdateTime());
         dataModel.setDeleted(goodsAggregate.isDeleted());
+        dataModel.setDetail(goodsAggregate.getDetail());
+
 
         return dataModel;
     }
@@ -307,10 +338,13 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         if (record.getCategoryId() != null && record.getCategoryId() > 0) {
             categoryId = new LitemallCategoryId(record.getCategoryId());
         }
+        manufacturerId = new LitemallManufacturerId(record.getBrandId());
 
-        if(record.getBrandId() != null && record.getBrandId() > 0){
+      /*  if(record.getBrandId() != null && record.getBrandId() > 0){
             manufacturerId = new LitemallManufacturerId(record.getBrandId());
-        }
+        }*/
+
+
 
         // Handle null 'deleted' field (default to false if null)
         boolean isDeleted = record.getDeleted() != null && record.getDeleted().booleanValue();
@@ -324,16 +358,20 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
         // Relationship mappings
         domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
-        domainModel.setCategoryId(categoryId);
-        domainModel.setManufacturerId(manufacturerId);
-
         domainModel.setGoodsSn(record.getGoodsSn());
         domainModel.setGoodsName(record.getName());
+        domainModel.setCategoryId(categoryId);
+        domainModel.setManufacturerId(manufacturerId);
+        //domainModel.setManufacturerId(record.getBrandId());
 
         domainModel.setGallery(record.getGallery());
-        domainModel.setKeyword(record.getBrief());
+        domainModel.setKeyword(record.getKeywords());
         domainModel.setBrief(record.getBrief());
-        domainModel.setDetail(record.getDetail());
+        domainModel.setOnSale(record.getIsOnSale());
+        domainModel.setSortOrder(record.getSortOrder());
+
+        domainModel.setPicUrl(record.getPicUrl());
+        domainModel.setShareUrl(record.getShareUrl());
 
         domainModel.setHot(record.getIsHot());
         domainModel.setNew(record.getIsNew());
@@ -346,6 +384,8 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         domainModel.setAddTime(record.getAddTime());
         domainModel.setUpdateTime(record.getUpdateTime());
         domainModel.setDeleted(isDeleted);
+        domainModel.setDetail(record.getDetail());
+
 
         return  domainModel;
     }

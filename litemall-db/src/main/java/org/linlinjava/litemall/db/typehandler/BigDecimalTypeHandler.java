@@ -11,7 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 @MappedTypes(BigDecimal.class)
-public class BigDecimalTypeHandler extends BaseTypeHandler<BigDecimal> {
+public class BigDecimalTypeHandler<M> extends BaseTypeHandler<BigDecimal> {
 
 
     @Override

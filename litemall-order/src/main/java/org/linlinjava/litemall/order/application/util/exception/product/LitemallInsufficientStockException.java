@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.application.util.exception.product;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 public class LitemallInsufficientStockException extends RuntimeException{
 

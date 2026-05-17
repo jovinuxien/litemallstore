@@ -1,8 +1,5 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl.user;
 
-import org.linlinjava.litemall.db.dao.LitemallAdminMapper;
-import org.linlinjava.litemall.db.domain.LitemallAdmin;
-import org.linlinjava.litemall.db.domain.LitemallAdminExample;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallAdminAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallAdminRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallAdminId;

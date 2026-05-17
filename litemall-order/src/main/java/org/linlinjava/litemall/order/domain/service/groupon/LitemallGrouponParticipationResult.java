@@ -1,4 +1,6 @@
-package org.linlinjava.litemall.order.domain.model.domainservices.groupon;
+package org.linlinjava.litemall.order.domain.service.groupon;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 public class LitemallGrouponParticipationResult {
 

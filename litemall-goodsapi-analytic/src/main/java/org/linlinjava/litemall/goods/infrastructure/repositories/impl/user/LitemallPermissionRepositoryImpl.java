@@ -1,13 +1,7 @@
 package org.linlinjava.litemall.goods.infrastructure.repositories.impl.user;
 
-import org.linlinjava.litemall.db.dao.LitemallPermissionMapper;
-import org.linlinjava.litemall.db.domain.LitemallBrand;
-import org.linlinjava.litemall.db.domain.LitemallPermission;
-import org.linlinjava.litemall.db.domain.LitemallPermissionExample;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallBrandAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallPermissionAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.user.LitemallPermissionRepository;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.manufacturer.LitemallManufacturerId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallPermissionId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.user.LitemallRoleId;
 import org.springframework.stereotype.Repository;
@@ -18,7 +12,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 
 @Repository

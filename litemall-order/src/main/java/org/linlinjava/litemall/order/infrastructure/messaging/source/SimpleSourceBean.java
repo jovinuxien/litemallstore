@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.infrastructure.messaging.source;
+import org.linlinjava.litemall.db.dao.*;
+import org.linlinjava.litemall.db.domain.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

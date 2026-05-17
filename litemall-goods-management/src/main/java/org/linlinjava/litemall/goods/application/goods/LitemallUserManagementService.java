@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.application;
+package org.linlinjava.litemall.goods.application.goods;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallAdminAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.user.LitemallUserAggregate;

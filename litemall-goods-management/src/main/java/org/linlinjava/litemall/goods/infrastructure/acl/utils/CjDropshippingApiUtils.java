@@ -2,14 +2,12 @@ package org.linlinjava.litemall.goods.infrastructure.acl.utils;
 
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallGoodsId;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.goods.domain.model.valueobjects.category.LitemallCategoryId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
-import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
