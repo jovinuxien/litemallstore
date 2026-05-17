@@ -22,21 +22,8 @@ spring:
 #      kafka:
 #        binder:
 #        brokers: localhost:9092
-  security:
-    oauth2:
-      client:
-        provider:
-          oidc:
-            issuer-uri: http://localhost:9080/realms/jhipster
-        registration:
-          oidc:
-            client-id: internal
-            client-secret: internal
-            scope: openid, profile, email, offline_access # last one for refresh tokens
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:9080/realms/jhipster/protocol/openid-connect/certs
-          #issuer-uri: http://localhost:9080/auth/realms/baeldung-keycloak
+  # Keycloak OIDC/resource-server removed (Phase 4) — machine-JWT validation
+  # is provided by litemall-svcsecurity (see top-level litemall.svcsecurity).
   profiles:
     active: dev, db, core, elastic, admin, wx
   messages:
@@ -71,6 +58,12 @@ spring:
     username: guest
     password: guest
 
+
+litemall:
+  svcsecurity:
+    # Phase 4: validate the machine JWT against litemall-authserver JWKS
+    # (replaces Keycloak). Dev default; config-server overrides for non-dev.
+    jwk-set-uri: http://localhost:8089/oauth2/jwks
 
 server:
   port: 8082
