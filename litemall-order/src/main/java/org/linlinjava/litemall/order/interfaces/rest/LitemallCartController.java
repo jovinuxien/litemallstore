@@ -1,0 +1,85 @@
+package org.linlinjava.litemall.order.interfaces.rest;
+
+import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.order.interfaces.dtos.cart.AddCartItemRequest;
+import org.linlinjava.litemall.order.interfaces.dtos.cart.UpdateCartItemRequest;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/srv/cart")
+public class LitemallCartController {
+
+    private final LitemallOrderOrchestratorService orchestrator;
+
+    public LitemallCartController(LitemallOrderOrchestratorService orchestrator) {
+        this.orchestrator = orchestrator;
+    }
+
+    @GetMapping("/items")
+    public List<LitemallCartAggregate> list(@RequestParam Integer userId) {
+        return orchestrator.listCartItems(new LitemallUserId(userId));
+    }
+
+    @GetMapping("/items/{cartItemId}")
+    public LitemallCartAggregate get(@PathVariable Integer cartItemId,
+                                     @RequestParam Integer userId) {
+        return orchestrator.getCartItem(new LitemallCartId(cartItemId), new LitemallUserId(userId));
+    }
+
+    @PostMapping("/items")
+    public ResponseEntity<LitemallCartAggregate> add(@RequestBody AddCartItemRequest req) {
+        LitemallCartAggregate cart = toAggregate(req);
+        LitemallCartAggregate saved = orchestrator.addCartItem(cart);
+        return ResponseEntity.status(201).body(saved);
+    }
+
+    @PutMapping("/items/{cartItemId}")
+    public LitemallCartAggregate update(@PathVariable Integer cartItemId,
+                                        @RequestParam Integer userId,
+                                        @RequestBody UpdateCartItemRequest req) {
+        return orchestrator.updateCartItem(
+                new LitemallCartId(cartItemId),
+                new LitemallUserId(userId),
+                req.getNumber(),
+                req.getSpecifications());
+    }
+
+    @DeleteMapping("/items/{cartItemId}")
+    public ResponseEntity<Void> remove(@PathVariable Integer cartItemId,
+                                       @RequestParam Integer userId) {
+        orchestrator.removeCartItem(new LitemallCartId(cartItemId), new LitemallUserId(userId));
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/items")
+    public ResponseEntity<Void> clear(@RequestParam Integer userId) {
+        orchestrator.clearCart(new LitemallUserId(userId));
+        return ResponseEntity.noContent().build();
+    }
+
+    private static LitemallCartAggregate toAggregate(AddCartItemRequest req) {
+        LitemallCartAggregate cart = new LitemallCartAggregate();
+        cart.setUserId(new LitemallUserId(req.getUserId()));
+        cart.setGoodsId(new LitemallGoodsId(req.getGoodsId()));
+        cart.setProductId(new LitemallGoodsProductId(req.getProductId()));
+        cart.setNumber(req.getNumber() != null ? req.getNumber() : 1);
+        cart.setSpecifications(req.getSpecifications());
+        cart.setGoodsSn(req.getGoodsSn());
+        cart.setGoodsName(req.getGoodsName());
+        if (req.getPrice() != null) {
+            cart.setPrice(new LitemallMoney(req.getPrice()));
+        }
+        cart.setPicUrl(req.getPicUrl());
+        cart.setChecked(true);
+        return cart;
+    }
+}

@@ -1,13 +1,22 @@
 package org.linlinjava.litemall.order.domain.events;
-import org.linlinjava.litemall.db.dao.*;
-import org.linlinjava.litemall.db.domain.*;
-
 
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
+import org.linlinjava.litemall.order.utils.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+// In-process publisher: delegates to Spring's ApplicationEventPublisher.
+//
+// Fan-out: in-process @TransactionalEventListener consumers (e.g. handlers
+// under domain/events/eventhandlers/) AND the AFTER_COMMIT Kafka forwarder
+// LitemallKafkaDomainEventPublisher both receive the same event through this
+// channel. Cross-process listeners must be AFTER_COMMIT so consumers never
+// observe events from a rolled-back transaction.
+//
+// Trade-off: between commit and the Kafka send, a JVM crash loses the event.
+// A durable order_event_outbox table (write-in-transaction + scheduled relay)
+// is the fix; deferred per scope. See LitemallKafkaDomainEventPublisher.
 @Component
 public class LitemallSpringDomainEventPublisher implements LitemallDomainEventPublisher {
 
@@ -17,8 +26,12 @@ public class LitemallSpringDomainEventPublisher implements LitemallDomainEventPu
     public LitemallSpringDomainEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
         this.applicationEventPublisher = applicationEventPublisher;
     }
+
     @Override
     public void publish(LitemallDomainEvent event) {
-     applicationEventPublisher.publishEvent(event);
+        if (event instanceof AbstractLitemallOrderDomainEvent orderEvent && orderEvent.getCorrelationId() == null) {
+            orderEvent.setCorrelationId(UserContext.getCorrelationId());
+        }
+        applicationEventPublisher.publishEvent(event);
     }
 }

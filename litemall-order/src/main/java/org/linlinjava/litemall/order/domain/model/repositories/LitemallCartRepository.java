@@ -29,4 +29,12 @@ public interface LitemallCartRepository {
     void deleteById(LitemallCartId id);
 
     LitemallCartAggregate findByUserIdAndGoodsId(LitemallUserId userId, LitemallGoodsId goodsId, LitemallGoodsProductId productId);
+
+    List<LitemallCartAggregate> findAllActiveByUserId(LitemallUserId userId);
+
+    LitemallCartAggregate findActiveById(LitemallCartId id);
+
+    void update(LitemallCartAggregate cart);
+
+    void clearAllByUserId(LitemallUserId userId);
 }

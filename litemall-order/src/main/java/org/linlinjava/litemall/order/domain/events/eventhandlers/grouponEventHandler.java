@@ -1,31 +1,28 @@
 package org.linlinjava.litemall.order.domain.events.eventhandlers;
-import org.linlinjava.litemall.db.dao.*;
-import org.linlinjava.litemall.db.domain.*;
 
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponParticipatedEvent;
+import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponSucceededEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 public class grouponEventHandler {
-    /*@EventListener
-    public void handleGrouponSuccessful(GrouponSuccessfulEvent event) {
-        // Send notifications to participants
-        notificationService.sendGrouponSuccessNotification(
-                event.getUserId(), event.getActivityId());
+
+    private static final Logger log = LoggerFactory.getLogger(grouponEventHandler.class);
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onGrouponParticipated(LitemallGrouponParticipatedEvent event) {
+        log.info("Groupon participated: grouponId={} orderId={} userId={} correlationId={}",
+                event.getGrouponId(), event.getOrderId(),
+                event.getParticipantUserId(), event.getCorrelationId());
     }
 
-    @EventListener
-    @Async
-    public void handleGrouponExpiring(GrouponExpiringEvent event) {
-        // Send reminder notifications
-        notificationService.sendGrouponReminder(
-                event.getActivityId(), event.getRemainingTime());
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onGrouponSucceeded(LitemallGrouponSucceededEvent event) {
+        log.info("Groupon succeeded: grouponId={} correlationId={}",
+                event.getGrouponId(), event.getCorrelationId());
     }
-
-    @Scheduled(fixedRate = 300000) // Every 5 minutes
-    public void checkExpiringGroupons() {
-        grouponAppService.checkAndHandleExpiringGroupons();
-    } */
 }
