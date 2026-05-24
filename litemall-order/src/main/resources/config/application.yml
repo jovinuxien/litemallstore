@@ -12,6 +12,20 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  cloud:
+    stream:
+      default:
+        contentType: application/json
+      bindings:
+        orderCreated-out-0:
+          destination: litemall.order.created.v1
+        orderPaymentSucceeded-out-0:
+          destination: litemall.order.payment-succeeded.v1
+        grouponParticipated-out-0:
+          destination: litemall.groupon.participated.v1
+      kafka:
+        binder:
+          brokers: ${litemall.kafka.brokers:localhost:9092}
 
 
 litemall:
@@ -20,6 +34,9 @@ litemall:
     # (replaces Keycloak OIDC/resource-server). Dev default; config-server
     # overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+  order:
+    # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
+    unpaid-sweep-ms: 60000
 
 server:
   port: 8085

@@ -37,6 +37,21 @@ spring:
             allowCredentials: true
             maxAge: "3600"
       routes:
+        - id: order-service
+          uri: lb://ORDER-SERVICE-APP
+          predicates:
+            - Path=/srv/order/**,/srv/cart/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderService
+                fallbackUri: forward:/fallback/order
+        - id: admin-api
+          # admin-api is not a Eureka client (plain Spring Boot on 8083); the
+          # config-server overrides this URI for non-dev profiles.
+          uri: ${litemall.admin-api.uri:http://localhost:8083}
+          predicates:
+            - Path=/admin/order/**,/admin/coupon/**
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
