@@ -20,6 +20,34 @@ litemall:
     # (replaces Keycloak OIDC/resource-server). Dev default; config-server
     # overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+  order:
+    # LitemallOrderUnpaidSweeper cadence. Defaults: every 60s after a 30s
+    # initial delay. Override via the litemall-config repo per environment.
+    unpaid-sweep-interval-ms: 60000
+    unpaid-sweep-initial-delay-ms: 30000
+
+# Spring Cloud Stream + Kafka binder. The Kafka forwarder
+# (LitemallKafkaDomainEventForwarder) routes each AFTER_COMMIT domain event
+# to a versioned topic via StreamBridge. Broker coords are local-dev
+# defaults; the litemall-config repo should override for non-dev profiles.
+spring.cloud.stream:
+  default:
+    contentType: application/json
+  bindings:
+    orderCreated-out-0:
+      destination: litemall.order.created.v1
+    orderPaymentSucceeded-out-0:
+      destination: litemall.order.payment-succeeded.v1
+    orderCancelled-out-0:
+      destination: litemall.order.cancelled.v1
+    grouponParticipated-out-0:
+      destination: litemall.groupon.participated.v1
+    couponUsed-out-0:
+      destination: litemall.coupon.used.v1
+  kafka:
+    binder:
+      brokers: localhost:9092
+      auto-create-topics: true
 
 server:
   port: 8085

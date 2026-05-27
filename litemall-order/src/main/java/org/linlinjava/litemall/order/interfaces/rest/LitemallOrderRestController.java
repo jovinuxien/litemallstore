@@ -12,7 +12,6 @@ import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperation
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
-import org.linlinjava.litemall.wx.annotation.LoginUser;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
