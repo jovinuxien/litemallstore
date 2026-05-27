@@ -1,30 +1,20 @@
+# Default profile — production-style. The dev profile below overrides the
+# frontend route to proxy the webpack dev server. Routes live here (not in
+# bootstrap.yml) so they can be overridden via the litemall-config repo.
 spring:
-  application:
-    name: gateway
   main:
     allow-bean-definition-overriding: true
-
-  config:
-    activate:
-      on-profile: dev
   cloud:
-    config:
-      uri: http://configserver:8888
-    bootstrap:
-      enabled: true
-    compatibility-verifier:
-      enabled: false
     gateway:
       discovery:
         locator:
-          enabled: true
+          enabled: false
           lower-case-service-id: true
-
       globalcors:
         corsConfigurations:
           '[/**]':
             allowedOrigins:
-               - "http://localhost:9000" #Allow the origin of your request
+               - "http://localhost:9000"
                - "http://127.0.0.1:9000"
             allowedMethods:
               - GET
@@ -37,44 +27,69 @@ spring:
             allowCredentials: true
             maxAge: "3600"
       routes:
+        # Convention: /srv/<svc>/** with StripPrefix=2 — namespaces each
+        # backend under its own segment so they don't collide with the legacy
+        # /srv/** goods route, and downstream services see /... .
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
-            - Path=/srv/**
+            - Path=/srv/goods/**
           filters:
-            # TokenRelay removed (Phase 3b): no OAuth2 client. The Phase 4
-            # service machine-token filter replaces it.
+            - StripPrefix=2
             - name: CircuitBreaker
               args:
                 name: goodsService
                 fallbackUri: forward:/fallback/goods
+        # litemall-admin-api has no spring.application.name — not a Eureka
+        # registrant — so this uses a direct http URI. Consequence:
+        # MachineTokenRelayFilter (lb:// only) does NOT relay a machine token
+        # on this route. Acceptable for now; revisit once admin-api joins
+        # service discovery.
+        - id: admin-api
+          uri: http://localhost:8083
+          predicates:
+            - Path=/srv/admin/**
+          filters:
+            - StripPrefix=2
+        - id: order-service
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/order/**
+          filters:
+            - StripPrefix=2
+        - id: wallet-service
+          uri: lb://wallet-service-app
+          predicates:
+            - Path=/srv/wallet/**
+          filters:
+            - StripPrefix=2
+        - id: loyalty-service
+          uri: lb://loyalty-service-app
+          predicates:
+            - Path=/srv/loyalty/**
+          filters:
+            - StripPrefix=2
+        - id: promotion-service
+          uri: lb://promotion-service-app
+          predicates:
+            - Path=/srv/promotion/**
+          filters:
+            - StripPrefix=2
+        # Frontend SPA — served from classpath:/static (the webpack build
+        # output) in the default profile. The dev profile below replaces this
+        # route with a proxy to the webpack dev server on :9000.
         - id: frontend
-          #uri: forward:/index.html  # Serves React app
-          uri: http://localhost:9000 # Proxy to webpack dev server
+          uri: forward:/index.html
           predicates:
             - Path=/**
-          filters:
-            # TokenRelay removed (Phase 3b): no OAuth2 client.
-            - StripPrefix=1
-
-
-#jhipster:
-#  application:
-#    name: gateway
-#  security:
-#    oauth2:
-#      audience:
-#        - account
-#        - api://default
-
 
 server:
   port: 8080
 
 logging:
   level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web.reactive: DEBUG
+    org.springframework.cloud.gateway: INFO
+    org.springframework.web.reactive: INFO
 
 eureka:
   instance:
@@ -84,3 +99,64 @@ eureka:
     fetchRegistry: true
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+
+---
+# Dev profile — keep webpack dev server proxy for `npm run dev` workflows.
+spring:
+  config:
+    activate:
+      on-profile: dev
+  cloud:
+    gateway:
+      routes:
+        - id: goods-service
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/srv/goods/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: goodsService
+                fallbackUri: forward:/fallback/goods
+        - id: admin-api
+          uri: http://localhost:8083
+          predicates:
+            - Path=/srv/admin/**
+          filters:
+            - StripPrefix=2
+        - id: order-service
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/order/**
+          filters:
+            - StripPrefix=2
+        - id: wallet-service
+          uri: lb://wallet-service-app
+          predicates:
+            - Path=/srv/wallet/**
+          filters:
+            - StripPrefix=2
+        - id: loyalty-service
+          uri: lb://loyalty-service-app
+          predicates:
+            - Path=/srv/loyalty/**
+          filters:
+            - StripPrefix=2
+        - id: promotion-service
+          uri: lb://promotion-service-app
+          predicates:
+            - Path=/srv/promotion/**
+          filters:
+            - StripPrefix=2
+        - id: frontend
+          uri: http://localhost:9000
+          predicates:
+            - Path=/**
+          filters:
+            - StripPrefix=1
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.reactive: DEBUG
