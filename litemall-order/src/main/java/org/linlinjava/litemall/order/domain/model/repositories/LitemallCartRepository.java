@@ -18,6 +18,8 @@ public interface LitemallCartRepository {
 
     void addNewCart(LitemallCartAggregate cart);
 
+    int update(LitemallCartAggregate cart);
+
     List<LitemallCartAggregate> findByUserId(LitemallUserId userId);
 
     LitemallCartAggregate findById(LitemallCartId id);

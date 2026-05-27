@@ -77,12 +77,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-wx-api</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
@@ -102,10 +96,13 @@
 			<artifactId>spring-cloud-stream</artifactId>
 		</dependency>
 
-		<!--<dependency>
+		<!-- Kafka binder for Spring Cloud Stream. The Kafka forwarder
+		     (LitemallKafkaDomainEventForwarder) sends versioned domain-event
+		     topics via StreamBridge. Version managed by the Spring Cloud BOM. -->
+		<dependency>
 			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-stream-binder-kafka</artifactId> &lt;!&ndash; or your binder &ndash;&gt;
-		</dependency>-->
+			<artifactId>spring-cloud-stream-binder-kafka</artifactId>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>

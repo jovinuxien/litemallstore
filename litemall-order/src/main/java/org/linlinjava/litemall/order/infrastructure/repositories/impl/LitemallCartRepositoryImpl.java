@@ -50,8 +50,15 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
     @Override
     public List<LitemallCartAggregate> findByUserId(LitemallUserId userId) {
         LitemallCartExample example = new LitemallCartExample();
-        example.or().andIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
         return cartMapper.selectByExample(example).stream().map(this::convertToDomainModel).toList();
+    }
+
+    @Override
+    public int update(LitemallCartAggregate cart) {
+        LitemallCart record = convertToDataModel(cart);
+        record.setUpdateTime(LocalDateTime.now());
+        return cartMapper.updateByPrimaryKeySelective(record);
     }
 
     @Override
