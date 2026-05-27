@@ -6,8 +6,8 @@ import java.util.Map;
 
 import org.linlinjava.litemall.db.auth.JwtService;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
+import org.linlinjava.litemall.gatewayadmin.domain.valueobjects.user.ApiResponse;
 import org.linlinjava.litemall.gatewayadmin.infrastructure.config.security.AuthoritiesConstants;
-import org.linlinjava.litemall.gatewayadmin.web.ApiResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -45,7 +45,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<Map<String, Object>> login(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Map<String, Object>>> login(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             LitemallAdmin admin = credentials.authenticate(
                     body.get("username"), body.get("password"));
@@ -69,7 +69,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Mono<Map<String, Object>> refresh(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Map<String, Object>>> refresh(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             AdminRefreshTokenService.Rotation r = refreshTokens.rotate(body.get("refreshToken"));
             String access = jwt.issue(String.valueOf(r.getAdminId()),
@@ -85,10 +85,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public Mono<Map<String, Object>> logout(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Map<String, Object>>> logout(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             refreshTokens.revoke(body.get("refreshToken"));
-            return ApiResponse.ok(null);
+            return ApiResponse.<Map<String, Object>>ok(null);
         }).subscribeOn(Schedulers.boundedElastic());
     }
 }

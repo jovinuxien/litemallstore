@@ -25,60 +25,14 @@ spring:
             scope: svc
         provider:
           authserver:
-            token-uri: http://localhost:8089/oauth2/token
+            token-uri: http://127.0.0.1:8089/oauth2/token
   cloud:
     config:
       uri: http://configserver:8888
-      #fail-fast: true
-      #uri: http://localhost:8888
     bootstrap:
       enabled: true
     compatibility-verifier:
       enabled: false
-    gateway:
-      globalcors:
-        corsConfigurations:
-          '[/**]':
-            allowedOrigins: "http://localhost:9000" #Allow the origin of your request
-            allowedMethods: "*"
-            allowCredentials: true
-      routes:
-        - id: admin-api
-          uri: lb://litemall-admin-api
-          predicates:
-            - Path=/admin/**
-
-
-#        - id: wx-api
-#          uri: lb://litemall-wx-api
-#          predicates:
-#            - Path=/wx/**
-
-
-        - id: goods-service-app
-          uri: lb://goods-service-app
-          predicates:
-            - Path=/srv/**
-
-
-        - id: order-service-app
-          uri: lb://order-service-app
-          predicates:
-            - Path=/srv/**
-
-      # Phase 3b: Keycloak/OIDC removed. The TokenRelay default-filters, the
-      # /oauth/** token-service route and the spring.security.oauth2.* tree
-      # are gone. Per-route service machine-token relay is added in Phase 4.
-
-#  datasource:
-#    url: jdbc:mysql://localhost:3306/litemall
-#    username: root
-#    password: Calliste_1006
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-
-
-
-
 
 # Admin JWT realm. Distinct issuer/audience from litemall-gateway-api so an
 # admin token can never be accepted as a customer token (and vice versa).
@@ -93,37 +47,9 @@ litemall:
     private-key-pem: ""
     public-key-pem: ""
 
-server:
-  port: 8080
-
-eureka:
-  instance:
-    preferIpAddress: true
-    #hostname: localhost
-  client:
-    registerWithEureka: true
-    fetchRegistry: true
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
-
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web.reactive: DEBUG
-    org.springframework.web.security: DEBUG
-
-
 jhipster:
   clientApp:
     name: 'gateway-admin'
-  # By default CORS is disabled. Uncomment to enable.
-  # cors:
-  #   allowed-origins: "http://localhost:8100,http://localhost:9000"
-  #   allowed-methods: "*"
-  #   allowed-headers: "*"
-  #   exposed-headers: "Authorization,Link,X-Total-Count,X-${jhipster.clientApp.name}-alert,X-${jhipster.clientApp.name}-error,X-${jhipster.clientApp.name}-params"
-  #   allow-credentials: true
-  #   max-age: 1800
   mail:
     from: gateway@localhost
   api-docs:
