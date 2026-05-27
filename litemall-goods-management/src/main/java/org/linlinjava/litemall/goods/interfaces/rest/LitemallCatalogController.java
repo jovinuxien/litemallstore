@@ -4,9 +4,8 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
-import org.linlinjava.litemall.goods.utils.HomeCacheManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +25,6 @@ public class LitemallCatalogController {
 
     @Autowired
     private LitemallGoodsManagementService goodsManagementServiceApi;
-
-    @Autowired
-    private HomeCacheManager homeCacheManager;
 
     @GetMapping("/list")
     public Object category(@NotNull Integer id) {
@@ -84,11 +80,6 @@ public class LitemallCatalogController {
     @GetMapping("all")
     public Object queryAll() {
 
-        //Read from cache first
-        if (HomeCacheManager.hasData(HomeCacheManager.CATALOG)) {
-            return ResponseUtil.ok(HomeCacheManager.getCacheData(HomeCacheManager.CATALOG));
-        }
-
         // All first-level categories
         //List<LitemallCategory> l1CatList = categoryService.queryL1();
         List<LitemallCategoryAggregate> l1CatList = goodsManagementServiceApi.getFirstLevelCategories();
@@ -121,8 +112,6 @@ public class LitemallCatalogController {
         data.put("currentCategory", currentCategory);
         data.put("currentSubCategory", currentSubCategory);
 
-        //cache data
-        HomeCacheManager.loadData(HomeCacheManager.CATALOG, data);
         return ResponseUtil.ok(data);
     }
 

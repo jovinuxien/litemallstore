@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.goods.infrastructure.services.api;
 
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 
 import java.util.List;

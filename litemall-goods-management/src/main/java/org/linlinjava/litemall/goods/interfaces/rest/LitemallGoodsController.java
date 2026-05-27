@@ -10,8 +10,8 @@ import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.ReduceStockRequest;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;
@@ -21,7 +21,6 @@ import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig
 import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProducer;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallCatalogService;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallGoodsServiceApi;
-import org.linlinjava.litemall.goods.utils.HomeCacheManager;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -60,10 +59,6 @@ public class LitemallGoodsController {
      */
     @GetMapping("/index")
     public Object index(){
-
-        if (HomeCacheManager.hasData(HomeCacheManager.INDEX)) {
-            return ResponseUtil.ok(HomeCacheManager.getCacheData(HomeCacheManager.INDEX));
-        }
 
         /*Callable<List> bannerListCallable = () -> adService.queryIndex();
 
@@ -120,8 +115,6 @@ public class LitemallGoodsController {
             entity.put("topicList", topicListTask.get());
             entity.put("grouponList", grouponListTask.get());*/
             //entity.put("floorGoodsList", floorGoodsListTask.get());
-            //缓存数据
-            HomeCacheManager.loadData(HomeCacheManager.INDEX, entity);
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -158,8 +151,8 @@ public class LitemallGoodsController {
             @Sort(accepts = {"add_time", "retail_price", "name"}) @RequestParam(defaultValue = "add_time") String sort,
             @Order @RequestParam(defaultValue = "desc") String order
     ) {
-        LitemallCategoryId catId = new LitemallCategoryId(categoryId);
-        LitemallManufacturerId manufacturerId = new LitemallManufacturerId(brandId);
+        LitemallCategoryId catId = categoryId != null ? new LitemallCategoryId(categoryId) : null;
+        LitemallManufacturerId manufacturerId = brandId != null ? new LitemallManufacturerId(brandId) : null;
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsBySelective(catId, manufacturerId, keyword, isHot, isNew, page, limit, sort);
 
         List<Integer> goodsCatsId = goodsServiceApi.getCatIds(brandId, keyword, isHot, isNew);

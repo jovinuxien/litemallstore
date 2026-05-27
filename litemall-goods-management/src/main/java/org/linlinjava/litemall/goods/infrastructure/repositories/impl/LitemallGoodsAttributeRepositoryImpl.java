@@ -4,7 +4,7 @@ import jakarta.annotation.Resource;
 import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttributeExample;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAttributeAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsAttributeRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsAttributeId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;

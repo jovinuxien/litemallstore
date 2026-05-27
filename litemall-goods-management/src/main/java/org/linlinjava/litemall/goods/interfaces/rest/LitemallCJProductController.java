@@ -3,7 +3,7 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 import jakarta.servlet.http.HttpServletRequest;
 import org.linlinjava.litemall.core.util.JacksonUtil;
 import org.linlinjava.litemall.core.util.ResponseUtil;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationRequest;

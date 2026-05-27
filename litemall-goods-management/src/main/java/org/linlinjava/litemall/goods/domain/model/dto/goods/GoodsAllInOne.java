@@ -1,9 +1,9 @@
 package org.linlinjava.litemall.goods.domain.model.dto.goods;
 
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAttributeAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsSpecificationAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAttributeAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsProductAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsSpecificationAggregate;
 
 import java.util.List;
 

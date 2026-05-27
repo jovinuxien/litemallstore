@@ -2,7 +2,7 @@ package org.linlinjava.litemall.goods.domain.model.repositories;
 
 
 import org.linlinjava.litemall.core.qcode.QCodeService;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;

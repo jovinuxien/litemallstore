@@ -1,17 +1,17 @@
 spring:
-  application:
-    name: GOODS-SERVICE-APP
+  # spring.application.name is set in bootstrap.yml (litemall-goods-management)
+  # so Eureka registration and gateway lb:// lookups stay consistent.
   main:
     allow-bean-definition-overriding: true
   cloud:
     loadbalancer:
       ribbon:
         enabled: true
-    stream:
-      bindings:
-        output:
-          destination: your-topic-name
-          content-type: application/json
+    # stream:
+    #   bindings:
+    #     output:
+    #       destination: your-topic-name
+    #       content-type: application/json
   devtools:
     restart:
       enabled: true
@@ -25,7 +25,9 @@ spring:
   # Keycloak OIDC/resource-server removed (Phase 4) — machine-JWT validation
   # is provided by litemall-svcsecurity (see top-level litemall.svcsecurity).
   profiles:
-    active: dev, db, core, elastic, admin, wx
+    # The legacy 'elastic' profile is gone now that Spring Data ES is removed;
+    # OCS is the only search backend. Override via litemall-config per env.
+    active: dev, db, core, admin, wx
   messages:
     encoding: UTF-8
   servlet:
@@ -64,6 +66,18 @@ litemall:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS
     # (replaces Keycloak). Dev default; config-server overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+  goods:
+    # Stock threshold used by the goods-availability check before placing an
+    # order. Overridable via the litemall-config repo per environment.
+    stock-low-threshold: 5
+  # OCS (Open Commerce Search) endpoints. Local-dev defaults below; for the
+  # container profile (docker-compose), override to docker service names —
+  # http://indexer:8535, http://searcher:8534, http://suggest:8081.
+  search:
+    indexer-url: http://localhost:8535
+    search-url: http://localhost:8534
+    suggest-url: http://localhost:8081
+    index-name: litemall_index
 
 server:
   port: 8082

@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.goods.application.goods;
 
 import org.linlinjava.litemall.core.qcode.QCodeService;
-import org.linlinjava.litemall.goods.domain.model.agregates.*;
+import org.linlinjava.litemall.goods.domain.model.aggregates.*;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;

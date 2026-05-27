@@ -7,7 +7,7 @@ import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementSe
 import org.linlinjava.litemall.goods.application.util.exceptions.goods.LitemallGoodsNotFoundException;
 import org.linlinjava.litemall.goods.application.util.exceptions.goods.LitemallGoodsProductNotFoundException;
 import org.linlinjava.litemall.goods.application.util.exceptions.goods.LitemallInsufficientStockException;
-import org.linlinjava.litemall.goods.domain.model.agregates.*;
+import org.linlinjava.litemall.goods.domain.model.aggregates.*;
 import org.linlinjava.litemall.goods.domain.model.repositories.*;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
@@ -15,6 +15,10 @@ import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
+import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig;
+import org.linlinjava.litemall.goods.infrastructure.messaging.GoodsChangeMessage;
+import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProducer;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallCatalogService;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallGoodsServiceApi;
 import org.springframework.stereotype.Service;
@@ -38,9 +42,8 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
     private final LitemallCartService cartService;
     private final LitemallCatalogService catalogService;
     private final LitemallGoodsServiceApi goodsServiceApi;
-
-    //@Autowired
-    //private SimpleSourceBean simpleSourceBean;
+    private final LitemallGoodsProperties properties;
+    private final MessageProducer messageProducer;
 
  public LitemallGoodsManagementServiceImpl(LitemallGoodsRepository goodsRepository,
                                            LitemallGoodsServiceApi goodsServiceApi,
@@ -48,23 +51,23 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
                                            LitemallBrandRepository brandRepository,
                                            QCodeService qCodeService,
                                            LitemallCartService cartService,
-                                           LitemallCatalogService catalogService
-
-                                           // LitemallDomainEventPublisher domainEventPublisher,
-                                           // QCodeService qCodeService,
-                                           // LitemallCartService cartService,
-                                           // LitemallDomainEventPublisher domainEventPublisher,
- ) {
-                                           //LitemallDomainEventPublisher eventPublisher, ) {
-     //this.eventPublisher = eventPublisher;
-     //this.goodsRepository = goodsRepository;
+                                           LitemallCatalogService catalogService,
+                                           LitemallGoodsProperties properties,
+                                           MessageProducer messageProducer) {
      this.goodsServiceApi = goodsServiceApi;
      this.categoryRepository = categoryRepository;
      this.brandRepository = brandRepository;
-
      this.qCodeService = qCodeService;
      this.cartService = cartService;
      this.catalogService = catalogService;
+     this.properties = properties;
+     this.messageProducer = messageProducer;
+    }
+
+    private void publishGoodsChange(GoodsChangeMessage.Action action, Integer goodsId) {
+        if (goodsId == null) return;
+        messageProducer.sendMessage(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY,
+                new GoodsChangeMessage(action, goodsId));
     }
 
    @Override
@@ -110,7 +113,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
     @Override
     public void verifyGoodsAvailability(List<LitemallGoodsId> goodsIds) {
         List<LitemallGoodsAggregate> goodsAggregates = goodsServiceApi.getAllGoodByIds(goodsIds);
-        Short numberLimitInStock = 5; // TODO: Configurable
+        short numberLimitInStock = properties.getStockLowThreshold();
         if(goodsAggregates.size() != goodsIds.size()){
             throw new LitemallGoodsNotFoundException("Goods not found: " + goodsIds);
         }
@@ -160,18 +163,25 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
     @Override
     public void addGoods(GoodsAllInOne goodsAllInOne) {
         goodsServiceApi.addGoods(goodsAllInOne);
+        if (goodsAllInOne.getGoods() != null && goodsAllInOne.getGoods().getGoodsId() != null) {
+            publishGoodsChange(GoodsChangeMessage.Action.UPSERT, goodsAllInOne.getGoods().getGoodsId().getId());
+        }
     }
 
     @Override
     public void updateGoods(GoodsAllInOne goodsAllInOne) {
         goodsServiceApi.updateGoods(goodsAllInOne);
+        if (goodsAllInOne.getGoods() != null && goodsAllInOne.getGoods().getGoodsId() != null) {
+            publishGoodsChange(GoodsChangeMessage.Action.UPSERT, goodsAllInOne.getGoods().getGoodsId().getId());
+        }
     }
 
     @Override
     public void deleteGoods(LitemallGoodsAggregate goodsAggregate) {
-
         goodsServiceApi.deleteGoods(goodsAggregate);
-
+        if (goodsAggregate != null && goodsAggregate.getGoodsId() != null) {
+            publishGoodsChange(GoodsChangeMessage.Action.DELETE, goodsAggregate.getGoodsId().getId());
+        }
     }
 
     @Override
