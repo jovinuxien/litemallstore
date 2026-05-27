@@ -1,6 +1,14 @@
 # Default profile — production-style. The dev profile below overrides the
 # frontend route to proxy the webpack dev server. Routes live here (not in
 # bootstrap.yml) so they can be overridden via the litemall-config repo.
+#
+# Routing convention: no StripPrefix. Backend controllers in this codebase
+# all use full /srv/... paths in their @RequestMapping, so the gateway
+# forwards the original path unchanged. Carve out specific /srv/<svc>/**
+# prefixes for non-goods backends; goods-management is the catch-all for
+# the rest of /srv/** (which covers /srv/goods, /srv/search, /srv/suggest,
+# /srv/category, etc.). Route order matters — more specific prefixes
+# must come BEFORE the goods catch-all.
 spring:
   main:
     allow-bean-definition-overriding: true
@@ -27,57 +35,39 @@ spring:
             allowCredentials: true
             maxAge: "3600"
       routes:
-        # Convention: /srv/<svc>/** with StripPrefix=2 — namespaces each
-        # backend under its own segment so they don't collide with the legacy
-        # /srv/** goods route, and downstream services see /... .
-        - id: goods-service
-          uri: lb://litemall-goods-management
-          predicates:
-            - Path=/srv/goods/**
-          filters:
-            - StripPrefix=2
-        # litemall-admin-api has no spring.application.name — not a Eureka
-        # registrant — so this uses a direct http URI. Consequence:
-        # MachineTokenRelayFilter (lb:// only) does NOT relay a machine token
-        # on this route. Acceptable for now; revisit once admin-api joins
-        # service discovery.
-        - id: admin-api
-          uri: http://localhost:8083
-          predicates:
-            - Path=/srv/admin/**
-          filters:
-            - StripPrefix=2
+        # Specific-prefix routes first. No StripPrefix — backends expect the
+        # full /srv/<svc>/... path.
         - id: order-service
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/order/**
-          filters:
-            - StripPrefix=2
+            - Path=/srv/order/**,/srv/cart/**
         - id: wallet-service
           uri: lb://wallet-service-app
           predicates:
             - Path=/srv/wallet/**
-          filters:
-            - StripPrefix=2
         - id: loyalty-service
           uri: lb://loyalty-service-app
           predicates:
             - Path=/srv/loyalty/**
-          filters:
-            - StripPrefix=2
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
             - Path=/srv/promotion/**
-          filters:
-            - StripPrefix=2
-        # Frontend SPA — served from classpath:/static (the webpack build
-        # output) in the default profile. The dev profile below replaces this
-        # route with a proxy to the webpack dev server on :9000.
+        # Goods catch-all — handles /srv/goods/**, /srv/search, /srv/suggest,
+        # /srv/category/**, /srv/admin/goods/**, /srv/manufacturer/**, etc.
+        # Must be LAST among /srv/** routes so the specific prefixes above win.
+        - id: goods-service
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/srv/**
+        # Frontend SPA — restricted to the root path only. Catch-all (/**)
+        # combined with forward:/index.html creates a recursion through the
+        # WebFlux dispatcher when the SPA isn't on the classpath, which
+        # overflows the Reactor operator stack.
         - id: frontend
           uri: forward:/index.html
           predicates:
-            - Path=/**
+            - Path=/
 
 server:
   port: 8080
@@ -105,48 +95,33 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: goods-service
-          uri: lb://litemall-goods-management
-          predicates:
-            - Path=/srv/goods/**
-          filters:
-            - StripPrefix=2
-        - id: admin-api
-          uri: http://localhost:8083
-          predicates:
-            - Path=/srv/admin/**
-          filters:
-            - StripPrefix=2
         - id: order-service
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/order/**
-          filters:
-            - StripPrefix=2
+            - Path=/srv/order/**,/srv/cart/**
         - id: wallet-service
           uri: lb://wallet-service-app
           predicates:
             - Path=/srv/wallet/**
-          filters:
-            - StripPrefix=2
         - id: loyalty-service
           uri: lb://loyalty-service-app
           predicates:
             - Path=/srv/loyalty/**
-          filters:
-            - StripPrefix=2
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
             - Path=/srv/promotion/**
-          filters:
-            - StripPrefix=2
+        - id: goods-service
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/srv/**
+        # Dev: proxy the webpack dev server. Tightened predicate so it
+        # only catches paths the SPA actually serves; everything under
+        # /srv/** is API and handled above.
         - id: frontend
           uri: http://localhost:9000
           predicates:
-            - Path=/**
-          filters:
-            - StripPrefix=1
+            - Path=/,/index.html,/static/**,/assets/**,/app/**,/sockjs-node/**
 
 logging:
   level:
