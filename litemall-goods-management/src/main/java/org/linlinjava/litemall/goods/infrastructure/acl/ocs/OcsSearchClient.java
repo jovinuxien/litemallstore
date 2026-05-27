@@ -24,11 +24,12 @@ public class OcsSearchClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OcsSearchClient.class);
 
-    private final RestTemplate restTemplate;
+    // See OcsIndexerClient — owned per-client to avoid bean conflict with the
+    // shared core RestTemplate.
+    private final RestTemplate restTemplate = new RestTemplate();
     private final LitemallSearchProperties properties;
 
-    public OcsSearchClient(RestTemplate ocsRestTemplate, LitemallSearchProperties properties) {
-        this.restTemplate = ocsRestTemplate;
+    public OcsSearchClient(LitemallSearchProperties properties) {
         this.properties = properties;
     }
 
