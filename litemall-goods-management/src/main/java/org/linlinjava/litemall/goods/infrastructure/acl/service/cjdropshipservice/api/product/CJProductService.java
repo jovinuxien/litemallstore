@@ -1,8 +1,8 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product;
 
 import com.google.common.util.concurrent.RateLimiter;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;

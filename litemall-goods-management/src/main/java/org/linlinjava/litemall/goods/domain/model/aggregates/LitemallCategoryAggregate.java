@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.domain.model.agregates;
+package org.linlinjava.litemall.goods.domain.model.aggregates;
 
 import lombok.Getter;
 import lombok.Setter;

@@ -5,7 +5,7 @@ import org.linlinjava.litemall.db.dao.GoodsProductMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsProductAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.goods.domain.model.repositories.LitemallGoodsProductRepository;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;

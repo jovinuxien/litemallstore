@@ -78,19 +78,12 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-stream</artifactId>
-		</dependency>
+		<!-- Messaging: this module commits to plain Spring AMQP (Rabbit) via
+		     RabbitTemplate / @RabbitListener (see RabbitMqConfig). Spring Cloud
+		     Stream and its Kafka binder have been removed; if a future
+		     subsystem needs Stream, declare it together with a binder. -->
 
-	<!--	<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-starter-stream-kafka</artifactId>
-		</dependency>-->
-		<dependency>
-			<groupId>org.springframework.cloud</groupId>
-			<artifactId>spring-cloud-bus</artifactId>
-		</dependency>
+
 
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
@@ -107,10 +100,11 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-elasticsearch</artifactId>
-		</dependency>
+		<!-- Spring Data Elasticsearch removed: OCS (Open Commerce Search) owns
+		     the ES index and exposes a REST API. The OCS ACL clients (under
+		     infrastructure/acl/ocs/) talk to the indexer (8535), searcher
+		     (8534), and suggest (8081) services — this module no longer
+		     talks to ES on 9200 directly. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
@@ -203,10 +197,15 @@
 			<artifactId>lombok</artifactId>
 			<scope>provided</scope>
 		</dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <version>2.6</version>
+            <scope>compile</scope>
+        </dependency>
 
 
-
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<defaultGoal>spring-boot:run</defaultGoal>
@@ -629,7 +628,7 @@
 						</executions>
 					</plugin>
 					<!-- frontend eirslett plugin -->
-					<!--<plugin>
+					<plugin>
 						<groupId>com.github.eirslett</groupId>
 						<artifactId>frontend-maven-plugin</artifactId>
 						<version>${frontend-maven-plugin.version}</version>
@@ -640,7 +639,7 @@
 									<goal>install-node-and-npm</goal>
 								</goals>
 								<configuration>
-									&lt;!&ndash; See https://nodejs.org/en/download/ for latest node and npm (lts) versions &ndash;&gt;
+									<!-- https://nodejs.org/en/download/ for latest node and npm (lts) versions -->
 									<nodeVersion>${node.version}</nodeVersion>
 									<npmVersion>${npm.version}</npmVersion>
 								</configuration>
@@ -662,7 +661,7 @@
 							</execution>
 
 						</executions>
-					</plugin>-->
+					</plugin>
 				</plugins>
 			</build>
 			<properties>

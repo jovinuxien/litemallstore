@@ -4,8 +4,11 @@ import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.core.env.Environment;
 import tech.jhipster.config.DefaultProfileUtil;
@@ -18,8 +21,7 @@ import java.util.*;
 
 @SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.db", "org.linlinjava.litemall.db.dao", "org.linlinjava.litemall.core", "org.linlinjava.litemall.goods"})
 @EnableDiscoveryClient
-//@EnableCircuitBreaker
-//@EnableBinding(Source.class) //This way of binding is deprecated
+@EnableConfigurationProperties({LitemallGoodsProperties.class, LitemallSearchProperties.class})
 public class LitemallGoodsManagement {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(LitemallGoodsManagement.class);

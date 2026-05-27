@@ -8,6 +8,14 @@ import org.springframework.amqp.core.TopicExchange;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Single messaging backend for this module: Spring AMQP / RabbitMQ. Spring
+ * Cloud Stream + its Kafka binder were removed (see pom.xml comment) — pick
+ * one or the other, not both. The exchange/queue declared here drives the
+ * incremental OCS indexing flow: goods writes publish to {@link #EXCHANGE_NAME}
+ * with {@link #ROUTING_KEY}; an indexer-side consumer (MessageConsumer)
+ * upserts the OCS document.
+ */
 @Configuration
 public class RabbitMqConfig {
 

@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.goods.domain.model.repositories;
 
-import org.linlinjava.litemall.goods.domain.model.agregates.LitemallGoodsSpecificationAggregate;
+import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsSpecificationAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsSpecificationId;
 
