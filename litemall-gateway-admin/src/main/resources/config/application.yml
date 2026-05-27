@@ -36,10 +36,6 @@ spring:
             - Path=/srv/goods/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: goodsService
-                fallbackUri: forward:/fallback/goods
         # litemall-admin-api has no spring.application.name — not a Eureka
         # registrant — so this uses a direct http URI. Consequence:
         # MachineTokenRelayFilter (lb:// only) does NOT relay a machine token
@@ -115,10 +111,6 @@ spring:
             - Path=/srv/goods/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: goodsService
-                fallbackUri: forward:/fallback/goods
         - id: admin-api
           uri: http://localhost:8083
           predicates:
