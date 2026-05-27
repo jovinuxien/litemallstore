@@ -30,11 +30,16 @@ public class OcsIndexerClient {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OcsIndexerClient.class);
 
-    private final RestTemplate restTemplate;
+    // Owned per-client to avoid conflicting with the shared RestTemplate bean
+    // in litemall-core (used by CJProductClient etc.). If centralized OCS
+    // interceptors are needed later, promote this to a bean qualified with
+    // @Qualifier("ocsRestTemplate") and add @Qualifier on every OCS client's
+    // constructor parameter — then mark the core RestTemplate as @Primary so
+    // existing autowire sites keep resolving to it.
+    private final RestTemplate restTemplate = new RestTemplate();
     private final LitemallSearchProperties properties;
 
-    public OcsIndexerClient(RestTemplate ocsRestTemplate, LitemallSearchProperties properties) {
-        this.restTemplate = ocsRestTemplate;
+    public OcsIndexerClient(LitemallSearchProperties properties) {
         this.properties = properties;
     }
 
