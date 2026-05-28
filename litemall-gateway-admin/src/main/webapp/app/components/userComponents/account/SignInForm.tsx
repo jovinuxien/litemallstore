@@ -1,10 +1,10 @@
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { loginAdminThunk, loginUserThunk } from 'app/shared/reducers/authSlice';
+import { loginAdminThunk } from 'app/shared/reducers/authSlice';
 import IconShieldLock from 'bootstrap-icons/icons/shield-lock.svg';
 import Umbrella from 'bootstrap-icons/icons/umbrella.svg';
 import React, { useEffect } from 'react';
 import { Controller, SubmitHandler, useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 export interface Credentials {
   username: string;
@@ -17,6 +17,13 @@ const SignInForm: React.FC<SignInFormProps> = () => {
   const { token, isAuthenticated, isAuthenticatedAdmin, adminToken } = useAppSelector(state => state.auth.data);
   const dispatch = useAppDispatch();
   const navigateTo = useNavigate();
+  const pageLocation = useLocation();
+  // PrivateRoute passes `state.from` (a Location object) when it redirects the
+  // user here. Honoring it sends them back to the page they originally wanted
+  // instead of dumping them on the home page / admin dashboard.
+  const fromPath = (pageLocation.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+  const redirectAfterLogin = (defaultPath: string) => navigateTo(fromPath || defaultPath, { replace: true });
+
   const {
     register,
     control,
@@ -31,37 +38,18 @@ const SignInForm: React.FC<SignInFormProps> = () => {
 
   const onSubmit: SubmitHandler<Credentials> = async data => {
     const existingAdminToken = sessionStorage.getItem('adminToken');
-    const existingUserToken = sessionStorage.getItem('token');
-
-    if (existingUserToken) {
-      navigateTo('/');
-      return;
-    }
     if (existingAdminToken) {
-      navigateTo('/private/dashboard');
+      redirectAfterLogin('/private/dashboard');
       return;
     }
 
     try {
       const adminAuth = await dispatch(loginAdminThunk(data)).unwrap();
-      //const adminAuth = await dispatch(loginUserThunk(data)).unwrap();
-      const resultAuth = await dispatch(loginUserThunk(data)).unwrap();
-      console.log('Authentication result:', resultAuth);
-
       if (adminAuth.data?.token) {
-        if (adminAuth.data.token) {
-          sessionStorage.setItem('adminToken', adminAuth.data.token);
-          navigateTo('/private/dashboard');
-        } else {
-          console.error('Admin Authentication failed:', adminAuth.errmsg);
-          sessionStorage.setItem('token', resultAuth.data.token);
-          navigateTo('/');
-        }
-      } else if (resultAuth.data?.token) {
-        sessionStorage.setItem('token', resultAuth.data.token);
-        navigateTo('/');
+        sessionStorage.setItem('adminToken', adminAuth.data.token);
+        redirectAfterLogin('/private/dashboard');
       } else {
-        console.error(' Common Authentication failed:', resultAuth.errmsg);
+        console.error('Authentication failed:', adminAuth.errmsg);
       }
     } catch (error) {
       console.error('Authentication error:', error);

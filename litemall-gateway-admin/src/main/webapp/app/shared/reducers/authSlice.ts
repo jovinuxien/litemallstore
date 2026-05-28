@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { ADMIN_URL_CONTEXT, BASE_URL_CONTEXT } from 'app/config/api';
+import { BASE_URL_CONTEXT } from 'app/config/api';
 import { authAxios, baseAxios } from 'app/config/axiosinstance';
 import { AppThunk } from 'app/config/store';
 import { ApiResult, BaseState } from 'app/config/types';
@@ -102,7 +102,7 @@ export const loginAdminThunk = createAsyncThunk<AdminAuthResult, Credentials, { 
   'admin/auth',
   async ({ username, password }: Credentials, thunkApi) => {
     try {
-      const authURL = ADMIN_URL_CONTEXT + '/auth/login';
+      const authURL = '/auth/login';
       const response = await axios.post<AdminAuthResult>(authURL, {
         username,
         password,
@@ -149,7 +149,7 @@ export const logoutAdminThunk = createAsyncThunk('admin/logout', async (_, { rej
     if (!token) {
       return rejectWithValue('no token found in session storage');
     }
-    const logoutUrl = ADMIN_URL_CONTEXT + '/auth/logout';
+    const logoutUrl = '/auth/logout';
 
     const response = await authAxios.post(
       logoutUrl,
