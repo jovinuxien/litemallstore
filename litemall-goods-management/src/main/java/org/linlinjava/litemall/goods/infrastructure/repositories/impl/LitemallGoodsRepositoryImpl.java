@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Repository
@@ -183,7 +184,10 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         LitemallGoodsExample.Criteria criteria1 = example.or();
         LitemallGoodsExample.Criteria criteria2 = example.or();
 
-        if (!StringUtils.isEmpty(manufacturerId.getId())) {
+        // LitemallGoodsController#listGoods passes manufacturerId=null when the
+        // ?brandId= query param is absent — "no brand filter". Guard the deref
+        // so the optional filter doesn't NPE on the unfiltered code path.
+        if (manufacturerId != null && manufacturerId.getId() != null) {
             criteria1.andBrandIdEqualTo(manufacturerId.getId());
             criteria2.andBrandIdEqualTo(manufacturerId.getId());
         }
@@ -230,6 +234,10 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
 
     @Override
     public List<LitemallGoodsAggregate> queryByManufacturer(LitemallManufacturerId manufacturerId, int offset, int limit) {
+        // Method contract requires a manufacturer filter (vs querySelective for
+        // optional filters). Fail fast instead of silently returning every good.
+        Objects.requireNonNull(manufacturerId, "manufacturerId");
+        Objects.requireNonNull(manufacturerId.getId(), "manufacturerId.id");
         LitemallGoodsExample example = new LitemallGoodsExample();
         example.or().andBrandIdEqualTo(manufacturerId.getId()).andIsOnSaleEqualTo(true).andDeletedEqualTo(false);
         example.setOrderByClause("add_time desc");
@@ -243,7 +251,9 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         LitemallGoodsExample.Criteria criteria1 = example.or();
         LitemallGoodsExample.Criteria criteria2 = example.or();
 
-        if (!StringUtils.isEmpty(manufacturerId.getId())) {
+        // Same optional-filter guard as querySelective: callers may pass null
+        // when the corresponding query param is absent.
+        if (manufacturerId != null && manufacturerId.getId() != null) {
             criteria1.andBrandIdEqualTo(manufacturerId.getId());
             criteria2.andBrandIdEqualTo(manufacturerId.getId());
         }
