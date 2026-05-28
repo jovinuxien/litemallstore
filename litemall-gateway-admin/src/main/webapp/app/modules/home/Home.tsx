@@ -52,6 +52,18 @@ const chunkArray = <T,>(arr: T[], chunkSize: number): T[][] => {
   return Array.from({ length: Math.ceil(arr.length / chunkSize) }, (_, i) => arr.slice(i * chunkSize, i * chunkSize + chunkSize));
 };
 
+// Goods-management now returns prices as LitemallMoney ({amount: BigDecimal})
+// instead of a flat number, but IGood still types them as number. Read the
+// numeric value out of either shape so JSX never receives an object.
+const priceNum = (v: unknown): number => {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'object' && 'amount' in (v as Record<string, unknown>)) {
+    return Number((v as { amount: unknown }).amount) || 0;
+  }
+  return Number(v) || 0;
+};
+
 
 const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
 
@@ -80,7 +92,7 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
 
 
   const bannerChunks = chunkArray(entities?.banner || [], 1);
-  const newDealChunks = chunkArray(entities.newGoodsList || [], 4);
+  const newDealChunks = chunkArray(entities?.newGoodsList || [], 4);
   const rows = Array.from({ length: Math.ceil(list.length / 4) }, (_, idx) => list.slice(idx * 4, idx * 4 + 4));
 
   const components = useMemo(
@@ -121,16 +133,13 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
  
 
   useEffect(() => {
-    dispatch(getHomeData());
-    //dispatch(getCatalogData());
+    // App1.tsx already drives getHomeData + getFirstCategories at boot. Only
+    // dispatch what HomeView owns exclusively (the "Deals" product list).
     dispatch(getProductList());
-    dispatch(getFirstCategories());
-    //block for infinite scroll
     window.addEventListener('scroll', handleScroll);
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-    //console.log(allFloorGoods);
   }, [dispatch]);
 
   
@@ -223,10 +232,10 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
                       <div className='d-flex justify-content-between align-items-center'>
                         <div className='price-container'>
                           <div className='price-wrapper'>
-                            <span className='current-price'>${product.retailPrice}</span>
-                            <span className='original-price'>${product.counterPrice}</span>
+                            <span className='current-price'>${priceNum(product.retailPrice)}</span>
+                            <span className='original-price'>${priceNum(product.counterPrice)}</span>
                           </div>
-                          <div className='discount-badge'>{Math.round(((product.counterPrice - product.retailPrice) / product.counterPrice) * 100)}% OFF</div>
+                          <div className='discount-badge'>{Math.round(((priceNum(product.counterPrice) - priceNum(product.retailPrice)) / (priceNum(product.counterPrice) || 1)) * 100)}% OFF</div>
                         </div>
 
                         <span className='btn btn-primary btn-sm view-deal-button'>Detail</span>
@@ -387,10 +396,10 @@ const HomeView: React.FC<Props> = ({ categoriesListHome, entities }) => {
                       <div className='d-flex justify-content-between align-items-center'>
                         <div className='price-container'>
                           <div className='price-wrapper'>
-                            <span className='current-price'>${product.retailPrice}</span>
-                            <span className='original-price'>${product.counterPrice}</span>
+                            <span className='current-price'>${priceNum(product.retailPrice)}</span>
+                            <span className='original-price'>${priceNum(product.counterPrice)}</span>
                           </div>
-                          <div className='discount-badge'>{Math.round(((product.counterPrice - product.retailPrice) / product.counterPrice) * 100)}% OFF</div>
+                          <div className='discount-badge'>{Math.round(((priceNum(product.counterPrice) - priceNum(product.retailPrice)) / (priceNum(product.counterPrice) || 1)) * 100)}% OFF</div>
                         </div>
 
                         <span className='btn btn-primary btn-sm view-deal-button'>Detail</span>

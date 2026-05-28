@@ -1,6 +1,9 @@
 const path = require('path');
 const webpackMerge = require('webpack-merge').merge;
-const BrowserSyncPlugin = require('browser-sync-webpack-plugin');
+// BrowserSyncPlugin removed (Option A): it was configured with port: 9000,
+// the same port as webpack-dev-server, so the two raced for the socket and
+// the `/srv` proxy below silently never fired. WDS's `hot: true` already
+// provides live reload, so BrowserSync was redundant in this setup.
 const SimpleProgressWebpackPlugin = require('simple-progress-webpack-plugin');
 const WebpackNotifierPlugin = require('webpack-notifier');
 const sass = require('sass');
@@ -68,18 +71,25 @@ module.exports = async options =>
                 target: 'http://localhost:8080',
                 secure: false,
                 changeOrigin: true
+              },
+        '/auth': {
+                target: 'http://localhost:8080',
+                secure: false,
+                changeOrigin: true
               }
       },
-      /*proxy: [
-        {
-          context: ['/api', '/services', '/management', '/v3/api-docs', '/h2-console', '/oauth2', '/login', '/auth', '/srv'],
-          target: `http${options.tls ? 's' : ''}://localhost:8080`,
-          secure: false,
-          changeOrigin: options.tls,
-        },
-      ],*/
+      
       https: options.tls,
-      historyApiFallback: true,
+      // Option C: never rewrite backend API paths to index.html. If the `/srv`
+      // proxy above ever fails (target down, eureka deregistration, timeout),
+      // historyApiFallback would otherwise hand back the SPA shell with 200,
+      // hiding the failure behind a sign-in loop. Explicit pass-through here
+      // makes the failure visible as a real 404 from the upstream layer.
+      historyApiFallback: {
+        rewrites: [
+          { from: /^\/srv\//, to: context => context.parsedUrl.pathname },
+        ],
+      },
     },
     stats: process.env.JHI_DISABLE_WEBPACK_LOGS ? 'none' : options.stats,
     plugins: [
@@ -88,35 +98,6 @@ module.exports = async options =>
         : new SimpleProgressWebpackPlugin({
             format: options.stats === 'minimal' ? 'compact' : 'expanded',
           }),
-      new BrowserSyncPlugin(
-        {
-          https: options.tls,
-          host: 'localhost',
-          port: 9000,
-          proxy: {
-            target: `http${options.tls ? 's' : ''}://localhost:${options.watch ? '8080' : '9060'}`,
-            ws: true,
-            proxyOptions: {
-              changeOrigin: false, //pass the Host header to the backend unchanged  https://github.com/Browsersync/browser-sync/issues/430
-            },
-          },
-          socket: {
-            clients: {
-              heartbeatTimeout: 60000,
-            },
-          },
-          /*
-        ,ghostMode: { // uncomment this part to disable BrowserSync ghostMode; https://github.com/jhipster/generator-jhipster/issues/11116
-          clicks: false,
-          location: false,
-          forms: false,
-          scroll: false
-        } */
-        },
-        {
-          reload: false,
-        }
-      ),
       new WebpackNotifierPlugin({
         title: 'Web Store',
         contentImage: path.join(__dirname, 'logo-jhipster.png'),
