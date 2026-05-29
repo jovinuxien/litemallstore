@@ -1,96 +1,140 @@
-# CLAUDE.md — litemall Dual-Gateway Split + Self-Signed JWT
+# CLAUDE.md — litemall Per-Worktree Tasks
 
-Generated from `SESSION.md`. This is the shared root brief inherited by every
-worktree branch. Each worktree appends a phase-scoped section at the bottom.
-Edit freely — this file is meant to be refined per task.
+## Per-worktree tasks
 
-## Objective
+> Active fix branches launched via `open-fix-worktrees.sh`. Each Claude session
+> opens in `../litemall-wt/<short>` on branch `fix/<short>` and is told to read
+> the matching `### Worktree: <short>` block below as its sole task. Edit the
+> Task / Acceptance lines to redirect a worktree.
 
-Split litemall's single entangled gateway/frontend into **two independent
-Spring Cloud Gateway edges**, each embedding its own React SPA, **no Keycloak**:
+### Worktree: `goods-management`
+- **Branch:** `fix/goods-management`
+- **Path:** `../litemall-wt/goods-management`
+- **Scope:** `litemall-goods-management/` only. Moves out of this module (e.g. user aggregates relocating to `litemall-db`) are allowed, but anything touching `litemall-gateway-admin/` or `litemall-order/` belongs in those worktrees.
+- **Task:** Tighten bounded-context leakage, kill a small hardcoded-config bug, and remove duplication (suggested punch list, refine in the worktree's plan):
+  - **Bug — hardcoded stock threshold.** `LitemallGoodsManagementServiceImpl.java:113` has `Short numberLimitInStock = 5; // TODO: Configurable`. Move to a typed `@ConfigurationProperties` bean (e.g. `litemall.goods.stock-low-threshold`) with a sane default; delete the TODO.
+  - **Bounded-context leakage — user/identity types inside goods.** `domain/model/agregates/user/` contains `LitemallUserAggregate`, `LitemallRoleAggregate`, `LitemallAdminAggregate`, `LitemallPermissionAggregate`, and `application/LitemallUserManagementServiceImpl` + `application/goods/LitemallUserManagementService` live in goods-management. These belong in the identity/admin context (e.g. `litemall-db` or a dedicated identity module). Move them out and update callers; the goods module must not own user-management surface.
+  - **Layering inconsistency.** `*ServiceImpl` classes are in `application/`, but their interfaces are in `application/goods/`. Co-locate: either keep interfaces in `application/goods/` and put impls in `application/goods/internal/`, or move both to the same package. Pick one and apply uniformly.
+  - **Duplicate user-context plumbing.** `utils/` carries both `UserContextFilter` and `UserContextInterceptor` for the same concern, plus a `UserContextHolder`. Now that `litemall-svcsecurity` is on the classpath (Phase 4), the trusted-identity headers forwarded by `litemall-gateway-admin`'s `IdentityForwardingFilter` are the source of truth. Pick **one** ingestion point (Filter OR Interceptor, not both), populate `UserContextHolder` from the forwarded `X-User-*` headers, and delete the other.
+  - **Naming inconsistency on a controller.** `interfaces/rest/LitemallGoodsAdmin.java` doesn't follow the `*Controller` suffix used by every other class in that package. If it's a REST controller, rename to `LitemallGoodsAdminController`; if it's not, move it out of `interfaces/rest/`.
+  - **Audit duplicate security deps.** `pom.xml` lists `litemall-svcsecurity` AND `spring-boot-starter-security`, `spring-security-oauth2-resource-server`, `spring-security-oauth2-jose`, `spring-security-config`, `spring-security-core` explicitly. `litemall-svcsecurity` likely pulls the resource-server stack transitively — keep only the deps it doesn't, and rely on the BOM for versions.
+  - **Package typo — `agregates` → `aggregates`.** Rename the directory `litemall-goods-management/src/main/java/org/linlinjava/litemall/goods/domain/model/agregates/` and the `package` declarations + imports inside it. **Cross-module check first:** the same typo exists independently in `litemall-order/`, `litemall-wallet-service/`, and `litemall-goodsapi-analytic/` (166 files reference `.agregates` repo-wide). Before renaming here, `grep -rln "litemall\.goods\.domain\.model\.agregates" --include="*.java" -- $(git rev-parse --show-toplevel)` to confirm no other module imports goods's aggregates package — if any do, coordinate the rename or stop and surface it. The order/wallet/analytic copies are out of scope for this worktree; raise them as follow-ups.
+  - **Architectural smell — too many concerns in one module.** `litemall-goods-management` carries: goods catalog, Elasticsearch indexing, RabbitMQ AND Kafka messaging, OpenFeign clients, CJDropshipping ACL + REST controller, user/identity aggregates (covered above), and a home-page cache. Three pragmatic steps for THIS worktree, in order — stop after each delivers value:
+    1. **Pick one messaging backend.** `pom.xml` brings in both `spring-cloud-starter-stream-kafka` and `spring-boot-starter-amqp` (with `RabbitMqConfig`). Audit who publishes/consumes through each; delete the unused one (config bean + dep + any dead `@RabbitListener`/`@StreamListener`). If both are genuinely used, document why in a comment on the surviving `*Config`.
+    2. **Enforce sub-package boundaries for the integrations** — `infrastructure/acl/dto/cjdropshipdto/...` + `LitemallCJProductController` + `CJDropshippingConfig` form a self-contained ACL. Add a package-info or ArchUnit rule (or, minimally, a checkstyle import-control entry) so goods domain code cannot import from `infrastructure/acl/cjdropshipdto/**`. Same for the `domain/service/elastic/**` cluster.
+    3. **Defer extraction.** Do NOT carve out new modules in this worktree; that's a separate refactor. The goal here is reduced coupling, not module count.
+  - **HomeCacheManager — confirm, then delete or replace.** `utils/HomeCacheManager.java` is an in-process static `ConcurrentHashMap` cache with `public static final boolean ENABLE = false`, meaning `hasData()` always returns false and the cache is effectively dead code today. The module already wires Redis (`infrastructure/configuration/RedisConfig.java`). Action:
+    1. `grep -rln "HomeCacheManager" --include="*.java" -- $(git rev-parse --show-toplevel)` to enumerate callers across the repo.
+    2. If no callers (or only dead branches): **delete the class** and the `@Component` registration.
+    3. If callers exist: replace with a Spring `@Cacheable` over the existing Redis `CacheManager` (per-key TTL via `RedisCacheConfiguration`) and remove the static state + `ENABLE` flag. Static fields + `@Component` is incoherent — pick stateless utility OR Spring bean, not both.
+  - **Search integration — wire goods-management to the OCS (Open Commerce Search) stack.** `docker-compose/docker-compose.yml` provisions the OCS stack: an `indexer` REST service (port 8535, `commerceexperts/ocs-indexer-service`), a `searcher` (8534), a `suggest` (8081), Elasticsearch 7.17.25 (9200), Kibana (5601), and a `configservice` (8530). `docker-compose/application.indexer-service.yml` already declares the OCS index `litemall_index` with a flat field set: `product_id, title, price, discount_price, description, image_url, brand, category_names, category_ids`. Today the module instead wires **raw Spring Data Elasticsearch** and the whole flow is dead code. Re-point it at the OCS REST API. Steps, in order:
+    1. **Drop Spring Data ES.** Remove `spring-boot-starter-data-elasticsearch` (`litemall-goods-management/pom.xml:112`) and every `ElasticsearchOperations` usage (`domain/service/elastic/LitemallProductIndexingService.java:16`). The module must no longer talk to raw ES on 9200 — OCS owns the ES index and its mapping.
+    2. **Reshape the index document.** Replace `domain/model/valueobjects/elastic/ProductDocument.java` (and `SearchResultData`/`SearchData`/`SearchDataItem` — ES-internal facets/scores/completion shapes) with a flat DTO matching the OCS `litemall_index` schema above. Map litemall goods → OCS fields; the currently-missing ones are `product_id` (`goods.id`), `title`, `discount_price`, `description`, and `category_ids` (the code only carries category names today).
+    3. **Make the index client actually push.** `domain/service/elastic/LitemallProductIndexClient.java` builds JSON then prints to stdout — the real index call is commented out (~lines 50–54). Replace with an HTTP client (`RestTemplate`/`WebClient`/Feign) that calls the OCS indexer's REST import API on 8535. Confirm the exact contract (start-import session → add-documents → done, vs single-document PUT) against the running `commerceexperts/ocs-indexer-service` — it exposes an OpenAPI doc. Index name `litemall_index` must match `application.indexer-service.yml`.
+  - **Indexing triggers — replace the hardcoded startup runner.** `domain/service/elastic/ProductIndexingCommandLineRunner.java` indexes a single hardcoded brand (`1001020`) once at boot. Replace with two real triggers:
+    1. A **full reindex** job — an admin-triggered endpoint (or `@Scheduled`) that streams all on-sale goods to the OCS indexer in batches.
+    2. **Incremental indexing** on goods create/update/delete, hooked into the goods service/controller write path. Route this through whichever messaging backend survives the "pick one messaging backend" task above (do not add a second broker just for indexing); if that task lands on synchronous calls, call the index client directly after the DB commit. `MessageConsumer`'s `@RabbitListener` currently only logs — either make it drive indexing or delete it per the messaging decision.
+  - **Search + suggest query endpoint.** There is no search query path today — goods listing hits SQL only. Add a REST controller in `interfaces/rest/` (`*Controller` suffix) exposing `GET /search` and `GET /suggest` that proxy to the OCS search API (8534) and suggest API (8081), and map the OCS response back to the goods-list DTO the SPA already consumes. The OCS call belongs behind an ACL in `infrastructure/acl/` — domain code must not import the OCS client directly (consistent with the `domain/service/elastic/**` boundary item above).
+  - **OCS configuration — no hardcoded hosts.** Add a typed `@ConfigurationProperties` bean (e.g. `litemall.search.*`) carrying `indexer-url`, `search-url`, `suggest-url`, and `index-name` (`litemall_index`). Profile-split the values: docker service names (`http://indexer:8535` etc.) for the container profile, `localhost` for local dev — overridable via the `litemall-config` repo, nothing committed. The `elastic` profile in `application.yml:28` should either be repurposed for OCS or removed once Spring Data ES is gone.
+  - **Delete the ES dead code.** After the rewrite, remove the stubs that no longer have a home: `domain/service/elastic/ElasticMessageSource.java` (fully commented out), `ElasticDataTransform.java` (empty `@Component`), `DataFormatForElasticIndexDto.java`, and `ElasticDataSource.java` if still unreferenced.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-goods-management -am compile` clean.
+  - No `TODO` markers remain in `LitemallGoodsManagementServiceImpl.java`; `numberLimitInStock` is read from a properties bean and overridable in `application.yml`.
+  - `find litemall-goods-management/src/main/java -path '*/domain/model/agregates/user/*' -o -name 'LitemallUserManagement*'` returns nothing (user/identity types relocated).
+  - Exactly one of `UserContextFilter` / `UserContextInterceptor` exists; `UserContextHolder` is populated from trusted gateway headers (verifiable by a quick unit test or grep of who calls `UserContextHolder.set*`).
+  - Every class file under `interfaces/rest/` ends in `Controller` (or is not a controller and lives elsewhere).
+  - No `agregates` directory or import path remains under `litemall-goods-management/src/main/java/`; cross-module `grep` confirmed no other module imported the renamed package before the rename.
+  - Exactly one of `spring-cloud-starter-stream-kafka` / `spring-boot-starter-amqp` survives in `pom.xml` (unless both are documented as required), and the corresponding `*Config` bean of the removed dep is gone.
+  - `HomeCacheManager` is either deleted (callers gone) or replaced with a `@Cacheable`-based Redis implementation with no static state and no `ENABLE = false` toggle.
+  - `mvn -q -o -pl litemall-goods-management dependency:tree | grep -i elasticsearch` returns nothing — `spring-boot-starter-data-elasticsearch` is gone and no `ElasticsearchOperations` import remains.
+  - With the docker-compose OCS stack up, running the full-reindex job populates the OCS `litemall_index`; the documents are visible via the OCS searcher (8534) / Kibana (5601) and carry all nine `litemall_index` fields.
+  - Creating or updating a goods record causes that single document to appear/refresh in the index without a full reindex.
+  - `GET /search` and `GET /suggest` on the goods-management service return OCS-backed results mapped to the existing goods-list DTO (no SQL fallback for the search path).
+  - No hardcoded `8534`/`8535`/`8081`/`9200`/`localhost` search hosts in Java; all come from the `litemall.search.*` properties bean and are profile-overridable.
+  - `ProductIndexingCommandLineRunner` no longer indexes a hardcoded brand ID; the OCS client lives behind `infrastructure/acl/` and `domain/` code does not import it directly.
 
-| Gateway | Port | Role | Auth |
-|---|---|---|---|
-| `litemall-gateway-api` | 8090 | Customer edge (visitors + customers) | Self-signed **customer** JWT issued+validated at the edge |
-| `litemall-gateway-admin` | 8080 | Admin edge (all DDD services) | Self-signed **admin** JWT issued+validated at the edge |
+### Worktree: `order`
+- **Branch:** `fix/order`
+- **Path:** `../litemall-wt/order`
+- **Scope:** `litemall-order/`, `litemall-admin-api/` (order + coupon admin endpoints), and the admin SPA routes in `litemall-gateway-admin/src/main/webapp/` that consume them. Touch `litemall-wx-api/` only if a cart admin view requires reusing a wx endpoint.
+- **Task:** Make the order, cart, and coupon flows fully working **and reachable through `litemall-gateway-admin` (port 8080) for the admin SPA**. Specifically:
+  - `litemall-order/.../LitemallOrderRestController` — DDD order endpoints respond cleanly behind the admin gateway with a valid admin JWT.
+  - `litemall-order/.../LitemallCartController` (new) — exposes full CRUD over the cart content of a given customer order: list/get cart's item(s) (R), add an item to the cart (C), update a cart's item's quantity/variant (U), remove/clean the cart (D). The controller must NOT query or mutate the cart/order persistence directly; every read AND write goes through `LitemallOrderOrchestratorService` (the existing orchestrator used by `LitemallOrderRestController`). Add only the orchestrator method(s) actually needed for the missing CRUD verbs; reuse existing ones first. Keep verbs RESTful (`GET/POST/PUT|PATCH/DELETE`) and idempotent where the HTTP method requires it.
+  - `LitemallOrderOrchestratorService.handleOrderCreation` — fix the order-creation flow (suggested punch list, refine in the worktree's plan):
+    - Replace the placeholder `catch (IllegalArgumentException e)` (with the `// To be changed accordingly` TODO) with a real domain/service exception type — introduce `LitemallOrderServiceException` (or reuse an existing one) and remove the TODO comment. Narrow the catch-all `Exception` to a specific fault type or rethrow after logging.
+    - Fix the inverted result mapping in `convertSubmitResultToOperationResult`: today `isNeedsPayment()` **true** returns `submitSuccessPaid` and **false** returns `submitSuccessWithPayment`. Swap so naming matches semantics (paid orders → `submitSuccessPaid`, unpaid orders → `submitSuccessWithPayment`).
+    - Wire `publishOrderCreationEvents(orderId, paymentProcessed)` into the success path of `handleOrderCreation`. The helper exists but is never called, so `LitemallOrderCreatedEvent` is never emitted on create today.
+    - For orders that still need payment, call `scheduleUnpaidOrderTask(orderId)` from the success path. The helper exists but is never invoked, so the unpaid-timeout never fires.
+    - Fix the `performOrderAction` default branch — it currently falls through to `handleOrderCancellation` for any unmapped action (including `PAY`), silently cancelling orders. Replace with an explicit `IllegalStateException` (or the commented-out `handleGenericOrderAction`) so an unknown action can never reach the cancel path.
+  - **Event-publishing layer — wire the broker, stop publishing inside a transaction.** Today `domain/events/LitemallSpringDomainEventPublisher.java:12–23` only delegates to Spring's in-process `ApplicationEventPublisher`, and `LitemallOrderOrchestratorService` is `@Transactional` at the class level (line 37). Any event published from `handleOrderCreation`, `handlePaymentAction`, `handlePostPayment`, or `handleGrouponAfterPayment` therefore fires *inside* the transaction and would be lost on rollback (or seen by consumers before DB state is committed).
+    - Split the publisher into two responsibilities: (a) keep in-process Spring publishing for side-effects bound to the request (notifications, task scheduling), and (b) add a Kafka forwarder that publishes the same domain event to a versioned topic per aggregate (`litemall.order.created.v1`, `litemall.order.payment-succeeded.v1`, `litemall.groupon.participated.v1`). Either expand `LitemallSpringDomainEventPublisher` to fan out, or introduce a sibling `LitemallKafkaDomainEventPublisher` and a composite that calls both.
+    - Convert every domain-event consumer in `domain/events/eventhandlers/` to `@TransactionalEventListener(phase = AFTER_COMMIT)` (replacing plain `@EventListener`). The Kafka forwarder MUST be after-commit; in-process listeners that only schedule local side-effects may stay on `@EventListener` if they're idempotent.
+    - As a stretch, introduce a minimal outbox: an `order_event_outbox` table written in the same transaction as the order, plus a scheduled relay (`@Scheduled` or Debezium-style) that drains to Kafka. If outbox is deferred, document the AFTER_COMMIT trade-off in a comment on the publisher.
+  - **Activate `handleOrderCreation` event emission end-to-end.** `publishOrderCreationEvents(Integer, boolean)` (orchestrator line 322) and `scheduleUnpaidOrderTask(LitemallOrderId)` (line 275) are dead. The punch-list items above already call for wiring them — this covers the broker side:
+    - On successful submit, call `publishOrderCreationEvents(orderId, paymentProcessed)` from `handleOrderCreation` (after `convertSubmitResultToOperationResult` resolves the result).
+    - `LitemallOrderCreatedEvent` (`domain/events/order/LitemallOrderCreatedEvent.java`) and `LitemallOrderPaymentSuccessEvent` must reach Kafka via the AFTER_COMMIT path described above — verify by spying on the `KafkaTemplate` / `StreamBridge` in an integration test that asserts no message is sent if the submit transaction rolls back.
+  - **Pick a Stream binder and configure it.** `litemall-order/pom.xml:100–103` declares `spring-cloud-stream` but the Kafka binder at lines 105–108 is commented out, and `src/main/resources/config/application.yml` has no `spring.cloud.stream.*` block — today nothing actually reaches a broker.
+    - Uncomment / add `spring-cloud-stream-binder-kafka` (version from the BOM, not pinned).
+    - Add `spring.cloud.stream.bindings.*`, default content-type `application/json`, and broker coordinates (override via the `litemall-config` repo, not committed credentials).
+    - If the project has standardized on plain `spring-kafka` (`KafkaTemplate`) elsewhere, delete Stream from this module and use `KafkaTemplate` instead — pick one and apply uniformly. Document the choice in a comment on the surviving config class.
+  - **Reconcile or delete the orphaned Stream plumbing.** `infrastructure/messaging/source/SimpleSourceBean.java` publishes to a hardcoded `"output-out-0"` binding and has no callers; `infrastructure/messaging/sink/` is empty; `infrastructure/messaging/model/OrderServiceChangeModel.java` already carries a `correlationId` field but is unused. Either:
+    1. Wire `SimpleSourceBean` (or a renamed equivalent) into the new domain-event Kafka forwarder, mapping each `LitemallDomainEvent` to a binding name per topic; or
+    2. Delete `SimpleSourceBean` + `OrderServiceChangeModel` + the empty `sink/` directory in the same PR.
+    Half-finished messaging plumbing must not survive this worktree.
+  - **Replace the cross-module `OrderUnpaidTask` reach.** Orchestrator line 29 imports `org.linlinjava.litemall.wx.task.OrderUnpaidTask` (used at 208 and dead at 276), and `taskService` is the servlet-only in-memory `DelayQueue` from `litemall-core` — neither survives a service restart nor scales horizontally.
+    - Move an `OrderUnpaidTask` (or equivalent) into `litemall-order` itself; the wx-api copy can stay if wx still needs it, but order must NOT import from wx.
+    - For the unpaid-timeout, prefer one of: (a) Kafka delayed retry topic, (b) DB-row + `@Scheduled` sweep, (c) a Kafka Streams windowed cancel. Pick one, document it in the orchestrator. Do NOT keep the in-memory `DelayQueue` as the production mechanism.
+  - **Enrich event payloads for cross-process consumers.** All events under `domain/events/order/`, `payment/`, `groupon/`, `coupon/` carry only primitive identifiers — no `correlationId`, no `schemaVersion`, no explicit `occurredAt` (the parent's `occurredOn` is never overridden). They also have no Jackson annotations.
+    - Add `correlationId` (sourced from `UserContext.getCorrelationId()` — `utils/UserContext.java:22`) and `schemaVersion` (constant per event class) to a shared base type, and ensure `occurredAt`/`occurredOn` is set in every constructor.
+    - Make events JSON-serializable: either annotate with `@JsonProperty` on getters or add Lombok / a Jackson mixin in the publisher. Verify with a round-trip serialization test.
+  - **Activate or delete the dormant event handlers.** `domain/events/eventhandlers/grouponEventHandler.java:12–30` has every listener method commented out (including the `@Async` one). Either uncomment and migrate them to `@TransactionalEventListener(phase = AFTER_COMMIT)` against the right event types, or delete the file. Commented-out listeners are not an acceptable resting state.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-order -am compile` and `mvn -q -o -pl litemall-admin-api -am compile` both clean.
+  - From the admin SPA served by `litemall-gateway-admin`, the order list, order detail, coupon list/create, and the chosen cart view all return data (no 401/403/404/502).
+  - No new dependency on `litemall-core` from any reactive module.
+  - Creating an order emits a `LitemallOrderCreatedEvent`; orders awaiting payment have an `OrderUnpaidTask` scheduled. `convertSubmitResultToOperationResult` returns `submitSuccessPaid` only when the order is actually paid.
+  - A `LitemallOrderCreatedEvent` raised from `handleOrderCreation` is observed on a Kafka topic (or chosen binder) in an integration test, AND no message is observed if the submit transaction is forced to roll back.
+  - `grep -rn "wx\.task\.OrderUnpaidTask" litemall-order/src` returns nothing; the unpaid-timeout mechanism is documented in the orchestrator and survives a restart of the order service.
+  - `grep -rn "@EventListener" litemall-order/src` and the corresponding `@TransactionalEventListener` matches show every cross-process side-effect handler is `phase = AFTER_COMMIT` (in-process-only handlers may stay on `@EventListener`).
+  - `litemall-order/pom.xml` has exactly one active broker stack (Spring Cloud Stream + a binder, OR plain `spring-kafka`) — no commented-out alternative — and `application.yml` carries the matching configuration block.
+  - `SimpleSourceBean` and `OrderServiceChangeModel` are either both referenced from the event-forwarding path or both deleted; the empty `infrastructure/messaging/sink/` directory is removed if unused.
+  - No `@EventListener`-decorated method in `domain/events/eventhandlers/` remains commented out.
 
-Service-to-service: OAuth2 **client-credentials machine token** from a new
-`litemall-authserver`; DDD services become resource servers validating that
-machine token; end-user identity forwarded as trusted headers. Customer/admin
-edge tokens are **never relayed downstream**.
+### Worktree: `gateway-admin`
+- **Branch:** `fix/gateway-admin`
+- **Path:** `../litemall-wt/gateway-admin`
+- **Scope:** `litemall-gateway-admin/` only. The admin SPA inside it can be reshaped, but **do not edit other modules** to paper over a gateway misconfiguration.
+- **Task:** Close the leftover gaps in the admin edge so the gateway compiles cleanly, routes every DDD service the admin SPA needs, and stops violating the Critical-Gotcha rule (suggested punch list, refine in the worktree's plan):
+  - **Locked-rule violation — remove `litemall-core` from `litemall-gateway-admin/pom.xml`.** `litemall-core` must NEVER be a gateway dep (it pulls `spring-boot-starter-web` which is incompatible with reactive Spring Cloud Gateway). Whatever it's being used for must move to `litemall-db` (the servlet-free shared module) or be inlined into the gateway.
+  - **Audit `litemall-wx-api` and `litemall-admin-api` as gateway deps** (also in `pom.xml`) — these are servlet MVC apps; pulling them into the reactive gateway risks dragging servlet starters in transitively. Remove unless there's a single, documented reason to keep them; if kept, justify in a code comment.
+  - **Add the missing service routes in `application.yml`.** Today only `goods-service` (`/srv/**` → `lb://litemall-goods-management`) and the frontend route exist. The admin SPA also needs `litemall-admin-api` (8083), `litemall-order` (8085), `litemall-wallet` (8086), `litemall-loyalty` (8087), and `litemall-promotion` (8088). Decide on a route-prefix convention (e.g. `/srv/<svc>/**` with `StripPrefix=1`) and document it. `MachineTokenRelayFilter` is a `GlobalFilter`, so per-route filter wiring isn't needed — but verify it actually fires on each new `lb://` route.
+  - **Frontend route is stuck in dev.** `application.yml` hardcodes `uri: http://localhost:9000` (webpack dev server) and the embedded-SPA forward is commented out. Profile-split: `dev` keeps the proxy, `prod` (or default) uses `forward:/index.html` and drops `StripPrefix=1` so asset paths aren't mangled.
+  - **De-duplicate `ApiResponse`.** Two divergent copies exist: `gatewayadmin/web/ApiResponse.java` and `gatewayadmin/domain/valueobjects/user/ApiResponse.java`. Pick one home, delete the other, update all imports.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-gateway-admin -am compile` clean.
+  - `mvn -q -o -pl litemall-gateway-admin dependency:tree | grep litemall-core` returns nothing.
+  - With the gateway running, an authenticated admin SPA can reach `litemall-admin-api`, `litemall-order`, `litemall-wallet`, `litemall-loyalty`, and `litemall-promotion` through `http://localhost:8080/...` (no 404 at the gateway).
+  - Production profile serves the admin SPA from the embedded build (no dependency on a running webpack dev server).
+  - Only one class named `ApiResponse` exists under `litemall-gateway-admin/`.
 
-## Locked decisions (do not relitigate)
-
-- **No Keycloak.** Both gateways mint/validate their own RS256 JWT at the edge.
-- Service-to-service = dedicated `litemall-authserver` (Spring Authorization
-  Server, client-credentials only, RS256+JWKS). DDD services validate it.
-- Admin gateway = rename of existing `litemall-gateway` (done, Phase 3a).
-- wx-api moved 8082 → **8084** (8083 = admin-api, 8082 = goods-management).
-- `litemall-all-react-war` is retired in Phase 5.
-- Customer edge is self-contained: depends on `litemall-db`, verifies
-  credentials directly against `LitemallUser` (BCrypt), persists V15 refresh
-  tokens itself; blocking MyBatis on a `boundedElastic` scheduler.
-- Two separate Redux stores, no shared auth slice; shared FE via npm workspace.
-- Customer SPA keeps the litemall `{errno,errmsg,data}` envelope.
-- **Process:** written, approved plan before large/architectural code; surface
-  genuine forks via questions first.
-
-### Critical gotcha — DO NOT VIOLATE
-
-`litemall-core` pulls `spring-boot-starter-web` (servlet MVC) →
-**incompatible with reactive Spring Cloud Gateway**. The shared JWT toolkit
-lives in **`litemall-db`** (`org.linlinjava.litemall.db.auth`), the lowest
-servlet-free shared module. Gateways depend on `litemall-db` and scan
-`org.linlinjava.litemall.db` — **never introduce `litemall-core` into either
-gateway.**
-
-## Phase status (at base-branch creation)
-
-| Phase | Status |
-|---|---|
-| 0 — JWT toolkit (in litemall-db) | ✅ DONE, compiles |
-| 1 — wx-api port → 8084 | ✅ DONE |
-| 2 — Customer auth @ gateway-api | ✅ DONE, compiles |
-| 3a — Rename gateway → gateway-admin | ✅ DONE |
-| 3b — Strip Keycloak/OIDC from gateway-admin | ⏳ worktree `phase-3b` |
-| 3c — Admin self-JWT @ gateway-admin | ⏳ worktree `phase-3c` |
-| 3d — V16 admin refresh table | ⏳ worktree `phase-3d` |
-| 4 — authserver + resource servers | ⏳ worktree `phase-4` |
-| 5 — Frontend split, retire all-react-war | ⏳ worktree `phase-5` |
-| 6 — Integration verification | ⏳ on base branch after merges |
-
-## Build / verify commands
-
-- Compile a module offline: `mvn -q -o -pl <module> -am compile`
-- Validate a module: `mvn -q -o -pl <module> validate`
-- Offline-verified so far: `litemall-db`, `litemall-gateway-api` (+deps).
-- `litemall-gateway-admin` full offline compile may fail until Phase 3b
-  removes keycloak/resteasy deps — environmental, not a correctness signal.
-
-## Port map
-
-`8080` gateway-admin · `8081` recover-compose svc · `8082` goods-management ·
-`8083` admin-api · **`8084` wx-api** · `8085` order · `8086` wallet ·
-`8087` loyalty · `8088` promotion · `8090` gateway-api · `8761` eureka ·
-`8888` config · authserver = TBD (pick free, e.g. 8089/8091).
-
-## Worktree layout
-
-| Branch | Worktree dir | Phase |
-|---|---|---|
-| `refactor/dual-gateway-base` | (this repo) | base / Phase 6 |
-| `refactor/phase-3b-strip-keycloak` | `../litemall-wt/phase-3b` | 3b |
-| `refactor/phase-3c-admin-jwt` | `../litemall-wt/phase-3c` | 3c |
-| `refactor/phase-3d-admin-refresh` | `../litemall-wt/phase-3d` | 3d |
-| `refactor/phase-4-authserver` | `../litemall-wt/phase-4` | 4 |
-| `refactor/phase-5-frontend-split` | `../litemall-wt/phase-5` | 5 |
-
-> 3b → 3c → 3d → 4 are **sequential** and touch overlapping `gateway-admin`
-> files. Worktrees are isolation sandboxes for per-phase work, not a
-> safe parallel-merge strategy — merge 3b before building 3c on top, etc.
-
-## Memory pointers
-
-`~/.claude/projects/-home-bimeni-shopping-apps-litemall-app-litemall/memory/`
-- `project_frontend_split_auth.md` — full locked architecture + live progress.
-- `feedback_plan_before_code.md` — plan-before-code preference.
+### Worktree: `gateway-api`
+- **Branch:** `fix/gateway-api`
+- **Path:** `../litemall-wt/gateway-api`
+- **Scope:** `litemall-gateway-api/` only. The customer SPA inside it can be reshaped, but **do not edit other modules** to paper over a gateway misconfiguration. Same scope discipline as `gateway-admin`.
+- **Task:** Close the leftover Phase-5 gaps in the customer edge so the gateway compiles cleanly, routes the customer surface end-to-end on port 8090, and stops bleeding admin-realm code into the customer SPA (suggested punch list, refine in the worktree's plan):
+  - **Locked-rule check — `litemall-core` must not be a dep.** Same gotcha as `gateway-admin`: it pulls `spring-boot-starter-web` which is incompatible with reactive Spring Cloud Gateway. Audit `litemall-gateway-api/pom.xml`; if it's there, move whatever uses it to `litemall-db` (servlet-free) or inline it.
+  - **Webpack dev-server points at the wrong gateway port.** `litemall-gateway-api/webpack/webpack.dev.js:56,62,68` proxies `/srv`, `/management`, `/api` to `http://localhost:8080` — that's `gateway-admin`. Customer gateway runs on **8090** (`bootstrap.yml:35-36`). Update all three targets to 8090. Also fix the stale `// routes /srv → 8080` comment in `app/config/api.ts:2`.
+  - **BrowserSyncPlugin race-on-port-9000.** Same problem `gateway-admin` already removed: `webpack.dev.js:84-105` registers BrowserSyncPlugin on port 9000, the same as webpack-dev-server, so the two race for the socket and the `/srv` proxy silently never fires. WDS's `hot: true` already provides live reload. Delete the plugin block + the `require('browser-sync-webpack-plugin')` at line 3, and drop the dep from `package.json`.
+  - **Customer routes are not wired.** `application.yml:34-52` only routes `/wx/**` → `http://localhost:8084`; the comment at lines 42-52 explicitly documents the customer routes as a TODO. Add at minimum `/srv/catalog/**` and `/srv/goods/**` → `lb://litemall-goods-management`, plus whatever protected customer surface the SPA actually consumes (orders, cart, wallet). Match `gateway-admin`'s explicit-route convention (no `StripPrefix`, no discovery locator).
+  - **Port the Phase-4 machine-token relay if missing.** If the customer gateway is to call DDD services protected by `litemall-svcsecurity`, it needs the same `MachineTokenRelayFilter` + `MachineTokenConfig` `gateway-admin` got in Phase 4c. The `gateway-api` `client_credentials` registration already exists in `bootstrap.yml:14-23`; wire the filter so every `lb://` route relays `Authorization: Bearer <machine-token>` downstream. Verify it fires on each new `lb://` route.
+  - **Customer `/auth/login` at the edge.** Mirror `gateway-admin`'s `AuthController` but against the customer credential store (issuer `litemall-customer`, audience `litemall-customer-api`, per `application.yml:62-68`). Today the customer SPA tries to sign in against a non-existent edge endpoint. Either port the controller or route `/auth/**` to wx-api; pick one and document.
+  - **Strip admin-realm leftovers from the customer SPA.** `app/config/api.ts:9` still exports `ADMIN_URL_CONTEXT = 'http://localhost:9000/'`, and the consuming slices under `app/shared/reducers/private/catalogMgn/**` + `app/litemall-admin/**` + `app/views/commonViews/layouts/adminLayouts/**` are admin-realm code that does not belong in the customer SPA. Remove the constant, delete those slices/components, and drop SPA calls to admin-only paths like `/srv/private/account`.
+  - **Reconcile the Phase-5 git drift.** `litemall-gateway-api/src/main/webapp/app/` has HEAD-tracked files (App.tsx, Home.tsx, productDetailSlice.ts, etc.) that no longer exist on disk, coexisting with untracked working-tree files at the same paths. Every `git add` under that subtree collaterally stages phantom deletions (see recent commit `24daa1860`). Land one squash that `git rm --cached`s the stale index entries and `git add`s the new files, so the index matches the working tree.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-gateway-api -am compile` clean.
+  - `mvn -q -o -pl litemall-gateway-api dependency:tree | grep litemall-core` returns nothing.
+  - With the customer gateway running on 8090, the customer SPA at `http://localhost:9000` reaches `/srv/catalog/**` and `/srv/goods/**` through the dev-server proxy and gets real backend data (no ECONNREFUSED, no 404 at the gateway). The protected customer surface (orders/cart/wallet) is reachable after sign-in.
+  - `grep -rn "ADMIN_URL_CONTEXT\|litemall-admin\|adminLayouts" litemall-gateway-api/src/main/webapp/app` returns nothing.
+  - `webpack.dev.js` proxy targets all read 8090; `BrowserSyncPlugin` and `browser-sync-webpack-plugin` are gone from `webpack.dev.js` and `package.json`.
+  - A customer JWT issued by gateway-api fails verification at gateway-admin (and vice versa) — the realms remain separated as documented in `bootstrap.yml:42-46`.
+  - `git status` under `litemall-gateway-api/src/main/webapp/app/` shows a coherent picture: no path appears simultaneously as staged-deletion and untracked.
