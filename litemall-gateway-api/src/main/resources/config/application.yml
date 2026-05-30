@@ -26,6 +26,15 @@ spring:
             allowedHeaders: "*"
             allowCredentials: true
             maxAge: 3600
+      # Routing convention (mirrors litemall-gateway-admin): NO StripPrefix —
+      # backend controllers expect the full /srv/<svc>/... path. Specific
+      # prefixes first; the goods catch-all (/srv/**) is LAST so it only
+      # handles what the more specific routes did not claim. MachineTokenRelayFilter
+      # is a GlobalFilter and fires on every lb:// route below, relaying the
+      # service machine token downstream; IdentityForwardingFilter adds the
+      # trusted X-User-* customer identity. The customer self-JWT is validated
+      # here and never relayed. /auth/** is served locally by AuthController
+      # (a @RestController), so it needs no route entry.
       routes:
         # Customer API surface. wx-api is not Eureka-registered -> direct URI.
         # wx-api moved off 8082 (collided with goods-management) -> 8084.
@@ -34,17 +43,32 @@ spring:
           predicates:
             - Path=/wx/**
 
-        # ---------------------------------------------------------------------
-        # STEP 2 (auth) will add the protected customer routes below, guarded by
-        # the customer self-signed JWT validated AT THIS GATEWAY, e.g.:
-        #   - id: customer-goods
-        #     uri: lb://goods-service-app
-        #     predicates: [ Path=/srv/catalog/**, Path=/srv/goods/** ]
-        #   - id: customer-order
-        #     uri: lb://order-service-app
-        #     predicates: [ Path=/srv/private/customer/** ]
-        # No TokenRelay / no Keycloak OIDC on this gateway (customer JWT only).
-        # ---------------------------------------------------------------------
+        # Protected customer surface (reachable after sign-in). Order + cart
+        # share the order service; wallet is its own service.
+        - id: customer-order
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/order/**,/srv/cart/**
+        - id: customer-wallet
+          uri: lb://wallet-service-app
+          predicates:
+            - Path=/srv/wallet/**
+
+        # Goods catch-all — handles /srv/catalog/**, /srv/goods/**, /srv/search,
+        # /srv/suggest, /srv/category/**, etc. MUST be last among /srv/** routes
+        # so the specific prefixes above win.
+        - id: customer-goods
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/srv/**
+
+        # Bundled customer SPA (Phase 5 webapp build -> target/classes/static).
+        # Root path only; in dev the webpack dev-server on :9000 is the front
+        # door and proxies /auth,/srv,/wx here, so this is a prod/default serve.
+        - id: frontend
+          uri: forward:/index.html
+          predicates:
+            - Path=/
 
       # Intentionally NO default TokenRelay filter: this is the customer edge,
       # not the Keycloak BFF (that is litemall-gateway-admin).
