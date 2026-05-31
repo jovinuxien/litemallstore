@@ -11,17 +11,20 @@ interface IOwnProps extends PathRouteProps {
 }
 
 export const PrivateRoute = ({ children, hasAnyAuthorities = [], ...rest }: IOwnProps) => {
-  const isAuthenticated = useAppSelector(state => state.authentication.isAuthenticated);
-  const sessionHasBeenFetched = useAppSelector(state => state.authentication.sessionHasBeenFetched);
-  const account = useAppSelector(state => state.authentication.account);
-  const isAuthorized = hasAnyAuthority(account.authorities, hasAnyAuthorities);
+  // The admin session is the source of truth here (admin self-JWT, see
+  // shared/reducers/admin-auth). It bootstraps synchronously from localStorage,
+  // so `bootstrapped` is true at first render — no async account fetch to await.
+  const isAuthenticated = useAppSelector(state => state.adminAuth.isAuthenticated);
+  const bootstrapped = useAppSelector(state => state.adminAuth.bootstrapped);
+  const authorities = useAppSelector(state => state.adminAuth.authorities);
+  const isAuthorized = hasAnyAuthority(authorities, hasAnyAuthorities);
   const pageLocation = useLocation();
 
   if (!children) {
     throw new Error(`A component needs to be specified for private route for path ${(rest as any).path}`);
   }
 
-  if (!sessionHasBeenFetched) {
+  if (!bootstrapped) {
     return <div></div>;
   }
 
@@ -42,7 +45,7 @@ export const PrivateRoute = ({ children, hasAnyAuthorities = [], ...rest }: IOwn
   return (
     <Navigate
       to={{
-        pathname: '/oauth2/authorization/oidc',
+        pathname: '/account/signin',
         search: pageLocation.search,
       }}
       replace

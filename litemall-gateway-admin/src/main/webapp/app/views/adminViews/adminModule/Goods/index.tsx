@@ -1,3 +1,3 @@
-import GoodsListView from './GoodsListView';
+import AdminGoodsList from './AdminGoodsList';
 
-export default GoodsListView;
+export default AdminGoodsList;
