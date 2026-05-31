@@ -30,12 +30,8 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.AggregatesValidationContext;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.FeignResponseHandler;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchGoodsRequest;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchProductsRequest;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.ReduceStockRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -73,7 +69,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private  TaskService taskService;
     @Autowired
-    private GoodsServiceFeignClient goodsServiceFeignClient;
+    private LitemallGoodsFacade goodsFacade;
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
 
@@ -147,8 +143,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             return LitemallOrderSubmitResult.failed();
         }
 
-        // Validate the productStock
-        this.orderDomainService.validateProductStock(cartList, goodsServiceFeignClient);
+        // Validate the productStock through the goods ACL (price/stock authoritative read)
+        this.orderDomainService.validateProductStock(cartList, goodsFacade);
 
         // Group purchase discount
         BigDecimal grouponPrice = new BigDecimal(0);  // initialize grouponPrice is not redundant;
@@ -418,10 +414,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
 
         } catch (Exception e) {
-            // Handle exceptions gracefully
-            log.error("Failed to load goods from the feign client validation context for cartList {}",
-                  cartList, e);
-            return AggregatesValidationContext.mapsGoodsAndMapsProductsNotFound();
+            // A goods-management outage must fail placement cleanly (rollback, no
+            // stock taken), not be swallowed into an empty validation context.
+            Throwable cause = (e instanceof java.util.concurrent.CompletionException && e.getCause() != null)
+                    ? e.getCause() : e;
+            log.error("Failed to load goods from the goods ACL for cartList {}", cartList, cause);
+            if (cause instanceof org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException unavailable) {
+                throw unavailable;
+            }
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "failed to load goods for stock reservation", cause);
         }
     }
 
@@ -434,44 +436,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     }
 
     private Map<LitemallGoodsId, LitemallGoodsAggregate> batchGetGoodsAggregates(Set<Integer> goodsIds) {
-        if (goodsIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        // Single batch call instead of N individual calls
-        Map<LitemallGoodsId, LitemallGoodsAggregate> response = null;
-        try {
-            response = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchGetGoodsAggregates(new BatchGoodsRequest(goodsIds)),
-                    "Batch Get Goods Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Convert back to domain IDs
-       /* return response.entrySet().stream()
-                .collect(Collectors.toMap(
-                        entry -> new LitemallGoodsId(entry.getKey()),
-                        Map.Entry::getValue
-                ));*/
-        return response;
+        // Single batch call through the goods ACL instead of N individual calls
+        return goodsFacade.batchGetGoods(goodsIds);
     }
 
     private Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> batchGetProductAggregates(Set<Integer> productIds) {
-        if (productIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> response = null;
-        try {
-            response = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchGetGoodsProductsAggregate(new BatchProductsRequest(productIds)),
-                    "Batch Get Products Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
-        return response;
+        return goodsFacade.batchGetProducts(productIds);
     }
 
     private void validateStockForAllItems(List<LitemallCartAggregate> cartList, AggregatesValidationContext context){
@@ -502,24 +472,17 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     private void reduceStockForAllItems(List<LitemallCartAggregate> cartList, AggregatesValidationContext context){
 
-        // Prepare batch reduce stock requests
-        List<ReduceStockRequest> reduceStockRequests = cartList.stream()
-                .map(cartItem -> new ReduceStockRequest(
-                        cartItem.getProductId().getId(),
-                        cartItem.getNumber()
-                ))
-                .toList();
+        // Prepare batch reduce stock requests (product id -> requested quantity)
+        Map<Integer, Integer> productQuantities = cartList.stream()
+                .collect(Collectors.toMap(
+                        cartItem -> cartItem.getProductId().getId(),
+                        LitemallCartAggregate::getNumber,
+                        Integer::sum
+                ));
 
-        // Single batch call instead of N individual calls
-        Map<Integer, Boolean> reduceResults = null;
-        try {
-             reduceResults = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchReduceStock(reduceStockRequests),
-                    "Batch Reduce Stock Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
+        // Single batch reserve/reduce through the goods ACL
+        Map<Integer, Boolean> reduceResults = goodsFacade.reduceStock(productQuantities);
+
         // Verify all reductions were successful
         List<Integer> failedReductions = reduceResults.entrySet().stream()
                 .filter(entry -> !entry.getValue())

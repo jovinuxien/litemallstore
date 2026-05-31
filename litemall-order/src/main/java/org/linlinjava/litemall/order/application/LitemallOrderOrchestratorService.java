@@ -20,8 +20,10 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRules
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
+import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletDebitCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.payment.PaymentMethod;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderHandleOption;
@@ -61,6 +63,12 @@ public class LitemallOrderOrchestratorService {
 
     @Autowired
     LitemallDomainEventPublisher domainEventPublisher;
+
+    // Wallet vertical (absorbed from litemall-wallet-service). Used to debit the
+    // user's wallet when PaymentMethod.WALLET is selected — mirrors how groupon
+    // flows through grouponServiceLayer.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.linlinjava.litemall.order.application.LitemallIWalletService walletService;
 
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
@@ -162,6 +170,15 @@ public class LitemallOrderOrchestratorService {
                     order.getOrderStatus());
         }
 
+        // Wallet payment: debit the user's wallet through the wallet vertical
+        // (aggregate -> LitemallWalletDomainService -> repository, emitting
+        // LitemallWalletDebitedEvent). Insufficient balance raises
+        // LitemallInsufficientBalanceException, which rolls back this transaction
+        // so no paid order is produced.
+        if (paymentCommand.getPaymentMethod() == PaymentMethod.WALLET) {
+            debitWalletForOrder(order, orderId);
+        }
+
         // Process payment (simplified - integrate with your payment gateway)
         boolean paymentSuccess = processPayment(order, paymentCommand.getPaymentInfo());
 
@@ -225,6 +242,24 @@ public class LitemallOrderOrchestratorService {
         // Integrate with your payment gateway here
         // This is a simplified implementation
         return true; // Assume success for demo
+    }
+
+    /**
+     * Debit the order's actual price from the buyer's wallet via the wallet
+     * vertical. Propagates {@code LitemallInsufficientBalanceException} on an
+     * underfunded wallet so the payment transaction rolls back without producing
+     * a paid order.
+     */
+    private void debitWalletForOrder(LitemallOrderAggregate order, LitemallOrderId orderId) {
+        LitemallWalletDebitCommand debitCommand = new LitemallWalletDebitCommand(
+                order.getUserId().getId(),
+                order.getActualPrice().getAmount(),
+                "Order payment",
+                "ORDER",
+                "PAYMENT",
+                String.valueOf(orderId.getId()),
+                "Wallet debit for order " + order.getOrderSn());
+        walletService.debit(debitCommand);
     }
 
     private void handlePostCancellation(LitemallOrderAggregate order) {

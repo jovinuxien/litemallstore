@@ -77,12 +77,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-wx-api</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
@@ -123,6 +117,14 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+		<!-- Circuit breaker + fallback for the goods-service Feign client
+		     (enables feign.circuitbreaker so GoodsServiceFeignClient's
+		     fallbackFactory engages on timeout/outage). -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
 		</dependency>
 
 

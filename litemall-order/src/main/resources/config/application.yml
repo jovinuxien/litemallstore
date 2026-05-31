@@ -49,6 +49,32 @@ goods:
   service:
     url: http://localhost:8083
 
+# Goods-service client resilience: connect/read timeouts + circuit breaker with
+# fallback (GoodsServiceFeignClientFallbackFactory). A goods-management outage
+# fails order placement cleanly instead of hanging — see docs/adr-goods-acquisition.md.
+feign:
+  circuitbreaker:
+    enabled: true
+  client:
+    config:
+      goods-service:
+        connectTimeout: 2000
+        readTimeout: 3000
+        loggerLevel: basic
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      goods-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+  timelimiter:
+    instances:
+      goods-service:
+        timeoutDuration: 4s
+
 logging:
   level:
     root: INFO

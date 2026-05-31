@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class)
+@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class,
+        fallbackFactory = GoodsServiceFeignClientFallbackFactory.class)
 public interface GoodsServiceFeignClient {
 
     @GetMapping(value = "/goods/goodsdetail" )
