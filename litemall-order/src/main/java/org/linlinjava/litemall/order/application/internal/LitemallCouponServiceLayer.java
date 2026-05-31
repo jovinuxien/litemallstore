@@ -10,7 +10,6 @@ import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsA
 import org.linlinjava.litemall.order.domain.service.coupon.LitemallCouponDomainService;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallCouponUserRepository;
-import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCouponUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext;
@@ -20,8 +19,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUser
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchGoodsRequest;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +37,7 @@ public class LitemallCouponServiceLayer {
     @Autowired
     private LitemallCouponUserRepository couponUserRepository;
     @Autowired
-    private GoodsServiceFeignClient goodsServiceFeignClient;
+    private LitemallGoodsFacade goodsFacade;
     @Autowired
     private LitemallCouponDomainService couponService;
 
@@ -122,13 +120,13 @@ public class LitemallCouponServiceLayer {
                     .map(item -> item.getGoodsId().getId())
                     .collect(Collectors.toSet());
 
-            ApiResponse<Map<LitemallGoodsId, LitemallGoodsAggregate>> goodsMap = goodsServiceFeignClient.batchGetGoodsAggregates(new BatchGoodsRequest(goodsIds));
+            Map<LitemallGoodsId, LitemallGoodsAggregate> goodsMap = goodsFacade.batchGetGoods(goodsIds);
 
             // Use the factory method
             return org.linlinjava.litemall.order.domain.model.valueobjects.coupon.CouponValidationContext.create(
                     couponFuture.join(),
                     couponUserFuture.join(),
-                    goodsMap.getData()
+                    goodsMap
             );
 
         } catch (Exception e) {
