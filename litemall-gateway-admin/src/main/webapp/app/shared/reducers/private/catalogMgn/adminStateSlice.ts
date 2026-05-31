@@ -58,6 +58,12 @@ export const fetchOrderStats = createAsyncThunk<OrderStatsResult, void, { reject
     try {
       const response = await axios.get(ORDER_STATS_URL);
       const body = response.data;
+      // The litemall envelope can signal failure via a non-zero `errno` even on
+      // HTTP 200 (e.g. 501 "business not supported" before the order service
+      // implements this endpoint). Treat that as unavailable, not empty data.
+      if (body && typeof body.errno === 'number' && body.errno !== 0) {
+        return thunkApi.rejectWithValue({ unavailable: true, message: 'Order statistics are not available yet.' });
+      }
       // Accept either { errno, data: { rows | columns/rows | [] } } or a raw array.
       const payload = body?.data ?? body;
       const rawRows: Record<string, unknown>[] = Array.isArray(payload) ? payload : payload?.rows ?? [];
