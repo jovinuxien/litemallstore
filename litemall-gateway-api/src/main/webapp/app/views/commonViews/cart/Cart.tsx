@@ -9,18 +9,18 @@ const CartView = () => {
   const navigate = useNavigate();
   const [cartTotalItem, setCartTotalItem] = useState<number>(0);
   const { cartList, cartTotal } = useAppSelector(state => state.cart.data);
-  const { isAuthenticated } = useAppSelector(state => state.auth.data);
+  const { isAuthenticated } = useAppSelector(state => state.customerAuth.data);
   const [number, setNumber] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showFloatingCart, setShowFloatingCart] = useState(false);
 
-  const onSubmitApplyCouponCode = async values => {
+  const onSubmitApplyCouponCode = async (values: Record<string, unknown>) => {
     alert(JSON.stringify(values));
   };
   const handleDecreaseQuantity = (id: number) => {
     const item = cartList.find(item => item.id === id);
-    if (item && item.number > 1) {
-      const newQuantity = item.number - 1;
+    if (item && (item.number ?? 0) > 1) {
+      const newQuantity = (item.number ?? 0) - 1;
       updateCartItemQuantity(id, newQuantity);
     }
   };
@@ -56,7 +56,7 @@ const CartView = () => {
     }
   };
 
-  const handleContinueShopping = event => {
+  const handleContinueShopping = (event: React.MouseEvent) => {
     event.preventDefault();
     navigate('/#hot-and-new');
     setTimeout(() => {
@@ -144,24 +144,24 @@ const CartView = () => {
                           </td>
                           <td>
                             <div className='input-group input-group-sm mw-140'>
-                              <button className='btn btn-primary text-white' type='button' onClick={() => handleDecreaseQuantity(item.id)}>
+                              <button className='btn btn-primary text-white' type='button' onClick={() => handleDecreaseQuantity(item.id ?? 0)}>
                                 <i className='bi bi-dash-lg'></i>
                               </button>
-                              <input type='text' className='form-control' value={item.number} onChange={e => setNumber(parseInt(e.target.value))} readOnly />
-                              <button className='btn btn-primary text-white' type='button' onClick={() => handleUpdateQuantity(item.id, item.number)}>
+                              <input type='text' className='form-control' value={item.number ?? 0} onChange={e => setNumber(parseInt(e.target.value))} readOnly />
+                              <button className='btn btn-primary text-white' type='button' onClick={() => handleUpdateQuantity(item.id ?? 0, (item.number ?? 0) + 1)}>
                                 <i className='bi bi-plus-lg'></i>
                               </button>
                             </div>
                           </td>
                           <td>
-                            <var className='price'>${item.price * item.number}</var>
-                            <small className='d-block text-muted'>${item.price} each</small>
+                            <var className='price'>${(item.price ?? 0) * (item.number ?? 0)}</var>
+                            <small className='d-block text-muted'>${item.price ?? 0} each</small>
                           </td>
                           <td className='text-end'>
-                            <button className='btn btn-sm btn-outline-secondary me-2' onClick={() => handleAddToWishlist(item.id)}>
+                            <button className='btn btn-sm btn-outline-secondary me-2' onClick={() => handleAddToWishlist(item.id ?? 0)}>
                               <i className='bi bi-heart-fill'></i>
                             </button>
-                            <button className='btn btn-sm btn-outline-danger' onClick={() => handleRemoveFromCart(item.id)}>
+                            <button className='btn btn-sm btn-outline-danger' onClick={() => handleRemoveFromCart(item.id ?? 0)}>
                               <i className='bi bi-trash'></i>
                             </button>
                           </td>

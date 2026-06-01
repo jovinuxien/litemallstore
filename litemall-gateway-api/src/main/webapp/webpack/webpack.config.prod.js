@@ -19,7 +19,15 @@ module.exports = {
     },
   },
   module: {
-    rules: [{ test: /\.tsx?$/, use: 'ts-loader', exclude: /node_modules/ }],
+    rules: [
+      // onlyCompileBundledFiles: type-check just the routed import graph, not
+      // every file under tsconfig `include`. Peripheral views not yet migrated
+      // in Phase 6 (blog/account/support/…) stay out of the build until routed.
+      { test: /\.tsx?$/, use: { loader: 'ts-loader', options: { onlyCompileBundledFiles: true } }, exclude: /node_modules/ },
+      { test: /\.scss$/, use: ['style-loader', 'css-loader', 'sass-loader'] },
+      { test: /\.css$/, use: ['style-loader', 'css-loader'] },
+      { test: /\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp)$/, type: 'asset/resource' },
+    ],
   },
   plugins: [new HtmlWebpackPlugin({ template: path.resolve(__dirname, '../public/index.html') })],
 };
