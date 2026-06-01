@@ -6,6 +6,7 @@
     "lib": ["ES2020", "DOM"],
     "jsx": "react-jsx",
     "strict": true,
+    "useUnknownInCatchVariables": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
