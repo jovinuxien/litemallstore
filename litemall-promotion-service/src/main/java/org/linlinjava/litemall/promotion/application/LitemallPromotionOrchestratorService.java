@@ -1,11 +1,16 @@
 package org.linlinjava.litemall.promotion.application;
 
 import org.linlinjava.litemall.promotion.application.internal.LitemallBargainServiceImpl;
+import org.linlinjava.litemall.promotion.application.internal.LitemallCombinationServiceImpl;
+import org.linlinjava.litemall.promotion.application.internal.LitemallCouponServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallSeckillServiceImpl;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCheckBargainStatusCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCreateBargainSessionCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallHelpBargainCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallJoinSeckillCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallIssueCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallReceiveCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallRedeemCouponCommand;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,12 +29,18 @@ public class LitemallPromotionOrchestratorService {
 
     private final LitemallSeckillServiceImpl seckillService;
     private final LitemallBargainServiceImpl bargainService;
+    private final LitemallCouponServiceImpl couponService;
+    private final LitemallCombinationServiceImpl combinationService;
 
     @Autowired
     public LitemallPromotionOrchestratorService(LitemallSeckillServiceImpl seckillService,
-                                                 LitemallBargainServiceImpl bargainService) {
+                                                 LitemallBargainServiceImpl bargainService,
+                                                 LitemallCouponServiceImpl couponService,
+                                                 LitemallCombinationServiceImpl combinationService) {
         this.seckillService = seckillService;
         this.bargainService = bargainService;
+        this.couponService = couponService;
+        this.combinationService = combinationService;
     }
 
     public enum PromotionAction {
@@ -150,6 +161,77 @@ public class LitemallPromotionOrchestratorService {
         return performAction(PromotionAction.CHECK_BARGAIN_STATUS, command);
     }
 
+    // ----- Coupon vertical -----
+
+    public LitemallPromotionOperationResult issueCoupon(LitemallIssueCouponCommand command) {
+        try {
+            return couponService.issueCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponIssueFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error issuing coupon", e);
+            return LitemallPromotionOperationResult.couponIssueFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult receiveCoupon(LitemallReceiveCouponCommand command) {
+        try {
+            return couponService.receiveCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponReceiveFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error receiving coupon", e);
+            return LitemallPromotionOperationResult.couponReceiveFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult redeemCoupon(LitemallRedeemCouponCommand command) {
+        try {
+            return couponService.redeemCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponRedeemFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error redeeming coupon", e);
+            return LitemallPromotionOperationResult.couponRedeemFailed("System error: " + e.getMessage());
+        }
+    }
+
+    // ----- Combination (group-buy) campaign-definition vertical -----
+
+    public LitemallPromotionOperationResult defineCombination(
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallDefineCombinationCommand command) {
+        try {
+            return combinationService.defineCombination(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.combinationDefineFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error defining combination campaign", e);
+            return LitemallPromotionOperationResult.combinationDefineFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult activateCombination(
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallActivateCombinationCommand command) {
+        try {
+            return combinationService.activateCombination(command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.combinationStateChangeFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error activating combination campaign", e);
+            return LitemallPromotionOperationResult.combinationStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult expireCombination(
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallExpireCombinationCommand command) {
+        try {
+            return combinationService.expireCombination(command);
+        } catch (Exception e) {
+            logger.error("Error expiring combination campaign", e);
+            return LitemallPromotionOperationResult.combinationStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
     // Delegate read-only methods
     public LitemallSeckillServiceImpl getSeckillService() {
         return seckillService;
@@ -157,5 +239,13 @@ public class LitemallPromotionOrchestratorService {
 
     public LitemallBargainServiceImpl getBargainService() {
         return bargainService;
+    }
+
+    public LitemallCouponServiceImpl getCouponService() {
+        return couponService;
+    }
+
+    public LitemallCombinationServiceImpl getCombinationService() {
+        return combinationService;
     }
 }

@@ -3,6 +3,18 @@ spring:
     name: PROMOTION-SERVICE-APP
   profiles:
     active: dev, db, core, elastic, admin, wx
+  cloud:
+    stream:
+      default:
+        contentType: application/json
+      # Cross-process promotion events. StreamBridge publishes to these
+      # destinations (Kafka topics) from @TransactionalEventListener(AFTER_COMMIT).
+      # Single backend = Kafka, mirroring litemall-order. Broker host is
+      # profile-overridable via config-server; no hardcoded host in Java.
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
 litemall:
   svcsecurity:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS

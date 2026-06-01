@@ -7,7 +7,9 @@ import java.util.Objects;
 public class LitemallPromotionOperationResult {
 
     public enum OperationType {
-        JOIN_SECKILL, CREATE_BARGAIN, HELP_BARGAIN, CHECK_BARGAIN_STATUS
+        JOIN_SECKILL, CREATE_BARGAIN, HELP_BARGAIN, CHECK_BARGAIN_STATUS,
+        ISSUE_COUPON, RECEIVE_COUPON, REDEEM_COUPON,
+        DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION
     }
 
     private final boolean success;
@@ -73,6 +75,54 @@ public class LitemallPromotionOperationResult {
 
     public static LitemallPromotionOperationResult bargainStatusChecked(Map<String, Object> data) {
         return success(OperationType.CHECK_BARGAIN_STATUS, "Bargain status retrieved", data);
+    }
+
+    // Coupon vertical
+
+    public static LitemallPromotionOperationResult couponIssued(Map<String, Object> data) {
+        return success(OperationType.ISSUE_COUPON, "Coupon issued successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponIssueFailed(String reason) {
+        return failed(OperationType.ISSUE_COUPON, "Failed to issue coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponReceived(Map<String, Object> data) {
+        return success(OperationType.RECEIVE_COUPON, "Coupon received successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponReceiveFailed(String reason) {
+        return failed(OperationType.RECEIVE_COUPON, "Failed to receive coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponRedeemed(Map<String, Object> data) {
+        return success(OperationType.REDEEM_COUPON, "Coupon redeemed successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponRedeemFailed(String reason) {
+        return failed(OperationType.REDEEM_COUPON, "Failed to redeem coupon: " + reason);
+    }
+
+    // Combination vertical (campaign definition)
+
+    public static LitemallPromotionOperationResult combinationDefined(Map<String, Object> data) {
+        return success(OperationType.DEFINE_COMBINATION, "Combination campaign defined successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult combinationDefineFailed(String reason) {
+        return failed(OperationType.DEFINE_COMBINATION, "Failed to define combination campaign: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult combinationActivated(Map<String, Object> data) {
+        return success(OperationType.ACTIVATE_COMBINATION, "Combination campaign activated", data);
+    }
+
+    public static LitemallPromotionOperationResult combinationExpired(Map<String, Object> data) {
+        return success(OperationType.EXPIRE_COMBINATION, "Combination campaign expired", data);
+    }
+
+    public static LitemallPromotionOperationResult combinationStateChangeFailed(String reason) {
+        return failed(OperationType.DEFINE_COMBINATION, "Failed to change combination campaign state: " + reason);
     }
 
     // =========================================================================
