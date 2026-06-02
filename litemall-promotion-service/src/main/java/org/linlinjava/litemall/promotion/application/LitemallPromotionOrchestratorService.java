@@ -1,9 +1,13 @@
 package org.linlinjava.litemall.promotion.application;
 
 import org.linlinjava.litemall.promotion.application.internal.LitemallBargainServiceImpl;
+import org.linlinjava.litemall.promotion.application.internal.LitemallCampaignServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallCombinationServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallCouponServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallSeckillServiceImpl;
+import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallActivateCampaignCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallDefineCampaignCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallEvaluateCampaignCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCheckBargainStatusCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCreateBargainSessionCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallHelpBargainCommand;
@@ -31,16 +35,19 @@ public class LitemallPromotionOrchestratorService {
     private final LitemallBargainServiceImpl bargainService;
     private final LitemallCouponServiceImpl couponService;
     private final LitemallCombinationServiceImpl combinationService;
+    private final LitemallCampaignServiceImpl campaignService;
 
     @Autowired
     public LitemallPromotionOrchestratorService(LitemallSeckillServiceImpl seckillService,
                                                  LitemallBargainServiceImpl bargainService,
                                                  LitemallCouponServiceImpl couponService,
-                                                 LitemallCombinationServiceImpl combinationService) {
+                                                 LitemallCombinationServiceImpl combinationService,
+                                                 LitemallCampaignServiceImpl campaignService) {
         this.seckillService = seckillService;
         this.bargainService = bargainService;
         this.couponService = couponService;
         this.combinationService = combinationService;
+        this.campaignService = campaignService;
     }
 
     public enum PromotionAction {
@@ -232,9 +239,48 @@ public class LitemallPromotionOrchestratorService {
         }
     }
 
+    // ----- Campaign (algorithmic targeting) vertical -----
+
+    public LitemallPromotionOperationResult defineCampaign(LitemallDefineCampaignCommand command) {
+        try {
+            return campaignService.defineCampaign(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.campaignDefineFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error defining campaign", e);
+            return LitemallPromotionOperationResult.campaignDefineFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult activateCampaign(LitemallActivateCampaignCommand command) {
+        try {
+            return campaignService.activateCampaign(command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.campaignStateChangeFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error activating campaign", e);
+            return LitemallPromotionOperationResult.campaignStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult evaluateCampaign(LitemallEvaluateCampaignCommand command) {
+        try {
+            return campaignService.evaluateCampaign(command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.campaignEvaluateFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error evaluating campaign", e);
+            return LitemallPromotionOperationResult.campaignEvaluateFailed("System error: " + e.getMessage());
+        }
+    }
+
     // Delegate read-only methods
     public LitemallSeckillServiceImpl getSeckillService() {
         return seckillService;
+    }
+
+    public LitemallCampaignServiceImpl getCampaignService() {
+        return campaignService;
     }
 
     public LitemallBargainServiceImpl getBargainService() {

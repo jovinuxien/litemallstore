@@ -20,6 +20,24 @@ litemall:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS
     # (replaces Keycloak). Dev default; config-server overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+  promotion:
+    # Phase 2 algorithmic-targeting thresholds. The single home for every RFM /
+    # segmentation tuning value — the scoring/segmentation logic carries no magic
+    # numbers. Profile-overridable via the config server. Boundaries are ascending
+    # lists of length 4 dividing a metric into five 1..5 buckets.
+    targeting:
+      recency-boundaries-days: [30, 60, 120, 240]   # ≤30d → R5 … >240d → R1
+      frequency-boundaries: [2, 4, 7, 12]            # ≥12 orders → F5 … <2 → F1
+      monetary-boundaries: [100, 500, 1000, 5000]    # ≥5000 spend → M5 … <100 → M1
+      stats-lookback-days: 365                        # window for fetching customer stats
+      segments:
+        champion-min-score: 4
+        loyal-min-score: 3
+        big-spender-min-monetary: 4
+        at-risk-max-recency: 2
+        at-risk-min-frequency: 3
+        new-min-recency: 4
+        new-max-frequency: 1
 server:
   port: 8088
 eureka:
@@ -33,3 +51,8 @@ eureka:
 goods:
   service:
     url: http://localhost:8083
+order:
+  service:
+    # Phase 2: source of per-customer RFM statistics (read via Feign behind an
+    # ACL). Host is profile-overridable; no hardcoded host in Java.
+    url: http://localhost:8084
