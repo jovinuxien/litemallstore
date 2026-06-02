@@ -9,7 +9,8 @@ public class LitemallPromotionOperationResult {
     public enum OperationType {
         JOIN_SECKILL, CREATE_BARGAIN, HELP_BARGAIN, CHECK_BARGAIN_STATUS,
         ISSUE_COUPON, RECEIVE_COUPON, REDEEM_COUPON,
-        DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION
+        DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION,
+        DEFINE_CAMPAIGN, ACTIVATE_CAMPAIGN, EVALUATE_CAMPAIGN
     }
 
     private final boolean success;
@@ -123,6 +124,32 @@ public class LitemallPromotionOperationResult {
 
     public static LitemallPromotionOperationResult combinationStateChangeFailed(String reason) {
         return failed(OperationType.DEFINE_COMBINATION, "Failed to change combination campaign state: " + reason);
+    }
+
+    // Campaign vertical (algorithmic targeting)
+
+    public static LitemallPromotionOperationResult campaignDefined(Map<String, Object> data) {
+        return success(OperationType.DEFINE_CAMPAIGN, "Campaign defined successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult campaignDefineFailed(String reason) {
+        return failed(OperationType.DEFINE_CAMPAIGN, "Failed to define campaign: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult campaignActivated(Map<String, Object> data) {
+        return success(OperationType.ACTIVATE_CAMPAIGN, "Campaign activated", data);
+    }
+
+    public static LitemallPromotionOperationResult campaignStateChangeFailed(String reason) {
+        return failed(OperationType.ACTIVATE_CAMPAIGN, "Failed to change campaign state: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult campaignEvaluated(Map<String, Object> data) {
+        return success(OperationType.EVALUATE_CAMPAIGN, "Campaign evaluated; audience assigned", data);
+    }
+
+    public static LitemallPromotionOperationResult campaignEvaluateFailed(String reason) {
+        return failed(OperationType.EVALUATE_CAMPAIGN, "Failed to evaluate campaign: " + reason);
     }
 
     // =========================================================================
