@@ -34,6 +34,8 @@ import org.linlinjava.litemall.order.infrastructure.services.acl.facades.Litemal
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -245,9 +247,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Clear the cart
         clearCart(cmdUserId, new LitemallCartId(command.getCartId()));
 
-        // Reduce the product stock
-        validateAndReduceStock(cartList);
-
         // Update coupon usage if applicable
         if (command.getCouponId() != 0 && command.getCouponId() != -1) {
             LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(new LitemallCouponUserId(command.getUserCouponId()));
@@ -267,8 +266,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             log.info("Groupon order created with link ID: {}", grouponLinkId);
         }
 
-
-        //publish domain events
+        // Reserve/reduce stock LAST — the remote decrement (a Feign call to
+        // goods-management) cannot be rolled back by this local DB transaction, so
+        // it is kept as the final mutation to minimise the window in which a later
+        // step could fail after stock is taken. reduceStockForAllItems additionally
+        // registers a rollback-time compensating restore (best-effort).
+        validateAndReduceStock(cartList);
 
         //Validate and process groupon if available
         return new LitemallOrderSubmitResult(
@@ -337,29 +340,81 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         return orderRepository.findById(orderId);
     }
 
+    /**
+     * Customer-initiated cancellation. Transitions the order to CANCELED,
+     * persists the new status, releases reserved stock (best-effort) and publishes
+     * the resulting domain events.
+     */
     public void cancelOrder(LitemallOrderId orderId, String reason) {
-        LitemallOrderAggregate orderAggregate =  orderRepository.findById(orderId).orElseThrow(() -> new NoSuchElementException("Order not found"));
-
-        if(orderAggregate == null){
-            //throw new LitemallOrderNotFoundException("Order not found");
-            throw new IllegalArgumentException("Order not found");
-        }
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
         orderAggregate.cancel(reason);
-        // 4. Publish a domain event to notify other parts of the system: Moved to LitemallOrderServiceImpl class.
-        // The steps 1,2 and 3 of this cancel method are implemented in LitemallOrderAggregate class
-        List<LitemallDomainEvent> domainEvents = orderAggregate.getDomainEvents();
-        // The logic of publishing domain events is moved to LitemallDomainEventPublisher class
+        finishCancellation(orderAggregate, orderId);
     }
 
     /**
-     *
-     * @param orderId
+     * System-initiated cancellation (e.g. the unpaid-order sweep). Transitions the
+     * order to SYSTEM_CANCELED; otherwise identical to {@link #cancelOrder}.
      */
-    private void updateOrderStatusToPaid(LitemallOrderId orderId) {
-        LitemallOrderAggregate paidOrder = new LitemallOrderAggregate();
-        paidOrder.setOrderId(orderId);
-        paidOrder.setOrderStatus(LitemallOrderStatus.PAID);
-        orderRepository.updateSelective(paidOrder);
+    public void autoCancelOrder(LitemallOrderId orderId, String reason) {
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        orderAggregate.autoCancel();
+        finishCancellation(orderAggregate, orderId);
+    }
+
+    /**
+     * Persist the cancelled status, restore reserved stock, and drain/publish the
+     * aggregate's domain events. The aggregate has already applied + validated the
+     * status transition.
+     */
+    private void finishCancellation(LitemallOrderAggregate orderAggregate, LitemallOrderId orderId) {
+        LitemallOrderAggregate patch = new LitemallOrderAggregate();
+        patch.setOrderId(orderId);
+        patch.setOrderStatus(orderAggregate.getOrderStatus());
+        orderRepository.updateSelective(patch);
+
+        // Release the stock reserved at placement (best-effort — see
+        // LitemallGoodsFacade.restoreStock).
+        restoreStockForOrder(orderId);
+
+        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+    }
+
+    /**
+     * Mark an order as paid: validate + apply the CREATED→PAID transition on the
+     * aggregate, persist the status, and publish the resulting domain events.
+     * Runs inside the caller's transaction so it is atomic with the payment debit.
+     */
+    public void markOrderPaid(LitemallOrderId orderId) {
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        orderAggregate.markAsPaid();
+
+        LitemallOrderAggregate patch = new LitemallOrderAggregate();
+        patch.setOrderId(orderId);
+        patch.setOrderStatus(LitemallOrderStatus.PAID);
+        orderRepository.updateSelective(patch);
+
+        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+    }
+
+    /**
+     * Best-effort release of the stock reserved for an order's lines (used when an
+     * order is cancelled). Reads the persisted order-goods rows and asks the goods
+     * ACL to add the quantities back; never throws.
+     */
+    private void restoreStockForOrder(LitemallOrderId orderId) {
+        List<LitemallOrderGoodsAggregate> orderGoods = orderGoodsRepository.findByOId(orderId);
+        if (orderGoods == null || orderGoods.isEmpty()) {
+            return;
+        }
+        Map<Integer, Integer> productQuantities = orderGoods.stream()
+                .collect(Collectors.toMap(
+                        g -> g.getProductId().getId(),
+                        g -> (int) g.getNumber(),
+                        Integer::sum));
+        goodsFacade.restoreStock(productQuantities);
     }
     /**
      * @Desc: Validate and reduce stock for all items in a batch
@@ -483,16 +538,43 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Single batch reserve/reduce through the goods ACL
         Map<Integer, Boolean> reduceResults = goodsFacade.reduceStock(productQuantities);
 
-        // Verify all reductions were successful
-        List<Integer> failedReductions = reduceResults.entrySet().stream()
-                .filter(entry -> !entry.getValue())
-                .map(Map.Entry::getKey)
+        // Verify EVERY requested product was confirmed reduced. Treat a missing key
+        // (null) the same as an explicit false — a degraded/partial response must
+        // never be read as "all reduced".
+        List<Integer> failedReductions = productQuantities.keySet().stream()
+                .filter(productId -> !Boolean.TRUE.equals(reduceResults.get(productId)))
                 .toList();
 
         if (!failedReductions.isEmpty()) {
-            throw new RuntimeException("Stock reduction failed for product IDs: " + failedReductions);
+            throw new RuntimeException("Stock reduction failed/unconfirmed for product IDs: " + failedReductions);
         }
 
+        // The remote reserve has now committed in goods-management. If THIS local
+        // transaction subsequently rolls back, the decrement would be orphaned, so
+        // register a compensating release on rollback (best-effort — see
+        // LitemallGoodsFacade.restoreStock).
+        registerStockRestoreOnRollback(productQuantities);
+    }
+
+    /**
+     * Register a transaction-synchronization that releases the just-reserved stock
+     * if (and only if) the surrounding transaction rolls back. No-op when there is
+     * no active transaction.
+     */
+    private void registerStockRestoreOnRollback(Map<Integer, Integer> productQuantities) {
+        if (productQuantities.isEmpty() || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    log.warn("Order placement rolled back after stock reserve; compensating restore for {}",
+                            productQuantities);
+                    goodsFacade.restoreStock(productQuantities);
+                }
+            }
+        });
     }
 
     public LitemallGrouponRepository getGrouponRepository() {

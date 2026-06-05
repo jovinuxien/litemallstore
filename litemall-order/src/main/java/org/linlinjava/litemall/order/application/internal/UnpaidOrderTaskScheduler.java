@@ -53,7 +53,7 @@ public class UnpaidOrderTaskScheduler {
         log.info("Unpaid-order sweep: {} due orders to cancel", due.size());
         for (LitemallUnpaidOrderTaskAggregate task : due) {
             try {
-                orderServiceImpl.cancelOrder(task.getOrderId(), "auto-cancelled: unpaid timeout");
+                orderServiceImpl.autoCancelOrder(task.getOrderId(), "auto-cancelled: unpaid timeout");
                 repository.deleteByOrderId(task.getOrderId());
             } catch (RuntimeException e) {
                 log.warn("Failed to auto-cancel unpaid order {}; row left for retry", task.getOrderId().getId(), e);

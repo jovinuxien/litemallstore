@@ -80,6 +80,28 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
                 "Batch reduce stock");
     }
 
+    @Override
+    public Map<Integer, Boolean> restoreStock(Map<Integer, Integer> productQuantities) {
+        if (productQuantities == null || productQuantities.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ReduceStockRequest> requests = productQuantities.entrySet().stream()
+                .map(e -> new ReduceStockRequest(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+        // Best-effort compensation: invoked from rollback/cancel paths, so it must
+        // never throw. Any failure (transport error, error envelope, or the
+        // goods-management /stock/batch-restore endpoint not yet existing) is logged
+        // and swallowed — the stock is simply not released here.
+        try {
+            return FeignResponseHandler.handleResponse(
+                    goodsServiceFeignClient.batchRestoreStock(requests), "Batch restore stock");
+        } catch (Exception e) {
+            log.error("Goods ACL 'Batch restore stock' failed; stock NOT released for {} "
+                    + "(needs goods-management /stock/batch-restore endpoint)", productQuantities, e);
+            return Collections.emptyMap();
+        }
+    }
+
     /**
      * Invoke the Feign client, unwrap the {@code ApiResponse}, and translate any
      * failure (error envelope from the circuit-breaker fallback, transport error,
