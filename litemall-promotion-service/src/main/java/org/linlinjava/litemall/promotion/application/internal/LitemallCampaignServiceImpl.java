@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.promotion.application.internal;
 
+import org.linlinjava.litemall.promotion.application.ports.CrawledMarketDataProvider;
 import org.linlinjava.litemall.promotion.application.ports.CustomerStatisticsProvider;
 import org.linlinjava.litemall.promotion.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.promotion.domain.events.campaign.LitemallCampaignActivatedEvent;
@@ -53,17 +54,20 @@ public class LitemallCampaignServiceImpl {
     private final LitemallPromotionCampaignRepository campaignRepository;
     private final LitemallCampaignTargetingDomainService targetingDomainService;
     private final CustomerStatisticsProvider statisticsProvider;
+    private final CrawledMarketDataProvider crawledMarketDataProvider;
     private final PromotionTargetingProperties targetingProperties;
     private final LitemallDomainEventPublisher domainEventPublisher;
 
     public LitemallCampaignServiceImpl(LitemallPromotionCampaignRepository campaignRepository,
                                        LitemallCampaignTargetingDomainService targetingDomainService,
                                        CustomerStatisticsProvider statisticsProvider,
+                                       CrawledMarketDataProvider crawledMarketDataProvider,
                                        PromotionTargetingProperties targetingProperties,
                                        LitemallDomainEventPublisher domainEventPublisher) {
         this.campaignRepository = campaignRepository;
         this.targetingDomainService = targetingDomainService;
         this.statisticsProvider = statisticsProvider;
+        this.crawledMarketDataProvider = crawledMarketDataProvider;
         this.targetingProperties = targetingProperties;
         this.domainEventPublisher = domainEventPublisher;
     }
@@ -142,6 +146,15 @@ public class LitemallCampaignServiceImpl {
         logger.info("Evaluating campaign {}: {} customers in population (since {})",
                 campaign.getCampaignId().getId(), population.size(), since);
 
+        // Optional Phase-3 enrichment: crawled market signals (Nutch → read model).
+        // Best-effort and config-gated — returns empty when disabled/unreachable, so
+        // evaluation is unaffected; the count is surfaced for observability.
+        int crawledSignalCount = crawledMarketDataProvider.fetchSignals().size();
+        if (crawledSignalCount > 0) {
+            logger.info("Campaign {}: {} crawled market signals available for enrichment",
+                    campaign.getCampaignId().getId(), crawledSignalCount);
+        }
+
         List<AudienceMember> audience = targetingDomainService.selectAudience(campaign, population, now);
         campaignRepository.save(campaign);
 
@@ -160,6 +173,7 @@ public class LitemallCampaignServiceImpl {
         data.put("audienceSize", audienceUserIds.size());
         data.put("audienceUserIds", audienceUserIds);
         data.put("segmentBreakdown", segmentBreakdown(audience));
+        data.put("crawledSignalCount", crawledSignalCount);
         return LitemallPromotionOperationResult.campaignEvaluated(data);
     }
 

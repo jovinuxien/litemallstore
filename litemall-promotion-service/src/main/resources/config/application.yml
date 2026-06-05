@@ -38,6 +38,36 @@ litemall:
         at-risk-min-frequency: 3
         new-min-recency: 4
         new-max-frequency: 1
+    # Phase 3 stats source selector. order = order-service RFM via Feign (default,
+    # transactional truth); matomo = Matomo Reporting-API engagement; composite =
+    # merge both by user id. Profile-overridable via the config server.
+    stats:
+      source: ${PROMOTION_STATS_SOURCE:order}
+    # Phase 3 external marketing-stack ACLs. All disabled by default and every
+    # host/token sourced from env (${ENV:default}) — nothing hardcoded or
+    # committed; the service boots and the adapters degrade to no-ops without them.
+    matomo:                                            # analytics → statistics (in)
+      enabled: ${MATOMO_ENABLED:false}
+      base-url: ${MATOMO_BASE_URL:http://localhost}
+      auth-token: ${MATOMO_AUTH_TOKEN:}
+      site-id: ${MATOMO_SITE_ID:1}
+      report-method: ${MATOMO_REPORT_METHOD:UserId.getUsers}
+      period: ${MATOMO_PERIOD:month}
+      date: ${MATOMO_DATE:previous12}
+      filter-limit: ${MATOMO_FILTER_LIMIT:5000}
+    mautic:                                            # automation → delivery (out)
+      enabled: ${MAUTIC_ENABLED:false}
+      base-url: ${MAUTIC_BASE_URL:http://localhost}
+      username: ${MAUTIC_USERNAME:}
+      password: ${MAUTIC_PASSWORD:}
+      user-id-field-alias: ${MAUTIC_USER_ID_FIELD:litemall_user_id}
+      segment-alias-prefix: ${MAUTIC_SEGMENT_PREFIX:litemall-campaign-}
+    nutch:                                             # crawl → read model (in)
+      enabled: ${NUTCH_ENABLED:false}
+      solr-url: ${NUTCH_SOLR_URL:http://localhost}
+      core: ${NUTCH_CORE:nutch}
+      query: ${NUTCH_QUERY:*:*}
+      rows: ${NUTCH_ROWS:1000}
 server:
   port: 8088
 eureka:
