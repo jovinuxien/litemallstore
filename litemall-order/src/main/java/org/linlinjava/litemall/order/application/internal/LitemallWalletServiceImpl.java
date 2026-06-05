@@ -2,6 +2,7 @@ package org.linlinjava.litemall.order.application.internal;
 
 import lombok.extern.slf4j.Slf4j;
 import org.linlinjava.litemall.order.application.LitemallIWalletService;
+import org.linlinjava.litemall.order.application.util.exception.wallet.LitemallInsufficientBalanceException;
 import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.events.wallet.LitemallWalletCreditedEvent;
 import org.linlinjava.litemall.order.domain.events.wallet.LitemallWalletDebitedEvent;
@@ -50,11 +51,16 @@ public class LitemallWalletServiceImpl implements LitemallIWalletService {
         LitemallWalletAggregate wallet = walletRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found for user: " + command.getUserId()));
 
-        // Perform credit on aggregate
+        // Perform credit on aggregate (enforces the domain invariant)
         wallet.credit(amount);
 
-        // Persist the new balance
+        // Persist the new balance (atomic UPDATE)
         walletRepository.creditBalance(userId, amount);
+
+        // Re-read the authoritative post-update balance so the bill ledger and the
+        // returned aggregate reflect the DB, not a possibly-stale in-memory value.
+        LitemallMoney balanceAfter = walletRepository.getBalance(userId);
+        wallet.setBalance(balanceAfter);
 
         // Create bill record
         LitemallBillAggregate bill = new LitemallBillAggregate(
@@ -65,7 +71,7 @@ public class LitemallWalletServiceImpl implements LitemallIWalletService {
                 command.getCategory(),
                 command.getType(),
                 amount,
-                wallet.getBalance(),
+                balanceAfter,
                 command.getMark()
         );
         billRepository.add(bill);
@@ -94,11 +100,22 @@ public class LitemallWalletServiceImpl implements LitemallIWalletService {
         // Validate sufficient balance
         walletDomainService.validateSufficientBalance(wallet, amount);
 
-        // Perform debit on aggregate
+        // Perform debit on aggregate (enforces the domain invariant)
         wallet.debit(amount);
 
-        // Persist the new balance
-        walletRepository.debitBalance(userId, amount);
+        // Persist the new balance via the atomic, overdraw-guarded UPDATE. If a
+        // concurrent debit won the race the guard rejects this one — surface it as
+        // the typed insufficient-balance exception, not a raw IllegalStateException.
+        try {
+            walletRepository.debitBalance(userId, amount);
+        } catch (IllegalStateException e) {
+            throw new LitemallInsufficientBalanceException(
+                    "Insufficient balance for user " + command.getUserId());
+        }
+
+        // Re-read the authoritative post-update balance for the bill ledger + response.
+        LitemallMoney balanceAfter = walletRepository.getBalance(userId);
+        wallet.setBalance(balanceAfter);
 
         // Create bill record
         LitemallBillAggregate bill = new LitemallBillAggregate(
@@ -109,7 +126,7 @@ public class LitemallWalletServiceImpl implements LitemallIWalletService {
                 command.getCategory(),
                 command.getType(),
                 amount,
-                wallet.getBalance(),
+                balanceAfter,
                 command.getMark()
         );
         billRepository.add(bill);

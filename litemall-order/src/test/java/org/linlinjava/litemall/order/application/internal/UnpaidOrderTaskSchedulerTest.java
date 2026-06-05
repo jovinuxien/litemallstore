@@ -51,13 +51,13 @@ class UnpaidOrderTaskSchedulerTest {
         LitemallOrderServiceImpl orderService = mock(LitemallOrderServiceImpl.class);
         LitemallUnpaidOrderTaskAggregate task1 = task(101);
         LitemallUnpaidOrderTaskAggregate task2 = task(102);
-        when(repo.findDue(any(LocalDateTime.class), anyInt())).thenReturn(List.of(task1, task2));
+        when(repo.claimDueBatch(any(LocalDateTime.class), anyInt())).thenReturn(List.of(task1, task2));
 
         UnpaidOrderTaskScheduler scheduler = new UnpaidOrderTaskScheduler(repo, orderService);
         scheduler.sweep();
 
-        verify(orderService).cancelOrder(argThat(id -> id.getId().equals(101)), anyString());
-        verify(orderService).cancelOrder(argThat(id -> id.getId().equals(102)), anyString());
+        verify(orderService).autoCancelOrder(argThat(id -> id.getId().equals(101)), anyString());
+        verify(orderService).autoCancelOrder(argThat(id -> id.getId().equals(102)), anyString());
         verify(repo).deleteByOrderId(argThat(id -> id.getId().equals(101)));
         verify(repo).deleteByOrderId(argThat(id -> id.getId().equals(102)));
     }
@@ -66,8 +66,8 @@ class UnpaidOrderTaskSchedulerTest {
     void sweep_leavesRowForRetryWhenCancelThrows() {
         LitemallUnpaidOrderTaskRepository repo = mock(LitemallUnpaidOrderTaskRepository.class);
         LitemallOrderServiceImpl orderService = mock(LitemallOrderServiceImpl.class);
-        when(repo.findDue(any(LocalDateTime.class), anyInt())).thenReturn(List.of(task(500)));
-        doThrow(new RuntimeException("boom")).when(orderService).cancelOrder(any(), anyString());
+        when(repo.claimDueBatch(any(LocalDateTime.class), anyInt())).thenReturn(List.of(task(500)));
+        doThrow(new RuntimeException("boom")).when(orderService).autoCancelOrder(any(), anyString());
 
         UnpaidOrderTaskScheduler scheduler = new UnpaidOrderTaskScheduler(repo, orderService);
         scheduler.sweep();
@@ -79,7 +79,7 @@ class UnpaidOrderTaskSchedulerTest {
     void sweep_noopOnEmpty() {
         LitemallUnpaidOrderTaskRepository repo = mock(LitemallUnpaidOrderTaskRepository.class);
         LitemallOrderServiceImpl orderService = mock(LitemallOrderServiceImpl.class);
-        when(repo.findDue(any(LocalDateTime.class), anyInt())).thenReturn(List.of());
+        when(repo.claimDueBatch(any(LocalDateTime.class), anyInt())).thenReturn(List.of());
 
         new UnpaidOrderTaskScheduler(repo, orderService).sweep();
 

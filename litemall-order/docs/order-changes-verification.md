@@ -113,15 +113,50 @@ cancellation/rollback persist correctly but stock is not physically returned.
   TestContainers/`PostgreSQLContainer` integration-test gap (which still blocks the
   full `test-compile` of the module's pre-existing integration tests offline).
 
-### Known remaining findings (from the audit, NOT fixed here)
+## Medium findings — fixed (2026-06-05)
 
-- **Medium:** `LitemallMoney` lacks `setScale(2, HALF_UP)` (money precision drift);
-  wallet REST endpoints take `userId` from the path → IDOR on money operations
-  (order controller uses the gateway `X-User-Id`); bill `balanceAfter` recorded from
-  a stale in-memory read; duplicate domain-event-publisher bean (`@Component` +
-  `@Bean`); unpaid-task sweep `findDue` has no row-claim → not multi-instance safe.
-- **Low:** no transactional outbox (AFTER_COMMIT events lost on crash); events not
-  keyed by order id; `grouponEventHandler` lowercase class name.
+The five medium-severity audit findings are now resolved:
+
+- **M1 — money precision.** `LitemallMoney` normalises every amount to
+  `setScale(2, HALF_UP)` in its constructor (so `add`/`subtract` stay at 2dp), and
+  `hashCode` now keys on the fixed-scale amount, consistent with the `compareTo`
+  based `equals`.
+- **M2 — wallet IDOR.** Every `LitemallWalletRestController` endpoint now takes the
+  acting user from the gateway-trusted `X-User-Id` header (route `{userId}` path var
+  dropped), exactly like `LitemallOrderRestController` — a caller can only touch
+  their own wallet. `credit`/`debit` are flagged as privileged operations the
+  gateway must restrict to internal/admin callers (gateway-admin follow-up). The
+  route change (`/srv/wallet/{userId}/...` → `/srv/wallet/...`) is a gateway-admin
+  follow-up.
+- **M3 — bill `balanceAfter`.** `LitemallWalletServiceImpl` credit/debit now record
+  the authoritative post-update balance (`walletRepository.getBalance` re-read after
+  the atomic UPDATE) on the bill and on the returned aggregate, not the stale
+  in-memory value. The overdraw-race `IllegalStateException` from `debitBalance` is
+  mapped to `LitemallInsufficientBalanceException`.
+- **M4 — duplicate publisher bean.** `LitemallSpringDomainEventPublisher` is no
+  longer `@Component`; it is defined once via the `@Bean` in
+  `LitemallDomainEventConfig`.
+- **M5 — multi-instance sweep.** `findDue` → `claimDueBatch`, which uses
+  `SELECT ... FOR UPDATE SKIP LOCKED` (MySQL/InnoDB). The `@Scheduled sweep` is now
+  `@Transactional` so the claim-locks are held for the batch; a concurrent instance
+  skips locked rows (no double-cancel). `autoCancelOrder` runs `REQUIRES_NEW`
+  (order tables only, never the task table) so a per-row failure rolls back just
+  that order and leaves the task row for retry without poisoning the claim tx. No
+  schema change.
+
+### Test evidence (mediums)
+
+- `mvn -q -o -pl litemall-order -am compile` → **clean**.
+- New `LitemallMoneyTest` (scale/rounding, overdraw, equals/hashCode); updated
+  `LitemallWalletDebitPathTest` (authoritative `getBalance` re-read) and
+  `UnpaidOrderTaskSchedulerTest` (`claimDueBatch` + `autoCancelOrder`).
+- **23/23 tests green offline** across all five touched/new test classes via the
+  JDK-21 + `junit-platform-launcher` harness.
+
+### Known remaining findings (Low — NOT fixed here)
+
+- No transactional outbox (AFTER_COMMIT events lost on crash); events not keyed by
+  order id; `grouponEventHandler` lowercase class name.
 
 ## Follow-ups (not done here — other worktrees)
 

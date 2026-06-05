@@ -68,6 +68,8 @@ class LitemallWalletDebitPathTest {
     @Test
     void debit_sufficientBalance_persistsBillAndEmitsDebitedEvent() {
         when(walletRepository.findByUserId(any())).thenReturn(Optional.of(walletWithBalance("50.00")));
+        // Authoritative post-update balance re-read recorded on the bill.
+        when(walletRepository.getBalance(any())).thenReturn(new LitemallMoney(new BigDecimal("20.00")));
 
         walletService.debit(debit("30.00"));
 

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,13 +45,20 @@ public class UnpaidOrderTaskScheduler {
         repository.deleteByOrderId(orderId);
     }
 
+    // @Transactional so claimDueBatch's FOR UPDATE SKIP LOCKED row locks are held
+    // for the whole sweep: a concurrent instance's sweep skips these rows, so no
+    // order is double-cancelled. Each autoCancelOrder runs in its OWN transaction
+    // (REQUIRES_NEW) against the order tables only — it never touches the task
+    // table — so a per-row failure rolls back just that order's work without
+    // poisoning this claim transaction, and the row is left (undeleted) for retry.
     @Scheduled(fixedDelayString = "${litemall.order.unpaid-sweep-ms:60000}")
+    @Transactional
     public void sweep() {
-        List<LitemallUnpaidOrderTaskAggregate> due = repository.findDue(LocalDateTime.now(), SWEEP_BATCH_LIMIT);
+        List<LitemallUnpaidOrderTaskAggregate> due = repository.claimDueBatch(LocalDateTime.now(), SWEEP_BATCH_LIMIT);
         if (due.isEmpty()) {
             return;
         }
-        log.info("Unpaid-order sweep: {} due orders to cancel", due.size());
+        log.info("Unpaid-order sweep: claimed {} due orders to cancel", due.size());
         for (LitemallUnpaidOrderTaskAggregate task : due) {
             try {
                 orderServiceImpl.autoCancelOrder(task.getOrderId(), "auto-cancelled: unpaid timeout");

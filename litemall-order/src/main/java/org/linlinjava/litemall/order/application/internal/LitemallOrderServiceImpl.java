@@ -34,6 +34,8 @@ import org.linlinjava.litemall.order.infrastructure.services.acl.facades.Litemal
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -355,7 +357,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     /**
      * System-initiated cancellation (e.g. the unpaid-order sweep). Transitions the
      * order to SYSTEM_CANCELED; otherwise identical to {@link #cancelOrder}.
+     *
+     * <p>Runs in its OWN transaction (REQUIRES_NEW): the sweep calls this while
+     * holding {@code FOR UPDATE SKIP LOCKED} claim-locks on the task rows, so an
+     * independent transaction here means a failure rolls back only this order's
+     * work and does not mark the sweep's claim transaction rollback-only. It
+     * touches order tables only (never the task table), so there is no lock
+     * contention with the sweep's claim.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void autoCancelOrder(LitemallOrderId orderId, String reason) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));

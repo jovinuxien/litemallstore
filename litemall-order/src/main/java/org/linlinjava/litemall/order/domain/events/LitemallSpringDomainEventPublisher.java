@@ -4,7 +4,6 @@ import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 import org.linlinjava.litemall.order.utils.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Component;
 
 // In-process publisher: delegates to Spring's ApplicationEventPublisher.
 //
@@ -17,7 +16,10 @@ import org.springframework.stereotype.Component;
 // Trade-off: between commit and the Kafka send, a JVM crash loses the event.
 // A durable order_event_outbox table (write-in-transaction + scheduled relay)
 // is the fix; deferred per scope. See LitemallKafkaDomainEventPublisher.
-@Component
+//
+// Registered as the single LitemallDomainEventPublisher bean via an explicit
+// @Bean in LitemallDomainEventConfig (NOT @Component, to avoid a duplicate
+// definition of the same interface type).
 public class LitemallSpringDomainEventPublisher implements LitemallDomainEventPublisher {
 
     private final ApplicationEventPublisher applicationEventPublisher;
