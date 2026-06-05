@@ -42,11 +42,15 @@ public class LitemallUnpaidOrderTaskRepositoryImpl implements LitemallUnpaidOrde
         );
     }
 
+    // FOR UPDATE SKIP LOCKED: locks the selected due rows for the caller's
+    // transaction and skips rows already locked by a concurrent sweep, so two
+    // service instances never claim the same task. Requires an active transaction
+    // (locks are held until commit) and MySQL 8.0+/InnoDB.
     @Override
-    public List<LitemallUnpaidOrderTaskAggregate> findDue(LocalDateTime now, int limit) {
+    public List<LitemallUnpaidOrderTaskAggregate> claimDueBatch(LocalDateTime now, int limit) {
         return jdbcTemplate.query(
                 "SELECT order_id, due_at, created_at FROM litemall_unpaid_order_task " +
-                        "WHERE due_at <= ? ORDER BY due_at ASC LIMIT ?",
+                        "WHERE due_at <= ? ORDER BY due_at ASC LIMIT ? FOR UPDATE SKIP LOCKED",
                 ROW_MAPPER,
                 Timestamp.valueOf(now),
                 limit

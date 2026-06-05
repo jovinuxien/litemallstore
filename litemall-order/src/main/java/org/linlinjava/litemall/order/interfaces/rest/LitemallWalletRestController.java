@@ -20,6 +20,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * Wallet self-service edge. The acting user is taken from the gateway-trusted
+ * {@code X-User-Id} header (as in {@link LitemallOrderRestController}), never from
+ * a request-supplied path/param — so a caller can only ever touch their own wallet
+ * (closes the prior IDOR on these money-moving operations).
+ *
+ * <p>NOTE: {@code credit}/{@code debit} are privileged operations; the gateway must
+ * route them only from internal/admin callers, not the customer SPA — tracked as a
+ * gateway-admin follow-up.
+ */
 @RestController
 @RequestMapping("/srv/wallet")
 @Slf4j
@@ -34,8 +44,8 @@ public class LitemallWalletRestController {
     /**
      * Get the balance for a user's wallet.
      */
-    @GetMapping("/{userId}/balance")
-    public ResponseEntity<WalletBalanceDtoResponse> getBalance(@PathVariable Integer userId) {
+    @GetMapping("/balance")
+    public ResponseEntity<WalletBalanceDtoResponse> getBalance(@RequestHeader("X-User-Id") Integer userId) {
         log.info("GET balance for userId={}", userId);
         LitemallWalletAggregate wallet = walletOrchestratorService.getWallet(userId);
         WalletBalanceDtoResponse response = WalletBalanceDtoResponse.of(
@@ -49,9 +59,9 @@ public class LitemallWalletRestController {
     /**
      * Credit (add funds to) a user's wallet.
      */
-    @PostMapping("/{userId}/credit")
+    @PostMapping("/credit")
     public ResponseEntity<WalletOperationDtoResponse> credit(
-            @PathVariable Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallWalletCreditCommand command) {
         log.info("POST credit for userId={}, amount={}", userId, command.getAmount());
         command.setUserId(userId);
@@ -73,9 +83,9 @@ public class LitemallWalletRestController {
     /**
      * Debit (deduct funds from) a user's wallet.
      */
-    @PostMapping("/{userId}/debit")
+    @PostMapping("/debit")
     public ResponseEntity<WalletOperationDtoResponse> debit(
-            @PathVariable Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallWalletDebitCommand command) {
         log.info("POST debit for userId={}, amount={}", userId, command.getAmount());
         command.setUserId(userId);
@@ -97,9 +107,9 @@ public class LitemallWalletRestController {
     /**
      * Create a recharge (top-up) for a user's wallet.
      */
-    @PostMapping("/{userId}/recharge")
+    @PostMapping("/recharge")
     public ResponseEntity<WalletOperationDtoResponse> createRecharge(
-            @PathVariable Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallRechargeCreateCommand command) {
         log.info("POST recharge for userId={}, amount={}", userId, command.getPrice());
         command.setUserId(userId);
@@ -118,9 +128,9 @@ public class LitemallWalletRestController {
     /**
      * Request a withdrawal (extract) from a user's wallet.
      */
-    @PostMapping("/{userId}/extract")
+    @PostMapping("/extract")
     public ResponseEntity<WalletOperationDtoResponse> requestExtract(
-            @PathVariable Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallExtractRequestCommand command) {
         log.info("POST extract for userId={}, amount={}", userId, command.getExtractAmount());
         command.setUserId(userId);
@@ -142,8 +152,8 @@ public class LitemallWalletRestController {
     /**
      * List all bills for a user.
      */
-    @GetMapping("/{userId}/bills")
-    public ResponseEntity<List<BillDtoResponse>> listBills(@PathVariable Integer userId) {
+    @GetMapping("/bills")
+    public ResponseEntity<List<BillDtoResponse>> listBills(@RequestHeader("X-User-Id") Integer userId) {
         log.info("GET bills for userId={}", userId);
         List<LitemallBillAggregate> bills = walletOrchestratorService.getBills(userId);
         List<BillDtoResponse> dtos = bills.stream()

@@ -12,5 +12,12 @@ public interface LitemallUnpaidOrderTaskRepository {
 
     void deleteByOrderId(LitemallOrderId orderId);
 
-    List<LitemallUnpaidOrderTaskAggregate> findDue(LocalDateTime now, int limit);
+    /**
+     * Atomically claim up to {@code limit} due tasks for the CURRENT transaction
+     * using {@code FOR UPDATE SKIP LOCKED}: the returned rows are row-locked until
+     * the caller's transaction commits, so a concurrent sweep on another service
+     * instance skips them and the same order is never double-processed. MUST be
+     * called within an active transaction.
+     */
+    List<LitemallUnpaidOrderTaskAggregate> claimDueBatch(LocalDateTime now, int limit);
 }
