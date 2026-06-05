@@ -11,8 +11,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
 
 /**
@@ -60,5 +66,42 @@ class LitemallGoodsFacadeImplTest {
 
         assertThrows(LitemallGoodsServiceUnavailableException.class,
                 () -> facade.getGoodsProduct(new LitemallGoodsProductId(42)));
+    }
+
+    // --- restoreStock: compensating release used from rollback/cancel paths ---
+
+    @Test
+    void restoreStock_unwrapsSuccessfulResponse() {
+        ApiResponse<Map<Integer, Boolean>> ok = new ApiResponse<>();
+        ok.setErrno(0);
+        ok.setData(Map.of(5, true));
+        when(feignClient.batchRestoreStock(anyList())).thenReturn(ok);
+
+        assertEquals(Map.of(5, true), facade.restoreStock(Map.of(5, 2)));
+    }
+
+    @Test
+    void restoreStock_swallowsErrorEnvelope_returningEmpty() {
+        // Mimics the circuit-breaker fallback (errno 503). Unlike reduceStock, the
+        // compensating restore must NOT throw — it is called from rollback paths.
+        ApiResponse<Map<Integer, Boolean>> down = new ApiResponse<>();
+        down.setErrno(503);
+        down.setErrmsg("goods-service unavailable");
+        when(feignClient.batchRestoreStock(anyList())).thenReturn(down);
+
+        assertTrue(facade.restoreStock(Map.of(5, 2)).isEmpty());
+    }
+
+    @Test
+    void restoreStock_swallowsTransportFailure_returningEmpty() {
+        when(feignClient.batchRestoreStock(anyList()))
+                .thenThrow(new RuntimeException("connect timed out"));
+
+        assertTrue(facade.restoreStock(Map.of(5, 2)).isEmpty());
+    }
+
+    @Test
+    void restoreStock_emptyInputShortCircuits() {
+        assertTrue(facade.restoreStock(Collections.<Integer, Integer>emptyMap()).isEmpty());
     }
 }

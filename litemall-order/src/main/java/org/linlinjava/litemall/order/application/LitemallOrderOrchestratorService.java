@@ -183,8 +183,10 @@ public class LitemallOrderOrchestratorService {
         boolean paymentSuccess = processPayment(order, paymentCommand.getPaymentInfo());
 
         if (paymentSuccess) {
-            // Update order status
-            //updateOrderStatusToPaid(orderId);
+            // Transition the order to PAID and persist it within this transaction,
+            // so a wallet debit (above) and the paid status are atomic — either both
+            // commit or both roll back. Emits LitemallOrderPaidEvent.
+            orderServiceImpl.markOrderPaid(orderId);
 
             // Handle post-payment logic
             handlePostPayment(orderId, paymentCommand);

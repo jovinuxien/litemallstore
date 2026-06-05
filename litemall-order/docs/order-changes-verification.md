@@ -64,9 +64,70 @@
   resolve. Runtime price/stock + wallet-debit proof needs the running stack
   (goods-service up, broker up) and is out of scope for an offline build.
 
+## Post-audit corrections (2026-06-05)
+
+A deep audit of this diff found three behavioural blockers that compiled but were
+wrong at runtime — the earlier draft of this note overclaimed them as done. All
+three are now fixed:
+
+- **B1 — order was never marked PAID.** `handlePaymentAction` had
+  `//updateOrderStatusToPaid(orderId);` commented out and the real mark-paid method
+  was a private, never-called dead method, so a WALLET payment debited the wallet
+  yet left the order unpaid (and cancelled its sweeper task → orphaned). Replaced
+  with `LitemallOrderServiceImpl.markOrderPaid(orderId)`: validates the CREATED→PAID
+  transition on the aggregate, persists the status, and publishes
+  `LitemallOrderPaidEvent` — inside the orchestrator's transaction, so the debit and
+  the paid status are atomic.
+- **B2 — `cancelOrder` never persisted, restored stock, or published events.** It
+  mutated the aggregate in memory and discarded `getDomainEvents()`, so the
+  DB-backed unpaid sweep was a no-op (orders never actually cancelled, reserved
+  stock leaked). `cancelOrder` / new `autoCancelOrder` (the sweep now calls the
+  latter → `SYSTEM_CANCELED`) now persist the status via `updateSelective`, release
+  reserved stock (best-effort, see below), and drain/publish the aggregate's events.
+- **B3 — remote stock decrement had no compensation.** The Feign `reduceStock` runs
+  inside order's local DB tx but can't roll back with it, so a failure after a
+  successful (or partially-successful batch) reduce orphaned stock. Fixes: the
+  reserve is now the **last mutation** in `placeOrder`; `reduceStockForAllItems`
+  fails on any *missing* product key (not only explicit `false`); and on rollback a
+  `TransactionSynchronization` issues a compensating `restoreStock`.
+
+**Best-effort restore + cross-service follow-up.** B2/B3 both call the new
+`LitemallGoodsFacade.restoreStock` (Feign `POST /stock/batch-restore`, inverse of
+`batch-reduce`). It is deliberately **best-effort**: invoked from rollback/cancel
+paths, it never throws — on any failure (including the goods-management endpoint not
+yet existing) it logs and returns empty. **Required follow-up for the
+`goods-management` worktree: implement `POST /stock/batch-restore`.** Until it ships,
+cancellation/rollback persist correctly but stock is not physically returned.
+
+### Test evidence (post-audit)
+
+- `mvn -q -o -pl litemall-order -am compile` → **clean**.
+- `LitemallOrderPaidCancelTest` (new) — markOrderPaid persists PAID + publishes
+  `LitemallOrderPaidEvent`; cancel/autoCancel persist CANCELED/SYSTEM_CANCELED,
+  invoke `restoreStock`, and publish `LitemallOrderCancelledEvent`.
+- `LitemallGoodsFacadeImplTest` (extended) — `restoreStock` unwraps success and
+  swallows error-envelope/transport failures returning empty (never throws).
+- Both test classes were **executed green offline** (10/10) by compiling with the
+  project JDK 21 and running them through a `junit-platform-launcher` harness,
+  bypassing the module's suspending-JDWP surefire `argLine` and the unrelated
+  TestContainers/`PostgreSQLContainer` integration-test gap (which still blocks the
+  full `test-compile` of the module's pre-existing integration tests offline).
+
+### Known remaining findings (from the audit, NOT fixed here)
+
+- **Medium:** `LitemallMoney` lacks `setScale(2, HALF_UP)` (money precision drift);
+  wallet REST endpoints take `userId` from the path → IDOR on money operations
+  (order controller uses the gateway `X-User-Id`); bill `balanceAfter` recorded from
+  a stale in-memory read; duplicate domain-event-publisher bean (`@Component` +
+  `@Bean`); unpaid-task sweep `findDue` has no row-claim → not multi-instance safe.
+- **Low:** no transactional outbox (AFTER_COMMIT events lost on crash); events not
+  keyed by order id; `grouponEventHandler` lowercase class name.
+
 ## Follow-ups (not done here — other worktrees)
 
 - Gateway route currently pointing at `litemall-wallet` (8086) should become an
   order route → `gateway-admin` worktree.
+- `goods-management`: add `POST /stock/batch-restore` (compensating stock release)
+  so B2/B3 best-effort restore actually returns stock.
 - Stripe `/{orderId}/actions/pay` REST endpoint activation (still deferred).
 - `agregates` → `aggregates` spelling fix (explicitly out of scope).

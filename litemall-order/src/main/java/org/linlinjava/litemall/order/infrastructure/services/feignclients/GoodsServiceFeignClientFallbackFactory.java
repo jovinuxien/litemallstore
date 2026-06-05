@@ -74,6 +74,11 @@ public class GoodsServiceFeignClientFallbackFactory implements FallbackFactory<G
                 return error("batchReduceStock");
             }
 
+            @Override
+            public ApiResponse<Map<Integer, Boolean>> batchRestoreStock(List<ReduceStockRequest> request) {
+                return error("batchRestoreStock");
+            }
+
             private <T> ApiResponse<T> error(String op) {
                 ApiResponse<T> response = new ApiResponse<>();
                 response.setErrno(SERVICE_UNAVAILABLE_ERRNO);

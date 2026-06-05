@@ -47,4 +47,14 @@ public interface GoodsServiceFeignClient {
     @PostMapping("/stock/batch-reduce")
     //ApiResponse<BatchStockReduceResult> batchReduceStock(@RequestBody List<BatchStockReduceRequest> request);
     ApiResponse<Map<Integer, Boolean>> batchReduceStock(@RequestBody List<ReduceStockRequest> request);
+
+    /**
+     * Compensating inverse of {@link #batchReduceStock}: release (add back)
+     * previously-reserved stock. Invoked only from rollback / cancellation paths.
+     * NOTE: requires a matching {@code POST /stock/batch-restore} endpoint on
+     * goods-management — tracked as a goods-management follow-up; until it ships
+     * the call degrades to a logged best-effort no-op (see LitemallGoodsFacadeImpl).
+     */
+    @PostMapping("/stock/batch-restore")
+    ApiResponse<Map<Integer, Boolean>> batchRestoreStock(@RequestBody List<ReduceStockRequest> request);
 }
