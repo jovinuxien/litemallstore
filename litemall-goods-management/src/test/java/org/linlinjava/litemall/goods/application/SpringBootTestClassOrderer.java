@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.application;
 import org.junit.jupiter.api.ClassDescriptor;
 import org.junit.jupiter.api.ClassOrderer;
 import org.junit.jupiter.api.ClassOrdererContext;
+import org.linlinjava.litemall.goods.IntegrationTest;
 
 import java.util.Comparator;
 

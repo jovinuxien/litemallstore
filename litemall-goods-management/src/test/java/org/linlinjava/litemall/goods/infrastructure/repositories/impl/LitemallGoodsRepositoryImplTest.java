@@ -2,6 +2,9 @@ package org.linlinjava.litemall.goods.infrastructure.repositories.impl;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
+import org.linlinjava.litemall.db.domain.LitemallGoods;
+import org.linlinjava.litemall.db.domain.LitemallGoodsExample;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.mockito.ArgumentCaptor;
