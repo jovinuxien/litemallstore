@@ -1,254 +1,140 @@
-import React, { lazy, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Button, Col, Container, Image, Row, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
-import './Detail.scss';
 
-import 'react-toastify/dist/ReactToastify.css';
-
-import { faShoppingCart, faStar } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import RenderFormGroupField from 'app/helpers/renderFormGroupField';
-import { IItemCart } from 'app/shared/model/cart/cart.models';
-import { CardFeaturedProductData } from 'app/shared/model/product/product.model';
 import { addItem } from 'app/shared/reducers/cartSlice';
-import { Button, Col, Container, Row, Tab, Tabs } from 'react-bootstrap';
-import { ToastContainer } from 'react-toastify';
-import ProductDetailDetail from './productDetailComponent/ProductDetailDetail';
-import ProductDetailIssue from './productDetailComponent/ProductDetailIssue';
-import ProductGallery from './productDetailComponent/ProductGallery/ProductGallery';
-import ProductHighlights from './productDetailComponent/ProductHighlights';
-import ProductInfo from './productDetailComponent/ProductInfo';
-import ProductOptions from './productDetailComponent/ProductOptions/ProductOptions';
-import ProductPricing from './productDetailComponent/ProductPricing';
 import { getProductDetail } from './productDetailSlice';
-import { getRelatedGoods } from './relatedSlice';
-const CardFeaturedProduct = lazy(() => import('../../components/userComponents/card/CardFeaturedProduct'));
-const CardServices = lazy(() => import('../../components/userComponents/card/CardServices'));
-const DetailsDetail = lazy(() => import('../../components/userComponents/others/DetailsDetail'));
-const RatingsReviews = lazy(() => import('../../components/userComponents/others/RatingsReviews'));
-const QuestionAnswer = lazy(() => import('../../components/userComponents/others/QuestionAnswer'));
-const ShippingReturns = lazy(() => import('../../components/userComponents/others/ShippingReturns'));
-const SizeChart = lazy(() => import('../../components/userComponents/others/SizeChart'));
 
-interface Tab {
-  id: string;
-  label: string;
-  content: React.ReactNode;
-}
+const priceNum = (price: unknown): number => {
+  if (price == null) return 0;
+  if (typeof price === 'number') return price;
+  if (typeof price === 'object' && 'amount' in (price as Record<string, unknown>)) {
+    return Number((price as { amount: unknown }).amount) || 0;
+  }
+  const n = Number(price);
+  return Number.isFinite(n) ? n : 0;
+};
 
-const ProductDetailView = () => {
-  const { productId } = useParams<{ productId: string }>();
-
+const ProductDetailView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
 
-  const [activeTab, setActiveTab] = useState<string>('details');
-  const [quantity, setQuantity] = useState<number>(1);
-  const [error, setError] = useState<null>(null);
-  const [showFloatingCart, setShowFloatingCart] = useState(false);
+  const { data, loading } = useAppSelector(state => state.productDetail);
+  const { info, productList, attribute } = data;
 
-  const detail = useAppSelector(state => state.productDetail.data);
-  const relatedGoods = useAppSelector(state => state.relatedGoods.data);
-  const { isAuthenticated } = useAppSelector(state => state.auth.data);
-  const { cartList, cartTotal } = useAppSelector(state => state.cart.data);
-
-  const tabs: Tab[] = [
-    { id: 'details', label: 'Details', content: <DetailsDetail /> },
-    { id: 'randr', label: 'Ratings & Reviews', content: Array.from({ length: 5 }, (_, key) => <RatingsReviews key={key} />) },
-    { id: 'faq', label: 'Questions & Answers', content: Array.from({ length: 5 }, (_, key) => <QuestionAnswer key={key} />) },
-    { id: 'shipping', label: 'Shipping & Returns', content: <ShippingReturns /> },
-    { id: 'size', label: 'Size Chart', content: <SizeChart /> },
-  ];
-  if (detail) {
-    const cardFeaturedProductData: CardFeaturedProductData = {
-      name: detail.info.name,
-      link: '/product/' + productId,
-      star: 3,
-      price: detail.info.retailPrice,
-      retailPrice: 200,
-    };
-  }
-
-  const toggleFloatingCart = () => {
-    setShowFloatingCart(!showFloatingCart);
-  };
-
-  const handleAddToCart = () => {
-    // Implementation
-    const cartItem: IItemCart = {
-      id: parseInt(productId),
-      goodsId: productId,
-      goodsName: detail?.info?.brief,
-      number: quantity,
-      picUrl: detail?.info?.gallery[0],
-    };
-
-    const existingCartItem = cartList.find(item => item.goodsId === productId);
-    console.log(
-      'existingCartItem: ',
-      existingCartItem
-      //cartList.forEach(item => console.log(item))
-    );
-    console.log('total', cartList.length);
-
-    if (existingCartItem) {
-      const updateCartItem = {
-        ...existingCartItem,
-        number: existingCartItem.number + quantity,
-      };
-      dispatch(addItem(updateCartItem));
-    } else {
-      dispatch(addItem(cartItem));
-    }
-
-    setShowFloatingCart(true);
-    /* setTimeout(() => {
-      setShowFloatingCart(false);
-    }, 5000); */
-  };
-
-  const handleBuyNow = () => {
-    // Implementation
-  };
-
-  const handleSubmit = e => {
-    e.preventDefault();
-  };
+  const [quantity, setQuantity] = useState(1);
+  const [activeImage, setActiveImage] = useState<string>('');
 
   useEffect(() => {
-    if (productId) {
-      dispatch(getProductDetail(parseInt(productId)));
-      dispatch(getRelatedGoods(parseInt(productId)));
-    }
-    console.log('The detail good', detail);
+    if (id) dispatch(getProductDetail(Number(id)));
+  }, [dispatch, id]);
 
-    console.log('The detail good', detail?.attribute);
+  useEffect(() => {
+    setActiveImage(info?.picUrl ?? '');
+  }, [info?.picUrl]);
 
-    //window.scrollTo(0, 0);
-  }, [productId, dispatch]);
+  if (loading === 'pending') {
+    return (
+      <Container className='my-5 text-center'>
+        <Spinner animation='border' />
+      </Container>
+    );
+  }
 
-  const scrollToGallery = () => {
-    const gallery = document.getElementById('product-gallery');
-    if (gallery) {
-      gallery.scrollIntoView({ behavior: 'smooth' });
-    }
+  if (!info || !info.id) {
+    return <Container className='my-5'>Product not found.</Container>;
+  }
+
+  const retail = priceNum(info.retailPrice);
+  const counter = priceNum(info.counterPrice);
+  const gallery = info.gallery?.length ? info.gallery : info.picUrl ? [info.picUrl] : [];
+
+  const handleAddToCart = () => {
+    const defaultSku = productList?.[0];
+    dispatch(
+      addItem({
+        id: defaultSku?.id ?? info.id,
+        goodsId: String(info.id),
+        goodsName: info.name,
+        productId: defaultSku?.id,
+        price: defaultSku?.price ?? retail,
+        number: quantity,
+        picUrl: info.picUrl,
+        specifications: [],
+        checked: true,
+      })
+    );
+    navigate('/cart');
   };
 
   return (
-    <div className={`main-content ${showFloatingCart ? 'sidebar-open' : ''}`}>
-      <Container fluid className='product-detail'>
-        <Row>
-          <Col lg={9}>
-            <Row>
-              <Col lg={5} md={6}>
-                <ProductGallery gallery={detail?.info?.gallery} name={detail?.info?.name} htmlContent={detail?.info.detail} />
-              </Col>
-              <Col lg={7} md={6}>
-                <div className='product-header'>
-                  <span className='product-brand'>Brand: {detail?.info?.brandId}</span>
-                  <h1 className='product-title'>{detail?.info?.name}</h1>
-                  <div className='product-rating'>
-                    <span className='stars'>
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                    </span>
-                    <span className='reviews-count'>4.8 (1000 reviews)</span>
-                  </div>
-                </div>
+    <Container className='my-4'>
+      <Row>
+        <Col md={6}>
+          <Image src={activeImage} fluid className='border rounded mb-2' style={{ maxHeight: '420px', objectFit: 'contain', width: '100%' }} />
+          <div className='d-flex gap-2 flex-wrap'>
+            {gallery.map((img, i) => (
+              <Image
+                key={i}
+                src={img}
+                thumbnail
+                role='button'
+                style={{ width: '64px', height: '64px', objectFit: 'cover' }}
+                onClick={() => setActiveImage(img)}
+              />
+            ))}
+          </div>
+        </Col>
+        <Col md={6}>
+          <h2>{info.name}</h2>
+          <p className='text-muted'>{info.brief}</p>
+          <div className='mb-3'>
+            <span className='h3 text-primary me-2'>${retail}</span>
+            {counter > retail && <span className='text-muted text-decoration-line-through'>${counter}</span>}
+          </div>
 
-                <ProductPricing retailPrice={detail?.info?.retailPrice} counterPrice={detail?.info?.counterPrice} />
+          <div className='d-flex align-items-center mb-3'>
+            <label className='me-2'>Quantity</label>
+            <input
+              type='number'
+              min={1}
+              className='form-control'
+              style={{ width: '90px' }}
+              value={quantity}
+              onChange={e => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            />
+          </div>
 
-                <div className='product-options'>
-                  <ProductOptions data={detail?.attribute} />
-                </div>
+          <Button variant='primary' onClick={handleAddToCart}>
+            <i className='bi bi-cart-plus me-1' /> Add to cart
+          </Button>
 
-                <form className='mt-3' onSubmit={handleSubmit}>
-                  <RenderFormGroupField
-                    input={{
-                      name: 'quantity',
-                      type: 'number',
-                      placeholder: 'Quantity',
-                      className: 'form-control',
-                      value: quantity,
-                      onChange: e => setQuantity(parseInt(e.target.value)),
-                      min: '1',
-                    }}
-                    label='Quantity'
-                    Icon={() => <FontAwesomeIcon icon={faShoppingCart} />}
-                    meta={{
-                      touched: false,
-                      error: '',
-                      warning: '',
-                    }}
-                  />
-                </form>
+          {attribute && attribute.length > 0 && (
+            <table className='table table-sm mt-4'>
+              <tbody>
+                {attribute.map(attr => (
+                  <tr key={attr.id}>
+                    <th className='text-muted'>{attr.attribute}</th>
+                    <td>{attr.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Col>
+      </Row>
 
-                <div className='product-actions'>
-                  <Button className='btn-buy-now' onClick={handleBuyNow}>
-                    Buy Now
-                  </Button>
-                  <Button className='btn-add-to-cart' onClick={handleAddToCart}>
-                    <FontAwesomeIcon icon={faShoppingCart} className='me-2' />
-                    Add to Cart
-                  </Button>
-                </div>
-              </Col>
-            </Row>
-
-            <div className='product-description mt-5'>
-              <h3>Product Description</h3>
-              <Tabs defaultActiveKey='description' id='product-tabs' className='mb-3'>
-                <Tab eventKey='description' title='Description'>
-                  <ProductInfo info={detail?.info} />
-                </Tab>
-                <Tab eventKey='specifications' title='Specifications'>
-                  <ProductHighlights />
-                </Tab>
-                <Tab eventKey='reviews' title='Customer Reviews'>
-                  <ProductDetailIssue data={detail?.issue} />
-                </Tab>
-                <Tab eventKey='details' title='Product Detail'>
-                  <ProductDetailDetail detail={detail.info?.detail} />
-                </Tab>
-              </Tabs>
-            </div>
-
-            <Row className='mt-5'>
-              <Col>
-                <CardFeaturedProduct data={relatedGoods} onProductClick={scrollToGallery} />
-              </Col>
-            </Row>
+      {info.detail && (
+        <Row className='mt-4'>
+          <Col>
+            <h4>Details</h4>
+            <div dangerouslySetInnerHTML={{ __html: info.detail }} />
           </Col>
-
-          {/* <Col lg={2}>
-            <SideCartSummary />
-          </Col> */}
-          {/* <Col lg={3}>
-            {isAuthenticated ? (
-              <SideCartSummary />
-            ) : (
-              <Card>
-                <Card.Body>
-                  <Button className='btn-buy-now mb-2' onClick={handleBuyNow}>
-                    Buy Now
-                  </Button>
-                  <Button className='btn-add-to-cart' onClick={handleAddToCart}>
-                    <FontAwesomeIcon icon={faShoppingCart} className='me-2' />
-                    Add to Cart
-                  </Button>
-                </Card.Body>
-              </Card>
-            )}
-          </Col> */}
         </Row>
-        {/*         {showFloatingCart && <FloatingCartSidebar isOpen={showFloatingCart} onClose={toggleFloatingCart} />}
-         */}{' '}
-        <ToastContainer />
-      </Container>
-    </div>
+      )}
+    </Container>
   );
 };
 

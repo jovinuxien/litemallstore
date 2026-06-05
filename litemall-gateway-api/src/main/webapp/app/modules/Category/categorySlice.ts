@@ -112,7 +112,7 @@ export const getGoodsOfDefaultFirstSubCategory = createAsyncThunk<GoodCategoryRe
           data: null,
         });
       }
-      return goodsOfTheDefaultSubCategoryData.payload;
+      return goodsOfTheDefaultSubCategoryData.payload as GoodCategoryResult;
     } catch (error) {
       return thunkApi.rejectWithValue({
         errno: 500,
@@ -156,7 +156,7 @@ export const goodsBySubCategoryId = createAsyncThunk<GoodCategoryResult, number,
       if (response.data) {
         return response.data.data;
       } else {
-        return new Error('Invalid response from server');
+        return thunkApi.rejectWithValue({ errno: 500, errmsg: 'Invalid response from server', data: null });
       }
     } catch (error) {
       return thunkApi.rejectWithValue({
