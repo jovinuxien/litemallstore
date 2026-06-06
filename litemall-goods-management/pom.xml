@@ -78,6 +78,13 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
+		<!-- Service discovery: register with Eureka so the gateways can route to
+		     this module via lb://litemall-goods-management (the eureka.* config in
+		     application.yml is inert without this client on the classpath). -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
 		<!-- Messaging: this module commits to plain Spring AMQP (Rabbit) via
 		     RabbitTemplate / @RabbitListener (see RabbitMqConfig). Spring Cloud
 		     Stream and its Kafka binder have been removed; if a future
