@@ -72,8 +72,6 @@ spring:
 
       # Intentionally NO default TokenRelay filter: this is the customer edge,
       # not the Keycloak BFF (that is litemall-gateway-admin).
-
-spring:
   # The 'db' profile (litemall-db/application-db.yml) brings the Druid
   # datasource + Flyway. Migrations are owned by the DDD services / db module,
   # so the customer edge must NOT run them.
