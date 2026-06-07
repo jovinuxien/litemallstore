@@ -37,12 +37,21 @@ export interface ISearchResult {
   facets: ISearchFacets;
 }
 
+/**
+ * Sort order for the result list. `relevance` is OCS's default (no sort param).
+ * `price_asc`/`price_desc` are sent forward-compatibly to OCS; the Search page
+ * also applies them client-side over the current page until goods-management
+ * honors the `sort` param server-side (FOLLOW-UP, same as the facet buckets).
+ */
+export type SearchSort = 'relevance' | 'price_asc' | 'price_desc';
+
 export interface ISearchParams {
   q?: string;
   category?: number | null;
   brands?: number[];
   minPrice?: number | null;
   maxPrice?: number | null;
+  sort?: SearchSort;
   page?: number;
   size?: number;
 }

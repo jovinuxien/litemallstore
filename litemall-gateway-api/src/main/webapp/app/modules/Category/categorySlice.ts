@@ -175,6 +175,9 @@ interface CategoryState
     dataGoodsByCategoryId: GoodCategoryResult['data'];
     defaultFirstGoodsSubCategory: GoodCategoryResult['data'];
     dataSecondCategories: SecondCategoryApiResult['data'];
+    // Level-2 categories keyed by their level-1 parent id, so the home flyout
+    // lazy-loads each parent's children once and reuses them on later hovers.
+    secondCategoriesById: Record<number, CategoryData[]>;
   }> {}
 
 const initialState: CategoryState = {
@@ -202,6 +205,7 @@ const initialState: CategoryState = {
       currentCategory: null,
       secondCategories: [],
     },
+    secondCategoriesById: {},
   },
   errorNumber: null,
 };
@@ -227,6 +231,8 @@ const categorySlice = createSlice({
       .addCase(getSecondCategories.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.data.dataSecondCategories = action.payload;
+        // Cache under the requested level-1 parent id (the thunk arg).
+        state.data.secondCategoriesById[action.meta.arg] = action.payload.secondCategories ?? [];
       })
       .addCase(getGoodsOfDefaultFirstSubCategory.fulfilled, (state, action) => {
         state.loading = 'succeeded';

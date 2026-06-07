@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
 import InfiniteProductGrid from '../../components/userComponents/card/InfiniteProductGrid';
+import CategoryFlyout from '../../components/userComponents/category/CategoryFlyout';
 import { getCatalogIndexData } from '../Category/categorySlice';
 import { getProductList } from '../product/productSlice';
 import { getHomeData } from './homeSlice';
@@ -73,18 +74,7 @@ const HomeView: React.FC = () => {
 
         {/* Hero: category menu + banner carousel + welcome aside */}
         <div className="lm-hero">
-          <aside className="lm-hero__menu">
-            {categories.slice(0, 12).map(category => {
-              // catalog/index items use categoryId:{id} / categoryName.
-              const c = category as typeof category & { categoryId?: { id?: number }; categoryName?: string };
-              const cid = c.id ?? c.categoryId?.id;
-              return (
-                <Link key={cid} to={`/category/${cid}`}>
-                  {c.name ?? c.categoryName}
-                </Link>
-              );
-            })}
-          </aside>
+          <CategoryFlyout categories={categories} />
 
           <div className="lm-hero__banner">
             {banners.length > 0 ? (

@@ -21,6 +21,9 @@ const buildQuery = (params: ISearchParams): string => {
   if (params.brands && params.brands.length) qs.set('brand', params.brands.join(','));
   if (params.minPrice != null) qs.set('minPrice', String(params.minPrice));
   if (params.maxPrice != null) qs.set('maxPrice', String(params.maxPrice));
+  // Sort — forward-compatible; OCS default is relevance (no param). The Search
+  // page also sorts client-side until goods-management honors this server-side.
+  if (params.sort && params.sort !== 'relevance') qs.set('sort', params.sort);
   // /srv/search pages by offset/limit, not page/size.
   const size = params.size ?? 12;
   const page = params.page ?? 1;
