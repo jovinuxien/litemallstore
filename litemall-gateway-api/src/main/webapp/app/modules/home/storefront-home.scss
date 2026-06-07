@@ -108,16 +108,23 @@
 
   // ── channel quick-links strip ───────────────────────────────────────────
   .lm-channels {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    gap: 22px;
-    overflow-x: auto;
+    // wrap (not horizontal-scroll) so the hover dropdown can escape: a scroll
+    // container clips overflow on both axes and would hide the dropdown.
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 22px;
+    overflow: visible;
+    position: relative;
+    z-index: 4;
     background: var(--lm-surface);
     border: 1px solid var(--lm-border);
     border-radius: var(--lm-radius);
     padding: 14px 16px;
     margin: 14px 0;
+  }
+
+  .lm-channel-item {
+    position: relative; // anchor for this channel's dropdown
   }
 
   .lm-channel {
@@ -146,10 +153,71 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+  }
 
-    &:hover {
-      color: var(--lm-primary);
+  .lm-channel-item:hover .lm-channel {
+    color: var(--lm-primary);
+  }
+
+  // ── top channel-strip hover dropdown ────────────────────────────────────
+  .lm-channel-dropdown {
+    position: absolute;
+    top: 100%; // touches the item's bottom — no gap, so hover bridges across
+    left: 50%;
+    z-index: 60;
+    min-width: 220px;
+    max-width: 340px;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+    padding: 10px;
+    // hidden until hover; animate without opening a gap that drops the hover
+    visibility: hidden;
+    opacity: 0;
+    transform: translate(-50%, -4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+
+    &__inner {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px 10px;
     }
+
+    &__item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--lm-text);
+      text-decoration: none;
+
+      img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      &:hover {
+        background: var(--lm-primary-soft);
+        color: var(--lm-primary-dark);
+      }
+    }
+  }
+
+  .lm-channel-item:hover .lm-channel-dropdown {
+    visibility: visible;
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 
   // ── hero: sidebar + banner + aside ──────────────────────────────────────
