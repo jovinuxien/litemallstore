@@ -9,6 +9,9 @@ import org.linlinjava.litemall.core.util.ApiResponse;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
+import org.linlinjava.litemall.db.service.LitemallAdService;
+import org.linlinjava.litemall.db.service.LitemallCategoryService;
+import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
@@ -44,7 +47,16 @@ public class LitemallGoodsController {
     private LitemallCatalogService categoryServiceApi;
     @Autowired
     private LitemallGoodsManagementService goodsManagementService;
-    
+
+    // Home-page marketing data sourced from litemall-db (mirrors the monolith's
+    // WxHomeController): banners (ads), channels (channel categories), coupons.
+    @Autowired
+    private LitemallAdService adService;
+    @Autowired
+    private LitemallCategoryService categoryService;
+    @Autowired
+    private LitemallCouponService couponService;
+
     @Autowired
     private MessageProducer messageProducer;
 
@@ -60,21 +72,16 @@ public class LitemallGoodsController {
     @GetMapping("/index")
     public Object index(){
 
-        /*Callable<List> bannerListCallable = () -> adService.queryIndex();
+        Callable<List> bannerListCallable = () -> adService.queryIndex();
 
         Callable<List> channelListCallable = () -> categoryService.queryChannel();
 
-        Callable<List> couponListCallable;
-        if(userId == null){
-            couponListCallable = () -> couponService.queryList(0, 3);
-        } else {
-            couponListCallable = () -> couponService.queryAvailableList(userId,0, 3);
-        }*/
+        // Public home payload: top coupons available to claim (no logged-in user here).
+        Callable<List> couponListCallable = () -> couponService.queryList(0, 3);
 
+        Callable<List> newGoodsListCallable = () -> goodsManagementService.goodsByNew(0, SystemConfig.getNewLimit());
 
-        Callable<List> newGoodsListCallable = () -> goodsManagementService.goodsByHot(0, SystemConfig.getNewLimit());
-
-        Callable<List> hotGoodsListCallable = () -> goodsManagementService.goodsByNew(0, SystemConfig.getHotLimit());
+        Callable<List> hotGoodsListCallable = () -> goodsManagementService.goodsByHot(0, SystemConfig.getHotLimit());
 
         //Callable<List> brandListCallable = () -> brandService.query(0, SystemConfig.getBrandLimit());
 
@@ -84,9 +91,9 @@ public class LitemallGoodsController {
         //Callable<List> grouponListCallable = () -> grouponService.queryList(0, 5);
 
         //Callable<List> floorGoodsListCallable = this::getCategoryList;
-        //FutureTask<List> bannerTask = new FutureTask<>(bannerListCallable);
-        //FutureTask<List> channelTask = new FutureTask<>(channelListCallable);
-        //FutureTask<List> couponListTask = new FutureTask<>(couponListCallable);
+        FutureTask<List> bannerTask = new FutureTask<>(bannerListCallable);
+        FutureTask<List> channelTask = new FutureTask<>(channelListCallable);
+        FutureTask<List> couponListTask = new FutureTask<>(couponListCallable);
         FutureTask<List> newGoodsListTask = new FutureTask<>(newGoodsListCallable);
         FutureTask<List> hotGoodsListTask = new FutureTask<>(hotGoodsListCallable);
         //FutureTask<List> brandListTask = new FutureTask<>(brandListCallable);
@@ -94,9 +101,9 @@ public class LitemallGoodsController {
         //FutureTask<List> grouponListTask = new FutureTask<>(grouponListCallable);
         //FutureTask<List> floorGoodsListTask = new FutureTask<>(floorGoodsListCallable);
 
-        /*executorService.submit(bannerTask);
+        executorService.submit(bannerTask);
         executorService.submit(channelTask);
-        executorService.submit(couponListTask);*/
+        executorService.submit(couponListTask);
         executorService.submit(newGoodsListTask);
         executorService.submit(hotGoodsListTask);
         /*executorService.submit(brandListTask);
@@ -106,9 +113,9 @@ public class LitemallGoodsController {
 
         Map<String, Object> entity = new HashMap<>();
         try {
-           /* entity.put("banner", bannerTask.get());
+            entity.put("banner", bannerTask.get());
             entity.put("channel", channelTask.get());
-            entity.put("couponList", couponListTask.get());*/
+            entity.put("couponList", couponListTask.get());
             entity.put("newGoodsList", newGoodsListTask.get());
             entity.put("hotGoodsList", hotGoodsListTask.get());
             /*entity.put("brandList", brandListTask.get());
