@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { IGood } from 'app/shared/model/product/product.model';
-import ProductCard from './ProductCard';
+import ProductCard, { goodId } from './ProductCard';
 
 interface Props {
   items: IGood[];
@@ -52,8 +52,8 @@ const InfiniteProductGrid: React.FC<Props> = ({ items, initial = 10, step = 10, 
   return (
     <>
       <div className="lm-grid">
-        {shown.map(product => (
-          <ProductCard key={`${keyPrefix}-${product.id}`} product={product} />
+        {shown.map((product, i) => (
+          <ProductCard key={`${keyPrefix}-${goodId(product) ?? i}`} product={product} />
         ))}
       </div>
       {hasMore && (
