@@ -93,8 +93,10 @@ const initialState: ProductDetailState = {
       unit: '',
       counterPrice: 0,
       retailPrice: 0,
-      addTime: new Date(),
-      updateTime: new Date(),
+      // Keep state serializable — no Date objects (RTK serializableCheck). The
+      // API sends these as ISO strings; the placeholder is null until loaded.
+      addTime: null as unknown as Date,
+      updateTime: null as unknown as Date,
       deleted: false,
       detail: '',
     },
