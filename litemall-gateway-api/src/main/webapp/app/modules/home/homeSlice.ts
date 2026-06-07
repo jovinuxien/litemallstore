@@ -7,7 +7,10 @@ import { HomeData } from '../../shared/model/home.models';
 //export const getHomeData = createAsyncThunk<HomeData, void, { dispatch: AppDispatch; state: IRootState }>('home/data', async () => {
 
 export const getHomeData = createAsyncThunk('home/data', async (_, thunkApi) => {
-  const HomeUrl = BASE_URL_CONTEXT + '/catalog/all';
+  // /goods/index returns the home payload (banner/channel/couponList/newGoodsList/
+  // hotGoodsList/brandList/topicList/floorGoodsList). /catalog/all returns category
+  // data only, which left every home section empty.
+  const HomeUrl = BASE_URL_CONTEXT + '/goods/index';
   const response = await axios.get(HomeUrl);
   return response.data.data;
 });
