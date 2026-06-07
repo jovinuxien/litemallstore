@@ -29,6 +29,16 @@ interface AllCategoryApiResult
     currentSubCategory: CategoryData[];
   }> {}
 
+// `/catalog/all` returns every L1 category plus a map of categoryId -> its
+// subcategories. JSON object keys are strings, so `allList` is keyed by string.
+export interface CatalogAllApiResult
+  extends ApiResult<{
+    categoryList: CategoryData[];
+    allList: Record<string, CategoryData[]>;
+    currentCategory: CategoryData | null;
+    currentSubCategory: CategoryData[];
+  }> {}
+
 interface SecondCategoryApiResult
   extends ApiResult<{
     currentCategory: CategoryData | null;
@@ -47,6 +57,29 @@ export const getCatalogIndexData = createAsyncThunk<CategoryIndexApiResult['data
     try {
       const CatalogUrl = BASE_URL_CONTEXT + '/catalog/index';
       const response = await baseAxios.get(CatalogUrl);
+      if (response.data.errno !== 0) {
+        return thunkApi.rejectWithValue({
+          errno: response.data.errno,
+          errmsg: response.data.errmsg,
+          data: null,
+        });
+      }
+      return response.data.data;
+    } catch (error) {
+      return thunkApi.rejectWithValue({
+        errno: 500,
+        errmsg: error.message,
+        data: null,
+      });
+    }
+  }
+);
+
+export const getCatalogAllData = createAsyncThunk<CatalogAllApiResult['data'], void, { rejectValue: ApiResult<null> }>(
+  'allCatalog/data',
+  async (_, thunkApi) => {
+    try {
+      const response = await baseAxios.get(BASE_URL_CONTEXT + '/catalog/all');
       if (response.data.errno !== 0) {
         return thunkApi.rejectWithValue({
           errno: response.data.errno,
@@ -171,13 +204,11 @@ export const goodsBySubCategoryId = createAsyncThunk<GoodCategoryResult, number,
 interface CategoryState
   extends BaseState<{
     dataCategoryIndex: CategoryIndexApiResult['data'];
+    dataCatalogAll: CatalogAllApiResult['data'];
     currentCatalogData: CategoryCurrentApiResult['data'];
     dataGoodsByCategoryId: GoodCategoryResult['data'];
     defaultFirstGoodsSubCategory: GoodCategoryResult['data'];
     dataSecondCategories: SecondCategoryApiResult['data'];
-    // Level-2 categories keyed by their level-1 parent id, so the home flyout
-    // lazy-loads each parent's children once and reuses them on later hovers.
-    secondCategoriesById: Record<number, CategoryData[]>;
   }> {}
 
 const initialState: CategoryState = {
@@ -188,6 +219,12 @@ const initialState: CategoryState = {
       currentCategory: null,
       categoryList: [],
       subCategoryList: [],
+    },
+    dataCatalogAll: {
+      categoryList: [],
+      allList: {},
+      currentCategory: null,
+      currentSubCategory: [],
     },
     defaultFirstGoodsSubCategory: {
       currentCategory: null,
@@ -205,7 +242,6 @@ const initialState: CategoryState = {
       currentCategory: null,
       secondCategories: [],
     },
-    secondCategoriesById: {},
   },
   errorNumber: null,
 };
@@ -220,18 +256,13 @@ const categorySlice = createSlice({
         state.loading = 'succeeded';
         state.data.dataCategoryIndex = action.payload;
       })
+      .addCase(getCatalogAllData.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        state.data.dataCatalogAll = action.payload;
+      })
       .addCase(getCurrentCatalogData.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.data.currentCatalogData = action.payload;
-        // Cache this L1's level-2 children (under the requested id) for the
-        // home flyout / Search drill-down. `/catalog/current` is the endpoint
-        // that actually exists — `/catalog/getsecondcategory` 404s. The wire
-        // shape is { categoryId:{id}, categoryName }, so normalize to id/name
-        // (the typed CategoryData fields) the consumers read.
-        state.data.secondCategoriesById[action.meta.arg] = (action.payload.currentSubCategory ?? []).map(c => {
-          const w = c as CategoryData & { categoryId?: { id?: number }; categoryName?: string };
-          return { ...w, id: w.id ?? w.categoryId?.id, name: w.name ?? w.categoryName } as CategoryData;
-        });
       })
       .addCase(goodsBySubCategoryId.fulfilled, (state, action) => {
         state.loading = 'succeeded';
