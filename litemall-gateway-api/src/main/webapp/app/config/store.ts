@@ -30,6 +30,9 @@ const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActionPaths: ['payload.config', 'payload.request', 'payload.headers', 'error', 'meta.arg'],
+        // Product DTOs type addTime/updateTime as Date; tolerate any date-ish
+        // value the API surfaces without tripping the dev-only check.
+        ignoredPaths: ['productDetail.data.info.addTime', 'productDetail.data.info.updateTime'],
       },
     }),
 });
