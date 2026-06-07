@@ -29,6 +29,16 @@ interface AllCategoryApiResult
     currentSubCategory: CategoryData[];
   }> {}
 
+// `/catalog/all` returns every L1 category plus a map of categoryId -> its
+// subcategories. JSON object keys are strings, so `allList` is keyed by string.
+export interface CatalogAllApiResult
+  extends ApiResult<{
+    categoryList: CategoryData[];
+    allList: Record<string, CategoryData[]>;
+    currentCategory: CategoryData | null;
+    currentSubCategory: CategoryData[];
+  }> {}
+
 interface SecondCategoryApiResult
   extends ApiResult<{
     currentCategory: CategoryData | null;
@@ -47,6 +57,29 @@ export const getCatalogIndexData = createAsyncThunk<CategoryIndexApiResult['data
     try {
       const CatalogUrl = BASE_URL_CONTEXT + '/catalog/index';
       const response = await baseAxios.get(CatalogUrl);
+      if (response.data.errno !== 0) {
+        return thunkApi.rejectWithValue({
+          errno: response.data.errno,
+          errmsg: response.data.errmsg,
+          data: null,
+        });
+      }
+      return response.data.data;
+    } catch (error) {
+      return thunkApi.rejectWithValue({
+        errno: 500,
+        errmsg: error.message,
+        data: null,
+      });
+    }
+  }
+);
+
+export const getCatalogAllData = createAsyncThunk<CatalogAllApiResult['data'], void, { rejectValue: ApiResult<null> }>(
+  'allCatalog/data',
+  async (_, thunkApi) => {
+    try {
+      const response = await baseAxios.get(BASE_URL_CONTEXT + '/catalog/all');
       if (response.data.errno !== 0) {
         return thunkApi.rejectWithValue({
           errno: response.data.errno,
@@ -171,6 +204,7 @@ export const goodsBySubCategoryId = createAsyncThunk<GoodCategoryResult, number,
 interface CategoryState
   extends BaseState<{
     dataCategoryIndex: CategoryIndexApiResult['data'];
+    dataCatalogAll: CatalogAllApiResult['data'];
     currentCatalogData: CategoryCurrentApiResult['data'];
     dataGoodsByCategoryId: GoodCategoryResult['data'];
     defaultFirstGoodsSubCategory: GoodCategoryResult['data'];
@@ -185,6 +219,12 @@ const initialState: CategoryState = {
       currentCategory: null,
       categoryList: [],
       subCategoryList: [],
+    },
+    dataCatalogAll: {
+      categoryList: [],
+      allList: {},
+      currentCategory: null,
+      currentSubCategory: [],
     },
     defaultFirstGoodsSubCategory: {
       currentCategory: null,
@@ -215,6 +255,10 @@ const categorySlice = createSlice({
       .addCase(getCatalogIndexData.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.data.dataCategoryIndex = action.payload;
+      })
+      .addCase(getCatalogAllData.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        state.data.dataCatalogAll = action.payload;
       })
       .addCase(getCurrentCatalogData.fulfilled, (state, action) => {
         state.loading = 'succeeded';

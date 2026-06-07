@@ -6,11 +6,17 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
 import InfiniteProductGrid from '../../components/userComponents/card/InfiniteProductGrid';
-import { getCatalogIndexData } from '../Category/categorySlice';
+import { getCatalogAllData, getCatalogIndexData } from '../Category/categorySlice';
 import { getProductList } from '../product/productSlice';
 import { getHomeData } from './homeSlice';
 import 'app/components/userComponents/card/product-card.scss';
 import './storefront-home.scss';
+
+// Categories come back as DDD aggregates (categoryId:{id} / categoryName /
+// iconUrl) but some endpoints use the flat id/name shape — read whichever.
+const catId = (c: any): number | undefined => c?.id ?? c?.categoryId?.id;
+const catName = (c: any): string | undefined => c?.name ?? c?.categoryName;
+const catIcon = (c: any): string | undefined => c?.iconUrl ?? c?.picUrl;
 
 // Small section wrapper with a title + optional "see more" link.
 const Section: React.FC<{ title: string; moreTo?: string; children: React.ReactNode }> = ({ title, moreTo, children }) => (
@@ -31,12 +37,13 @@ const HomeView: React.FC = () => {
   const dispatch = useAppDispatch();
   const entities = useAppSelector(state => state.home.homeData);
   const { list } = useAppSelector(state => state.product.data);
-  const { dataCategoryIndex } = useAppSelector(state => state.category.data);
+  const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
 
   useEffect(() => {
     dispatch(getHomeData());
     dispatch(getProductList());
     dispatch(getCatalogIndexData());
+    dispatch(getCatalogAllData());
   }, [dispatch]);
 
   const banners = entities?.banner ?? [];
@@ -47,7 +54,10 @@ const HomeView: React.FC = () => {
   const brands = (entities?.brandList ?? []) as Array<{ id?: number; name?: string; picUrl?: string }>;
   const topics = (entities?.topicList ?? []) as Array<{ id?: number; title?: string; subtitle?: string; picUrl?: string }>;
   const floors = entities?.floorGoodsList ?? [];
-  const categories = dataCategoryIndex?.categoryList ?? [];
+  // Prefer the /catalog/all payload (carries every L1 category AND its
+  // subcategories for the flyout); fall back to /catalog/index's flat list.
+  const menuCategories = (dataCatalogAll?.categoryList?.length ? dataCatalogAll.categoryList : dataCategoryIndex?.categoryList) ?? [];
+  const subTree = dataCatalogAll?.allList ?? {};
   const deals = (list ?? []) as IGood[];
 
   return (
@@ -74,14 +84,30 @@ const HomeView: React.FC = () => {
         {/* Hero: category menu + banner carousel + welcome aside */}
         <div className="lm-hero">
           <aside className="lm-hero__menu">
-            {categories.slice(0, 12).map(category => {
-              // catalog/index items use categoryId:{id} / categoryName.
-              const c = category as typeof category & { categoryId?: { id?: number }; categoryName?: string };
-              const cid = c.id ?? c.categoryId?.id;
+            {menuCategories.slice(0, 12).map(category => {
+              const cid = catId(category);
+              // Subcategories keyed by string id (JSON object keys are strings).
+              const subs = (subTree[String(cid)] ?? subTree[cid as any] ?? []) as any[];
               return (
-                <Link key={cid} to={`/category/${cid}`}>
-                  {c.name ?? c.categoryName}
-                </Link>
+                <div key={cid} className="lm-menu-row">
+                  <Link to={`/category/${cid}`} className="lm-menu-row__link">
+                    {catIcon(category) && <img src={catIcon(category)} alt="" loading="lazy" />}
+                    <span>{catName(category)}</span>
+                    {subs.length > 0 && <span className="lm-menu-row__caret">›</span>}
+                  </Link>
+                  {subs.length > 0 && (
+                    <div className="lm-flyout">
+                      <div className="lm-flyout__inner">
+                        {subs.map(sub => (
+                          <Link key={catId(sub)} to={`/category/${catId(sub)}`} className="lm-flyout__item">
+                            {catIcon(sub) && <img src={catIcon(sub)} alt="" loading="lazy" />}
+                            <span>{catName(sub)}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </aside>
@@ -111,9 +137,9 @@ const HomeView: React.FC = () => {
             <div className="lm-welcome">
               <h4>Welcome to litemall</h4>
               <p>Sign in for member prices, coupons and faster checkout.</p>
-              <Link to="/login" className="lm-welcome__btn">
+              {/* <Link to="/login" className="lm-welcome__btn">
                 Sign in / Register
-              </Link>
+              </Link> */}
             </div>
             {coupons.slice(0, 1).map(coupon => (
               <div key={coupon.id} className="lm-coupon">
@@ -218,11 +244,11 @@ const HomeView: React.FC = () => {
         })}
 
         {/* More to love — infinite feed */}
-        {deals.length > 0 && (
+        {/* {deals.length > 0 && (
           <Section title="More to love">
             <InfiniteProductGrid items={deals} keyPrefix="deal" />
           </Section>
-        )}
+        )} */}
       </div>
     </div>
   );
