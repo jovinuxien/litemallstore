@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { getSecondCategories } from 'app/modules/Category/categorySlice';
+import { getCurrentCatalogData } from 'app/modules/Category/categorySlice';
 import ProductCard, { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { IGood } from 'app/shared/model/product/product.model';
 import { SearchSort } from 'app/shared/model/search/search.models';
@@ -113,9 +113,10 @@ const SearchView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minLocal, maxLocal]);
 
-  // Lazy-load the active category's children so they show as drill-down links.
+  // Lazy-load the active category's children (via /catalog/current) so they
+  // show as drill-down links.
   useEffect(() => {
-    if (category != null) dispatch(getSecondCategories(category));
+    if (category != null) dispatch(getCurrentCatalogData(category));
   }, [dispatch, category]);
 
   // Fetch results whenever any URL-derived parameter changes.
