@@ -1,0 +1,403 @@
+// litemall storefront home — layout only. Color tokens come from the :root
+// variables defined in components/userComponents/card/product-card.scss.
+
+.lm-home {
+  background: var(--lm-bg);
+  color: var(--lm-text);
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  padding-bottom: 40px;
+
+  .lm-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 14px;
+  }
+
+  // ── shared section header ───────────────────────────────────────────────
+  .lm-section {
+    margin: 26px 0;
+  }
+
+  .lm-section__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .lm-section__title {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0;
+    color: var(--lm-text);
+
+    &::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 18px;
+      background: var(--lm-primary);
+      border-radius: 2px;
+      margin-right: 8px;
+      vertical-align: -2px;
+    }
+  }
+
+  .lm-section__more {
+    font-size: 13px;
+    color: var(--lm-primary);
+    text-decoration: none;
+    font-weight: 600;
+
+    &:hover {
+      color: var(--lm-primary-dark);
+    }
+  }
+
+  // ── responsive product grid ─────────────────────────────────────────────
+  .lm-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(5, 1fr);
+    }
+    @media (min-width: 1200px) {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  .lm-grid__sentinel {
+    text-align: center;
+    padding: 18px 0;
+    color: var(--lm-muted);
+    font-size: 13px;
+  }
+
+  // ── horizontal scroll rail (SuperDeals) ─────────────────────────────────
+  .lm-rail {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 46%;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+
+    > * {
+      scroll-snap-align: start;
+    }
+
+    @media (min-width: 576px) {
+      grid-auto-columns: 30%;
+    }
+    @media (min-width: 768px) {
+      grid-auto-columns: 22%;
+    }
+    @media (min-width: 992px) {
+      grid-auto-columns: 16.4%;
+    }
+  }
+
+  // ── channel quick-links strip ───────────────────────────────────────────
+  .lm-channels {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    gap: 22px;
+    overflow-x: auto;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 14px 16px;
+    margin: 14px 0;
+  }
+
+  .lm-channel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    color: var(--lm-text);
+    font-size: 12px;
+    min-width: 64px;
+
+    img {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 50%;
+      background: var(--lm-primary-soft);
+      padding: 4px;
+    }
+
+    span {
+      max-width: 72px;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &:hover {
+      color: var(--lm-primary);
+    }
+  }
+
+  // ── hero: sidebar + banner + aside ──────────────────────────────────────
+  .lm-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 14px 0;
+
+    @media (min-width: 992px) {
+      grid-template-columns: 210px 1fr 240px;
+    }
+  }
+
+  .lm-hero__menu {
+    display: none;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 8px 0;
+
+    @media (min-width: 992px) {
+      display: block;
+    }
+
+    a {
+      display: block;
+      padding: 7px 16px;
+      font-size: 13px;
+      color: var(--lm-text);
+      text-decoration: none;
+
+      &:hover {
+        background: var(--lm-primary-soft);
+        color: var(--lm-primary-dark);
+      }
+    }
+  }
+
+  .lm-hero__banner {
+    border-radius: var(--lm-radius);
+    overflow: hidden;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+
+    .carousel,
+    .carousel-inner,
+    .carousel-item {
+      height: 100%;
+    }
+
+    img {
+      width: 100%;
+      height: 340px;
+      object-fit: cover;
+    }
+
+    .carousel-caption {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      padding: 8px 14px;
+      left: 8%;
+      right: auto;
+      bottom: 18px;
+      text-align: left;
+
+      h3 {
+        font-size: 18px;
+        margin: 0;
+      }
+    }
+  }
+
+  .lm-hero__aside {
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+
+    @media (min-width: 992px) {
+      display: flex;
+    }
+  }
+
+  .lm-welcome {
+    background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-dark));
+    color: #fff;
+    border-radius: var(--lm-radius);
+    padding: 16px;
+
+    h4 {
+      font-size: 16px;
+      margin: 0 0 4px;
+    }
+
+    p {
+      font-size: 12px;
+      opacity: 0.9;
+      margin: 0 0 12px;
+    }
+
+    .lm-welcome__btn {
+      display: inline-block;
+      background: #fff;
+      color: var(--lm-primary-dark);
+      font-weight: 700;
+      font-size: 13px;
+      padding: 7px 14px;
+      border-radius: 20px;
+      text-decoration: none;
+    }
+  }
+
+  // ── coupon strip ────────────────────────────────────────────────────────
+  .lm-coupons {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(180px, 1fr);
+    gap: 12px;
+    overflow-x: auto;
+  }
+
+  .lm-coupon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--lm-surface);
+    border: 1px dashed var(--lm-accent);
+    border-radius: var(--lm-radius);
+    padding: 12px 14px;
+
+    &__amount {
+      color: var(--lm-accent);
+      font-weight: 800;
+      font-size: 22px;
+      white-space: nowrap;
+    }
+
+    &__name {
+      font-size: 13px;
+      color: var(--lm-text);
+    }
+
+    &__min {
+      font-size: 11px;
+      color: var(--lm-muted);
+    }
+  }
+
+  // ── brand zone ──────────────────────────────────────────────────────────
+  .lm-brands {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  .lm-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 14px;
+    text-decoration: none;
+    color: var(--lm-text);
+
+    img {
+      width: 100%;
+      height: 90px;
+      object-fit: contain;
+    }
+
+    span {
+      font-size: 12px;
+      text-align: center;
+    }
+
+    &:hover {
+      border-color: var(--lm-primary-soft);
+      color: var(--lm-primary);
+    }
+  }
+
+  // ── topic cards ─────────────────────────────────────────────────────────
+  .lm-topics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .lm-topic {
+    position: relative;
+    border-radius: var(--lm-radius);
+    overflow: hidden;
+    text-decoration: none;
+    color: #fff;
+    background: #ccc;
+
+    img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.25s ease;
+    }
+
+    &:hover img {
+      transform: scale(1.05);
+    }
+
+    &__overlay {
+      position: absolute;
+      inset: auto 0 0 0;
+      padding: 14px;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+    }
+
+    &__title {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    &__subtitle {
+      font-size: 12px;
+      opacity: 0.9;
+      margin: 2px 0 0;
+    }
+  }
+
+  // ── category floor ──────────────────────────────────────────────────────
+  .lm-floor {
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+}
