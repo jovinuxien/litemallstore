@@ -155,6 +155,23 @@
       }
     }
   }
+
+  &__apply {
+    margin-top: 8px;
+    width: 100%;
+    border: 1px solid var(--lm-primary);
+    background: var(--lm-surface);
+    color: var(--lm-primary-dark);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--lm-primary-soft);
+    }
+  }
 }
 
 // ── collapsible filter group ───────────────────────────────────────────────

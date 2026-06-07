@@ -185,5 +185,13 @@
     &:hover {
       background: var(--lm-primary-dark);
     }
+
+    &--added {
+      background: var(--lm-success);
+
+      &:hover {
+        background: var(--lm-success);
+      }
+    }
   }
 }
