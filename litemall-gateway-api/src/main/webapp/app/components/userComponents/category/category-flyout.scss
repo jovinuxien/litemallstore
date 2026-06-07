@@ -1,17 +1,28 @@
-// Home level-1 category menu + Amazon-style hover flyout. Tokens come from the
-// :root variables in product-card.scss. Mirrors the old .lm-hero__menu footprint
-// so the hero grid layout (210px rail) is unchanged.
+// Home level-1 category menu + Amazon-style flyout. Touch-friendly: desktop
+// hovers open a side panel; mobile taps expand children inline. Tokens come from
+// the :root variables in product-card.scss.
 
 .lm-catmenu {
   position: relative;
-  display: none;
+  display: block;
   background: var(--lm-surface);
   border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
-  padding: 8px 0;
+  padding: 6px 0;
 
-  @media (min-width: 992px) {
-    display: block;
+  &__title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--lm-text);
+    padding: 6px 16px 8px;
+    border-bottom: 1px solid var(--lm-border);
+
+    // The label is useful on mobile; on desktop the column header is enough.
+    @media (min-width: 992px) {
+      display: none;
+    }
   }
 
   &__list {
@@ -21,61 +32,88 @@
   }
 
   &__item {
-    &.is-active .lm-catmenu__label {
-      background: var(--lm-primary-soft);
+    position: relative;
+
+    &.is-active > .lm-catmenu__row .lm-catmenu__label,
+    &.is-active > .lm-catmenu__row .lm-catmenu__toggle {
       color: var(--lm-primary-dark);
     }
+
+    &.is-active > .lm-catmenu__row {
+      background: var(--lm-primary-soft);
+    }
+
+    &.is-active .lm-catmenu__toggle {
+      transform: rotate(90deg);
+    }
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
   }
 
   &__label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
+    flex: 1 1 auto;
+    text-align: left;
     background: none;
     border: none;
-    padding: 7px 16px;
+    padding: 9px 6px 9px 16px;
     font-size: 13px;
     color: var(--lm-text);
-    text-align: left;
     cursor: pointer;
 
     &:hover {
-      background: var(--lm-primary-soft);
       color: var(--lm-primary-dark);
     }
   }
 
-  &__arrow {
+  &__toggle {
+    flex: 0 0 auto;
+    background: none;
+    border: none;
     color: var(--lm-muted);
-    font-size: 16px;
+    font-size: 18px;
     line-height: 1;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+
+    &:hover {
+      color: var(--lm-primary-dark);
+    }
   }
 
   // ── flyout panel ─────────────────────────────────────────────────────────
   &__flyout {
-    position: absolute;
-    top: -1px;
-    left: 100%;
-    z-index: 30;
-    min-width: 280px;
-    max-width: 360px;
-    min-height: calc(100% + 2px);
-    margin-left: 6px;
     background: var(--lm-surface);
-    border: 1px solid var(--lm-border);
-    border-radius: var(--lm-radius);
-    box-shadow: 0 8px 28px rgba(15, 42, 46, 0.14);
-    padding: 12px 14px;
+    padding: 10px 14px;
 
-    &::before {
-      // hover bridge so the cursor can cross the gap without closing
-      content: '';
+    // Mobile default: inline, expanded beneath the tapped category.
+    border-top: 1px dashed var(--lm-border);
+
+    @media (min-width: 992px) {
+      // Desktop: floating side panel anchored to the hovered row.
       position: absolute;
-      top: 0;
-      left: -10px;
-      width: 10px;
-      height: 100%;
+      top: -1px;
+      left: 100%;
+      z-index: 30;
+      min-width: 300px;
+      max-width: 380px;
+      margin-left: 6px;
+      border: 1px solid var(--lm-border);
+      border-radius: var(--lm-radius);
+      box-shadow: 0 8px 28px rgba(15, 42, 46, 0.14);
+
+      &::before {
+        // hover bridge so the cursor can cross the gap without closing
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -10px;
+        width: 12px;
+        height: 100%;
+      }
     }
   }
 
@@ -104,8 +142,12 @@
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 2px 12px;
+
+    @media (min-width: 992px) {
+      grid-template-columns: 1fr 1fr;
+    }
 
     button {
       display: block;
