@@ -176,8 +176,10 @@ const initialState: ProductDetailState = {
       unit: '',
       counterPrice: 0,
       retailPrice: 0,
-      addTime: new Date(),
-      updateTime: new Date(),
+      // Keep initial state serializable — the backend sends addTime/updateTime as
+      // arrays; Detail.tsx never reads them, so null is fine here.
+      addTime: null as unknown as Date,
+      updateTime: null as unknown as Date,
       deleted: false,
       detail: '',
     },
