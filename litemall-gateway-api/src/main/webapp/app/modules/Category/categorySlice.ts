@@ -223,6 +223,15 @@ const categorySlice = createSlice({
       .addCase(getCurrentCatalogData.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.data.currentCatalogData = action.payload;
+        // Cache this L1's level-2 children (under the requested id) for the
+        // home flyout / Search drill-down. `/catalog/current` is the endpoint
+        // that actually exists — `/catalog/getsecondcategory` 404s. The wire
+        // shape is { categoryId:{id}, categoryName }, so normalize to id/name
+        // (the typed CategoryData fields) the consumers read.
+        state.data.secondCategoriesById[action.meta.arg] = (action.payload.currentSubCategory ?? []).map(c => {
+          const w = c as CategoryData & { categoryId?: { id?: number }; categoryName?: string };
+          return { ...w, id: w.id ?? w.categoryId?.id, name: w.name ?? w.categoryName } as CategoryData;
+        });
       })
       .addCase(goodsBySubCategoryId.fulfilled, (state, action) => {
         state.loading = 'succeeded';
@@ -231,8 +240,6 @@ const categorySlice = createSlice({
       .addCase(getSecondCategories.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.data.dataSecondCategories = action.payload;
-        // Cache under the requested level-1 parent id (the thunk arg).
-        state.data.secondCategoriesById[action.meta.arg] = action.payload.secondCategories ?? [];
       })
       .addCase(getGoodsOfDefaultFirstSubCategory.fulfilled, (state, action) => {
         state.loading = 'succeeded';

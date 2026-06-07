@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { getSecondCategories } from 'app/modules/Category/categorySlice';
+import { getCurrentCatalogData } from 'app/modules/Category/categorySlice';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import './category-flyout.scss';
 
@@ -36,8 +36,8 @@ const CategoryFlyout: React.FC<Props> = ({ categories, limit = 12 }) => {
     if (id == null) return;
     if (closeTimer.current) clearTimeout(closeTimer.current);
     setActiveId(id);
-    // Lazy-load children once; the slice no-ops the network on cache hits anyway.
-    if (!children || activeId !== id) dispatch(getSecondCategories(id));
+    // Lazy-load this category's level-2 children (via /catalog/current) once.
+    if (!children || activeId !== id) dispatch(getCurrentCatalogData(id));
   };
 
   const scheduleClose = () => {
