@@ -13,13 +13,19 @@ import { emptyFacets, ISearchParams, ISearchResult } from 'app/shared/model/sear
  */
 const buildQuery = (params: ISearchParams): string => {
   const qs = new URLSearchParams();
-  if (params.q) qs.set('q', params.q);
+  // q is a required param on /srv/search; always send it (possibly empty) so it binds.
+  qs.set('q', params.q ?? '');
+  // Facet filters — goods-management ignores these today; sent forward-compatibly
+  // for when its OCS aggregations land. The facet sidebar stays wired meanwhile.
   if (params.category != null) qs.set('category', String(params.category));
   if (params.brands && params.brands.length) qs.set('brand', params.brands.join(','));
   if (params.minPrice != null) qs.set('minPrice', String(params.minPrice));
   if (params.maxPrice != null) qs.set('maxPrice', String(params.maxPrice));
-  qs.set('page', String(params.page ?? 1));
-  qs.set('size', String(params.size ?? 12));
+  // /srv/search pages by offset/limit, not page/size.
+  const size = params.size ?? 12;
+  const page = params.page ?? 1;
+  qs.set('offset', String((page - 1) * size));
+  qs.set('limit', String(size));
   return qs.toString();
 };
 
@@ -28,18 +34,23 @@ export const searchProducts = createAsyncThunk<ISearchResult, ISearchParams, { r
   async (params, thunkApi) => {
     try {
       const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(params)}`);
-      if (response.data.errno !== 0) {
-        return thunkApi.rejectWithValue({ errno: response.data.errno, errmsg: response.data.errmsg, data: null });
+      // /srv/search returns a RAW map { total, offset, limit, goodsList } with no
+      // {errno,data} envelope; tolerate both that and an enveloped shape.
+      const body = response.data ?? {};
+      if (body.errno != null && body.errno !== 0) {
+        return thunkApi.rejectWithValue({ errno: body.errno, errmsg: body.errmsg, data: null });
       }
-      const d = response.data.data ?? {};
-      // Tolerate either the agreed shape or a partial one while goods-management
-      // finishes surfacing facets — never throw on a missing bucket.
+      const d = body.data ?? body;
+      const size = params.size ?? 12;
+      const page = params.page ?? 1;
+      const total = d.total ?? 0;
+      // facets stay defensive — empty until goods-management surfaces aggregations.
       return {
-        list: d.list ?? [],
-        total: d.total ?? 0,
-        page: d.page ?? params.page ?? 1,
-        size: d.size ?? d.limit ?? params.size ?? 12,
-        pages: d.pages ?? 0,
+        list: d.goodsList ?? d.list ?? [],
+        total,
+        page,
+        size,
+        pages: d.pages ?? (size > 0 ? Math.ceil(total / size) : 0),
         facets: {
           categories: d.facets?.categories ?? [],
           brands: d.facets?.brands ?? [],
