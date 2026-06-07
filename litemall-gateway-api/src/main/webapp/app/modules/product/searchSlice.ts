@@ -2,31 +2,68 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
-import { emptyFacets, ISearchParams, ISearchResult } from 'app/shared/model/search/search.models';
+import { emptyResult, IFacetGroup, ISearchParams, ISearchResult, ISortOption } from 'app/shared/model/search/search.models';
 
 /**
  * OCS-backed faceted listing. Drives the product page that the home
- * category / hot-deal tiles route to. Hits goods-management's
- * `GET /srv/search?q=&category=&brand=&minPrice=&maxPrice=&page=&size=` through
- * the gateway (customer JWT relayed by baseAxios). No SQL fallback — the
- * faceted view is OCS-only by design.
+ * category / hot-deal tiles and the header search box route to. Hits
+ * goods-management's `GET /srv/search` through the gateway (customer JWT relayed
+ * by baseAxios). No SQL fallback — the faceted view is OCS-only by design.
+ *
+ * Contract (goods-management SearchService): request `q,page,size,sort` plus one
+ * param per active facet filter keyed by the OCS field (`category_ids`, `brand`,
+ * `price=min,max`, …); response `data` carries `goodsList, total, totalPages,
+ * page, limit, filters[], sortOptions[], appliedFilters`. We also send
+ * `offset/limit` and read `goodsList`/raw shapes so this still degrades cleanly
+ * against the older backend that only did free-text `q` + offset paging.
  */
 const buildQuery = (params: ISearchParams): string => {
   const qs = new URLSearchParams();
-  // q is a required param on /srv/search; always send it (possibly empty) so it binds.
   qs.set('q', params.q ?? '');
-  // Facet filters — goods-management ignores these today; sent forward-compatibly
-  // for when its OCS aggregations land. The facet sidebar stays wired meanwhile.
-  if (params.category != null) qs.set('category', String(params.category));
-  if (params.brands && params.brands.length) qs.set('brand', params.brands.join(','));
-  if (params.minPrice != null) qs.set('minPrice', String(params.minPrice));
-  if (params.maxPrice != null) qs.set('maxPrice', String(params.maxPrice));
-  // /srv/search pages by offset/limit, not page/size.
   const size = params.size ?? 12;
   const page = params.page ?? 1;
+  // New backend pages by page/size; older one by offset/limit — send both.
+  qs.set('page', String(page));
+  qs.set('size', String(size));
   qs.set('offset', String((page - 1) * size));
   qs.set('limit', String(size));
+  if (params.sort) qs.set('sort', params.sort);
+  // One query param per active facet filter, keyed by the OCS facet field.
+  if (params.filters) {
+    Object.entries(params.filters).forEach(([field, value]) => {
+      if (value != null && String(value).trim() !== '') qs.set(field, String(value));
+    });
+  }
   return qs.toString();
+};
+
+// The backend returns facet groups as `filters[]`; tolerate a couple of key
+// spellings so we don't depend on one exact field name.
+const readFacetGroups = (d: any): IFacetGroup[] => {
+  const raw = d?.filters ?? d?.facetGroups ?? d?.facets;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((g: any) => ({
+    field: g.field ?? g.fieldName ?? '',
+    type: g.type ?? 'term',
+    entries: Array.isArray(g.entries)
+      ? g.entries.map((e: any) => ({
+          value: String(e.value ?? e.key ?? e.id ?? ''),
+          id: e.id ?? undefined,
+          count: Number(e.count ?? e.docCount ?? 0) || 0,
+          selected: Boolean(e.selected),
+        }))
+      : [],
+  }));
+};
+
+const readSortOptions = (d: any): ISortOption[] => {
+  const raw = d?.sortOptions;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((o: any) => ({
+    label: String(o.label ?? o.value ?? ''),
+    value: String(o.value ?? ''),
+    active: Boolean(o.active),
+  }));
 };
 
 export const searchProducts = createAsyncThunk<ISearchResult, ISearchParams, { rejectValue: ApiResult<null> }>(
@@ -34,8 +71,7 @@ export const searchProducts = createAsyncThunk<ISearchResult, ISearchParams, { r
   async (params, thunkApi) => {
     try {
       const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(params)}`);
-      // /srv/search returns a RAW map { total, offset, limit, goodsList } with no
-      // {errno,data} envelope; tolerate both that and an enveloped shape.
+      // Tolerate both the enveloped `{errno,data}` shape and a raw map.
       const body = response.data ?? {};
       if (body.errno != null && body.errno !== 0) {
         return thunkApi.rejectWithValue({ errno: body.errno, errmsg: body.errmsg, data: null });
@@ -43,19 +79,17 @@ export const searchProducts = createAsyncThunk<ISearchResult, ISearchParams, { r
       const d = body.data ?? body;
       const size = params.size ?? 12;
       const page = params.page ?? 1;
-      const total = d.total ?? 0;
-      // facets stay defensive — empty until goods-management surfaces aggregations.
+      const total = Number(d.total ?? 0) || 0;
+      const pages = d.totalPages ?? d.pages ?? (size > 0 ? Math.ceil(total / size) : 0);
       return {
         list: d.goodsList ?? d.list ?? [],
         total,
-        page,
-        size,
-        pages: d.pages ?? (size > 0 ? Math.ceil(total / size) : 0),
-        facets: {
-          categories: d.facets?.categories ?? [],
-          brands: d.facets?.brands ?? [],
-          price: d.facets?.price ?? null,
-        },
+        page: d.page ?? page,
+        size: d.limit ?? d.size ?? size,
+        pages,
+        facetGroups: readFacetGroups(d),
+        sortOptions: readSortOptions(d),
+        appliedFilters: (d.appliedFilters && typeof d.appliedFilters === 'object') ? d.appliedFilters : {},
       };
     } catch (error) {
       return thunkApi.rejectWithValue({ errno: 500, errmsg: error.message, data: null });
@@ -69,7 +103,7 @@ const initialState: SearchState = {
   loading: 'idle',
   errorMessage: null,
   errorNumber: null,
-  data: { list: [], total: 0, page: 1, size: 12, pages: 0, facets: emptyFacets },
+  data: emptyResult,
 };
 
 const searchSlice = createSlice({

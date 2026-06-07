@@ -1,31 +1,37 @@
 import { IGood } from 'app/shared/model/product/product.model';
 
 /**
- * Agreed OCS faceted-search contract surfaced by goods-management's
- * `GET /srv/search` (see SearchService). The OCS searcher already returns facet
- * buckets per request; goods-management currently DROPS them when mapping to
- * the goodsList DTO. Until that worktree surfaces them, the sidebar codes
- * against this shape. FOLLOW-UP(goods-management): include `facets` (category +
- * brand buckets, overall price range) in the `/srv/search` response `data`.
+ * OCS faceted-search contract surfaced by goods-management's `GET /srv/search`
+ * (see SearchService). The OCS searcher returns facet buckets, sort options and
+ * the applied-filter set per request; goods-management maps them onto a generic,
+ * field-driven shape so new facets (brand, price, category, product attributes,
+ * variants…) need no SPA change — the sidebar renders whatever `filters[]`
+ * groups come back.
  *
- * Request params: q, category (id), brand (csv of ids), minPrice, maxPrice,
- * page (1-based), size. The gateway maps page/size to OCS offset/limit.
+ * Request params: `q`, `page` (1-based), `size`, `sort` (`field` asc / `-field`
+ * desc), and one query param per active filter keyed by the OCS facet field
+ * (e.g. `category_ids=5`, `brand=Acme,Globex`, `price=10,50`). The backend
+ * whitelists filter keys to the index's facet fields and ignores the rest.
  */
-export interface IFacetBucket {
-  id: number;
-  name: string;
+export interface IFacetEntry {
+  // The OCS term value to send back as the filter value (e.g. a brand name or a
+  // category id). `id` is present when the facet field carries a numeric id.
+  value: string;
+  id?: number;
   count: number;
+  selected: boolean;
 }
 
-export interface IPriceRange {
-  min: number;
-  max: number;
+export interface IFacetGroup {
+  field: string; // OCS facet field, e.g. 'category_ids', 'brand', 'price'
+  type: string; // 'term' | 'interval' (price) | …
+  entries: IFacetEntry[];
 }
 
-export interface ISearchFacets {
-  categories: IFacetBucket[];
-  brands: IFacetBucket[];
-  price: IPriceRange | null;
+export interface ISortOption {
+  label: string;
+  value: string; // what to send back as `sort` ('field' asc, '-field' desc)
+  active: boolean;
 }
 
 export interface ISearchResult {
@@ -34,17 +40,29 @@ export interface ISearchResult {
   page: number;
   size: number;
   pages: number;
-  facets: ISearchFacets;
+  facetGroups: IFacetGroup[];
+  sortOptions: ISortOption[];
+  // field -> value the backend actually applied (subset of the request filters).
+  appliedFilters: Record<string, string>;
 }
 
 export interface ISearchParams {
   q?: string;
-  category?: number | null;
-  brands?: number[];
-  minPrice?: number | null;
-  maxPrice?: number | null;
   page?: number;
   size?: number;
+  sort?: string | null;
+  // OCS facet field -> filter value (comma-joined for multi-select term facets,
+  // 'min,max' for an interval facet such as price).
+  filters?: Record<string, string>;
 }
 
-export const emptyFacets: ISearchFacets = { categories: [], brands: [], price: null };
+export const emptyResult: ISearchResult = {
+  list: [],
+  total: 0,
+  page: 1,
+  size: 12,
+  pages: 0,
+  facetGroups: [],
+  sortOptions: [],
+  appliedFilters: {},
+};
