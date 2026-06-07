@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { IGood } from 'app/shared/model/product/product.model';
-import ProductCard from '../../components/userComponents/card/ProductCard';
+import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
 import InfiniteProductGrid from '../../components/userComponents/card/InfiniteProductGrid';
 import { getCatalogIndexData } from '../Category/categorySlice';
 import { getProductList } from '../product/productSlice';
@@ -56,23 +56,34 @@ const HomeView: React.FC = () => {
         {/* Channel quick-links */}
         {channels.length > 0 && (
           <nav className="lm-channels">
-            {channels.map(channel => (
-              <Link key={channel.id} to={`/category/${channel.id}`} className="lm-channel">
-                <img src={(channel as { iconUrl?: string }).iconUrl || channel.picUrl} alt={channel.name} loading="lazy" />
-                <span>{channel.name}</span>
-              </Link>
-            ))}
+            {channels.map(channel => {
+              // channel items are categories: categoryId:{id} / categoryName / iconUrl.
+              const ch = channel as typeof channel & { categoryId?: { id?: number }; categoryName?: string; iconUrl?: string };
+              const chid = ch.id ?? ch.categoryId?.id;
+              const chname = ch.name ?? ch.categoryName;
+              return (
+                <Link key={chid} to={`/category/${chid}`} className="lm-channel">
+                  <img src={ch.iconUrl || ch.picUrl} alt={chname} loading="lazy" />
+                  <span>{chname}</span>
+                </Link>
+              );
+            })}
           </nav>
         )}
 
         {/* Hero: category menu + banner carousel + welcome aside */}
         <div className="lm-hero">
           <aside className="lm-hero__menu">
-            {categories.slice(0, 12).map(category => (
-              <Link key={category.id} to={`/category/${category.id}`}>
-                {category.name}
-              </Link>
-            ))}
+            {categories.slice(0, 12).map(category => {
+              // catalog/index items use categoryId:{id} / categoryName.
+              const c = category as typeof category & { categoryId?: { id?: number }; categoryName?: string };
+              const cid = c.id ?? c.categoryId?.id;
+              return (
+                <Link key={cid} to={`/category/${cid}`}>
+                  {c.name ?? c.categoryName}
+                </Link>
+              );
+            })}
           </aside>
 
           <div className="lm-hero__banner">
@@ -137,8 +148,8 @@ const HomeView: React.FC = () => {
         {hotGoods.length > 0 && (
           <Section title="SuperDeals">
             <div className="lm-rail">
-              {hotGoods.map(product => (
-                <ProductCard key={`hot-${product.id}`} product={product} />
+              {hotGoods.map((product, i) => (
+                <ProductCard key={`hot-${goodId(product) ?? i}`} product={product} />
               ))}
             </div>
           </Section>
@@ -148,8 +159,8 @@ const HomeView: React.FC = () => {
         {newGoods.length > 0 && (
           <Section title="New arrivals">
             <div className="lm-grid">
-              {newGoods.slice(0, 12).map(product => (
-                <ProductCard key={`new-${product.id}`} product={product} />
+              {newGoods.slice(0, 12).map((product, i) => (
+                <ProductCard key={`new-${goodId(product) ?? i}`} product={product} />
               ))}
             </div>
           </Section>
@@ -197,8 +208,8 @@ const HomeView: React.FC = () => {
             <Section key={`floor-${floor.id}`} title={title} moreTo={floor.id ? `/category/${floor.id}` : undefined}>
               <div className="lm-floor">
                 <div className="lm-grid">
-                  {goods.slice(0, 12).map(product => (
-                    <ProductCard key={`floor-${floor.id}-${product.id}`} product={product} />
+                  {goods.slice(0, 12).map((product, i) => (
+                    <ProductCard key={`floor-${floor.id}-${goodId(product) ?? i}`} product={product} />
                   ))}
                 </div>
               </div>

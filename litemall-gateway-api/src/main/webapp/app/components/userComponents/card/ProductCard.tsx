@@ -18,6 +18,15 @@ export const priceNum = (price: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Resolve a goods id from either IGood (id) or the backend DTO (goodsId:{id}).
+// Exported so callers building React keys / links use the same logic as the card.
+export const goodId = (raw: unknown): number | undefined => {
+  const r = raw as { id?: number; goodsId?: { id?: number } | number } | null;
+  if (r == null) return undefined;
+  if (r.id != null) return r.id;
+  return typeof r.goodsId === 'object' ? r.goodsId?.id : r.goodsId;
+};
+
 const fmtPrice = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Compact "sold" count: 1203 -> "1.2k+".
@@ -33,13 +42,27 @@ interface Props {
  */
 const ProductCard: React.FC<Props> = ({ product }) => {
   const navigate = useNavigate();
-  const retail = priceNum(product.retailPrice);
-  const counter = priceNum(product.counterPrice);
+  // The backend goods DTO uses goodsName / goodsId:{id} / new / hot, while IGood
+  // types them as name / id / isNew / isHot. Read whichever is present so cards
+  // work against both the OCS search shape and the home/list payloads.
+  const p = product as IGood & {
+    goodsId?: { id?: number } | number;
+    goodsName?: string;
+    new?: boolean;
+    hot?: boolean;
+  };
+  const id = goodId(p);
+  const name = p.name ?? p.goodsName ?? '';
+  const isNew = p.isNew ?? p.new;
+  const isHot = p.isHot ?? p.hot;
+  const picUrl = p.picUrl;
+  const retail = priceNum(p.retailPrice);
+  const counter = priceNum(p.counterPrice);
   const hasDiscount = counter > retail && retail > 0;
   const discountPct = hasDiscount ? Math.round(((counter - retail) / counter) * 100) : 0;
-  const sold = Number(product.salesQuantity) || 0;
-  const rating = Number(product.star) || 0;
-  const to = `/product/${product.id}`;
+  const sold = Number(p.salesQuantity) || 0;
+  const rating = Number(p.star) || 0;
+  const to = `/product/${id}`;
 
   // Real add-to-cart needs spec selection, so send the user to the detail page.
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -51,17 +74,17 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   return (
     <div className="lm-card">
       <Link to={to} className="lm-card__media">
-        <img className="lm-card__img" src={product.picUrl} alt={product.name} loading="lazy" />
+        <img className="lm-card__img" src={picUrl} alt={name} loading="lazy" />
         {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
         <div className="lm-card__ribbons">
-          {product.isNew && <span className="lm-card__ribbon lm-card__ribbon--new">New</span>}
-          {product.isHot && <span className="lm-card__ribbon lm-card__ribbon--hot">Hot</span>}
+          {isNew && <span className="lm-card__ribbon lm-card__ribbon--new">New</span>}
+          {isHot && <span className="lm-card__ribbon lm-card__ribbon--hot">Hot</span>}
         </div>
       </Link>
 
       <div className="lm-card__body">
-        <Link to={to} className="lm-card__title" title={product.name}>
-          {product.name}
+        <Link to={to} className="lm-card__title" title={name}>
+          {name}
         </Link>
 
         <div className="lm-card__price-row">
@@ -82,7 +105,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           {sold > 0 && <span className="lm-card__sold">{fmtSold(sold)} sold</span>}
         </div>
 
-        {product.isFreeShipping && <div className="lm-card__shipping">🚚 Free shipping</div>}
+        {p.isFreeShipping && <div className="lm-card__shipping">🚚 Free shipping</div>}
 
         <button type="button" className="lm-card__cart" onClick={handleAddToCart}>
           Add to cart
