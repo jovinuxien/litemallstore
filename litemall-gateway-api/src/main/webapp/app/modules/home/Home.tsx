@@ -68,14 +68,28 @@ const HomeView: React.FC = () => {
           <nav className="lm-channels">
             {channels.map(channel => {
               // channel items are categories: categoryId:{id} / categoryName / iconUrl.
-              const ch = channel as typeof channel & { categoryId?: { id?: number }; categoryName?: string; iconUrl?: string };
-              const chid = ch.id ?? ch.categoryId?.id;
-              const chname = ch.name ?? ch.categoryName;
+              const chid = catId(channel);
+              const chname = catName(channel);
+              const subs = (subTree[String(chid)] ?? subTree[chid as any] ?? []) as any[];
               return (
-                <Link key={chid} to={`/category/${chid}`} className="lm-channel">
-                  <img src={ch.iconUrl || ch.picUrl} alt={chname} loading="lazy" />
-                  <span>{chname}</span>
-                </Link>
+                <div key={chid} className="lm-channel-item">
+                  <Link to={`/category/${chid}`} className="lm-channel">
+                    <img src={catIcon(channel)} alt={chname} loading="lazy" />
+                    <span>{chname}</span>
+                  </Link>
+                  {subs.length > 0 && (
+                    <div className="lm-channel-dropdown">
+                      <div className="lm-channel-dropdown__inner">
+                        {subs.map(sub => (
+                          <Link key={catId(sub)} to={`/category/${catId(sub)}`} className="lm-channel-dropdown__item">
+                            {catIcon(sub) && <img src={catIcon(sub)} alt="" loading="lazy" />}
+                            <span>{catName(sub)}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>
