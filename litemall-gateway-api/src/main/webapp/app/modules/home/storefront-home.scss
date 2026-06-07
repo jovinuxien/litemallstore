@@ -166,6 +166,8 @@
 
   .lm-hero__menu {
     display: none;
+    position: relative; // anchor for the flyout; keep the banner column below it
+    z-index: 5;
     background: var(--lm-surface);
     border: 1px solid var(--lm-border);
     border-radius: var(--lm-radius);
@@ -174,13 +176,103 @@
     @media (min-width: 992px) {
       display: block;
     }
+  }
 
-    a {
-      display: block;
-      padding: 7px 16px;
+  // ── left-sidebar mega-flyout ────────────────────────────────────────────
+  .lm-menu-row {
+    position: relative; // anchor for this row's flyout panel
+
+    &__link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
       font-size: 13px;
       color: var(--lm-text);
       text-decoration: none;
+
+      img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
+      span:not(.lm-menu-row__caret) {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &__caret {
+      flex: 0 0 auto;
+      color: var(--lm-muted);
+      font-weight: 700;
+    }
+
+    // hovering the row highlights it and reveals the flyout
+    &:hover > .lm-menu-row__link {
+      background: var(--lm-primary-soft);
+      color: var(--lm-primary-dark);
+    }
+
+    &:hover > .lm-flyout {
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .lm-flyout {
+    position: absolute;
+    top: -9px; // align with the row, compensating the menu's 8px top padding
+    left: 100%;
+    z-index: 50;
+    min-width: 460px;
+    max-width: 560px;
+    min-height: calc(100% + 18px);
+    margin-left: 1px;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: 0 var(--lm-radius) var(--lm-radius) 0;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+    padding: 14px 16px;
+    // hidden until hover; visibility (not display) so opacity/transform animate
+    visibility: hidden;
+    opacity: 0;
+    transform: translateX(-6px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+
+    &__inner {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px 12px;
+    }
+
+    &__item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--lm-text);
+      text-decoration: none;
+
+      img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
       &:hover {
         background: var(--lm-primary-soft);
