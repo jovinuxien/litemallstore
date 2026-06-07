@@ -112,7 +112,8 @@
     // container clips overflow on both axes and would hide the dropdown.
     display: flex;
     flex-wrap: wrap;
-    gap: 18px 22px;
+    justify-content: flex-end; // keep channels on the right so their hover
+    gap: 18px 22px; //            dropdowns don't fall over the left sidebar menu
     overflow: visible;
     position: relative;
     z-index: 4;
@@ -163,7 +164,8 @@
   .lm-channel-dropdown {
     position: absolute;
     top: 100%; // touches the item's bottom — no gap, so hover bridges across
-    left: 50%;
+    right: 0; // right-anchored: opens leftward, stays inside the right column
+    left: auto;
     z-index: 60;
     min-width: 220px;
     max-width: 340px;
@@ -175,7 +177,7 @@
     // hidden until hover; animate without opening a gap that drops the hover
     visibility: hidden;
     opacity: 0;
-    transform: translate(-50%, -4px);
+    transform: translateY(-4px);
     transition: opacity 0.15s ease, transform 0.15s ease;
 
     &__inner {
@@ -217,7 +219,7 @@
   .lm-channel-item:hover .lm-channel-dropdown {
     visibility: visible;
     opacity: 1;
-    transform: translate(-50%, 0);
+    transform: translateY(0);
   }
 
   // ── hero: sidebar + banner + aside ──────────────────────────────────────
