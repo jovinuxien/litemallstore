@@ -39,6 +39,8 @@ const App: React.FC = () => (
         <Route path='/' element={<Layout />}>
           <Route index element={<Home />} />
           {/* All faceted listing routes resolve to the themed Search page. */}
+          {/* InstantSearch faceted search; both the header box and the home/menu
+              category tiles resolve here (query-string and /category/:id deep-links). */}
           <Route path='search' element={<Search />} />
           <Route path='category/:id' element={<Search />} />
           <Route path='products' element={<Navigate to='/search' replace />} />
