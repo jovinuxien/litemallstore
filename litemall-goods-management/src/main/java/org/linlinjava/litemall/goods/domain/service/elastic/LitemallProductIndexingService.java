@@ -1,0 +1,138 @@
+package org.linlinjava.litemall.goods.domain.service.elastic;
+
+
+import org.linlinjava.litemall.db.domain.LitemallBrand;
+import org.linlinjava.litemall.db.domain.LitemallCategory;
+import org.linlinjava.litemall.db.domain.LitemallGoods;
+import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
+import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
+import org.linlinjava.litemall.db.service.LitemallBrandService;
+import org.linlinjava.litemall.db.service.LitemallCategoryService;
+import org.linlinjava.litemall.db.service.LitemallGoodsAttributeService;
+import org.linlinjava.litemall.db.service.LitemallGoodsProductService;
+import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Maps a {@link LitemallGoods} to the flat OCS {@link ProductDocument} shape.
+ * The OCS indexer service owns the Elasticsearch mapping; this service only
+ * builds the JSON-serializable document — pushing it to OCS is the
+ * {@link ProductIndexer} port's job (implemented by the
+ * {@code infrastructure/acl/ocs} adapter).
+ *
+ * <p>Beyond the nine fixed fields it enriches each document with curated facetable
+ * {@code litemall_goods_attribute} values (→ dynamic-field facets) and per-SKU
+ * {@code litemall_goods_product} variant data ({@code variant_price}/{@code stock}).
+ */
+@Service
+public class LitemallProductIndexingService {
+
+    private final LitemallBrandService brandService;
+    private final LitemallCategoryService categoryService;
+    private final LitemallGoodsAttributeService attributeService;
+    private final LitemallGoodsProductService productService;
+    private final LitemallSearchProperties properties;
+
+    public LitemallProductIndexingService(LitemallBrandService brandService,
+                                          LitemallCategoryService categoryService,
+                                          LitemallGoodsAttributeService attributeService,
+                                          LitemallGoodsProductService productService,
+                                          LitemallSearchProperties properties) {
+        this.brandService = brandService;
+        this.categoryService = categoryService;
+        this.attributeService = attributeService;
+        this.productService = productService;
+        this.properties = properties;
+    }
+
+    public ProductDocument createProductDocument(LitemallGoods goods) {
+        ProductDocument doc = new ProductDocument();
+        doc.setProductId(String.valueOf(goods.getId()));
+        doc.setTitle(goods.getName());
+        doc.setDescription(goods.getBrief());
+        doc.setImageUrl(goods.getPicUrl());
+
+        BigDecimal counter = goods.getCounterPrice();
+        BigDecimal retail = goods.getRetailPrice();
+        if (counter != null && retail != null && counter.compareTo(retail) > 0) {
+            doc.setPrice(counter);
+            doc.setDiscountPrice(retail);
+        } else {
+            doc.setPrice(retail);
+            doc.setDiscountPrice(null);
+        }
+
+        if (goods.getBrandId() != null) {
+            LitemallBrand brand = brandService.findById(goods.getBrandId());
+            if (brand != null) {
+                doc.setBrand(brand.getName());
+            }
+        }
+
+        List<String> categoryNames = new ArrayList<>();
+        List<String> categoryIds = new ArrayList<>();
+        if (goods.getCategoryId() != null) {
+            LitemallCategory category = categoryService.findById(goods.getCategoryId());
+            while (category != null) {
+                categoryNames.add(category.getName());
+                categoryIds.add(String.valueOf(category.getId()));
+                Integer parentId = category.getPid();
+                if (parentId == null || parentId.equals(0)) {
+                    break;
+                }
+                category = categoryService.findById(parentId);
+            }
+            Collections.reverse(categoryNames);
+            Collections.reverse(categoryIds);
+        }
+        doc.setCategoryNames(categoryNames);
+        doc.setCategoryIds(categoryIds);
+
+        addCuratedAttributes(doc, goods.getId());
+        addVariants(doc, goods.getId());
+
+        return doc;
+    }
+
+    /** Index only the configured facetable attributes (case-insensitive) as flat data keys. */
+    private void addCuratedAttributes(ProductDocument doc, Integer goodsId) {
+        List<String> allow = properties.getFacetAttributes();
+        if (allow == null || allow.isEmpty()) {
+            return;
+        }
+        Set<String> allowed = allow.stream()
+                .map(a -> a.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        for (LitemallGoodsAttribute attribute : attributeService.queryByGid(goodsId)) {
+            String name = attribute.getAttribute();
+            if (name != null && allowed.contains(name.toLowerCase(Locale.ROOT))) {
+                doc.addAttribute(name, attribute.getValue());
+            }
+        }
+    }
+
+    /** Build one variant per SKU carrying its own price + stock for variant-level facet/filter. */
+    private void addVariants(ProductDocument doc, Integer goodsId) {
+        for (LitemallGoodsProduct product : productService.queryByGid(goodsId)) {
+            Map<String, Object> variant = new LinkedHashMap<>();
+            if (product.getPrice() != null) {
+                variant.put("variant_price", product.getPrice());
+            }
+            if (product.getNumber() != null) {
+                variant.put("stock", product.getNumber());
+            }
+            doc.addVariant(variant);
+        }
+    }
+}

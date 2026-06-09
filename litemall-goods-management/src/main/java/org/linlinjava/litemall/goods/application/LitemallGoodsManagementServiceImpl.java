@@ -15,10 +15,10 @@ import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallMoney;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.manufacturer.LitemallManufacturerId;
+import org.linlinjava.litemall.goods.domain.events.GoodsIndexEvent;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
-import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig;
 import org.linlinjava.litemall.goods.infrastructure.messaging.GoodsChangeMessage;
-import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProducer;
+import org.linlinjava.litemall.goods.infrastructure.messaging.source.GoodsIndexEventPublisher;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallCatalogService;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallGoodsServiceApi;
 import org.springframework.stereotype.Service;
@@ -43,7 +43,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
     private final LitemallCatalogService catalogService;
     private final LitemallGoodsServiceApi goodsServiceApi;
     private final LitemallGoodsProperties properties;
-    private final MessageProducer messageProducer;
+    private final GoodsIndexEventPublisher goodsIndexEventPublisher;
 
  public LitemallGoodsManagementServiceImpl(LitemallGoodsRepository goodsRepository,
                                            LitemallGoodsServiceApi goodsServiceApi,
@@ -53,7 +53,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
                                            LitemallCartService cartService,
                                            LitemallCatalogService catalogService,
                                            LitemallGoodsProperties properties,
-                                           MessageProducer messageProducer) {
+                                           GoodsIndexEventPublisher goodsIndexEventPublisher) {
      this.goodsServiceApi = goodsServiceApi;
      this.categoryRepository = categoryRepository;
      this.brandRepository = brandRepository;
@@ -61,13 +61,15 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
      this.cartService = cartService;
      this.catalogService = catalogService;
      this.properties = properties;
-     this.messageProducer = messageProducer;
+     this.goodsIndexEventPublisher = goodsIndexEventPublisher;
     }
 
     private void publishGoodsChange(GoodsChangeMessage.Action action, Integer goodsId) {
         if (goodsId == null) return;
-        messageProducer.sendMessage(RabbitMqConfig.EXCHANGE_NAME, RabbitMqConfig.ROUTING_KEY,
-                new GoodsChangeMessage(action, goodsId));
+        GoodsIndexEvent.Action indexAction = action == GoodsChangeMessage.Action.DELETE
+                ? GoodsIndexEvent.Action.DELETE
+                : GoodsIndexEvent.Action.UPSERT;
+        goodsIndexEventPublisher.publish(new GoodsIndexEvent(goodsId, indexAction));
     }
 
    @Override

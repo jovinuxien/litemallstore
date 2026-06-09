@@ -74,4 +74,45 @@ ocs:
             usage:
               - Facet
 
+          # Per-SKU variant fields (litemall_goods_product). field-level: variant means OCS indexes
+          # them on each variant sub-document, facets/filters across SKUs, and flattens the matched
+          # SKU into the hit. variant_price mirrors the SKU price; stock drives an in-stock filter.
+          variant_price:
+            name: variant_price
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Facet
+            field-level: variant
+
+          stock:
+            name: stock
+            type: number
+            usage:
+              - Result
+              - Filter
+            field-level: variant
+
+        # Curated litemall_goods_attribute name->value pairs ride as extra flat data keys; this template
+        # turns each into a facet with no per-attribute config. Curation is done at index time
+        # (litemall.search.facet-attributes), so only chosen attributes ever reach the document.
+        # The negative-lookahead excludes the nine fixed schema keys so e.g. product_id never
+        # becomes a junk facet; everything else (the curated attributes) is matched.
+        dynamic-fields:
+          - name: attribute_string
+            type: string
+            source-names:
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids)$).*$'
+            usage:
+              - Facet
+              - Result
+          - name: attribute_number
+            type: number
+            source-names:
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids)$).*$'
+            usage:
+              - Facet
+              - Result
+
 
