@@ -1,41 +1,43 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
-import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSearchClient;
-import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestClient;
+import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-/**
- * SPA-facing search endpoints. Both delegate to the OCS ACL clients —
- * goods-management owns mapping the OCS response shape onto the goods-list
- * DTO the SPA already consumes (no SQL fallback for the search path).
- */
 @RestController
-@RequestMapping("/srv")
+@RequestMapping("/srv/search")
 public class LitemallSearchController {
 
-    private final OcsSearchClient searchClient;
-    private final OcsSuggestClient suggestClient;
+    /** Reserved params handled explicitly; everything else is treated as a candidate facet filter. */
+    private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort");
 
-    public LitemallSearchController(OcsSearchClient searchClient, OcsSuggestClient suggestClient) {
-        this.searchClient = searchClient;
-        this.suggestClient = suggestClient;
+    private final SearchService searchService;
+
+    public LitemallSearchController(SearchService searchService) {
+        this.searchService = searchService;
     }
 
-    @GetMapping("/search")
-    public Map<String, Object> search(@RequestParam("q") String query,
-                                      @RequestParam(value = "offset", defaultValue = "0") int offset,
-                                      @RequestParam(value = "limit", defaultValue = "20") int limit) {
-        return searchClient.search(query, offset, limit);
+    @GetMapping
+    public Object search(@RequestParam(value = "q", required = false) String query,
+                         @RequestParam(value = "page", defaultValue = "1") Integer page,
+                         @RequestParam(value = "size", defaultValue = "20") Integer size,
+                         @RequestParam(value = "sort", required = false) String sort,
+                         @RequestParam Map<String, String> allParams) {
+        Map<String, String> filters = new HashMap<>(allParams);
+        filters.keySet().removeAll(RESERVED_PARAMS);
+        // SearchService whitelists these to the index's Facet fields before they reach OCS.
+        return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
     }
 
     @GetMapping("/suggest")
-    public List<String> suggest(@RequestParam("q") String prefix) {
-        return suggestClient.suggest(prefix);
+    public Object suggest(@RequestParam("q") String query) {
+        return ResponseUtil.ok(searchService.suggest(query));
     }
 }

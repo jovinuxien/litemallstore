@@ -2,3 +2,112 @@ spring:
   logging:
     level:
       de.cxp.ocs: DEBUG
+
+# OCS search-service relevance tuning for the litemall_index.
+#
+# WHY THIS FILE EXISTS: the bundled `preset` profile (application-preset.yml in the
+# ocs-search-service image) weights ONLY the OCS-canonical fields `title`, `brand`,
+# `category_leaf` and `category_lvl_0..3` — and NOT `description` or `category_names`.
+# Our documents (see docker-compose/application.indexer-service.yml) carry a FLAT
+# `category_names` list and a searchable `description`, and have NO `category_leaf`/
+# `category_lvl_*`. So with the preset weights a query like "luggage" (which only
+# appears in the "Functional luggage" category name) matched nothing, and description
+# text was never scored. This profile (`custom`, layered over `preset`) restates the
+# text query strategies to weight the fields we actually index.
+#
+# Field weights: title is the strongest signal, then category_names and brand, then
+# description (broad but noisy). `<field>.standard` is OCS's standard-analyzer twin of
+# a Search field; unmapped weighted fields are ignored by Elasticsearch, so listing a
+# `.standard` twin that doesn't exist is harmless.
+ocs:
+  default-tenant-config:
+    query-configuration:
+      # AND-match across fields (primary strategy for normal multi-term queries)
+      default-query:
+        strategy: "ConfigurableQuery"
+        condition:
+          minTermCount: 1
+          maxTermCount: 10
+        settings:
+          operator: "AND"
+          tieBreaker: 0.7
+          multimatch_type: "CROSS_FIELDS"
+          analyzer: "standard"
+          quoteAnalyzer: "minimal"
+          isQueryWithShingles: true
+          allowParallelSpellcheck: false
+        weightedFields:
+          "[title]": 4
+          "[title.standard]": 3
+          "[category_names]": 2.5
+          "[category_names.standard]": 2
+          "[brand]": 2
+          "[brand.standard]": 1.5
+          "[description]": 1
+          "[description.standard]": 0.8
+      # OR-with-relaxation pre-fetch for 2+ term queries
+      relaxed-query:
+        strategy: "RelaxedQuery"
+        condition:
+          minTermCount: 2
+          maxTermCount: 10
+        settings:
+          analyzer: "standard"
+          fallbackQuery: "relaxed-ngram-query"
+          tieBreaker: 0.2
+        weightedFields:
+          "[title]": 4
+          "[title.standard]": 3
+          "[category_names]": 2.5
+          "[category_names.standard]": 2
+          "[brand]": 2
+          "[brand.standard]": 1.5
+          "[description]": 1
+          "[description.standard]": 0.8
+      # real fuzzy search for single-term queries (typo tolerance)
+      one-term-fuzzy-search:
+        strategy: "ConfigurableQuery"
+        condition:
+          maxTermCount: 1
+        settings:
+          tieBreaker: 0.7
+          acceptNoResult: false
+          allowParallelSpellcheck: false
+          fuzziness: "AUTO"
+        weightedFields:
+          "[title]": 4
+          "[title.standard]": 3
+          "[category_names]": 2.5
+          "[brand]": 2
+          "[description]": 1
+      # ngram/decomposition fallback (catches partials & harder typos)
+      relaxed-ngram-query:
+        strategy: "NgramQuery"
+        condition:
+          maxTermCount: 10
+        settings:
+          minShouldMatch: "80%"
+          tieBreaker: 0.2
+        weightedFields:
+          "[title]": 4
+          "[title.standard]": 3
+          "[category_names]": 2.5
+          "[brand]": 2
+          "[description]": 1
+      # very long queries (10+ terms)
+      fallback-search:
+        strategy: "ConfigurableQuery"
+        condition:
+          minTermCount: 10
+        settings:
+          analyzer: "standard"
+          minShouldMatch: "75%"
+        weightedFields:
+          "[title]": 4
+          "[title.standard]": 3
+          "[category_names]": 2.5
+          "[category_names.standard]": 2
+          "[brand]": 2
+          "[brand.standard]": 1.5
+          "[description]": 1
+          "[description.standard]": 0.8

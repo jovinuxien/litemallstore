@@ -1,124 +1,59 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.ocs;
 
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.time.Duration;
 import java.util.Map;
 
 /**
- * ACL adapter to the OCS searcher REST service (port 8534 by default).
+ * OCS search-service REST adapter. The OCS search service exposes
+ * {@code GET /search-api/v1/search/<index>?q=<query>&offset=&limit=&sort=&<facetField>=<value>}
+ * (and the suggest service is wrapped separately by {@link OcsSuggestClient}). The response
+ * is the OCS {@code SearchResult} JSON; callers map it to their own DTO.
  *
- * <p>API contract verified at runtime against {@code commerceexperts/
- * ocs-search-service}:
- * {@code GET {search-url}/search-api/v1/search/{index}?q={q}&offset={o}&limit={n}}
- * returns
- * {@code {"slices":[{"matchCount":N,"hits":[{"document":{"id":"…","data":{…}}}]}]}}.
- * This adapter maps that envelope onto the {@code goodsList} DTO the SPA already
- * consumes ({@code id,name,brief,picUrl,retailPrice,counterPrice,brand,
- * categoryNames}) plus {@code total/offset/limit} — no SQL fallback on the
- * search path. (The previous {@code /search/{index}} path returning the raw map
- * was wrong and unmapped.)
+ * <p>Filter and sort syntax verified against the live searcher: term filter {@code brand=<value>}
+ * (multi-select = comma-joined in ONE param, OR semantics), interval filter {@code price=<min>,<max>},
+ * category filter {@code category_ids=<id>}/{@code category_names=<name>}; sort {@code sort=<field>}
+ * ascending, {@code sort=-<field>} descending. Filter keys are whitelisted by the caller.
  */
 @Component
 public class OcsSearchClient {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(OcsSearchClient.class);
-
-    // See OcsIndexerClient — owned per-client to avoid bean conflict with the
-    // shared core RestTemplate.
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final LitemallSearchProperties properties;
 
-    public OcsSearchClient(LitemallSearchProperties properties) {
+    public OcsSearchClient(LitemallSearchProperties properties, RestTemplateBuilder builder) {
         this.properties = properties;
+        this.restTemplate = builder
+                .rootUri(properties.getSearchUrl())
+                .setConnectTimeout(Duration.ofSeconds(3))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> search(String query, int offset, int limit) {
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getSearchUrl())
-                .pathSegment("search-api", "v1", "search", properties.getIndexName())
+    public OcsSearchResult search(String query, int offset, int size, String sort, Map<String, String> filters) {
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromPath("/search-api/v1/search/{index}")
                 .queryParam("q", query == null ? "" : query)
                 .queryParam("offset", offset)
-                .queryParam("limit", limit)
-                .toUriString();
-        try {
-            Map<String, Object> raw = restTemplate.getForObject(url, Map.class);
-            return toGoodsListResponse(raw, offset, limit);
-        } catch (RestClientException e) {
-            LOGGER.warn("OCS search failed for q={} ({}): {}", query, url, e.getMessage());
-            return emptyResponse(offset, limit);
+                .queryParam("limit", size);
+        if (sort != null && !sort.isBlank()) {
+            builder.queryParam("sort", sort);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> toGoodsListResponse(Map<String, Object> raw, int offset, int limit) {
-        List<Map<String, Object>> goodsList = new ArrayList<>();
-        long total = 0L;
-        if (raw != null) {
-            List<Map<String, Object>> slices = (List<Map<String, Object>>) raw.get("slices");
-            if (slices != null) {
-                for (Map<String, Object> slice : slices) {
-                    Number matchCount = (Number) slice.get("matchCount");
-                    if (matchCount != null) {
-                        total += matchCount.longValue();
-                    }
-                    List<Map<String, Object>> hits = (List<Map<String, Object>>) slice.get("hits");
-                    if (hits == null) {
-                        continue;
-                    }
-                    for (Map<String, Object> hit : hits) {
-                        Map<String, Object> item = toGoodsListItem((Map<String, Object>) hit.get("document"));
-                        if (item != null) {
-                            goodsList.add(item);
-                        }
-                    }
+        if (filters != null) {
+            for (Map.Entry<String, String> filter : filters.entrySet()) {
+                if (filter.getValue() != null && !filter.getValue().isBlank()) {
+                    builder.queryParam(filter.getKey(), filter.getValue());
                 }
             }
         }
-        Map<String, Object> response = new HashMap<>();
-        response.put("total", total);
-        response.put("offset", offset);
-        response.put("limit", limit);
-        response.put("goodsList", goodsList);
-        return response;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> toGoodsListItem(Map<String, Object> document) {
-        if (document == null) {
-            return null;
-        }
-        Map<String, Object> item = new HashMap<>();
-        item.put("id", document.get("id"));
-        Map<String, Object> data = (Map<String, Object>) document.get("data");
-        if (data != null) {
-            Object discount = data.get("discount_price");
-            item.put("name", data.get("title"));
-            item.put("brief", data.get("description"));
-            item.put("picUrl", data.get("image_url"));
-            item.put("retailPrice", discount != null ? discount : data.get("price"));
-            item.put("counterPrice", data.get("price"));
-            item.put("brand", data.get("brand"));
-            item.put("categoryNames", data.get("category_names"));
-        }
-        return item;
-    }
-
-    private Map<String, Object> emptyResponse(int offset, int limit) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("total", 0L);
-        response.put("offset", offset);
-        response.put("limit", limit);
-        response.put("goodsList", new ArrayList<>());
-        return response;
+        // Keep a String template so the RestTemplate's rootUri (the search host) is applied and the
+        // template+values are encoded; passing a pre-built URI would bypass rootUri (see OcsSuggestClient).
+        String uri = builder.build().toUriString();
+        return restTemplate.getForObject(uri, OcsSearchResult.class, properties.getIndexName());
     }
 }
