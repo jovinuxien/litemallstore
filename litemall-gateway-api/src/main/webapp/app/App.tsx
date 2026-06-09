@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import Layout from 'app/Layout';
 import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
@@ -12,7 +12,7 @@ import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
  * routes — admin lives in the gateway-admin SPA.
  */
 const Home = lazy(() => import('app/modules/home/Home'));
-const ProductList = lazy(() => import('app/modules/product/List'));
+const Search = lazy(() => import('app/modules/search/Search'));
 const ProductDetail = lazy(() => import('app/modules/product/Detail'));
 const Cart = lazy(() => import('app/views/commonViews/cart/Cart'));
 const Checkout = lazy(() => import('app/views/commonViews/cart/Checkout'));
@@ -38,9 +38,12 @@ const App: React.FC = () => (
       <Routes>
         <Route path='/' element={<Layout />}>
           <Route index element={<Home />} />
-          <Route path='products' element={<ProductList />} />
-          <Route path='search' element={<ProductList />} />
-          <Route path='category/:id' element={<ProductList />} />
+          {/* All faceted listing routes resolve to the themed Search page. */}
+          {/* InstantSearch faceted search; both the header box and the home/menu
+              category tiles resolve here (query-string and /category/:id deep-links). */}
+          <Route path='search' element={<Search />} />
+          <Route path='category/:id' element={<Search />} />
+          <Route path='products' element={<Navigate to='/search' replace />} />
           <Route path='product/:id' element={<ProductDetail />} />
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
