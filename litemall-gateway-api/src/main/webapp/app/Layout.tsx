@@ -137,7 +137,7 @@ const Layout: React.FC = () => {
               )}
             </Form>
             <Nav className='ms-auto align-items-center'>
-              <Nav.Link as={Link} to='/products'>
+              <Nav.Link as={Link} to='/search'>
                 Products
               </Nav.Link>
               <Nav.Link as={Link} to='/cart'>

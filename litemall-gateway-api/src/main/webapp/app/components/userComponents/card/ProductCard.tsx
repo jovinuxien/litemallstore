@@ -1,6 +1,8 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
+import { useAppDispatch } from 'app/config/store';
+import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
 import './product-card.scss';
 
@@ -41,7 +43,8 @@ interface Props {
  * listing card; colors come from the CSS variables in product-card.scss.
  */
 const ProductCard: React.FC<Props> = ({ product }) => {
-  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [added, setAdded] = useState(false);
   // The backend goods DTO uses goodsName / goodsId:{id} / new / hot, while IGood
   // types them as name / id / isNew / isHot. Read whichever is present so cards
   // work against both the OCS search shape and the home/list payloads.
@@ -64,11 +67,26 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const rating = Number(p.star) || 0;
   const to = `/product/${id}`;
 
-  // Real add-to-cart needs spec selection, so send the user to the detail page.
+  // Quick add: drop the goods into the (local) cart at qty 1. SKU/spec selection
+  // still happens on the detail page; this gives the marketplace one-tap add.
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigate(to);
+    if (id == null) return;
+    dispatch(
+      addItem({
+        id,
+        goodsId: String(id),
+        goodsName: name,
+        price: retail,
+        number: 1,
+        picUrl,
+        specifications: [],
+        checked: true,
+      })
+    );
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1400);
   };
 
   return (
@@ -107,8 +125,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
         {p.isFreeShipping && <div className="lm-card__shipping">🚚 Free shipping</div>}
 
-        <button type="button" className="lm-card__cart" onClick={handleAddToCart}>
-          Add to cart
+        <button type="button" className={`lm-card__cart${added ? ' lm-card__cart--added' : ''}`} onClick={handleAddToCart}>
+          {added ? 'Added ✓' : 'Add to cart'}
         </button>
       </div>
     </div>
