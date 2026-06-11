@@ -40,6 +40,14 @@ public class LitemallOrderDomainService {
             if(goodsProduct.getNumber() < cartItem.getNumber()){
                 throw new LitemallInsufficientStockException();
             }
+
+            // Stamp the authoritative current price from goods-management onto the
+            // cart line, so downstream price calculation and the persisted
+            // order-goods price come from the source of truth rather than a stale
+            // or tampered cart row.
+            if(goodsProduct.getPrice() != null){
+                cartItem.setPrice(goodsProduct.getPrice());
+            }
         }
     }
 

@@ -95,6 +95,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     @Override
     //public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command)  {
+    @Transactional
     public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command) throws ServiceException {
 
         // Validate the command
@@ -401,10 +402,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
         orderAggregate.markAsPaid();
 
-        LitemallOrderAggregate patch = new LitemallOrderAggregate();
-        patch.setOrderId(orderId);
-        patch.setOrderStatus(LitemallOrderStatus.PAID);
-        orderRepository.updateSelective(patch);
+        // Conditional CREATED->PAID transition: the UPDATE only matches a row still
+        // in CREATED, so a retried or concurrent PAY (which already flipped the row)
+        // affects 0 rows. We then abort, rolling back any wallet debit applied in
+        // this same transaction — preventing a double charge for one order.
+        int updated = orderRepository.markPaidIfCreated(orderId);
+        if (updated == 0) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");
+        }
 
         orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
     }

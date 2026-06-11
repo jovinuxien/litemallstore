@@ -153,10 +153,39 @@ The five medium-severity audit findings are now resolved:
 - **23/23 tests green offline** across all five touched/new test classes via the
   JDK-21 + `junit-platform-launcher` harness.
 
+## Post-merge correctness audit (independent re-review) — 5 fixes
+
+An independent read-only audit of the merged branch surfaced five real defects;
+all five are now fixed (module compiles clean):
+
+1. **Authoritative price (was: price trusted from the cart row).**
+   `LitemallOrderDomainService.validateProductStock` now stamps each cart line's
+   price from the goods-service product (`goodsProduct.getPrice()`) it already
+   fetches for the stock check, so order totals and the persisted order-goods
+   price come from the source of truth, not a stale/tampered cart row.
+2. **Wallet double-debit on retried/concurrent PAY (was: unconditional paid
+   update).** Added `LitemallOrderRepository.markPaidIfCreated` — an MBG
+   `updateByExampleSelective` guarded by `id = ? AND order_status = CREATED(101)`
+   → `PAID(201)`. `markOrderPaid` now aborts (throws) when it updates 0 rows, so
+   a second/concurrent PAY can't apply a second wallet debit (the debit rolls
+   back with the failed transition).
+3. **`placeOrder` transactional boundary.** Added `@Transactional` to
+   `LitemallOrderServiceImpl.placeOrder` so the reserve+compensation unit is
+   transactional even if invoked outside the orchestrator.
+4. **Non-positive wallet charge guard.** `debitWalletForOrder` throws on a null
+   `actualPrice` and skips the debit (no zero-value bill) when the payable amount
+   is ≤ 0.
+5. **`LitemallWalletDebitedEvent` no longer inert.** Added `walletEventHandler`
+   with an `@TransactionalEventListener(AFTER_COMMIT)` consumer (mirrors
+   `grouponEventHandler`), so the emitted debit event is observed and only fires
+   on commit (no leak on rollback).
+
 ### Known remaining findings (Low — NOT fixed here)
 
 - No transactional outbox (AFTER_COMMIT events lost on crash); events not keyed by
   order id; `grouponEventHandler` lowercase class name.
+- Cross-system reserve/restore (TOCTOU oversell prevention and post-reduce
+  rollback compensation) depends on goods-management endpoints — see Follow-ups.
 
 ## Follow-ups (not done here — other worktrees)
 
