@@ -1,20 +1,7 @@
-export const BASE_URL_CONTEXT = 'http://localhost:9000/srv';
-export const ADMIN_URL_CONTEXT = 'http://localhost:9000/';
-
-/* export async function makeApiRequest<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T> {
-  const queryString = new URLSearchParams(params as Record<string, string>).toString();
-  const url = `${BASE_URL_CONTEXT}/${endpoint}${queryString ? `?${queryString}` : ''}`;
-
-  try {
-    const response = await baseAxios.get<T>(url);
-    if (response.data !== 0) {
-      throw new Error('API request failed');
-    }
-    return response.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(error.message);
-    }
-    throw new Error('Unknown error occurred');
-  }
-} */
+// Relative gateway prefix — no hardcoded host. The webpack dev server proxies
+// '/srv' to the gateway (see webpack/webpack.dev.js); in prod the SPA is served
+// by the same gateway origin, so a relative base works in both cases.
+// The legacy hardcoded admin host + per-request admin header scheme are gone:
+// admin calls now go through '/srv' as an authenticated admin
+// (Bearer admin JWT, see shared/reducers/admin-auth).
+export const BASE_URL_CONTEXT = '/srv';

@@ -9,13 +9,13 @@ import setupAxiosInterceptors from 'app/config/axios-interceptor';
 import getStore from 'app/config/store';
 //import { registerLocale } from 'app/config/translation';
 import ErrorBoundary from 'app/shared/error/error-boundary';
-import { clearAuthentication } from 'app/shared/reducers/authentication';
+import { clearAdminAuth } from 'app/shared/reducers/admin-auth';
 
 const store = getStore();
 //registerLocale(store);
 
-const actions = bindActionCreators({ clearAuthentication }, store.dispatch);
-setupAxiosInterceptors(() => actions.clearAuthentication('login.error.unauthorized'));
+const actions = bindActionCreators({ clearAdminAuth }, store.dispatch);
+setupAxiosInterceptors(() => actions.clearAdminAuth());
 
 //loadIcons();
 
