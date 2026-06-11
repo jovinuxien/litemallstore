@@ -35,10 +35,24 @@ public class LitemallOrderRestController {
         return orderOrchestrationService.listOrders(new LitemallUserId(userId), status, page, limit, sort, order);
     }
 
-    @PostMapping
+    @PostMapping("/submit")
     public ResponseEntity<OrderOperationDtoResponse> createOrder(
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallPlaceOrderCommand command) {
-        LitemallOrderOperationResult result = orderOrchestrationService.createOrder(command);
+        // Bind the buyer from the authenticated gateway header (as list/cancel do),
+        // never from the request body — a body-supplied userId would let a caller
+        // place an order on behalf of another user (IDOR). Rebuild the command with
+        // the header identity as authoritative, keeping the rest of the body.
+        LitemallPlaceOrderCommand authoritativeCommand = new LitemallPlaceOrderCommand(
+                userId,
+                command.getCartId(),
+                command.getAddressId(),
+                command.getCouponId(),
+                command.getUserCouponId(),
+                command.getMessage(),
+                command.getGrouponRulesId(),
+                command.getGrouponLinkId());
+        LitemallOrderOperationResult result = orderOrchestrationService.createOrder(authoritativeCommand);
         return buildResponse(result);
     }
 
