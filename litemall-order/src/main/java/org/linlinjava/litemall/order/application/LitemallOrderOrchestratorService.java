@@ -23,6 +23,7 @@ import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrder
 import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletDebitCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.payment.PaymentMethod;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
@@ -253,9 +254,20 @@ public class LitemallOrderOrchestratorService {
      * a paid order.
      */
     private void debitWalletForOrder(LitemallOrderAggregate order, LitemallOrderId orderId) {
+        LitemallMoney payable = order.getActualPrice();
+        if (payable == null) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " has no payable amount; cannot debit wallet");
+        }
+        if (payable.getAmount().signum() <= 0) {
+            // Nothing to charge (e.g. a fully discounted order) — skip the wallet
+            // debit rather than writing a zero-value debit and bill.
+            log.info("Skipping wallet debit for order {}: non-positive payable amount", orderId.getId());
+            return;
+        }
         LitemallWalletDebitCommand debitCommand = new LitemallWalletDebitCommand(
                 order.getUserId().getId(),
-                order.getActualPrice().getAmount(),
+                payable.getAmount(),
                 "Order payment",
                 "ORDER",
                 "PAYMENT",
