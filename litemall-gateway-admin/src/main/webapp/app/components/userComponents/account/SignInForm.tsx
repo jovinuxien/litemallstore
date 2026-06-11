@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { loginAdminThunk } from 'app/shared/reducers/authSlice';
+import { loginAdmin } from 'app/shared/reducers/admin-auth';
 import IconShieldLock from 'bootstrap-icons/icons/shield-lock.svg';
 import Umbrella from 'bootstrap-icons/icons/umbrella.svg';
 import React, { useEffect } from 'react';
@@ -10,74 +10,49 @@ export interface Credentials {
   username: string;
   password: string;
 }
-interface SignInFormProps {
-  //onSubmit: SubmitHandler<Credentials>;
-}
-const SignInForm: React.FC<SignInFormProps> = () => {
-  const { token, isAuthenticated, isAuthenticatedAdmin, adminToken } = useAppSelector(state => state.auth.data);
+
+const SignInForm: React.FC = () => {
+  const { isAuthenticated, loading, errorMessage } = useAppSelector(state => state.adminAuth);
   const dispatch = useAppDispatch();
   const navigateTo = useNavigate();
-  const pageLocation = useLocation();
-  // PrivateRoute passes `state.from` (a Location object) when it redirects the
-  // user here. Honoring it sends them back to the page they originally wanted
-  // instead of dumping them on the home page / admin dashboard.
-  const fromPath = (pageLocation.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-  const redirectAfterLogin = (defaultPath: string) => navigateTo(fromPath || defaultPath, { replace: true });
+  const location = useLocation();
+  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/admin';
 
   const {
-    register,
     control,
     handleSubmit,
     formState: { errors },
   } = useForm<Credentials>({
-    defaultValues: {
-      username: '',
-      password: '',
-    },
+    defaultValues: { username: '', password: '' },
   });
 
-  const onSubmit: SubmitHandler<Credentials> = async data => {
-    const existingAdminToken = sessionStorage.getItem('adminToken');
-    if (existingAdminToken) {
-      redirectAfterLogin('/private/dashboard');
-      return;
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigateTo(from, { replace: true });
     }
+  }, [isAuthenticated]);
 
-    try {
-      const adminAuth = await dispatch(loginAdminThunk(data)).unwrap();
-      if (adminAuth.data?.token) {
-        sessionStorage.setItem('adminToken', adminAuth.data.token);
-        redirectAfterLogin('/private/dashboard');
-      } else {
-        console.error('Authentication failed:', adminAuth.errmsg);
-      }
-    } catch (error) {
-      console.error('Authentication error:', error);
-    }
+  const onSubmit: SubmitHandler<Credentials> = async data => {
+    await dispatch(loginAdmin(data));
   };
 
-  useEffect(() => {}, []);
-
   return (
-    //<form onSubmit={handleSubmit(onSubmit)} className={`needs-validation ${submitFailed ? 'was-validated' : ''}`} noValidate>
     <form onSubmit={handleSubmit(onSubmit)}>
-      {/* Mobile Number Field */}
+      {errorMessage && <div className='alert alert-danger'>{errorMessage}</div>}
+
       <div className={`form-group ${errors.username ? 'is-invalid' : ''}`}>
         <label htmlFor='username'>
           <Umbrella /> Your UserName
         </label>
-
         <Controller
           name='username'
           control={control}
-          render={({ field, fieldState }) => <input id='username' className='form-control mb-3' {...field} type='text' />}
-          defaultValue=''
+          rules={{ required: 'Username is required' }}
+          render={({ field }) => <input id='username' className='form-control mb-3' {...field} type='text' />}
         />
-
         {errors.username && <div className='invalid-feedback'>{errors.username.message}</div>}
       </div>
 
-      {/* Password Field */}
       <div className={`form-group ${errors.password ? 'is-invalid' : ''}`}>
         <label htmlFor='password'>
           <IconShieldLock /> Your password
@@ -85,22 +60,18 @@ const SignInForm: React.FC<SignInFormProps> = () => {
         <Controller
           name='password'
           control={control}
+          rules={{ required: 'Password is required' }}
           render={({ field }) => <input id='password' className='form-control mb-3' {...field} type='password' />}
-          defaultValue=''
         />
         {errors.password && <div className='invalid-feedback'>{errors.password.message}</div>}
       </div>
 
-      {/* Submit Button */}
       <div className='d-grid'>
-        {/*         <button type='submit' className='btn btn-primary mb-3' disabled={submitting}>
-         */}{' '}
-        <button type='submit' className='btn btn-primary mb-3'>
-          Log In
+        <button type='submit' className='btn btn-primary mb-3' disabled={loading}>
+          {loading ? 'Logging in…' : 'Log In'}
         </button>
       </div>
 
-      {/* Links */}
       <Link className='float-start' to='/account/signup' title='Sign Up'>
         Create your account
       </Link>
@@ -108,26 +79,6 @@ const SignInForm: React.FC<SignInFormProps> = () => {
         Forgot password?
       </Link>
       <div className='clearfix'></div>
-
-      <hr />
-
-      {/* Social Login */}
-      <div className='row'>
-        <div className='col text-center'>
-          <p className='text-muted small'>Or you can join with</p>
-        </div>
-        <div className='col text-center'>
-          <Link to='/' className='btn btn-light text-white bg-twitter me-3'>
-            <i className='bi bi-twitter-x' />
-          </Link>
-          <Link to='/' className='btn btn-light text-white me-3 bg-facebook'>
-            <i className='bi bi-facebook mx-1' />
-          </Link>
-          <Link to='/' className='btn btn-light text-white me-3 bg-google'>
-            <i className='bi bi-google mx-1' />
-          </Link>
-        </div>
-      </div>
     </form>
   );
 };
