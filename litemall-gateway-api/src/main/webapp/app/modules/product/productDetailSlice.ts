@@ -1,119 +1,139 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
-import { Comments, IAttribute, IGood, Info, Issue, ProductList, SpecificationList } from 'app/shared/model/product/product.model';
-import axios from 'axios';
 
-interface ProductDetailApiResult
-  extends ApiResult<{
-    specificationList: SpecificationList[];
-    groupon: [];
-    issue: Issue[];
-    shareImage: string;
-    comments: Comments;
-    attribute: IAttribute[];
-    productList: ProductList[];
-    info: Info;
-  }> {}
+/**
+ * Customer product-detail data, mapped to the REAL goods-management contract.
+ *
+ * `GET /srv/goods/detail?id=` -> goodsManagementService.goodsDetail(...) returns
+ *   { errno, errmsg, data: {
+ *       goods:          LitemallGoodsAggregate,                  // the product
+ *       products:       LitemallGoodsProductAggregate[],         // SKUs / variants
+ *       specifications: LitemallGoodsSpecificationAggregate[],   // option groups
+ *       attributes:     LitemallGoodsAttributeAggregate[],       // spec sheet
+ *       categoryIds:    [parentCategoryId, leafCategoryId]
+ *   }}
+ *
+ * The aggregates serialize the embedded value objects verbatim — ids as
+ * `{ id }`, money as `LitemallMoney { amount }`, and the boolean flags through
+ * their `is*` getters (`onSale` / `hot` / `new`). The view layer reads those
+ * defensively (priceNum / goodId in ProductCard); the types below mirror the
+ * wire shape so the detail page can group variants and render every field.
+ *
+ * NOTE: the previous model read `info` / `productList` / `attribute`, none of
+ * which exist in this payload — the detail page rendered "Product not found"
+ * against the live backend. This is the fix.
+ */
+export interface DetailMoney {
+  amount: number;
+}
 
-interface RelatedGoodsApiResult
-  extends ApiResult<{
-    total: number;
-    pages: number;
-    limit: number;
-    page: number;
-    list: IGood[];
-  }> {}
+export interface DetailGoods {
+  goodsId?: { id?: number } | number;
+  goodsSn?: string;
+  goodsName?: string;
+  categoryId?: { id?: number } | number;
+  manufacturerId?: { id?: number } | number;
+  gallery?: string[];
+  keyword?: string;
+  brief?: string;
+  onSale?: boolean;
+  sortOrder?: number;
+  picUrl?: string;
+  shareUrl?: string;
+  hot?: boolean;
+  new?: boolean;
+  unit?: string;
+  counterPrice?: DetailMoney | number | null;
+  retailPrice?: DetailMoney | number | null;
+  detail?: string;
+}
 
-export const getProductDetail = createAsyncThunk<ProductDetailApiResult['data'], number, { rejectValue: ApiResult<null> }>(
+export interface DetailProduct {
+  goodsProductId?: { id?: string } | string;
+  specifications: string[];
+  price?: DetailMoney | number | null;
+  number?: number;
+  url?: string;
+}
+
+export interface DetailSpecification {
+  specifications: string;
+  value: string;
+  picUrl?: string;
+}
+
+export interface DetailAttribute {
+  attributeName?: string;
+  attributeValue?: string;
+}
+
+export interface ProductDetailData {
+  goods: DetailGoods | null;
+  products: DetailProduct[];
+  specifications: DetailSpecification[];
+  attributes: DetailAttribute[];
+  categoryIds: number[];
+}
+
+export const getProductDetail = createAsyncThunk<ProductDetailData, number, { rejectValue: ApiResult<null> }>(
   'product/detail',
   async (goodsId: number, thunkApi) => {
     try {
-      const ProductDetailUrl = BASE_URL_CONTEXT + '/goods/detail?id=' + goodsId;
-      const response = await axios.get(ProductDetailUrl);
+      const response = await baseAxios.get(`${BASE_URL_CONTEXT}/goods/detail?id=${goodsId}`);
       if (response.data.errno !== 0) {
-        return thunkApi.rejectWithValue({
-          errno: response.data.errno,
-          errmsg: response.data.errmsg,
-          data: null,
-        });
+        return thunkApi.rejectWithValue({ errno: response.data.errno, errmsg: response.data.errmsg, data: null });
       }
-      return response.data.data;
+      const d = response.data.data ?? {};
+      return {
+        goods: d.goods ?? null,
+        products: d.products ?? [],
+        specifications: d.specifications ?? [],
+        attributes: d.attributes ?? [],
+        categoryIds: d.categoryIds ?? [],
+      };
     } catch (error) {
-      return thunkApi.rejectWithValue({
-        errno: 500,
-        errmsg: error.message,
-        data: null,
-      });
+      return thunkApi.rejectWithValue({ errno: 500, errmsg: error.message, data: null });
     }
   }
 );
 
-interface ProductDetailState
-  extends BaseState<{
-    specificationList: SpecificationList[];
-    groupon: [];
-    issue: Issue[];
-    shareImage: string;
-    comments: Comments;
-    attribute: IAttribute[];
-    productList: ProductList[];
-    info: Info;
-  }> {}
+interface ProductDetailState extends BaseState<ProductDetailData> {}
 
 const initialState: ProductDetailState = {
   loading: 'idle',
   errorMessage: null,
-  data: {
-    specificationList: [],
-    groupon: [],
-    issue: [],
-    shareImage: '',
-    comments: {
-      data: [],
-      count: 0,
-    },
-    attribute: [],
-    productList: [],
-    info: {
-      id: 0,
-      goodsSn: 0,
-      name: '',
-      categoryId: 0,
-      brandId: 0,
-      gallery: [],
-      keywords: '',
-      brief: '', //'Crispy and milky, sweet and sour aftertaste';
-      isOnSale: false,
-      sortOrder: 0,
-      picUrl: '', //'http://yanxuan.nosdn.127.net/767b370d07f3973500db54900bcbd2a7.png';
-      shareUrl: '',
-      isNew: false,
-      isHot: false,
-      unit: '',
-      counterPrice: 0,
-      retailPrice: 0,
-      // Keep state serializable — no Date objects (RTK serializableCheck). The
-      // API sends these as ISO strings; the placeholder is null until loaded.
-      addTime: null as unknown as Date,
-      updateTime: null as unknown as Date,
-      deleted: false,
-      detail: '',
-    },
-  },
   errorNumber: null,
+  data: {
+    goods: null,
+    products: [],
+    specifications: [],
+    attributes: [],
+    categoryIds: [],
+  },
 };
 
-const categorySlice = createSlice({
+const productDetailSlice = createSlice({
   name: 'productDetailState',
   initialState,
   reducers: {},
   extraReducers: builder => {
-    builder.addCase(getProductDetail.fulfilled, (state, action) => {
-      state.loading = 'succeeded';
-      state.data = action.payload;
-    });
+    builder
+      .addCase(getProductDetail.pending, state => {
+        state.loading = 'pending';
+        state.errorMessage = null;
+      })
+      .addCase(getProductDetail.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        state.data = action.payload;
+      })
+      .addCase(getProductDetail.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.errorMessage = action.payload?.errmsg ?? 'Failed to load product';
+        state.errorNumber = action.payload?.errno ?? 500;
+      });
   },
 });
 
-export default categorySlice.reducer;
+export default productDetailSlice.reducer;
