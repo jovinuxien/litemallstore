@@ -27,6 +27,16 @@ spring:
         binder:
           brokers: ${litemall.kafka.brokers:localhost:9092}
 
+  # CJ Dropshipping create-order ACL. Order owns its OWN CJ auth (token) to place
+  # CJ-sourced lines via the CJ API. Host is config-driven (no hardcoded host in Java);
+  # the API paths live on the Feign clients. See docs/adr-cj-order-placement.md.
+  cjdropship:
+    api:
+      base-url: "https://developers.cjdropshipping.com/api2.0/v1"
+      auth:
+        cj-email: "bimeni89@gmail.com"
+        cj-api-key: "9520bc6b70fe45019688c5ae62be331b"
+
 
 litemall:
   svcsecurity:
@@ -61,6 +71,15 @@ feign:
         connectTimeout: 2000
         readTimeout: 3000
         loggerLevel: basic
+      # CJ Dropshipping is an external API — allow longer timeouts than the internal goods service.
+      cj-dropship-auth:
+        connectTimeout: 3000
+        readTimeout: 6000
+        loggerLevel: basic
+      cj-dropship-order:
+        connectTimeout: 3000
+        readTimeout: 8000
+        loggerLevel: basic
 
 resilience4j:
   circuitbreaker:
@@ -70,10 +89,17 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
+      cj-dropship-order:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
   timelimiter:
     instances:
       goods-service:
         timeoutDuration: 4s
+      cj-dropship-order:
+        timeoutDuration: 9s
 
 logging:
   level:
