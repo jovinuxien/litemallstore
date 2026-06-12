@@ -27,6 +27,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,16 +77,30 @@ class LitemallOrderPaidCancelTest {
     void markOrderPaid_persistsPaidStatusAndPublishesPaidEvent() {
         LitemallOrderId orderId = new LitemallOrderId(7);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(7)));
+        // Conditional CREATED->PAID transition applied exactly one row.
+        when(orderRepository.markPaidIfCreated(orderId)).thenReturn(1);
 
         service.markOrderPaid(orderId);
 
-        ArgumentCaptor<LitemallOrderAggregate> patch = ArgumentCaptor.forClass(LitemallOrderAggregate.class);
-        verify(orderRepository).updateSelective(patch.capture());
-        assertEquals(LitemallOrderStatus.PAID, patch.getValue().getOrderStatus());
+        verify(orderRepository).markPaidIfCreated(orderId);
 
         ArgumentCaptor<LitemallDomainEvent> event = ArgumentCaptor.forClass(LitemallDomainEvent.class);
         verify(domainEventPublisher).publish(event.capture());
         assertInstanceOf(LitemallOrderPaidEvent.class, event.getValue());
+    }
+
+    @Test
+    void markOrderPaid_whenNoLongerCreated_throwsAndPublishesNoEvent() {
+        // A retried or concurrent PAY already flipped the row, so the guarded
+        // update matches 0 rows. markOrderPaid must abort (rolling back any wallet
+        // debit in the same transaction) and publish no paid event.
+        LitemallOrderId orderId = new LitemallOrderId(8);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(8)));
+        when(orderRepository.markPaidIfCreated(orderId)).thenReturn(0);
+
+        assertThrows(IllegalStateException.class, () -> service.markOrderPaid(orderId));
+
+        verify(domainEventPublisher, never()).publish(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
