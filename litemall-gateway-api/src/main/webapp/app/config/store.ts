@@ -5,6 +5,7 @@ import customerAuth from 'app/auth/customerAuthSlice';
 import category from 'app/modules/Category/categorySlice';
 import home from 'app/modules/home/homeSlice';
 import productDetail from 'app/modules/product/productDetailSlice';
+import related from 'app/modules/product/relatedSlice';
 import product from 'app/modules/product/productSlice';
 import search from 'app/modules/product/searchSlice';
 import cart from 'app/shared/reducers/cartSlice';
@@ -22,6 +23,7 @@ const store = configureStore({
     category,
     product,
     productDetail,
+    related,
     search,
     cart,
     order,
@@ -32,7 +34,7 @@ const store = configureStore({
         ignoredActionPaths: ['payload.config', 'payload.request', 'payload.headers', 'error', 'meta.arg'],
         // Product DTOs type addTime/updateTime as Date; tolerate any date-ish
         // value the API surfaces without tripping the dev-only check.
-        ignoredPaths: ['productDetail.data.info.addTime', 'productDetail.data.info.updateTime'],
+        ignoredPaths: ['productDetail.data.goods.addTime', 'productDetail.data.goods.updateTime'],
       },
     }),
 });
