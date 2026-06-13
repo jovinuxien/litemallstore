@@ -21,6 +21,42 @@ spring:
 # `.standard` twin that doesn't exist is harmless.
 ocs:
   default-tenant-config:
+    # Item 3 (synonyms): OCS exposes NO index-time synonym/analyzer override
+    # (index-settings only carries replica-count/refresh-interval), so synonyms are
+    # applied at QUERY time via Querqy. The QuerqyQueryExpander rewrites the user
+    # query using the curated common-rules file mounted into the searcher container
+    # (docker-compose.local.yml). No reindex needed; rules edits take effect on a
+    # searcher restart. Curated source: ./querqy-rules.txt.
+    query-processing:
+      user-query-analyzer: "de.cxp.ocs.elasticsearch.query.analyzer.QuerqyQueryExpander"
+    plugin-configuration:
+      "[de.cxp.ocs.elasticsearch.query.analyzer.QuerqyQueryExpander]":
+        "common_rules_url": "/app/resources/querqy-rules.txt"
+        "do_lowercase_rules": "true"
+    # Item 5 (in-stock discovery boost): boost in-stock products, demote out-of-stock.
+    # References the EXISTING per-SKU `stock` variant field (granted Score usage in
+    # application.indexer-service.yml). The preset ships an equivalent field_value_factor
+    # on `stock`, but it is silently ignored until `stock` carries a Score usage; this
+    # block restates it deliberately.
+    #
+    # boost-mode MULTIPLY with the ln1p modifier: an out-of-stock SKU yields
+    # ln1p(0)=0, so its final score is relevance*0 = 0 — it falls below EVERY in-stock
+    # match regardless of relevance (satisfies "out-of-stock never above in-stock").
+    # Any in-stock SKU keeps a positive multiplier (ln1p saturates, so stock 50 vs 400
+    # differ only mildly), so relevance still drives ordering among in-stock products,
+    # with higher availability a gentle tie-breaker. USE_FOR_VARIANTS applies it at the
+    # SKU level where stock lives. Popularity boosting is deferred (no sales signal yet).
+    scoring-configuration:
+      boost-mode: multiply
+      score-mode: multiply
+      score-functions:
+        - type: field_value_factor
+          field: stock
+          options:
+            MODIFIER: "ln1p"
+            MISSING: 0
+            FACTOR: 1
+            USE_FOR_VARIANTS: "true"
     query-configuration:
       # AND-match across fields (primary strategy for normal multi-term queries)
       default-query:
@@ -36,6 +72,9 @@ ocs:
           quoteAnalyzer: "minimal"
           isQueryWithShingles: true
           allowParallelSpellcheck: false
+          # Item 1 (multi-term typo tolerance): recover misspelled multi-term queries
+          # at query_stage 0 instead of dropping to the weaker relaxed/ngram fallbacks.
+          fuzziness: "AUTO"
         weightedFields:
           "[title]": 4
           "[title.standard]": 3
@@ -75,11 +114,18 @@ ocs:
           allowParallelSpellcheck: false
           fuzziness: "AUTO"
         weightedFields:
+          # Item 2 (stemming/plurals): the .standard twins use OCS's `standard`
+          # analyzer (lowercase + light_english stemmer + stop-words), so weighting
+          # them here extends plural/stem matching to the fuzzy & ngram stages too
+          # (default/relaxed already weight them).
           "[title]": 4
           "[title.standard]": 3
           "[category_names]": 2.5
+          "[category_names.standard]": 2
           "[brand]": 2
+          "[brand.standard]": 1.5
           "[description]": 1
+          "[description.standard]": 0.8
       # ngram/decomposition fallback (catches partials & harder typos)
       relaxed-ngram-query:
         strategy: "NgramQuery"
@@ -89,11 +135,18 @@ ocs:
           minShouldMatch: "80%"
           tieBreaker: 0.2
         weightedFields:
+          # Item 2 (stemming/plurals): the .standard twins use OCS's `standard`
+          # analyzer (lowercase + light_english stemmer + stop-words), so weighting
+          # them here extends plural/stem matching to the fuzzy & ngram stages too
+          # (default/relaxed already weight them).
           "[title]": 4
           "[title.standard]": 3
           "[category_names]": 2.5
+          "[category_names.standard]": 2
           "[brand]": 2
+          "[brand.standard]": 1.5
           "[description]": 1
+          "[description.standard]": 0.8
       # very long queries (10+ terms)
       fallback-search:
         strategy: "ConfigurableQuery"

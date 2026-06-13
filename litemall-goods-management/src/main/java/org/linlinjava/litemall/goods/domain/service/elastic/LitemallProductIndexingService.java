@@ -59,6 +59,7 @@ public class LitemallProductIndexingService {
     public ProductDocument createProductDocument(LitemallGoods goods) {
         ProductDocument doc = new ProductDocument();
         doc.setProductId(String.valueOf(goods.getId()));
+        doc.setSource("local");
         doc.setTitle(goods.getName());
         doc.setDescription(goods.getBrief());
         doc.setImageUrl(goods.getPicUrl());

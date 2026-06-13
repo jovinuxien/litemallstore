@@ -47,6 +47,63 @@ spring:
       product:
         list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
         product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
+      # ORDER PLACEMENT is implemented in litemall-order (the order worktree), NOT here.
+      # The create-order URL belongs with that ACL; left here only as a documented pointer:
+      # order:
+      #   create-url: "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrder"
+    # --- CJ → OCS indexing ---
+    enabled: true
+    # Retail = CJ wholesale sellPrice (USD) × usd-to-cny × margin, indexed in the local CNY basis
+    # (NOT raw wholesale cost). Tune per business; profile-overridable.
+    pricing:
+      margin: 2.0
+      usd-to-cny: 7.2
+    # Stock assumed for a CJ SKU until real inventory is fetched (keeps in-stock scoring from burying CJ).
+    default-stock: 100
+    # Recorded CJ product-list response, used only when the live CJ API is unreachable.
+    sample-path: "sample-cj-products.json"
+    # Nightly cron (sec min hour dom mon dow) for the CJ catalog indexing job. 03:00 daily.
+    refresh-cron: "0 0 3 * * *"
+    # Seconds the job blocks between consecutive CJ /product/list calls (matches the CJ quota), so a
+    # multi-category plan stays rate-limited even though one run issues several requests.
+    fetch-pace-seconds: 300
+    # CJ /product/list page size (CJ caps at ~200).
+    page-size: 200
+    # Category fetch plan: which CJ categories to index and how many products from each.
+    # `category` = a CJ category name (any level), resolved to leaf category ids via getCategory;
+    # or set `category-id` to a CJ leaf UUID directly. `limit` caps products indexed per target.
+    # Cost note: ~ceil(limit/page-size) paced calls per target (e.g. 200 ≈ 1 call ≈ fetch-pace-seconds).
+    catalog-targets:
+      - { category: "Toys, Kids & Babies", limit: 200 }   # baby
+      - { category: "Women's Clothing",    limit: 300 }   # women
+      - { category: "Consumer Electronics", limit: 200 }  # electronics
+    # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
+    # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
+    # the CJ category path, so both full "A / B / C" paths and bare leaf names resolve into the ONE
+    # shared local category facet. Unmapped → virtual "Imported" bucket.
+    category-mapping:
+      # CJ top-level segments (full paths)
+      - "Women's Clothing=1010000"        # clothing
+      - "Men's Clothing=1010000"
+      - "Health & Beauty=1013001"         # care
+      - "Home & Garden=1005000"           # home
+      - "Pet Products=1005000"            # pet under home
+      - "Toys, Kids & Babies=1011000"     # baby
+      - "Consumer Electronics=1008000"    # digital under Accessories
+      - "Sports & Outdoors=1012000"       # groceries (outdoor)
+      - "Kitchen=1005001"                 # chef
+      - "Food=1005002"                    # diet
+      # CJ leaf categories (records often carry a single leaf, no path)
+      - "Suits & Sets=1010000"            # clothing
+      - "Pants & Capris=1010000"
+      - "Blazers=1010000"
+      - "Basic Jacket=1010000"
+      - "Hoodies & Sweatshirts=1010000"
+      - "Bras=1010000"
+      - "Shoulder Bags=1008000"           # Accessories
+      - "Totes=1008000"
+      - "Stuffed & Plush Animals=1011000" # baby (Toy)
+      - "Home Office Storage=1012000"     # groceries (Storage)
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
 #    username: root

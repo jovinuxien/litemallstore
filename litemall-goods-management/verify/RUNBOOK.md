@@ -153,3 +153,65 @@ plus a repaired empty `src/test/resources/logback.xml`).
 > root `pom.xml` pins `mockito-core` 2.28.2 while `mockito-junit-jupiter` is 5.3.1,
 > and Mockito 2.x can't create mocks on JDK 21. The fix is a root-pom dependency
 > bump affecting every module — out of scope here, raised as cross-cutting debt.
+
+---
+
+## §8 — Category-targeted CJ catalog fetch + nightly cron indexing (2026-06-13)
+
+**Goal.** Index a *chosen set of CJ categories* with a *per-category product cap*, on a
+nightly cron, instead of the single default CJ page. Driven entirely by config — no hardcoded
+hosts, counts, or categories.
+
+**What changed (code).**
+- `CJProductClient.getProductList(categoryId, pageNum, pageSize)` — the CJ `/product/list`
+  endpoint filtered server-side by a CJ **leaf** category id, paged. (The old no-arg call —
+  no params, one default page — is kept for the `/srv/cjAuth/*` endpoints.)
+- `CJProductService.fetchByCategory(categoryId, targetCount, pageSize)` — pages a category up
+  to `targetCount`, **blocking `fetch-pace-seconds` between calls** (Guava `RateLimiter`,
+  first acquire immediate) so a multi-category plan stays within the CJ quota. Stops at the
+  cap, at upstream exhaustion, on an empty page, or on the first failed page.
+- `CjProductIndexingService.fetchByPlan()` — resolves each `catalog-targets` entry to CJ leaf
+  ids (explicit `category-id`, else `category` name matched case-insensitively at ANY tree
+  level → all leaf ids beneath it) and pulls up to `limit` across those leaves (stops early,
+  so a first-level name does **not** fan out across every leaf). Reuses `toDocument(...)`
+  unchanged; falls back to the committed sample only if the whole plan yields nothing.
+- `CjCatalogRefreshTask` — `@Scheduled(cron = "${spring.cjdropship.refresh-cron:0 0 3 * * *}")`
+  (was a 6h fixed-delay), still upsert-only.
+
+**Config (`spring.cjdropship`).**
+```yaml
+refresh-cron: "0 0 3 * * *"     # nightly 03:00
+fetch-pace-seconds: 300         # block between CJ calls (CJ quota)
+page-size: 200                  # CJ caps ~200
+catalog-targets:
+  - { category: "Toys, Kids & Babies", limit: 200 }   # baby
+  - { category: "Women's Clothing",    limit: 300 }   # women
+  - { category: "Consumer Electronics", limit: 200 }  # electronics
+```
+
+**Rate-limit math (the binding constraint).** One paced call ≈ `fetch-pace-seconds`. A target
+costs ≈ `ceil(limit / page-size)` calls when its leaves are dense (≈1 call per 200). The plan
+above ≈ 1+2+1 = 4 calls ≈ ~15 min once nightly. Want 500 of a category → `ceil(500/200)=3`
+calls for that target alone.
+
+> **NOTE — "categories in ONE request":** CJ `/product/list` filters by a *single* leaf
+> categoryId per HTTP call, so multiple categories cannot be fetched in one literal request.
+> The *plan* is the one-shot config; the job executes it as N paced calls. A first-level name
+> resolves to many leaves but the fetch stops at `limit`, keeping N small.
+
+**Manual verification procedure (live CJ, paced — budget ~15 min).**
+1. Boot goods-management (RUNBOOK §6 boot steps) with the OCS stack up and `enabled: true`.
+2. Trigger the job out-of-band by temporarily setting `refresh-cron` to a near-future minute
+   (e.g. `"0 */2 * * * *"`), OR call `POST /srv/private/admin/search/reindex` if wired to the
+   CJ path; watch the log for:
+   `CJ catalog-target '<name>' fetched <n> products (limit <l>, <k> leaf categories)`.
+3. Confirm pacing: consecutive `getProductList` calls are ≥ `fetch-pace-seconds` apart in the
+   timestamps.
+4. Confirm in `litemall_index` (searcher 8534 / Kibana 5601): CJ docs for exactly the
+   configured categories, ≤ each `limit`, all `cj_<pid>` ids + `source=cj_dropshipping`, folded
+   into the shared local category facet via `category-mapping`.
+
+**Deferred (logged, not done here):** stale-CJ-doc deletion (upsert-only path); real per-SKU
+inventory (still `default-stock`); CJ order placement (lives in `litemall-order`).
+
+`mvn -o -pl litemall-goods-management -am compile` clean.

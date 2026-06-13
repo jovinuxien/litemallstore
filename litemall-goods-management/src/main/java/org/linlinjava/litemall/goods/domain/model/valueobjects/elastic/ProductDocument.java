@@ -55,6 +55,16 @@ public class ProductDocument {
     @JsonProperty("category_ids")
     private List<String> categoryIds;
 
+    /**
+     * Origin of the document: {@code "local"} for DB-backed goods or {@code "cj_dropshipping"}
+     * for CJ Dropshipping catalog products. Indexed Result+Facet so the customer search can tag
+     * each hit and (optionally) filter by origin — but it is metadata/routing only and must NOT
+     * split or default-scope the unified result set. CJ hits are otherwise identified purely by
+     * their {@code cj_<pid>} {@link #productId}.
+     */
+    @JsonProperty("source")
+    private String source;
+
     /** Curated attribute name→value pairs, emitted as extra flat {@code data} keys. */
     private final Map<String, Object> attributes = new LinkedHashMap<>();
 
@@ -135,6 +145,14 @@ public class ProductDocument {
 
     public void setCategoryIds(List<String> categoryIds) {
         this.categoryIds = categoryIds;
+    }
+
+    public String getSource() {
+        return source;
+    }
+
+    public void setSource(String source) {
+        this.source = source;
     }
 
     /** Serialized as extra top-level {@code data} keys (one per curated attribute). */

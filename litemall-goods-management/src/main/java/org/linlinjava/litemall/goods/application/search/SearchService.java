@@ -99,6 +99,10 @@ public class SearchService {
             item.put("counterPrice", data.get("price"));
             item.put("brand", data.get("brand"));
             item.put("categoryNames", data.get("category_names"));
+            // Origin tag ("local" | "cj_dropshipping"). Metadata/routing only — the result set
+            // is ONE unified ranked list; CJ hits are identified by their cj_<pid> id. This never
+            // splits or default-filters results.
+            item.put("source", data.get("source"));
         }
         return item;
     }
