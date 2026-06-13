@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
 
@@ -66,6 +67,33 @@ public class CJProductClient extends CJRequestUtils {
                 throw new IllegalArgumentException("Product URL must be absolute (include http:// or https://)");
             }
             return makeGetRequest(productUrl, CJProductDataResponse.class, accessToken, "Failed to fetch product list");
+        } catch (Exception e) {
+            throw new RuntimeException("Product fetch failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetch a single page of CJ products filtered by a CJ category id (the leaf/3rd-level UUID
+     * products are tagged with). {@code categoryId} blank → no category filter (all categories).
+     * Pacing/quota is the caller's responsibility (see {@code CJProductService}).
+     */
+    public CJProductDataResponse getProductList(String categoryId, int pageNum, int pageSize) {
+        try {
+            String accessToken = cjTokenService.getValidToken();
+            String productUrl = config.getProductListUrl();
+
+            // Validate URL
+            if (!productUrl.matches("^https?://.*")) {
+                throw new IllegalArgumentException("Product URL must be absolute (include http:// or https://)");
+            }
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(productUrl)
+                    .queryParam("pageNum", pageNum)
+                    .queryParam("pageSize", pageSize);
+            if (categoryId != null && !categoryId.isBlank()) {
+                builder.queryParam("categoryId", categoryId.trim());
+            }
+            String url = builder.build().toUriString();
+            return makeGetRequest(url, CJProductDataResponse.class, accessToken, "Failed to fetch product list");
         } catch (Exception e) {
             throw new RuntimeException("Product fetch failed: " + e.getMessage(), e);
         }

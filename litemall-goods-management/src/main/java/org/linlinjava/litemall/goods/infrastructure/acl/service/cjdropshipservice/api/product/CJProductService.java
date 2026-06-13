@@ -8,11 +8,13 @@ import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cj
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.utils.CjDropshippingApiUtils;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +29,8 @@ public class CJProductService {
     private CJProductClient productClient;
     @Autowired
     private CjDropshippingApiUtils apiUtils;
+    @Autowired
+    private CJDropshippingConfig config;
 
     private CJProductDataResponse cachedProducts;
     private CJCategoryDataResponse cachedCategories;
@@ -34,6 +38,10 @@ public class CJProductService {
     private long lastCategoryFetchTime = 0;
     // Rate limiter - 1 request per second
     private final RateLimiter rateLimiter = RateLimiter.create(1.0); // 1 request per second
+    // Paced limiter for the bulk category fetch (indexing path): blocks fetch-pace-seconds between
+    // CJ /product/list calls so a multi-category plan stays within the CJ quota. Built lazily from
+    // config; the first acquire returns immediately, each subsequent one waits the configured pace.
+    private RateLimiter pacedLimiter;
 
 
     public synchronized CJProductDataResponse fetchProductList(){
@@ -75,6 +83,50 @@ public class CJProductService {
             logger.error("Failed to fetch categories", e);
             throw e;
         }
+    }
+
+    private synchronized RateLimiter pacedLimiter() {
+        if (pacedLimiter == null) {
+            int pace = Math.max(1, config.getFetchPaceSeconds());
+            pacedLimiter = RateLimiter.create(1.0 / pace);
+        }
+        return pacedLimiter;
+    }
+
+    /**
+     * Fetch up to {@code targetCount} CJ products from one CJ category, paging at {@code pageSize}
+     * and pacing each upstream call by {@code fetch-pace-seconds} (blocking) so the CJ quota is
+     * respected. Stops at {@code targetCount}, on category exhaustion, on an empty page, or on the
+     * first failed page (returning whatever was gathered so far). Bypasses the 1h list cache — the
+     * nightly indexing job wants fresh data and pacing, not the cached single-page blob.
+     */
+    public List<CJProduct> fetchByCategory(String categoryId, int targetCount, int pageSize) {
+        List<CJProduct> acc = new ArrayList<>();
+        if (targetCount <= 0) {
+            return acc;
+        }
+        int page = 1;
+        while (acc.size() < targetCount) {
+            pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between CJ calls
+            CJProductDataResponse resp;
+            try {
+                resp = productClient.getProductList(categoryId, page, pageSize);
+            } catch (RuntimeException ex) {
+                logger.warn("CJ category {} page {} fetch failed: {}", categoryId, page, ex.getMessage());
+                break;
+            }
+            if (resp == null || resp.getData() == null || resp.getData().getList() == null
+                    || resp.getData().getList().isEmpty()) {
+                break;
+            }
+            acc.addAll(resp.getData().getList());
+            int total = resp.getData().getTotal();
+            if ((long) page * pageSize >= total) {
+                break; // upstream exhausted
+            }
+            page++;
+        }
+        return acc.size() > targetCount ? new ArrayList<>(acc.subList(0, targetCount)) : acc;
     }
 
     //public void cjFilterProductByCategory(String categoryId){

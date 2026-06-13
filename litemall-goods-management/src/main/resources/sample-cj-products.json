@@ -1,0 +1,77 @@
+{
+  "code": 200,
+  "result": true,
+  "message": "Success",
+  "requestId": "sample-fixture",
+  "data": {
+    "pageNum": 1,
+    "pageSize": 20,
+    "total": 4,
+    "list": [
+      {
+        "pid": "04A22450-67F0-4617-A132-E7AE7F8963B0",
+        "productName": "[\"猫耳朵卫衣\",\"定制卫衣\"]",
+        "productNameEn": "Personalized Belly-baring Cat Ear Hoodie Coat",
+        "productSku": "CJNSSYWY01847",
+        "productImage": "https://cc-west-usa.oss-us-west-1.aliyuncs.com/20210129/2167381084610.png",
+        "productWeight": "320",
+        "productType": "ORDINARY_PRODUCT",
+        "productUnit": "unit(s)",
+        "sellPrice": "11.85",
+        "categoryId": "5E656DFB-9BAE-44DD-A755-40AFA2E0E686",
+        "categoryName": "Women's Clothing / Tops & Sets / Hoodies & Sweatshirts",
+        "sourceFrom": 0,
+        "remark": "Soft fleece cat-ear hoodie, true to size, machine washable.",
+        "createTime": "2021-01-29 10:24:30"
+      },
+      {
+        "pid": "9F3C1B22-5A77-4E10-9C44-2B6A8D0E1F77",
+        "productName": "[\"宠物饮水机\"]",
+        "productNameEn": "Automatic Pet Water Fountain Cat Dog Drinking Dispenser",
+        "productSku": "CJYJWY00231",
+        "productImage": "https://cc-west-usa.oss-us-west-1.aliyuncs.com/20210210/pet-fountain.png",
+        "productWeight": "780",
+        "productType": "ORDINARY_PRODUCT",
+        "productUnit": "unit(s)",
+        "sellPrice": "18.40",
+        "categoryId": "A1B2C3D4-1111-2222-3333-444455556666",
+        "categoryName": "Pet Products / Cat Supplies / Feeders & Waterers",
+        "sourceFrom": 0,
+        "remark": "2L ultra-quiet circulating pet water fountain with LED indicator.",
+        "createTime": "2021-02-10 08:15:02"
+      },
+      {
+        "pid": "7B12E0AA-9C3D-4F58-8E21-0D9F6C4A2B33",
+        "productName": "[\"手机支架\"]",
+        "productNameEn": "Foldable Aluminum Desk Phone Stand Adjustable Holder",
+        "productSku": "CJDZWY00788",
+        "productImage": "https://cc-west-usa.oss-us-west-1.aliyuncs.com/20210305/phone-stand.png",
+        "productWeight": "150",
+        "productType": "ORDINARY_PRODUCT",
+        "productUnit": "unit(s)",
+        "sellPrice": "6.25",
+        "categoryId": "C9D8E7F6-7777-8888-9999-000011112222",
+        "categoryName": "Consumer Electronics / Accessories / Phone Stands",
+        "sourceFrom": 0,
+        "remark": "Aluminum alloy foldable stand, fits all phones and tablets.",
+        "createTime": "2021-03-05 14:40:11"
+      },
+      {
+        "pid": "E5F6A7B8-3333-4444-5555-66667777C0DE",
+        "productName": "[\"硅胶厨房铲\"]",
+        "productNameEn": "Silicone Kitchen Spatula Set Heat-Resistant Non-Stick Utensils",
+        "productSku": "CJCFWY00455",
+        "productImage": "https://cc-west-usa.oss-us-west-1.aliyuncs.com/20210418/spatula-set.png",
+        "productWeight": "640",
+        "productType": "ORDINARY_PRODUCT",
+        "productUnit": "set(s)",
+        "sellPrice": "9.70",
+        "categoryId": "B0A1C2D3-aaaa-bbbb-cccc-ddddeeeeffff",
+        "categoryName": "Kitchen / Cooking Tools / Spatulas",
+        "sourceFrom": 0,
+        "remark": "5-piece food-grade silicone spatula set, heat resistant to 230C.",
+        "createTime": "2021-04-18 09:05:47"
+      }
+    ]
+  }
+}
