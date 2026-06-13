@@ -45,6 +45,16 @@ public class CJDropshippingConfig {
     private int pageSize = 200;
 
     /**
+     * Run a one-shot CJ catalog refresh shortly after startup (in addition to the nightly cron), so a
+     * freshly deployed/restarted service repopulates the CJ catalog without waiting for the cron or an
+     * authenticated reindex. Set false to rely solely on the cron.
+     */
+    private boolean refreshOnStartup = true;
+
+    /** Delay (ms) after the app is ready before the one-shot startup refresh fires. Default 10 min. */
+    private long refreshStartupDelayMs = 600000;
+
+    /**
      * Category fetch plan: which CJ categories to index and how many products from each, fetched
      * before indexing. {@code category} is a CJ first/second/third-level name (resolved to leaf
      * category ids via {@code getCategory}); alternatively set {@code categoryId} to a CJ leaf UUID
