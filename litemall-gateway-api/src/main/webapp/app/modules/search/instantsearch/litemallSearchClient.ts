@@ -146,15 +146,42 @@ const mapFacets = (
     const entries: any[] = Array.isArray(g.entries) ? g.entries : [];
     const isInterval = g.type === 'interval' || field === 'price';
     if (isInterval) {
-      // Derive a [min,max] range so <RangeInput> can seed its bounds. Prefer an
-      // explicit range on the group; otherwise infer from numeric entry values.
-      const nums = entries
-        .flatMap(e => [e.min, e.max, e.value, e.from, e.to])
-        .map((n: any) => Number(n))
-        .filter((n: number) => Number.isFinite(n));
-      const min = Number(g.min ?? (nums.length ? Math.min(...nums) : NaN));
-      const max = Number(g.max ?? (nums.length ? Math.max(...nums) : NaN));
-      if (Number.isFinite(min) && Number.isFinite(max)) facetsStats[field] = { min, max };
+      // <RangeInput> can only refine once it has numeric [min,max] bounds
+      // (facets_stats). goods-management returns interval facets as DISPLAY
+      // BUCKETS — strings like "< 79.99€", "80€ - 119.99€", "> 915€" — with no
+      // numeric fields, so Number(entry.value) is NaN and the slider stays dead.
+      // Parse the numbers out of every bucket label to recover global bounds:
+      // an open-low bucket ("< N" / "≤ N") floors the range at 0; an open-high
+      // bucket ("> N") contributes N. Still prefer explicit numeric fields if a
+      // future backend provides them (g.min/g.max, entry.min/max/from/to).
+      const bounds: number[] = [];
+      entries.forEach((e: any) => {
+        [e.min, e.max, e.from, e.to].forEach((n: any) => {
+          const x = Number(n);
+          if (Number.isFinite(x)) bounds.push(x);
+        });
+        const label = String(e.value ?? '');
+        const nums = (label.match(/\d+(?:[.,]\d+)?/g) ?? []).map(s => Number(s.replace(',', '.'))).filter(n => Number.isFinite(n));
+        if (!nums.length) return;
+        if (/^\s*[<≤]/.test(label)) bounds.push(0); // "< N" -> items down to 0
+        bounds.push(...nums);
+      });
+      const min = Number(g.min ?? (bounds.length ? Math.min(...bounds) : NaN));
+      const max = Number(g.max ?? (bounds.length ? Math.max(...bounds) : NaN));
+      if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+        facetsStats[field] = { min: Math.floor(min), max: Math.ceil(max) };
+        // InstantSearch's helper only attaches facet stats to a facet it created
+        // from the response `facets` map — without a `facets[field]` entry it
+        // skips the facet and getFacetStats() returns nothing, leaving the
+        // RangeInput bounds at 0/0. Expose the buckets (value:count) so the
+        // facet exists and the parsed [min,max] stats reach the widget.
+        const bucket: Record<string, number> = {};
+        entries.forEach((e: any) => {
+          const value = String(e.value ?? '');
+          if (value) bucket[value] = Number(e.count ?? e.docCount ?? 0) || 0;
+        });
+        facets[field] = bucket;
+      }
       return;
     }
     const bucket: Record<string, number> = {};
