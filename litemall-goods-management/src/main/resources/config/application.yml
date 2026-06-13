@@ -69,6 +69,10 @@ spring:
     fetch-pace-seconds: 300
     # CJ /product/list page size (CJ caps at ~200).
     page-size: 200
+    # Run a one-shot CJ refresh shortly after startup (besides the nightly cron) so a fresh
+    # deploy/restart repopulates the CJ catalog without waiting for 03:00 or an authed reindex.
+    refresh-on-startup: true
+    refresh-startup-delay-ms: 600000   # 10 min after the app is ready
     # Category fetch plan: which CJ categories to index and how many products from each.
     # `category` = a CJ category name (any level), resolved to leaf category ids via getCategory;
     # or set `category-id` to a CJ leaf UUID directly. `limit` caps products indexed per target.
