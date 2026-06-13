@@ -120,12 +120,21 @@ const SearchView: React.FC = () => {
 
   // Category facet values are ids; build an id -> name map from the catalog data
   // already fetched for the home/menu so the refinement list shows readable
-  // names. Falls back to the raw id when a name isn't known (category-name
-  // facets remain a goods-management follow-up).
+  // names instead of numeric ids. The /catalog payload serialises each category
+  // as `{ categoryId: { id }, categoryName }` (NOT the flat `{ id, name }` the
+  // CategoryData type declares), so read both shapes defensively — the flat-key
+  // read alone left the map empty and the facet fell back to ids. Unknown ids
+  // still fall back to the raw id.
   const categoryState = useAppSelector(state => state.category.data);
   const categoryNames = useMemo(() => {
     const map = new Map<string, string>();
-    const add = (list?: CategoryData[]) => (list ?? []).forEach(c => c?.id != null && map.set(String(c.id), c.name));
+    const add = (list?: CategoryData[]) =>
+      (list ?? []).forEach(c => {
+        const cat = c as any;
+        const id = cat?.categoryId?.id ?? cat?.id;
+        const name = cat?.categoryName ?? cat?.name;
+        if (id != null && name) map.set(String(id), name);
+      });
     add(categoryState.dataCategoryIndex?.categoryList);
     add(categoryState.dataCatalogAll?.categoryList);
     Object.values(categoryState.dataCatalogAll?.allList ?? {}).forEach(add);
