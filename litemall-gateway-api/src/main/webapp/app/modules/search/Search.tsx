@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ClearRefinements,
   Configure,
@@ -14,6 +14,8 @@ import {
 } from 'react-instantsearch';
 import { Link, useParams } from 'react-router-dom';
 
+import { BASE_URL_CONTEXT } from 'app/config/api';
+import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { CategoryData } from 'app/shared/model/category/category.models';
@@ -45,6 +47,72 @@ const SORT_ITEMS = [
   { label: 'Price: low to high', value: sortIndex('price') },
   { label: 'Price: high to low', value: sortIndex('-price') },
 ];
+
+// Facets rendered explicitly (with custom labels / a range control) above, plus
+// `category_names` which is the same data as the explicit `category_ids` facet
+// (by name instead of id) — showing both would duplicate the Category filter.
+const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price']);
+
+// "attr_material" / "screen_size" -> "Material" / "Screen Size" for facet headers.
+const humanizeFacet = (field: string): string =>
+  field
+    .replace(/^attr[_-]/i, '')
+    .replace(/_(ids?|names?)$/i, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim() || field;
+
+type FacetGroupMeta = { field: string; type: string };
+
+/**
+ * Renders one refinement per facet group the backend returns BEYOND the three
+ * explicit ones (category/brand/price). goods-management's SearchService emits a
+ * dynamic `filters[]` — it forwards every param to OCS and returns whatever
+ * facets the index is configured with (attribute & variant facets included), so
+ * the sidebar must mirror that set instead of a hardcoded list.
+ *
+ * The field set is discovered with a direct `/srv/search` probe rather than from
+ * InstantSearch results: InstantSearch drops response facets that no mounted
+ * widget requested, so reading the field list off `useInstantSearch()` is
+ * chicken-and-egg. Once we mount a widget for a discovered field, InstantSearch
+ * requests it and the adapter's `facets`/`facets_stats` populate it normally.
+ * Interval groups (`price`, `variant_price`) become a RangeInput; the rest a
+ * RefinementList.
+ */
+const DynamicExtraFacets: React.FC = () => {
+  const [groups, setGroups] = useState<FacetGroupMeta[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    baseAxios
+      .get(`${BASE_URL_CONTEXT}/search?q=&page=1&size=1`)
+      .then(res => {
+        const d = res.data?.data ?? res.data ?? {};
+        const raw: any[] = Array.isArray(d.filters) ? d.filters : Array.isArray(d.facetGroups) ? d.facetGroups : [];
+        const metas = raw.map(g => ({ field: g.field ?? g.fieldName ?? '', type: g.type ?? 'term' })).filter(g => g.field);
+        if (!cancelled) setGroups(metas);
+      })
+      .catch(() => {
+        /* leave the dynamic section empty; the explicit facets still render */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const extra = groups.filter(g => !KNOWN_FACETS.has(g.field));
+  if (!extra.length) return null;
+  return (
+    <>
+      {extra.map(g => (
+        <section className="lm-isearch__facet" key={g.field}>
+          <h3>{humanizeFacet(g.field)}</h3>
+          {g.type === 'interval' ? <RangeInput attribute={g.field} /> : <RefinementList attribute={g.field} limit={8} showMore />}
+        </section>
+      ))}
+    </>
+  );
+};
 
 const SearchView: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -118,6 +186,10 @@ const SearchView: React.FC = () => {
               <h3>Price</h3>
               <RangeInput attribute="price" />
             </section>
+
+            {/* Every other facet group the backend returns (attributes, variant
+                fields, …) — rendered dynamically so new OCS facets need no SPA change. */}
+            <DynamicExtraFacets />
           </aside>
 
           {/* ── Results ─────────────────────────────────────────────────── */}
