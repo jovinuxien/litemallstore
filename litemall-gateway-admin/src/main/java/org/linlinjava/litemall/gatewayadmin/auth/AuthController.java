@@ -1,7 +1,6 @@
 package org.linlinjava.litemall.gatewayadmin.auth;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.linlinjava.litemall.db.auth.JwtService;
@@ -51,7 +50,13 @@ public class AuthController {
                     body.get("username"), body.get("password"));
             String access = jwt.issue(String.valueOf(admin.getId()),
                     Map.of("uid", admin.getId(), "typ", "admin",
-                            "roles", List.of(AuthoritiesConstants.ADMIN)));
+                            // roles MUST be a String[] (not List): JwtService.addClaim
+                            // only serializes String/Number/Boolean/String[] as native
+                            // claims — a List falls through to String.valueOf() and is
+                            // stored as "[ROLE_ADMIN]", which IdentityForwardingFilter
+                            // cannot read back via getClaim("roles").asList(...). Then no
+                            // X-User-Roles is forwarded and downstream returns 403.
+                            "roles", new String[] { AuthoritiesConstants.ADMIN }));
             String refresh = refreshTokens.issue(admin.getId(), LOGIN_TYPE);
 
             Map<String, Object> adminInfo = new HashMap<>();
@@ -74,7 +79,13 @@ public class AuthController {
             AdminRefreshTokenService.Rotation r = refreshTokens.rotate(body.get("refreshToken"));
             String access = jwt.issue(String.valueOf(r.getAdminId()),
                     Map.of("uid", r.getAdminId(), "typ", "admin",
-                            "roles", List.of(AuthoritiesConstants.ADMIN)));
+                            // roles MUST be a String[] (not List): JwtService.addClaim
+                            // only serializes String/Number/Boolean/String[] as native
+                            // claims — a List falls through to String.valueOf() and is
+                            // stored as "[ROLE_ADMIN]", which IdentityForwardingFilter
+                            // cannot read back via getClaim("roles").asList(...). Then no
+                            // X-User-Roles is forwarded and downstream returns 403.
+                            "roles", new String[] { AuthoritiesConstants.ADMIN }));
             Map<String, Object> data = new HashMap<>();
             data.put("token", access);
             data.put("refreshToken", r.getRefreshToken());
