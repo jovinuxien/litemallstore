@@ -45,7 +45,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<Map<String, Object>> login(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> login(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             LitemallAdmin admin = credentials.authenticate(
                     body.get("username"), body.get("password"));
@@ -62,14 +62,14 @@ public class AuthController {
             data.put("token", access);
             data.put("refreshToken", refresh);
             data.put("adminInfo", adminInfo);
-            return ApiResponse.ok(data);
+            return ApiResponse.<Object>ok(data);
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(AdminCredentialsService.BadCredentialsException.class,
                         e -> Mono.just(ApiResponse.fail(401, e.getMessage())));
     }
 
     @PostMapping("/refresh")
-    public Mono<Map<String, Object>> refresh(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> refresh(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             AdminRefreshTokenService.Rotation r = refreshTokens.rotate(body.get("refreshToken"));
             String access = jwt.issue(String.valueOf(r.getAdminId()),
@@ -78,17 +78,17 @@ public class AuthController {
             Map<String, Object> data = new HashMap<>();
             data.put("token", access);
             data.put("refreshToken", r.getRefreshToken());
-            return ApiResponse.ok(data);
+            return ApiResponse.<Object>ok(data);
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(InvalidRefreshTokenException.class,
                         e -> Mono.just(ApiResponse.fail(401, e.getMessage())));
     }
 
     @PostMapping("/logout")
-    public Mono<Map<String, Object>> logout(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> logout(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             refreshTokens.revoke(body.get("refreshToken"));
-            return ApiResponse.ok(null);
+            return ApiResponse.<Object>ok(null);
         }).subscribeOn(Schedulers.boundedElastic());
     }
 }

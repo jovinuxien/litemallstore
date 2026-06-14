@@ -35,40 +35,13 @@ spring:
       enabled: true
     compatibility-verifier:
       enabled: false
-    gateway:
-      globalcors:
-        corsConfigurations:
-          '[/**]':
-            allowedOrigins: "http://localhost:9000" #Allow the origin of your request
-            allowedMethods: "*"
-            allowCredentials: true
-      routes:
-        - id: admin-api
-          uri: lb://litemall-admin-api
-          predicates:
-            - Path=/admin/**
-
-
-#        - id: wx-api
-#          uri: lb://litemall-wx-api
-#          predicates:
-#            - Path=/wx/**
-
-
-        - id: goods-service-app
-          uri: lb://goods-service-app
-          predicates:
-            - Path=/srv/**
-
-
-        - id: order-service-app
-          uri: lb://order-service-app
-          predicates:
-            - Path=/srv/**
-
-      # Phase 3b: Keycloak/OIDC removed. The TokenRelay default-filters, the
-      # /oauth/** token-service route and the spring.security.oauth2.* tree
-      # are gone. Per-route service machine-token relay is added in Phase 4.
+    # NOTE: Spring Cloud Gateway routes and globalcors live in application.yml
+    # (see the routing contract / ROUTING.md), NOT here. bootstrap.yml only
+    # carries bootstrap-phase config: config-server location, profiles, the
+    # authserver client_credentials registration and the admin JWT realm.
+    # Phase 3b: Keycloak/OIDC removed (no TokenRelay, no /oauth/** route, no
+    # spring.security.oauth2 resource-server tree); Phase 4 adds the service
+    # machine-token relay as a global filter.
 
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
