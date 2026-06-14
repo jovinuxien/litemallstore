@@ -77,9 +77,9 @@ export interface ProductDetailData {
   categoryIds: number[];
 }
 
-export const getProductDetail = createAsyncThunk<ProductDetailData, number, { rejectValue: ApiResult<null> }>(
+export const getProductDetail = createAsyncThunk<ProductDetailData, string, { rejectValue: ApiResult<null> }>(
   'product/detail',
-  async (goodsId: number, thunkApi) => {
+  async (goodsId: string, thunkApi) => {
     try {
       const response = await baseAxios.get(`${BASE_URL_CONTEXT}/goods/detail?id=${goodsId}`);
       if (response.data.errno !== 0) {
