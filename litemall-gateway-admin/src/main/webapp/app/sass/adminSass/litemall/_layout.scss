@@ -1,0 +1,252 @@
+// Layout shell — ported/adapted from upstream views/layout (Layout.vue,
+// Navbar.vue, AppMain.vue, styles/sidebar.scss). React class names mirror the
+// Vue ones (.app-wrapper / .sidebar-container / .main-container / .navbar /
+// .tags-view / .app-main) so the structure reads 1:1 against the original.
+
+@import 'variables';
+
+.lm-admin {
+  &.app-wrapper {
+    position: relative;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+    background: $lm-content-bg;
+  }
+
+  // ---- Sidebar -----------------------------------------------------------
+  .sidebar-container {
+    transition: width 0.28s;
+    width: $lm-sidebar-width;
+    background-color: $lm-menu-bg;
+    height: 100%;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1001;
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    .sidebar-logo {
+      height: $lm-navbar-height;
+      line-height: $lm-navbar-height;
+      background: #2b2f3a;
+      color: #fff;
+      text-align: center;
+      font-weight: 600;
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .el-menu {
+      border: none;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .menu-item,
+    .submenu-title {
+      display: flex;
+      align-items: center;
+      height: 50px;
+      line-height: 50px;
+      padding: 0 20px;
+      color: $lm-menu-text;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+      border: none;
+      background: transparent;
+      width: 100%;
+
+      .menu-icon {
+        margin-right: 16px;
+        font-size: 16px;
+        min-width: 16px;
+      }
+      .submenu-arrow {
+        margin-left: auto;
+        font-size: 12px;
+        transition: transform 0.28s;
+      }
+      &:hover {
+        background-color: $lm-menu-hover;
+        color: #fff;
+      }
+    }
+
+    // nested (child) items sit on the darker sub-menu background
+    .nest-menu {
+      .menu-item {
+        background-color: $lm-sub-menu-bg;
+        padding-left: 48px;
+        &:hover {
+          background-color: $lm-sub-menu-hover;
+        }
+      }
+    }
+
+    .menu-item.is-active {
+      color: $lm-menu-active-text;
+      background-color: $lm-sub-menu-bg;
+    }
+    .submenu-title.is-open {
+      color: $lm-sub-menu-active-text;
+      .submenu-arrow {
+        transform: rotate(90deg);
+      }
+    }
+
+    .menu-disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      &:hover {
+        background: transparent;
+        color: $lm-menu-text;
+      }
+    }
+  }
+
+  // ---- Main container ----------------------------------------------------
+  .main-container {
+    min-height: 100%;
+    height: 100vh;
+    overflow-y: auto;
+    transition: margin-left 0.28s;
+    margin-left: $lm-sidebar-width;
+    position: relative;
+  }
+
+  &.is-collapsed {
+    .sidebar-container {
+      width: $lm-sidebar-collapsed-width;
+      .sidebar-logo span,
+      .menu-item span,
+      .submenu-title span,
+      .submenu-arrow { display: none; }
+      .menu-item,
+      .submenu-title { padding: 0 0 0 18px; }
+    }
+    .main-container { margin-left: $lm-sidebar-collapsed-width; }
+  }
+
+  // ---- Navbar ------------------------------------------------------------
+  .navbar {
+    height: $lm-navbar-height;
+    line-height: $lm-navbar-height;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+    display: flex;
+    align-items: center;
+    padding: 0;
+    position: relative;
+    z-index: 9;
+
+    .hamburger {
+      padding: 0 16px;
+      cursor: pointer;
+      font-size: 18px;
+      color: #5a5e66;
+      background: transparent;
+      border: none;
+      height: 100%;
+      &:hover { background: rgba(0, 0, 0, 0.025); }
+    }
+
+    .breadcrumb-container { flex: 1; }
+
+    .right-menu {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      padding-right: 16px;
+
+      .avatar-wrapper {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        .user-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 8px;
+          object-fit: cover;
+          background: #c0c4cc;
+        }
+        .user-name { margin: 0 6px; color: #303133; font-size: 14px; }
+      }
+    }
+  }
+
+  // ---- Breadcrumb --------------------------------------------------------
+  .breadcrumb-container {
+    padding-left: 8px;
+    font-size: 14px;
+    .breadcrumb-item {
+      color: #97a8be;
+      &.is-last { color: #606266; }
+    }
+    .breadcrumb-sep { margin: 0 9px; color: #97a8be; }
+  }
+
+  // ---- Tags view ---------------------------------------------------------
+  .tags-view {
+    height: $lm-tags-view-height;
+    line-height: $lm-tags-view-height;
+    background: #fff;
+    border-bottom: 1px solid #d8dce5;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+
+    .tags-view-item {
+      display: inline-flex;
+      align-items: center;
+      height: 26px;
+      line-height: 24px;
+      border: 1px solid #d8dce5;
+      color: #495060;
+      background: #fff;
+      padding: 0 8px;
+      font-size: 12px;
+      margin-right: 6px;
+      cursor: pointer;
+      border-radius: 2px;
+      text-decoration: none;
+
+      &.active {
+        background-color: $lm-primary;
+        color: #fff;
+        border-color: $lm-primary;
+        .tags-dot { background: #fff; }
+      }
+      .tags-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #999;
+        display: inline-block;
+        margin-right: 4px;
+      }
+      .tags-close {
+        margin-left: 6px;
+        border-radius: 50%;
+        font-style: normal;
+        &:hover { background: rgba(0, 0, 0, 0.16); color: #fff; }
+      }
+    }
+  }
+
+  // ---- App main ----------------------------------------------------------
+  .app-main {
+    min-height: calc(100vh - #{$lm-navbar-height} - #{$lm-tags-view-height});
+    width: 100%;
+    position: relative;
+    padding: 0;
+  }
+}

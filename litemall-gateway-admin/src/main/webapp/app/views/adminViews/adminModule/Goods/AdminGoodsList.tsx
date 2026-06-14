@@ -4,28 +4,26 @@ import { IGood } from 'app/shared/model/product/product.model';
 import { setLimit, setPage, setSort } from 'app/shared/reducers/private/catalogMgn/adminGoodsSlice';
 import { useGetAdminGoodsListQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
 import * as React from 'react';
-import { Badge, Button, Card, Container, Form, Spinner, Table } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-// Admin landing page — the goods catalogue as an inline LIST (table rows, not a
-// card grid). Data comes from goods-management through the gateway as an
-// authenticated admin via adminGoodsApi (Bearer admin JWT). Pagination + sort
-// live in the `adminGoods` UI-state slice; the row markers are all derived from
-// the goods data (IGood.status / salesQuantity / summed SKU stock), nothing
-// hardcoded. Each row links to the per-item detail at /admin/goods/:id.
+// Admin goods catalogue as an inline LIST, styled to the upstream litemall-admin
+// (Element) goods/list pattern: a .filter-container toolbar above a bordered
+// .el-table, with .el-tag status pills and an .el-pagination footer. Data comes
+// from goods-management through the gateway as an authenticated admin via
+// adminGoodsApi (Bearer admin JWT); pagination/sort live in the `adminGoods`
+// UI-state slice. Row markers are all derived from the goods data
+// (IGood.status / salesQuantity / summed SKU stock), nothing hardcoded.
 
-// Below this summed-SKU-stock count a row is flagged low-stock (amber). Above
-// the sold count a "sold N" pill is highlighted. Tunable in one place.
 const LOW_STOCK_THRESHOLD = 10;
 const HIGH_SOLD_THRESHOLD = 100;
 
-type BadgeVariant = 'success' | 'danger' | 'warning' | 'secondary';
+type ElTag = 'success' | 'danger' | 'warning' | 'info' | 'primary';
 
-const STATUS_META: Record<string, { label: string; variant: BadgeVariant }> = {
-  [ProductStatus.ONSALE]: { label: 'On sale', variant: 'success' },
-  [ProductStatus.OOUTOFSTOCK]: { label: 'Out of stock', variant: 'danger' },
-  [ProductStatus.INREPLENISHMENT]: { label: 'Replenishing', variant: 'warning' },
-  [ProductStatus.LOCKED]: { label: 'Locked', variant: 'secondary' },
+const STATUS_META: Record<string, { label: string; tag: ElTag }> = {
+  [ProductStatus.ONSALE]: { label: 'On sale', tag: 'success' },
+  [ProductStatus.OOUTOFSTOCK]: { label: 'Out of stock', tag: 'danger' },
+  [ProductStatus.INREPLENISHMENT]: { label: 'Replenishing', tag: 'warning' },
+  [ProductStatus.LOCKED]: { label: 'Locked', tag: 'info' },
 };
 
 // Prices may arrive as a plain number or as a LitemallMoney { amount }; read the
@@ -43,46 +41,26 @@ const SortOptions: { value: string; label: string }[] = [
   { value: 'name', label: 'Name' },
 ];
 
-const StatusBadge: React.FC<{ status?: ProductStatus | null }> = ({ status }) => {
+const Tag: React.FC<{ tag: ElTag; children: React.ReactNode }> = ({ tag, children }) => (
+  <span className={`el-tag el-tag--${tag}`}>{children}</span>
+);
+
+const StatusTag: React.FC<{ status?: ProductStatus | null }> = ({ status }) => {
   const meta = status ? STATUS_META[status] : undefined;
-  if (!meta) {
-    return (
-      <Badge bg='light' text='dark'>
-        Unknown
-      </Badge>
-    );
-  }
-  return (
-    <Badge bg={meta.variant} text={meta.variant === 'warning' ? 'dark' : undefined}>
-      {meta.label}
-    </Badge>
-  );
+  if (!meta) return <Tag tag='info'>Unknown</Tag>;
+  return <Tag tag={meta.tag}>{meta.label}</Tag>;
 };
 
 const Legend: React.FC = () => (
-  <div className='d-flex flex-wrap align-items-center gap-3 small text-muted mb-2'>
+  <div className='d-flex flex-wrap align-items-center gap-2 small text-muted mb-2'>
     <span>Legend:</span>
+    <Tag tag='success'>On sale</Tag>
+    <Tag tag='danger'>Out of stock</Tag>
+    <Tag tag='warning'>Replenishing</Tag>
+    <Tag tag='info'>Locked</Tag>
+    <Tag tag='warning'>Low stock &lt; {LOW_STOCK_THRESHOLD}</Tag>
     <span>
-      <Badge bg='success'>On sale</Badge>
-    </span>
-    <span>
-      <Badge bg='danger'>Out of stock</Badge>
-    </span>
-    <span>
-      <Badge bg='warning' text='dark'>
-        Replenishing
-      </Badge>
-    </span>
-    <span>
-      <Badge bg='secondary'>Locked</Badge>
-    </span>
-    <span>
-      <Badge bg='warning' text='dark'>
-        Low stock &lt; {LOW_STOCK_THRESHOLD}
-      </Badge>
-    </span>
-    <span>
-      <Badge bg='info'>sold N</Badge> highlighted &ge; {HIGH_SOLD_THRESHOLD}
+      <Tag tag='primary'>sold N</Tag> highlighted &ge; {HIGH_SOLD_THRESHOLD}
     </span>
   </div>
 );
@@ -97,9 +75,9 @@ const GoodsRow: React.FC<{ good: IGood }> = ({ good }) => {
     <tr>
       <td style={{ width: 56 }}>
         {good.picUrl ? (
-          <img src={good.picUrl} alt={good.name ?? ''} style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 4 }} />
+          <img src={good.picUrl} alt={good.name ?? ''} className='cell-thumb' />
         ) : (
-          <div style={{ width: 44, height: 44, background: '#eee', borderRadius: 4 }} />
+          <div className='cell-thumb' style={{ background: '#eee' }} />
         )}
       </td>
       <td>
@@ -108,25 +86,23 @@ const GoodsRow: React.FC<{ good: IGood }> = ({ good }) => {
       </td>
       <td className='text-end'>¥{priceNum(good.retailPrice).toFixed(2)}</td>
       <td className='text-end'>
-        <Badge bg={isHotSeller ? 'info' : 'light'} text={isHotSeller ? undefined : 'dark'}>
-          sold {sold}
-        </Badge>
+        <Tag tag={isHotSeller ? 'primary' : 'info'}>sold {sold}</Tag>
       </td>
       <td className='text-end'>
         {typeof stock === 'number' ? stock : '—'}
         {isLowStock && (
-          <Badge bg='warning' text='dark' className='ms-1'>
-            low
-          </Badge>
+          <span className='ms-1'>
+            <Tag tag='warning'>low</Tag>
+          </span>
         )}
       </td>
       <td>
-        <StatusBadge status={good.status} />
+        <StatusTag status={good.status} />
       </td>
       <td className='text-end'>
-        <Button as={Link as any} to={`/admin/goods/${good.id}`} size='sm' variant='outline-primary'>
+        <Link to={`/admin/goods/${good.id}`} className='btn btn-sm btn-outline-primary'>
           Detail
-        </Button>
+        </Link>
       </td>
     </tr>
   );
@@ -143,110 +119,99 @@ const AdminGoodsList: React.FC = () => {
   const pages = data?.pages ?? 0;
 
   const errStatus = (error as { status?: number | string })?.status;
+  const prevDisabled = page <= 1 || isFetching;
+  const nextDisabled = (pages > 0 && page >= pages) || list.length < limit || isFetching;
 
   return (
-    <Container className='admin-goods-list my-3'>
-      <div className='d-flex align-items-center justify-content-between mb-2'>
-        <h4 className='mb-0'>Goods {isFetching && <Spinner animation='border' size='sm' className='ms-2' />}</h4>
-        <div className='d-flex align-items-center gap-2'>
-          <Form.Select
-            size='sm'
-            style={{ width: 'auto' }}
-            value={sort}
-            onChange={e => dispatch(setSort({ sort: e.target.value, order }))}
-            aria-label='Sort field'
-          >
-            {SortOptions.map(o => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Form.Select>
-          <Form.Select
-            size='sm'
-            style={{ width: 'auto' }}
-            value={order}
-            onChange={e => dispatch(setSort({ sort, order: e.target.value as 'asc' | 'desc' }))}
-            aria-label='Sort direction'
-          >
-            <option value='desc'>Desc</option>
-            <option value='asc'>Asc</option>
-          </Form.Select>
-          <Form.Select
-            size='sm'
-            style={{ width: 'auto' }}
-            value={limit}
-            onChange={e => dispatch(setLimit(Number(e.target.value)))}
-            aria-label='Page size'
-          >
-            {[10, 20, 50].map(n => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </Form.Select>
-        </div>
+    <div className='app-container'>
+      <div className='filter-container'>
+        <select
+          className='form-select filter-item'
+          style={{ width: 160 }}
+          value={sort}
+          onChange={e => dispatch(setSort({ sort: e.target.value, order }))}
+          aria-label='Sort field'
+        >
+          {SortOptions.map(o => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className='form-select filter-item'
+          style={{ width: 120 }}
+          value={order}
+          onChange={e => dispatch(setSort({ sort, order: e.target.value as 'asc' | 'desc' }))}
+          aria-label='Sort direction'
+        >
+          <option value='desc'>Desc</option>
+          <option value='asc'>Asc</option>
+        </select>
+        <select
+          className='form-select filter-item'
+          style={{ width: 120 }}
+          value={limit}
+          onChange={e => dispatch(setLimit(Number(e.target.value)))}
+          aria-label='Page size'
+        >
+          {[10, 20, 50].map(n => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+        {isFetching && <span className='spinner-border spinner-border-sm text-primary filter-item' role='status' />}
       </div>
 
       <Legend />
 
-      {isError && (
-        <div className='alert alert-danger'>Failed to load goods{errStatus ? ` (${errStatus})` : ''}.</div>
-      )}
+      {isError && <div className='alert alert-danger'>Failed to load goods{errStatus ? ` (${errStatus})` : ''}.</div>}
 
-      <Card>
-        <Table responsive hover className='mb-0 align-middle'>
-          <thead className='table-light'>
+      <table className='el-table'>
+        <thead>
+          <tr>
+            <th>Image</th>
+            <th>Name</th>
+            <th className='text-end'>Price</th>
+            <th className='text-end'>Sold</th>
+            <th className='text-end'>Stock</th>
+            <th>Status</th>
+            <th className='text-end'>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
             <tr>
-              <th>Image</th>
-              <th>Name</th>
-              <th className='text-end'>Price</th>
-              <th className='text-end'>Sold</th>
-              <th className='text-end'>Stock</th>
-              <th>Status</th>
-              <th className='text-end'>Actions</th>
+              <td colSpan={7} className='text-center p-5'>
+                <span className='spinner-border text-primary' role='status' />
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={7} className='text-center p-5'>
-                  <Spinner animation='border' />
-                </td>
-              </tr>
-            ) : list.length === 0 ? (
-              <tr>
-                <td colSpan={7} className='text-center text-muted py-5'>
-                  No goods found.
-                </td>
-              </tr>
-            ) : (
-              list.map(good => <GoodsRow key={good.id} good={good} />)
-            )}
-          </tbody>
-        </Table>
-      </Card>
+          ) : list.length === 0 ? (
+            <tr>
+              <td colSpan={7} className='text-center text-muted py-5'>
+                No goods found.
+              </td>
+            </tr>
+          ) : (
+            list.map(good => <GoodsRow key={good.id} good={good} />)
+          )}
+        </tbody>
+      </table>
 
-      <div className='d-flex align-items-center justify-content-between mt-2'>
-        <span className='small text-muted'>
+      <div className='el-pagination'>
+        <span className='el-pagination-total'>
           {total} item{total === 1 ? '' : 's'}
           {pages > 0 && ` · page ${page} of ${pages}`}
         </span>
-        <div className='d-flex gap-2'>
-          <Button size='sm' variant='outline-secondary' disabled={page <= 1 || isFetching} onClick={() => dispatch(setPage(page - 1))}>
-            ‹ Prev
-          </Button>
-          <Button
-            size='sm'
-            variant='outline-secondary'
-            disabled={(pages > 0 && page >= pages) || list.length < limit || isFetching}
-            onClick={() => dispatch(setPage(page + 1))}
-          >
-            Next ›
-          </Button>
-        </div>
+        <button className='el-pager-btn' disabled={prevDisabled} onClick={() => dispatch(setPage(page - 1))}>
+          ‹ Prev
+        </button>
+        <button className='el-pager-btn' disabled={nextDisabled} onClick={() => dispatch(setPage(page + 1))}>
+          Next ›
+        </button>
       </div>
-    </Container>
+    </div>
   );
 };
 

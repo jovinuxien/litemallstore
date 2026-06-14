@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from 'react-bootstrap';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import Footer from './components/adminComponents/Footer';
 import { AUTHORITIES } from './config/constants';
 import { useAppDispatch, useAppSelector } from './config/store';
@@ -118,34 +118,56 @@ const App = () => {
   //const isInProduction = useAppSelector(state => state.applicationProfile.inProduction);
   //const isOpenAPIEnabled = useAppSelector(state => state.applicationProfile.isOpenAPIEnabled);
 
-  const paddingTop = '60px';
   return (
     <BrowserRouter>
-      <div className='app-container' style={{ paddingTop }}>
-        {/*         <ToastContainer position='top-left' className='toastify-container' toastClassName='toastify-toast' />
-         */}{' '}
-        <ErrorBoundary>
-          <Header
-            isAuthenticated={isAuthenticated}
-            isAdmin={isAdmin}
-            //currentLocale={currentLocale}
-            //ribbonEnv={ribbonEnv}
-            isInProduction={false}
-            isOpenAPIEnabled={false}
-            currentLocale={''} //categories={categoryListMenu}
-            
-          />
-        </ErrorBoundary>
-        <div className='container-fluid view-container' id='app-view-container'>
-          <Card className='jh-card'>
-            <ErrorBoundary>
-              <AppRoutes categoryListHome={categoryListHome} homeData={homeData} />
-            </ErrorBoundary>
-          </Card>
-          <Footer />
-        </div>
-      </div>
+      <AppShell categoryListHome={categoryListHome} homeData={homeData} isAuthenticated={isAuthenticated} isAdmin={isAdmin} />
     </BrowserRouter>
+  );
+};
+
+interface AppShellProps {
+  categoryListHome: CategoryData[];
+  homeData: any;
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+}
+
+// The admin console (and the admin sign-in page) render full-bleed — the admin
+// SPA brings its own chrome (AdminLayout: dark sidebar + navbar + tags-view), so
+// the customer Header/Footer/Card wrapper is skipped for those routes. Every
+// other route keeps the customer storefront chrome.
+const AppShell: React.FC<AppShellProps> = ({ categoryListHome, homeData, isAuthenticated, isAdmin }) => {
+  const { pathname } = useLocation();
+  const fullBleed = pathname.startsWith('/admin') || pathname.startsWith('/account/signin');
+
+  if (fullBleed) {
+    return (
+      <ErrorBoundary>
+        <AppRoutes categoryListHome={categoryListHome} homeData={homeData} />
+      </ErrorBoundary>
+    );
+  }
+
+  return (
+    <div className='app-container' style={{ paddingTop: '60px' }}>
+      <ErrorBoundary>
+        <Header
+          isAuthenticated={isAuthenticated}
+          isAdmin={isAdmin}
+          isInProduction={false}
+          isOpenAPIEnabled={false}
+          currentLocale={''}
+        />
+      </ErrorBoundary>
+      <div className='container-fluid view-container' id='app-view-container'>
+        <Card className='jh-card'>
+          <ErrorBoundary>
+            <AppRoutes categoryListHome={categoryListHome} homeData={homeData} />
+          </ErrorBoundary>
+        </Card>
+        <Footer />
+      </div>
+    </div>
   );
 };
 

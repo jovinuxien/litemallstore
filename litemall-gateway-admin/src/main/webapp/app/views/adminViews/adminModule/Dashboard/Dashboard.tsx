@@ -2,19 +2,35 @@ import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, Linea
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
 import * as React from 'react';
-import { Card, Col, Row, Spinner, Table } from 'react-bootstrap';
 import { Line } from 'react-chartjs-2';
+
+// Order-statistics dashboard, styled to the upstream litemall-admin look:
+// .app-container of colored stat tiles + .box-card chart panels + an .el-table
+// daily breakdown. Data flow unchanged — real order stats fetched from
+// litemall-order through the gateway as an authenticated admin, with the same
+// graceful "stats unavailable" fallback.
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const brandInfo = '#63c2de';
-const brandSuccess = '#4dbd74';
+const PRIMARY = '#409EFF';
+const SUCCESS = '#67C23A';
 
 const chartOpts: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: { legend: { display: true } },
 };
+
+const StatTile: React.FC<{ value: React.ReactNode; label: string; color: string }> = ({ value, label, color }) => (
+  <div className='box-card' style={{ marginBottom: 0 }}>
+    <div className='box-card-body' style={{ borderLeft: `4px solid ${color}` }}>
+      <div className='h3 mb-0' style={{ color }}>
+        {value}
+      </div>
+      <div className='text-muted small'>{label}</div>
+    </div>
+  </div>
+);
 
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -29,42 +45,21 @@ const Dashboard: React.FC = () => {
   const ordersChart: ChartData<'line'> = {
     labels,
     datasets: [
-      {
-        label: 'Orders',
-        backgroundColor: 'transparent',
-        borderColor: brandInfo,
-        pointHoverBackgroundColor: '#fff',
-        borderWidth: 2,
-        data: rows.map(r => r.orders),
-      },
-      {
-        label: 'Customers',
-        backgroundColor: 'transparent',
-        borderColor: brandSuccess,
-        pointHoverBackgroundColor: '#fff',
-        borderWidth: 2,
-        data: rows.map(r => r.customers),
-      },
+      { label: 'Orders', backgroundColor: 'transparent', borderColor: PRIMARY, pointHoverBackgroundColor: '#fff', borderWidth: 2, data: rows.map(r => r.orders) },
+      { label: 'Customers', backgroundColor: 'transparent', borderColor: SUCCESS, pointHoverBackgroundColor: '#fff', borderWidth: 2, data: rows.map(r => r.customers) },
     ],
   };
 
   const amountChart: ChartData<'line'> = {
     labels,
-    datasets: [
-      {
-        label: 'Revenue',
-        backgroundColor: 'transparent',
-        borderColor: brandSuccess,
-        pointHoverBackgroundColor: '#fff',
-        borderWidth: 2,
-        data: rows.map(r => r.amount),
-      },
-    ],
+    datasets: [{ label: 'Revenue', backgroundColor: 'transparent', borderColor: SUCCESS, pointHoverBackgroundColor: '#fff', borderWidth: 2, data: rows.map(r => r.amount) }],
   };
 
   return (
-    <div className='animated fadeIn'>
-      <h4 className='my-3'>Order statistics {loading && <Spinner animation='border' size='sm' className='ms-2' />}</h4>
+    <div className='app-container'>
+      <h4 className='mb-3'>
+        Order statistics {loading && <span className='spinner-border spinner-border-sm text-primary ms-2' role='status' />}
+      </h4>
 
       {unavailable && (
         <div className='alert alert-warning'>
@@ -74,65 +69,50 @@ const Dashboard: React.FC = () => {
       )}
       {!unavailable && errorMessage && <div className='alert alert-danger'>{errorMessage}</div>}
 
-      <Row className='mb-3'>
-        <Col sm='4'>
-          <Card className='text-white bg-primary'>
-            <Card.Body>
-              <div className='h4 mb-0'>{totals.orders}</div>
-              <small>Total orders</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col sm='4'>
-          <Card className='text-white bg-info'>
-            <Card.Body>
-              <div className='h4 mb-0'>{totals.customers}</div>
-              <small>Customers</small>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col sm='4'>
-          <Card className='text-white bg-success'>
-            <Card.Body>
-              <div className='h4 mb-0'>¥{totals.amount.toFixed(2)}</div>
-              <small>Revenue</small>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+      <div className='row mb-3'>
+        <div className='col-sm-4'>
+          <StatTile value={totals.orders} label='Total orders' color={PRIMARY} />
+        </div>
+        <div className='col-sm-4'>
+          <StatTile value={totals.customers} label='Customers' color='#E6A23C' />
+        </div>
+        <div className='col-sm-4'>
+          <StatTile value={`¥${totals.amount.toFixed(2)}`} label='Revenue' color={SUCCESS} />
+        </div>
+      </div>
 
       {rows.length === 0 ? (
         !loading && !unavailable && <div className='text-muted text-center py-5'>No order statistics for this period.</div>
       ) : (
         <>
-          <Row>
-            <Col lg={6}>
-              <Card className='mb-3'>
-                <Card.Header>Orders &amp; customers over time</Card.Header>
-                <Card.Body>
+          <div className='row'>
+            <div className='col-lg-6'>
+              <div className='box-card'>
+                <div className='box-card-header'>Orders &amp; customers over time</div>
+                <div className='box-card-body'>
                   <div style={{ height: 300 }}>
                     <Line data={ordersChart} options={chartOpts} />
                   </div>
-                </Card.Body>
-              </Card>
-            </Col>
-            <Col lg={6}>
-              <Card className='mb-3'>
-                <Card.Header>Revenue over time</Card.Header>
-                <Card.Body>
+                </div>
+              </div>
+            </div>
+            <div className='col-lg-6'>
+              <div className='box-card'>
+                <div className='box-card-header'>Revenue over time</div>
+                <div className='box-card-body'>
                   <div style={{ height: 300 }}>
                     <Line data={amountChart} options={chartOpts} />
                   </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          </Row>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Card>
-            <Card.Header>Daily breakdown</Card.Header>
-            <Card.Body>
-              <Table responsive hover size='sm'>
-                <thead className='table-light'>
+          <div className='box-card'>
+            <div className='box-card-header'>Daily breakdown</div>
+            <div className='box-card-body'>
+              <table className='el-table'>
+                <thead>
                   <tr>
                     <th>Day</th>
                     <th className='text-end'>Orders</th>
@@ -150,9 +130,9 @@ const Dashboard: React.FC = () => {
                     </tr>
                   ))}
                 </tbody>
-              </Table>
-            </Card.Body>
-          </Card>
+              </table>
+            </div>
+          </div>
         </>
       )}
     </div>
