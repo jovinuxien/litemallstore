@@ -1,96 +1,108 @@
-# CLAUDE.md — litemall Dual-Gateway Split + Self-Signed JWT
+# CLAUDE.md — litemall Per-Worktree Tasks
 
-Generated from `SESSION.md`. This is the shared root brief inherited by every
-worktree branch. Each worktree appends a phase-scoped section at the bottom.
-Edit freely — this file is meant to be refined per task.
+## Per-worktree tasks
 
-## Objective
+> Active fix branches launched via `open-fix-worktrees.sh`. Each Claude session
+> opens in `../litemall-wt/<short>` on branch `fix/<short>` and is told to read
+> the matching `### Worktree: <short>` block below as its sole task. Edit the
+> Task / Acceptance lines to redirect a worktree.
 
-Split litemall's single entangled gateway/frontend into **two independent
-Spring Cloud Gateway edges**, each embedding its own React SPA, **no Keycloak**:
+### Worktree: `goods-management`
+- **Branch:** `fix/goods-management`
+- **Path:** `../litemall-wt/goods-management`
+- **Scope:** `litemall-goods-management/` only, plus the docker-compose OCS stack under `docker-compose/` for running/verifying. Do NOT edit `litemall-gateway-admin/`, `litemall-order/`, or the SPA to paper over a backend gap; read-only mapping checks against `litemall-db` domain types are fine.
+- **Context — the pipeline already EXISTS; this task is to PROVE it works end-to-end at runtime and fix only what actually breaks.** The OCS (Open Commerce Search) integration is fully coded on this branch:
+  - Config: `infrastructure/configuration/LitemallSearchProperties.java` (`litemall.search.*`), with `config/application.yml` → `localhost` hosts and `config/application-docker.yml` → docker service names (`indexer`/`searcher`/`suggest`). Index name `litemall_index` matches `docker-compose/application.indexer-service.yml` (fields: `product_id, title, price, discount_price, description, image_url, brand, category_names, category_ids`).
+  - Mapping: `domain/model/valueobjects/elastic/ProductDocument.java` (flat, `@JsonProperty` snake_case) + `domain/service/elastic/LitemallProductIndexingService.createProductDocument(...)` populating all nine fields (price/discount split, brand lookup, category-tree walk → names + ids, root→leaf).
+  - Indexer ACL: `infrastructure/acl/ocs/OcsProductIndexer.java` against the real OCS REST contract — full import (`GET full/start/<index>` → `POST full/add` → `POST full/done`|`cancel`) and incremental (`PUT`/`DELETE update/<index>`).
+  - Full reindex: `POST /srv/private/admin/search/reindex` → `application/search/SearchReindexService.reindexAll()` (pages on-sale goods from the DB in batches of 200 → `ProductIndexer.replaceAll`).
+  - Incremental: goods write-path (`application/goods/internal/LitemallGoodsManagementServiceImpl`) publishes `GoodsIndexEvent` → Rabbit sink `infrastructure/messaging/sink/MessageConsumer` → `upsert`/`delete`.
+  - Query: `GET /srv/search?q=&page=&size=` + `GET /srv/search/suggest?q=` → `application/search/SearchService` → `OcsSearchClient`/`OcsSuggestClient` → mapped to the `goodsList` DTO the SPA consumes.
+- **Task:** Bring up the OCS stack and exercise the whole indexing → search → application-surfacing path against real data, then fix whatever does not actually work. Suggested order — stop after each step is green and capture the observed OCS request/response as evidence:
+  1. **Stand up the stack.** Start the OCS services from `docker-compose/` (elasticsearch 9200, `indexer` 8535, `searcher` 8534, `suggest` 8081, kibana 5601) and confirm each is healthy. Confirm the `litemall_index` field-configuration from `application.indexer-service.yml` is actually loaded by the indexer (OCS rejects unknown fields). Run goods-management with the profile whose `litemall.search.*` points at the right hosts (default/`localhost` when the service runs on the host; `docker` when it runs inside compose).
+  2. **Prove full indexing (DB → OCS).** With goods rows in the DB, call `POST /srv/private/admin/search/reindex` and confirm: the `indexed` count equals the on-sale goods count; the documents land in `litemall_index` (verify via the searcher and/or Kibana on 5601); each document carries all nine fields with correct values (spot-check `price` vs `discount_price`, `category_names`/`category_ids` ordering root→leaf, brand name resolved). Fix any mapping/contract mismatch found here.
+  3. **Prove search + suggest (OCS → app).** Call `GET /srv/search?q=<term>` and `GET /srv/search/suggest?q=<prefix>`; confirm real hits come back mapped into the `goodsList` shape (`id/name/brief/picUrl/retailPrice/counterPrice/brand/categoryNames`) with correct paging (`page`/`size` → OCS `offset`/`limit`) and `total`/`totalPages`. Fix the OCS→DTO mapping (`SearchService.toGoodsListItem`) and the OCS response binding (`OcsSearchResult`/`OcsSuggestion`) against the actual JSON the running services return.
+  4. **Prove incremental indexing.** Create / update / delete a single goods record through the write path and confirm exactly that document appears / refreshes / disappears in `litemall_index` WITHOUT a full reindex — i.e. the `GoodsIndexEvent` → Rabbit `MessageConsumer` → `upsert/delete` loop fires end-to-end (broker up, routing key bound). Fix any gap between the documented messaging decision and what is wired.
+  5. **Surface to the customer path.** Confirm the results from `/srv/search` are consumable as the goods-list source for the customer (same DTO the SQL listing produces), so the search path can stand in for / augment the SQL path before data reaches the customer. Note any remaining gateway/SPA wiring as a follow-up for the `gateway-api` worktree (do NOT edit it here).
+  - **Add a couple of integration checks** (or, if a live OCS container in CI is impractical, a documented manual runbook committed in the worktree): one asserting a reindexed document round-trips through `/srv/search` with all nine fields; one asserting create→search reflects the new document via the incremental path.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-goods-management -am compile` clean.
+  - With the docker-compose OCS stack up, `POST /srv/private/admin/search/reindex` returns an `indexed` count equal to the on-sale goods count, and those documents are visible in `litemall_index` via the searcher (8534) / Kibana (5601), each carrying all nine `litemall_index` fields with correct values.
+  - `GET /srv/search?q=<term>` returns OCS-backed hits mapped to the `goodsList` DTO with correct paging/`total`; `GET /srv/search/suggest?q=<prefix>` returns suggestion phrases. No SQL fallback on the search path.
+  - Creating / updating / deleting one goods record reflects in `litemall_index` via the incremental path (no full reindex), proving `GoodsIndexEvent` → `MessageConsumer` → `upsert/delete` fires.
+  - No hardcoded `8534`/`8535`/`8081`/`9200`/`localhost` search hosts in Java; all resolve from `litemall.search.*` and stay profile-overridable (`localhost` vs docker service names).
+  - The worktree records the exact OCS request/response observed at each hop, and the integration checks (or the documented runbook) pass against the running stack.
 
-| Gateway | Port | Role | Auth |
-|---|---|---|---|
-| `litemall-gateway-api` | 8090 | Customer edge (visitors + customers) | Self-signed **customer** JWT issued+validated at the edge |
-| `litemall-gateway-admin` | 8080 | Admin edge (all DDD services) | Self-signed **admin** JWT issued+validated at the edge |
+### Worktree: `order`
+- **Branch:** `fix/order`
+- **Path:** `../litemall-wt/order`
+- **Scope:** `litemall-order/` (primary). This task also DELETES the `litemall-wallet-service/` module and edits the root `pom.xml` to drop it from the reactor — both in-scope. Do NOT edit `litemall-gateway-admin/`, `litemall-gateway-api/`, or the SPAs to compensate for a backend gap; the gateway route that currently points at `litemall-wallet` (8086) becoming an order route is a follow-up for the `gateway-admin` worktree — note it, don't do it here.
+- **Task A — settle the goods-data acquisition strategy for order placement (Feign vs event-driven), then make placing an order actually use it.** Order already carries a synchronous Feign path: `infrastructure/services/feignclients/GoodsServiceFeignClient` (single + `batch` fetch + `reduceStock`/`batch-reduce`) behind the `infrastructure/services/acl/facades/LitemallGoodsFacade` ACL, mapping to the `domain/model/agregates/goods/**` aggregates. There is no broker-based goods read path today.
+  - **Write the decision down first** (a short ADR comment on the facade or a `docs/` note committed in the worktree). Guidance: the checkout-critical reads — current price, in-stock validation, and the **stock decrement** — need an immediate, consistent answer and a transactional reserve-at-checkout, which a request/response call (Feign) serves and an async broker does not. An event-driven/broker read-model fits a *denormalized goods snapshot* for browsing, not the reserve-stock step. Default recommendation: **synchronous Feign for the order-placement path** (price/stock/reduce), with a broker considered only later for a cached catalog projection. If the worktree's analysis genuinely favors event-driven for placement, document why and exactly how stock consistency is preserved.
+  - **Implement the chosen path end-to-end in `handleOrderCreation`:** when an order is placed, resolve each cart line's goods/product through `LitemallGoodsFacade` (price + stock validation), reserve/reduce stock via the facade, and fail the placement cleanly (domain exception, no partial stock decrement) if any line is unavailable. The orchestrator goes through the ACL facade, never calling the Feign client from domain code.
+  - **Make it resilient:** timeouts + a circuit-breaker/fallback on the Feign client (it has none today), and a clear failure surfaced when goods-service is down — an order must not be created against unvalidated stock.
+  - **Prune the loser.** If Feign wins, remove any half-built broker goods-read scaffolding; if a broker wins, the redundant Feign read path goes. Exactly one strategy survives for the placement path, documented.
+- **Task B — absorb `litemall-wallet-service` into `litemall-order` as a `wallet` vertical that mirrors the groupon/coupon/cart verticals, then delete the module.** `PaymentMethod.WALLET` already exists in `domain/model/valueobjects/enums/payment/PaymentMethod.java` (and `isDigitalWallet()` includes it) but nothing debits a wallet today. `litemall-wallet-service` is a full DDD slice under `...litemall/wallet/` (aggregates `LitemallWalletAggregate`/`LitemallBillAggregate`/`LitemallExtractAggregate`/`LitemallRechargeAggregate`, VO `LitemallMoney` + enums + wallet IDs, credit/debit/recharge/extract commands, `LitemallWalletRepository`(+impl) and siblings, `domain/service/wallet/LitemallWalletDomainService`, `domain/events/wallet/**`, `interfaces/rest/LitemallWalletRestController` + `interfaces/dtos/wallet/**`).
+  - **Relocate into the order packages, mirroring groupon exactly:** aggregates → `order/domain/model/agregates/` (keep the existing `agregates` spelling to match the module — the typo fix is out of scope here), wallet VOs → `order/domain/model/valueobjects/wallet/` (+ `LitemallMoney`/enums), commands → `order/domain/model/commands/wallet/` (parallel to `commands/payment/`), repositories + impls → `order/domain/model/repositories/` + `order/infrastructure/repositories/impl/`, domain service → `order/domain/service/wallet/` (parallel to `domain/service/groupon/`), events → `order/domain/events/wallet/`, exceptions → `order/application/util/exception/wallet/`, DTOs → `order/interfaces/dtos/wallet/`, controller → `order/interfaces/rest/`. Repackage every moved file to `...litemall.order.*` and fix imports.
+  - **Reconcile duplicates — do NOT create a second copy.** Order already has `ApiResponse`, `utils/UserContext*`, `UserServiceFeignClient`, a `LitemallUserAggregate`/`LitemallUserId`, and a Spring domain-event publisher; the wallet module ships its own. Reuse order's and delete the wallet copies. Where the wallet aggregate referenced its own `user` aggregate/IDs, repoint at order's.
+  - **Wire wallet into the payment-method selection through the same DDD path as groupon.** When `PaymentMethod.WALLET` is selected, the order payment flow (`handlePaymentAction`/post-payment in `LitemallOrderOrchestratorService`) must go aggregate → `LitemallWalletDomainService` (debit via `LitemallWalletDebitCommand`, raising `LitemallWalletDebitedEvent`) → repository, exactly as groupon participation flows through the groupon service. Insufficient balance surfaces `LitemallInsufficientBalanceException` and fails the payment without creating a paid order.
+  - **Keep wallet self-service reachable.** The recharge/extract/balance/bill operations (the old `LitemallWalletRestController`) now live on the order service under a wallet route. Note any gateway route change as a `gateway-admin` follow-up.
+  - **Delete `litemall-wallet-service`.** Remove the module directory and its entry from the root `pom.xml` reactor once order compiles with the wallet vertical in place. Any other module that imported `litemall.wallet` is raised as a follow-up rather than silently broken.
+- **Acceptance:**
+  - `mvn -q -o -pl litemall-order -am compile` clean; the root build no longer references `litemall-wallet-service`.
+  - The goods-acquisition decision (Feign vs broker) is recorded in the worktree, and placing an order validates price/stock and reserves stock through `LitemallGoodsFacade`; a goods-service outage fails placement cleanly (no order created, no stock decremented) rather than creating an unvalidated order.
+  - The Feign client (if it survives) has timeouts + a circuit-breaker/fallback; domain code never imports the Feign client directly (only the ACL facade).
+  - `find litemall-order/src/main/java -path '*service/wallet*' -name 'LitemallWalletDomainService.java'` exists, and the wallet aggregates/VOs/commands/events/DTOs live under `...litemall.order.*` packages mirroring groupon.
+  - Selecting `PaymentMethod.WALLET` debits the wallet through `LitemallWalletDomainService` (emitting `LitemallWalletDebitedEvent`) on the order's payment path; insufficient balance raises `LitemallInsufficientBalanceException` and produces no paid order.
+  - Exactly one `ApiResponse`, one `UserContext*`, one `LitemallUserAggregate`/`LitemallUserId`, and one domain-event publisher exist under `litemall-order/` (wallet duplicates reconciled, not copied).
+  - `litemall-wallet-service/` is deleted and removed from the root `pom.xml`; `grep -rn "litemall\.wallet\." -- $(git rev-parse --show-toplevel)` returns nothing outside `litemall-order` (any external importer raised as a follow-up, not left broken).
 
-Service-to-service: OAuth2 **client-credentials machine token** from a new
-`litemall-authserver`; DDD services become resource servers validating that
-machine token; end-user identity forwarded as trusted headers. Customer/admin
-edge tokens are **never relayed downstream**.
+### Worktree: `gateway-admin`
+- **Branch:** `fix/gateway-admin`
+- **Path:** `../litemall-wt/gateway-admin`
+- **Scope:** `litemall-gateway-admin/` only (gateway + admin SPA). Do NOT edit other modules. The order-statistics REST endpoint in `litemall-order`/`litemall-admin-api` is OUT of scope — if it's missing, target the agreed route and raise it as a follow-up for the `order` worktree; never add backend stat logic here.
+- **Cross-cutting rule — every new admin call runs as an authenticated admin.** The admin SPA must reach backend data with the **admin JWT** (Bearer) it already obtains via the edge `auth/AuthController`, relayed downstream by `machine/MachineTokenRelayFilter` (validated by `litemall-svcsecurity`), with the ADMIN gate enforced and the view behind `shared/auth/private-route.tsx`. Migrate OFF the legacy scheme still in the slices: `sessionStorage 'adminToken'` + the `X-Litemall-Admin-Token` header + the hardcoded `config/api.ts` `ADMIN_URL_CONTEXT = 'http://localhost:9000/'` (see `adminOrderSlice.ts`). No anonymous fetch; no hardcoded `localhost:9000`.
+- **Task A — admin index page = inline goods LIST (not cards) with stock/sold markers + per-item detail.** `litemall-admin/views/adminViews/adminModule/Goods/AdminGoodsList.tsx` is a stub today (everything commented, returns `<></>`); the RTK-Query service `shared/reducers/private/services/admingoodsrv/adminGoodsApi.ts` + `catalogMgn/adminGoodsSlice.ts` are scaffolded for it.
+  - Render the admin landing/index as an **inline list** (table/list rows — thumbnail, name, price, sold, stock, status marker — NOT the `Card*` grid under `components/userComponents/card/**`). Reuse the pagination state already in the stub (`page/limit/sort/order`).
+  - **Colored markers per row**, driven by data the model already carries: `IGood.status` (`shared/model/enumerations/product-status.model.ts`: `ONSALE`/`LOCKED`/`OOUTOFSTOCK`/`INREPLENISHMENT`) → e.g. green = on sale, red = out of stock, amber = in replenishment, grey = locked; a **low-stock** amber badge when summed SKU stock (`ProductList.number`) drops below a small configurable threshold; and a **sold** signal from `IGood.salesQuantity` (e.g. a "sold N" pill, highlighted when high). Define a clear legend and keep it consistent.
+  - **Per-item details:** each row links to the existing `Goods/GoodsDetail/GoodsDetail.tsx` (via `catalogMgn/adminGoodsDetailSlice.ts`) showing full product info — gallery, specs, price, stock, status. Route e.g. `/admin/goods/:id` behind `private-route`.
+  - Data comes from goods-management **through the gateway as authenticated admin** (cross-cutting rule above), not the legacy admin-token path.
+- **Task B — order statistics dashboard sourced from the Order module, as authenticated admin.** `litemall-admin/views/adminViews/adminModule/Dashboard/Dashboard.tsx` renders **hardcoded mock** goods/chart data today; `catalogMgn/adminStateSlice.ts` already models the real shape (`RowOrder { day, orders, customers, amount, pcr }`, `RowGoods`, `RowUser`, `{ columns, rows }`).
+  - Replace the mock with real **order statistics fetched from `litemall-order`** (orders count, customers, revenue/amount, per-day trend) through the gateway, wiring `adminStateSlice`'s thunk to the order-stats route. Render with the already-imported chart.js / `react-chartjs-2` (orders & amount over time) plus a summary table.
+  - The fetch MUST be authenticated admin (Bearer admin JWT → machine-token relay → order service validates via `litemall-svcsecurity`, ADMIN role required); the dashboard route sits behind `private-route`. An unauthenticated or non-admin user gets no stats.
+  - **Dependency:** the order-statistics endpoint itself lives in the order service — if it doesn't exist yet, target the agreed path (e.g. `/srv/order/admin/stat/...`) and raise a follow-up for the `order` worktree; do not add stat computation in gateway-admin.
+- **Acceptance:**
+  - The admin SPA in `litemall-gateway-admin` builds (the goods-list + dashboard views type-check and render).
+  - The admin index shows goods as an inline list (no card grid); each row carries a colored status marker, a low-stock badge below threshold, and a sold-quantity signal — all derived from `IGood.status`/`salesQuantity` and SKU `number`, none hardcoded.
+  - Clicking a row opens the goods detail view with full product info, fetched per id.
+  - The dashboard shows real order statistics from the Order module (no mock arrays), charted over time, with totals for orders/customers/amount.
+  - Every goods-list and dashboard request carries the admin JWT and is relayed downstream by `MachineTokenRelayFilter`; `grep -rn "X-Litemall-Admin-Token\|ADMIN_URL_CONTEXT\|adminToken" litemall-gateway-admin/src/main/webapp/app` returns nothing (legacy admin-token scheme + hardcoded host removed). The views sit behind `private-route` and return no data when unauthenticated/non-admin.
+  - No backend stat logic added under `litemall-gateway-admin`; any missing order-stats endpoint is recorded as an `order`-worktree follow-up.
 
-## Locked decisions (do not relitigate)
-
-- **No Keycloak.** Both gateways mint/validate their own RS256 JWT at the edge.
-- Service-to-service = dedicated `litemall-authserver` (Spring Authorization
-  Server, client-credentials only, RS256+JWKS). DDD services validate it.
-- Admin gateway = rename of existing `litemall-gateway` (done, Phase 3a).
-- wx-api moved 8082 → **8084** (8083 = admin-api, 8082 = goods-management).
-- `litemall-all-react-war` is retired in Phase 5.
-- Customer edge is self-contained: depends on `litemall-db`, verifies
-  credentials directly against `LitemallUser` (BCrypt), persists V15 refresh
-  tokens itself; blocking MyBatis on a `boundedElastic` scheduler.
-- Two separate Redux stores, no shared auth slice; shared FE via npm workspace.
-- Customer SPA keeps the litemall `{errno,errmsg,data}` envelope.
-- **Process:** written, approved plan before large/architectural code; surface
-  genuine forks via questions first.
-
-### Critical gotcha — DO NOT VIOLATE
-
-`litemall-core` pulls `spring-boot-starter-web` (servlet MVC) →
-**incompatible with reactive Spring Cloud Gateway**. The shared JWT toolkit
-lives in **`litemall-db`** (`org.linlinjava.litemall.db.auth`), the lowest
-servlet-free shared module. Gateways depend on `litemall-db` and scan
-`org.linlinjava.litemall.db` — **never introduce `litemall-core` into either
-gateway.**
-
-## Phase status (at base-branch creation)
-
-| Phase | Status |
-|---|---|
-| 0 — JWT toolkit (in litemall-db) | ✅ DONE, compiles |
-| 1 — wx-api port → 8084 | ✅ DONE |
-| 2 — Customer auth @ gateway-api | ✅ DONE, compiles |
-| 3a — Rename gateway → gateway-admin | ✅ DONE |
-| 3b — Strip Keycloak/OIDC from gateway-admin | ⏳ worktree `phase-3b` |
-| 3c — Admin self-JWT @ gateway-admin | ⏳ worktree `phase-3c` |
-| 3d — V16 admin refresh table | ⏳ worktree `phase-3d` |
-| 4 — authserver + resource servers | ⏳ worktree `phase-4` |
-| 5 — Frontend split, retire all-react-war | ⏳ worktree `phase-5` |
-| 6 — Integration verification | ⏳ on base branch after merges |
-
-## Build / verify commands
-
-- Compile a module offline: `mvn -q -o -pl <module> -am compile`
-- Validate a module: `mvn -q -o -pl <module> validate`
-- Offline-verified so far: `litemall-db`, `litemall-gateway-api` (+deps).
-- `litemall-gateway-admin` full offline compile may fail until Phase 3b
-  removes keycloak/resteasy deps — environmental, not a correctness signal.
-
-## Port map
-
-`8080` gateway-admin · `8081` recover-compose svc · `8082` goods-management ·
-`8083` admin-api · **`8084` wx-api** · `8085` order · `8086` wallet ·
-`8087` loyalty · `8088` promotion · `8090` gateway-api · `8761` eureka ·
-`8888` config · authserver = TBD (pick free, e.g. 8089/8091).
-
-## Worktree layout
-
-| Branch | Worktree dir | Phase |
-|---|---|---|
-| `refactor/dual-gateway-base` | (this repo) | base / Phase 6 |
-| `refactor/phase-3b-strip-keycloak` | `../litemall-wt/phase-3b` | 3b |
-| `refactor/phase-3c-admin-jwt` | `../litemall-wt/phase-3c` | 3c |
-| `refactor/phase-3d-admin-refresh` | `../litemall-wt/phase-3d` | 3d |
-| `refactor/phase-4-authserver` | `../litemall-wt/phase-4` | 4 |
-| `refactor/phase-5-frontend-split` | `../litemall-wt/phase-5` | 5 |
-
-> 3b → 3c → 3d → 4 are **sequential** and touch overlapping `gateway-admin`
-> files. Worktrees are isolation sandboxes for per-phase work, not a
-> safe parallel-merge strategy — merge 3b before building 3c on top, etc.
-
-## Memory pointers
-
-`~/.claude/projects/-home-bimeni-shopping-apps-litemall-app-litemall/memory/`
-- `project_frontend_split_auth.md` — full locked architecture + live progress.
-- `feedback_plan_before_code.md` — plan-before-code preference.
+### Worktree: `gateway-api`
+- **Branch:** `fix/gateway-api`
+- **Path:** `../litemall-wt/gateway-api`
+- **Scope:** `litemall-gateway-api/` only (customer gateway + customer SPA). Do NOT edit other modules. Two backends these features consume are OUT of scope here — the OCS faceted-search endpoint lives in `litemall-goods-management` and the order/cart endpoints in `litemall-order`; if a needed field/endpoint is missing, target the agreed route and raise it as a follow-up for that worktree.
+- **Prerequisites (verify/finish first; some may already be done from earlier phases).** The features below need: customer routes through the gateway (`/srv/catalog/**`, `/srv/goods/**`, `/srv/search/**`, `/srv/order/**`, `/srv/cart/**` → `lb://` services on 8090), the customer `/auth/**` edge sign-in (issuer `litemall-customer`), and the machine-token relay firing on every `lb://` route; the webpack dev-server proxying `/srv` + `/auth` to **8090** (not 8080); and the Phase-5 git drift under `src/main/webapp/app/` reconciled (no path both staged-deleted and untracked). `BASE_URL_CONTEXT='/srv'` is already correct (relative, no hardcoded host) — keep it.
+- **Task A — customer home page: keep the current design, make it BUG-FREE.** `modules/home/Home.tsx` already lays out the hero banner, "deals", hot/new products, categories, and coupons; keep that layout, fix what breaks it at runtime:
+  - Null-safety: `entities?.banner.slice(...)`, `entities?.couponList.slice(...)`, and `dataCategoryIndex.categoryList.slice(...)` throw when the inner field is undefined — guard every list before `.slice`/`.map` (`(entities?.banner ?? []).slice(...)`).
+  - Stable React keys: replace `key={idx}`/`key={index}` with stable ids (`product.id`, `category.id`, `banner.id`) to stop mis-render/duplicate-key bugs.
+  - Price shape: goods-management returns prices as `LitemallMoney {amount}` while the model types them as `number` — read the numeric value defensively (a `priceNum()`-style helper) so JSX never receives an object.
+  - Remove the dead `modules/home/Home1.tsx` duplicate; ensure `homeSlice`/`getHomeData` + category data actually populate deals/hot/new/banner from live backend data (no blank sections).
+- **Task B — clicking a category / "hot deals" navigates to a product page with an OCS faceted-search sidebar.** Today `modules/product/List.tsx` + `productSlice` fetch a flat SQL list (`/srv/goods/list`) with no facets. Build the search/listing experience:
+  - From the home hot-deals/category tiles, route to the product listing page carrying the category (e.g. `/products?category=<id>` or `/search?q=...`).
+  - Render a **left sidebar of OCS facets**: category facet, brand facet, a price **range** control, and any other facets the search endpoint returns — multi-select, with active-filter chips and clear-all. The result list updates as facets change; support paging.
+  - Drive it from the OCS search endpoint `GET /srv/search?q=&category=&brand=&minPrice=&maxPrice=&page=&size=` (the goods-management worktree's OCS work), mapping results to the existing product-card/list shape and the returned facet buckets to the sidebar. A suggest-as-you-type box may use `/srv/search/suggest`.
+  - **Dependency:** the facet payload must be surfaced by the goods-management `/srv/search` response (its `SearchService` currently drops the OCS facet buckets) — if absent, raise a follow-up for `goods-management` and code the sidebar against the agreed facet shape. No SQL-only fallback for the faceted path.
+- **Task C — customer order-placement / checkout UI, end-to-end.** The cart UI exists (`views/commonViews/cart/Cart.tsx`, `FloatingCartSidebar.tsx`, `SideCartSummary.tsx`, `Checkout.tsx` + `shared/reducers/cartSlice`) but checkout is not wired to the order backend (`Checkout.tsx` `handleSubmit` is a stub; `handleKommuneChange` wrongly sets `region`). Implement the full placement flow triggered when the customer clicks checkout:
+  - Cart review → shipping address → **payment-method selection** (cards/Stripe already stubbed via `StripePaymentComponent`, plus the digital **wallet** option the `order` worktree is wiring) → place order → order confirmation, with loading/error states and an empty-cart guard.
+  - All cart + order calls go through the gateway as an **authenticated customer** (customer JWT from `/auth`, relayed downstream), against the order service's cart + order endpoints (`/srv/cart/**`, `/srv/order/**`). On success, route to a confirmation / `Orders` view; on failure (stock/payment), surface the domain error without leaving a half-placed order.
+  - Fix the checkout form bugs (the `kommune` handler, validation) and make `cartSlice` the single source of truth for the line items the order submit sends.
+  - **Dependency:** the cart/order REST contract is owned by the `order` worktree (`LitemallOrderRestController` + the new cart controller); consume it and raise any missing verb as a follow-up there. Do not add order business logic in the SPA.
+- **Acceptance:**
+  - The customer SPA builds, and the dev-server (proxy → 8090) serves the home page with deals/hot/new/banner/categories populated from live backend data — no runtime null/`.slice`/key console errors, and `Home1.tsx` is gone.
+  - Clicking a home hot-deals/category tile navigates to the product page; the left sidebar shows OCS facets (category, brand, price range) that filter the result list via `/srv/search`, with active-filter chips and paging. No SQL-only path for the faceted view.
+  - From the cart, clicking checkout walks address → payment method (incl. wallet) → place order → confirmation, authenticated as a customer; a stock/payment failure shows the error and creates no half-placed order.
+  - `grep -rn "ADMIN_URL_CONTEXT\|litemall-admin\|adminLayouts\|X-Litemall-Admin-Token" litemall-gateway-api/src/main/webapp/app` returns nothing; `BASE_URL_CONTEXT` stays `'/srv'`; webpack dev proxy targets read 8090.
+  - `git status` under `litemall-gateway-api/src/main/webapp/app/` is coherent (no path both staged-deletion and untracked).
+  - Backend gaps (OCS facet payload, cart/order verbs) are recorded as follow-ups for `goods-management`/`order`; no cross-module edits made from this worktree.

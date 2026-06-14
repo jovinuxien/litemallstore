@@ -26,28 +26,15 @@
 
 	<dependencies>
 
-		<!--<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-core</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>-->
-
-		<!--<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-db</artifactId>
-			<version>${litemall.version}</version>
-		</dependency>-->
-
-	<!--	<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-wx-api</artifactId>
-		</dependency>-->
-
-		<!--<dependency>
-			<groupId>org.linlinjava</groupId>
-			<artifactId>litemall-admin-api</artifactId>
-		</dependency>-->
-
+		<!--
+		  DO NOT add litemall-core, litemall-wx-api or litemall-admin-api here.
+		  Critical-Gotcha (CLAUDE.md): litemall-core pulls spring-boot-starter-web
+		  (servlet MVC), and wx-api/admin-api are servlet MVC apps — all three are
+		  incompatible with the reactive Spring Cloud Gateway and would drag servlet
+		  starters in transitively. The only shared module allowed is litemall-db
+		  (servlet-free: admin store + V16 refresh + edge JWT toolkit), declared below.
+		  admin-api/wx-api are reached over HTTP via lb:// routes, never as deps.
+		-->
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

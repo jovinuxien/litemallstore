@@ -1,12 +1,24 @@
+# ===========================================================================
+# litemall-gateway-admin — admin edge routing.
+#
+# Routing contract (see ROUTING.md). Downstream services MUST conform; this
+# gateway does not depend on their internals:
+#   /admin/**          -> lb://litemall-admin-api        (ADMIN)
+#   /srv/order/**      -> lb://litemall-order
+#   /srv/wallet/**     -> lb://litemall-wallet-service
+#   /srv/loyalty/**    -> lb://litemall-loyalty-service
+#   /srv/promotion/**  -> lb://litemall-promotion-service
+#   /srv/**            -> lb://litemall-goods-management  (catch-all, LAST)
+# No StripPrefix: the full path reaches the service, which owns its
+# /srv/<svc>/** namespace. Every route uses the lb:// scheme so the global
+# MachineTokenRelayFilter (Bearer machine token) and IdentityForwardingFilter
+# (X-User-*) fire automatically — no per-route filter wiring needed.
+# ===========================================================================
 spring:
   application:
-    name: gateway
+    name: gateway-admin
   main:
     allow-bean-definition-overriding: true
-
-  config:
-    activate:
-      on-profile: dev
   cloud:
     config:
       uri: http://configserver:8888
@@ -17,15 +29,16 @@ spring:
     gateway:
       discovery:
         locator:
-          enabled: true
-          lower-case-service-id: true
-
+          # Explicit routes only — no auto-routing, so the contract above is
+          # the single source of truth (auto-routes would bypass the prefix
+          # convention and the SecurityConfig path rules).
+          enabled: false
       globalcors:
         corsConfigurations:
           '[/**]':
             allowedOrigins:
-               - "http://localhost:9000" #Allow the origin of your request
-               - "http://127.0.0.1:9000"
+              - "http://localhost:9000"
+              - "http://127.0.0.1:9000"
             allowedMethods:
               - GET
               - POST
@@ -37,50 +50,71 @@ spring:
             allowCredentials: true
             maxAge: "3600"
       routes:
+        # --- Admin API (servlet MVC service) ---------------------------------
+        - id: admin-api
+          uri: lb://litemall-admin-api
+          predicates:
+            - Path=/admin/**
+        # --- Per-service DDD routes (specific prefixes BEFORE the catch-all) --
+        - id: order-service
+          uri: lb://litemall-order
+          predicates:
+            - Path=/srv/order/**
+        - id: wallet-service
+          uri: lb://litemall-wallet-service
+          predicates:
+            - Path=/srv/wallet/**
+        - id: loyalty-service
+          uri: lb://litemall-loyalty-service
+          predicates:
+            - Path=/srv/loyalty/**
+        - id: promotion-service
+          uri: lb://litemall-promotion-service
+          predicates:
+            - Path=/srv/promotion/**
+        # --- Goods management: owns the remaining /srv namespace (LAST) ------
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
             - Path=/srv/**
-          filters:
-            # TokenRelay removed (Phase 3b): no OAuth2 client. The Phase 4
-            # service machine-token filter replaces it.
-            - name: CircuitBreaker
-              args:
-                name: goodsService
-                fallbackUri: forward:/fallback/goods
-        - id: frontend
-          #uri: forward:/index.html  # Serves React app
-          uri: http://localhost:9000 # Proxy to webpack dev server
-          predicates:
-            - Path=/**
-          filters:
-            # TokenRelay removed (Phase 3b): no OAuth2 client.
-            - StripPrefix=1
-
-
-#jhipster:
-#  application:
-#    name: gateway
-#  security:
-#    oauth2:
-#      audience:
-#        - account
-#        - api://default
-
 
 server:
   port: 8080
 
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.web.reactive: DEBUG
-
 eureka:
   instance:
-    hostname: localhost
+    preferIpAddress: true
   client:
     registerWithEureka: true
     fetchRegistry: true
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.web.reactive: DEBUG
+    org.springframework.web.security: DEBUG
+
+---
+# ===========================================================================
+# dev profile — the admin SPA runs on the webpack dev server (port 9000);
+# the gateway proxies everything not matched above to it.
+# ===========================================================================
+spring:
+  config:
+    activate:
+      on-profile: dev
+  cloud:
+    gateway:
+      routes:
+        - id: frontend-dev
+          uri: http://localhost:9000   # webpack dev server
+          predicates:
+            - Path=/**
+          # No StripPrefix: asset paths must reach the dev server unchanged.
+
+# In the default / prod profiles there is intentionally NO frontend route.
+# The built SPA (classpath:/static, produced by frontend-maven-plugin) is
+# served by WebFlux static-resource handling, and SpaWebFilter (registered
+# only when NOT dev) rewrites client-side routes to /index.html.
