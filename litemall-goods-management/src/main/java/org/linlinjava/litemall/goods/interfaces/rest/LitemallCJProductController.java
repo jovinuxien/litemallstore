@@ -65,18 +65,20 @@ public class LitemallCJProductController {
 
 
 
+    /**
+     * Raw CJ product detail by UUID {@code pid} (CJ pids are UUID Strings, never longs). The
+     * customer detail page is served by {@code GET /srv/goods/detail?id=cj_<pid>}; this endpoint
+     * exposes the unmapped CJ payload for debugging/admin inspection.
+     */
     @GetMapping("/productCJDetail")
-    public Object getProductDetail(@RequestParam long productId){
-
-        /*CJProductDetailResponse productDetailResponse = productService.fetchProductById(productId);
+    public Object getProductDetail(@RequestParam String pid){
+        var detail = productService.getProductDetail(pid);
+        if (detail == null) {
+            return ResponseUtil.badArgumentValue();
+        }
         Map<String, Object> data = new HashMap<>();
-        data.put("code", productDetailResponse.getCode());
-        data.put("result", productDetailResponse.isResult());
-        data.put("message", productDetailResponse.getMessage());
-        data.put("data", productDetailResponse.getData());*/
-
-        //return ResponseUtil.ok(data);
-        return ResponseUtil.ok();
+        data.put("data", detail);
+        return ResponseUtil.ok(data);
     }
 
     @GetMapping("/cjCategoryList")

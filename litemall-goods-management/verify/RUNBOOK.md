@@ -215,3 +215,120 @@ calls for that target alone.
 inventory (still `default-stock`); CJ order placement (lives in `litemall-order`).
 
 `mvn -o -pl litemall-goods-management -am compile` clean.
+
+---
+
+## §11 — CJ Dropshipping product detail on `/srv/goods/detail` (2026-06-14)
+
+**Bug (confirmed at runtime, before fix).** Clicking a CJ search hit could not open a detail page:
+- `GET /srv/goods/detail` bound `@NotNull Integer id` → a `cj_<uuid>` id failed Spring type
+  conversion before any handler logic (HTTP 400). CJ products are OCS-only (index-only ADR, no
+  `litemall_goods` row), so the DB aggregation could never serve them anyway.
+- `GET /srv/cjAuth/productCJDetail` was a dead stub: `@RequestParam long productId` (a CJ pid is a
+  UUID, not a long) with its whole body commented out → always returned `ok()` with no data.
+- `CJProductClient` had **no** product-detail method; the detail URL + `CJProductDetailResponse`
+  /`CJProductDetailData` DTOs existed but nothing called them.
+
+**Fix (this branch, all in `litemall-goods-management`).**
+- `CJProductClient.getProductDetail(String pid)` → CJ "Query Product", config-driven URL
+  `spring.cjdropship.api.product.product-detail-url` + `?pid=<uuid>`, token-auth, same
+  `makeGetRequest` path as the list call. URL value corrected to `.../api2.0/v1/product/query`.
+- `CJProductService.getProductDetail(String pid)` → 1h per-pid memo cache (CJ quota is tight),
+  returns `null` on not-found.
+- `CJProductDetailData.variants` retyped to `List<CJProductVariantData>` (`@JsonProperty("variants")`)
+  — CJ returns an array, the old single-object field was wrong.
+- `CjGoodsDetailService.detail(cj_<pid>)` maps the CJ detail into the SAME key shape the local
+  detail returns (`info / productList / specificationList / attribute / brand / issue / comment /
+  groupon / share / shareImage`). Pricing mirrors the indexing path: retail = sellPrice(USD) ×
+  usd-to-cny × margin (CNY) — never raw wholesale. CJ-absent sections come back empty/zero.
+- `LitemallGoodsController.privateGoodsDetails` now takes `@NotBlank String id`: `cj_`-prefixed →
+  `CjGoodsDetailService`; otherwise `Integer.valueOf` → unchanged local aggregation
+  (backward-compatible with numeric ids the SPA already sends).
+- `LitemallCJProductController.getProductDetail(@RequestParam String pid)` returns the raw CJ
+  detail (debug/admin), no longer a dead stub.
+
+**Manual verification (live CJ + OCS, paced — CJ detail is 1 req then cached).**
+1. Boot goods-management (§6 boot) with `enabled: true`; ensure CJ docs are indexed (§10).
+2. `GET /srv/search?q=<a CJ term>` → note a hit whose `id` starts `cj_`.
+3. `GET /srv/goods/detail?id=cj_<pid>` → expect `data.info.id = cj_<pid>`, `info.name` = English
+   title, `info.retailPrice` = marked-up price (not raw wholesale), `productList[*]` one row per
+   CJ variant, `info.source = cj_dropshipping`. Capture request/response here:
+
+```
+$ curl -s 'http://localhost:8082/srv/goods/detail?id=cj_<pid>' | jq '.data.info'
+   <PASTE LIVE RESPONSE>
+```
+4. `GET /srv/goods/detail?id=1006002` (a local id) → still returns the local aggregation unchanged.
+
+> **Live capture PENDING a booted stack.** Compile is green; the live CJ detail request/response
+> capture (steps 3) must be pasted above on the next run of the OCS+CJ+MySQL stack — the CJ API is
+> rate-limited (1/300s) and needs real network + key, so it is not exercised in CI.
+
+`mvn -o -pl litemall-goods-management -am compile` clean.
+
+---
+
+## §12 — Goods-domain admin operations on goods-management, ROLE_ADMIN-gated (2026-06-14)
+
+**Goal.** Host the goods-domain admin CRUD on this service (not litemall-admin-api), protected by
+the admin account. Scope (agreed): **Goods, Category, Brand, Keyword, Comment, Issue, Storage**.
+Other admin domains (order/coupon/groupon/user/wallet/region/role/config/stat) stay in their own
+worktrees. `litemall-admin-api` is **left untouched** — these are ported copies.
+
+**Enforcement (no new security code).** All ported controllers mount under `/srv/private/admin/**`,
+which `litemall-svcsecurity` already gates: `requestMatchers(adminPaths).hasAuthority("ROLE_ADMIN")`
+where `adminPaths` defaults to `/srv/private/admin/**`. The gateway-admin edge validates the admin
+JWT and forwards `X-User-Id` + `X-User-Roles: ROLE_ADMIN` behind the machine token;
+`MachineTokenUserContextFilter` promotes those to the security context. This is the SAME mechanism
+that already protects `POST /srv/private/admin/search/reindex` — so no per-method `@PreAuthorize`
+(which is currently inert here: `@EnableMethodSecurity` is off) and no verify-profile breakage.
+
+**Path map (admin-api → goods-management).**
+
+| Operation            | admin-api route       | goods-management route                 |
+|----------------------|-----------------------|----------------------------------------|
+| Goods CRUD/detail    | `/admin/goods/**`     | `/srv/private/admin/goods/**`          |
+| Category CRUD/tree   | `/admin/category/**`  | `/srv/private/admin/category/**`       |
+| Brand CRUD           | `/admin/brand/**`     | `/srv/private/admin/brand/**`          |
+| Keyword CRUD         | `/admin/keyword/**`   | `/srv/private/admin/keyword/**`        |
+| Comment moderation   | `/admin/comment/**`   | `/srv/private/admin/comment/**`        |
+| Issue (FAQ) CRUD     | `/admin/issue/**`     | `/srv/private/admin/issue/**`          |
+| Storage upload/list  | `/admin/storage/**`   | `/srv/private/admin/storage/**`        |
+
+**Port mechanics (verbatim, db-service-backed — not a DDD rewrite).**
+- Controllers → `...goods.interfaces.rest.admin`; service `AdminGoodsService` →
+  `...goods.application.goods.admin`; `GoodsAllinone` → `...interfaces.rest.admin.dto`;
+  `CatVo`/`CategoryVo` → `...interfaces.rest.admin.vo`.
+- `@RequiresPermissionsDesc` (admin-api Shiro menu-scan) dropped; `javax.validation` → `jakarta.validation`;
+  `GOODS_NAME_EXIST` (611) inlined. db services (`LitemallGoods/Category/Brand/Keyword/Comment/Issue/Storage
+  Service`), core `QCodeService`/`StorageService`/`ResponseUtil`/validators all already on this module's
+  classpath (litemall-db + litemall-core).
+- Storage: added `litemall.storage.active=local` (+ path/address) to `application.yml` so the core
+  `StorageService` bean resolves standalone (the core `StorageAutoConfiguration` is component-scanned
+  here and NPEs without `active`).
+
+**Manual verification.**
+1. Boot goods-management behind gateway-admin (or with the `verify` profile for unauthenticated local
+   testing — VerifySecurityConfig permits all).
+2. Real-deployment auth check (no `@EnableMethodSecurity` needed — URL matcher is load-bearing):
+   - No machine token / no `ROLE_ADMIN` → `GET /srv/private/admin/goods/list` returns **401/403**.
+   - With machine token + `X-User-Roles: ROLE_ADMIN` (as gateway-admin forwards) → **200** with the
+     goods page. Capture:
+```
+$ curl -s -H 'Authorization: Bearer <machine-jwt>' -H 'X-User-Id: 1' -H 'X-User-Roles: ROLE_ADMIN' \
+       'http://localhost:8082/srv/private/admin/goods/list?page=1&limit=10' | jq '.errno, (.data.total)'
+   <PASTE LIVE RESPONSE>
+```
+3. Smoke each surface: `…/category/list`, `…/brand/list`, `…/keyword/list`, `…/comment/list`,
+   `…/issue/list`, `…/storage/list`, and `…/goods/catAndBrand`.
+
+> **Live capture PENDING a booted stack** (same reason as §11). Compile is green.
+
+**Follow-ups (NOT done here, by scope).**
+- `gateway-admin` worktree: re-point `/admin/{goods,category,brand,keyword,comment,issue,storage}/**`
+  to `lb://litemall-goods-management` `/srv/private/admin/**` (today the admin SPA still hits admin-api).
+- Storage file-*serving* (`address` fetch URL) wiring through the admin gateway.
+- Optional: delete the now-duplicated goods-domain controllers from `litemall-admin-api` once the
+  gateway re-route lands.
+
+`mvn -o -pl litemall-goods-management -am compile` clean.

@@ -7,6 +7,8 @@ import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.utils.CjDropshippingApiUtils;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
@@ -36,6 +38,11 @@ public class CJProductService {
     private CJCategoryDataResponse cachedCategories;
     private long lastProductFetchTime = 0;
     private long lastCategoryFetchTime = 0;
+    // Per-pid detail cache (1h TTL): the detail page is requested on demand and CJ's
+    // quota is tight, so we memoize each product/query response rather than re-fetching.
+    private final java.util.Map<String, CachedDetail> detailCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record CachedDetail(CJProductDetailData data, long time) {}
     // Rate limiter - 1 request per second
     private final RateLimiter rateLimiter = RateLimiter.create(1.0); // 1 request per second
     // Paced limiter for the bulk category fetch (indexing path): blocks fetch-pace-seconds between
@@ -163,6 +170,27 @@ public class CJProductService {
         return productsInCategory.stream()
                 .map(apiUtils::convertProduct)
                 .toList();
+    }
+
+    /**
+     * Fetch one CJ product's full detail by UUID {@code pid}, memoized for 1h. Returns {@code null}
+     * if CJ has no such product (so the caller can surface a clean not-found rather than throwing).
+     */
+    public CJProductDetailData getProductDetail(String pid) {
+        if (pid == null || pid.isBlank()) {
+            return null;
+        }
+        CachedDetail cached = detailCache.get(pid);
+        if (cached != null && System.currentTimeMillis() - cached.time() < 3600000) {
+            return cached.data();
+        }
+        rateLimiter.acquire();
+        CJProductDetailResponse response = productClient.getProductDetail(pid);
+        CJProductDetailData data = response != null ? response.getData() : null;
+        if (data != null) {
+            detailCache.put(pid, new CachedDetail(data, System.currentTimeMillis()));
+        }
+        return data;
     }
 
     public  List<LitemallGoodsAggregate> convertProducts(CJProductDataResponse productData) {
