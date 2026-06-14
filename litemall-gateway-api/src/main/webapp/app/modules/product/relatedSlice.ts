@@ -13,9 +13,9 @@ interface RelatedGoodsApiResult
     list: IGood[];
   }> {}
 
-export const getRelatedGoods = createAsyncThunk<RelatedGoodsApiResult['data'], number, { rejectValue: ApiResult<null> }>(
+export const getRelatedGoods = createAsyncThunk<RelatedGoodsApiResult['data'], string, { rejectValue: ApiResult<null> }>(
   'goods/related',
-  async (goodsId: number, thunkApi) => {
+  async (goodsId: string, thunkApi) => {
     try {
       const relatedGoodsUrl = BASE_URL_CONTEXT + '/goods/related?id=' + goodsId;
       const response = await baseAxios.get(relatedGoodsUrl);

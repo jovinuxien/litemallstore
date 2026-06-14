@@ -44,8 +44,12 @@ const ProductDetailView: React.FC = () => {
 
   useEffect(() => {
     if (id) {
-      dispatch(getProductDetail(Number(id)));
-      dispatch(getRelatedGoods(Number(id)));
+      // Pass the route id through verbatim — it may be a CJ id ("cj_<pid>"),
+      // not a number. Coercing with Number() turned those into NaN and fired
+      // /srv/goods/detail?id=NaN. The id is the OCS/document key the backend
+      // keys on, string or numeric.
+      dispatch(getProductDetail(id));
+      dispatch(getRelatedGoods(id));
       setQuantity(1);
     }
   }, [dispatch, id]);
