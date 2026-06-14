@@ -46,7 +46,8 @@ spring:
         category-list-_url: "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
       product:
         list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
-        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
+        # CJ "Query Product" — single-product detail by ?pid=<uuid>. Profile/config-server overridable.
+        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product/query"
       # ORDER PLACEMENT is implemented in litemall-order (the order worktree), NOT here.
       # The create-order URL belongs with that ACL; left here only as a documented pointer:
       # order:
@@ -131,6 +132,15 @@ litemall:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
     stock-low-threshold: 5
+  # Object storage for the admin image/file uploads (/srv/private/admin/storage). Local disk by
+  # default so the core StorageService bean resolves standalone; config-server / a cloud profile
+  # can override active=aliyun|tencent|qiniu. 'address' is the public URL prefix for served files
+  # (wire through the admin gateway as a follow-up).
+  storage:
+    active: local
+    local:
+      storage-path: /tmp/litemall/storage
+      address: http://localhost:8082/srv/private/admin/storage/fetch
   # OCS (Open Commerce Search) endpoints. Local-dev defaults below; for the
   # container profile (docker-compose), override to docker service names —
   # http://indexer:8535, http://searcher:8534, http://suggest:8081.

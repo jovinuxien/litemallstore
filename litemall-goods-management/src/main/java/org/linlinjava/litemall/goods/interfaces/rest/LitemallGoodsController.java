@@ -13,6 +13,7 @@ import org.linlinjava.litemall.db.service.LitemallAdService;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
+import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.ReduceStockRequest;
@@ -47,6 +48,8 @@ public class LitemallGoodsController {
     private LitemallCatalogService categoryServiceApi;
     @Autowired
     private LitemallGoodsManagementService goodsManagementService;
+    @Autowired
+    private CjGoodsDetailService cjGoodsDetailService;
 
     // Home-page marketing data sourced from litemall-db (mirrors the monolith's
     // WxHomeController): banners (ads), channels (channel categories), coupons.
@@ -226,8 +229,14 @@ public class LitemallGoodsController {
 
 
     @GetMapping("/detail")
-    public Object privateGoodsDetails(@NotNull Integer id) {
-        LitemallGoodsId goodsId = new LitemallGoodsId(id);
+    public Object privateGoodsDetails(@NotBlank String id) {
+        // CJ Dropshipping products carry a cj_<uuid> id (not numeric) and live in OCS only — they
+        // have no litemall_goods row, so the DB aggregation can't serve them. Route those to the
+        // live CJ detail fetch; everything else is a local numeric goods id.
+        if (CjGoodsDetailService.isCjId(id)) {
+            return cjGoodsDetailService.detail(id);
+        }
+        LitemallGoodsId goodsId = new LitemallGoodsId(Integer.valueOf(id.trim()));
         return goodsManagementService.goodsDetail(goodsId, executorService, HANDLER, WORK_QUEUE);
     }
 

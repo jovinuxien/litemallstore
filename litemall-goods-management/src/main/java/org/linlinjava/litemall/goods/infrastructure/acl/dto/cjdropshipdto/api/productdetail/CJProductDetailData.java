@@ -100,8 +100,9 @@ public class CJProductDetailData {
     @JsonProperty("supplierId")
     private String supplierId; // Supplier ID
 
-    @JsonProperty("productVariants")
-    private CJProductVariantData variantData; // Variant data
+    // CJ "Query Product" returns variants as an array under "variants".
+    @JsonProperty("variants")
+    private List<CJProductVariantData> variants; // Variant data
 
     @JsonProperty("createTime")
     private String createTime; // Creation time
