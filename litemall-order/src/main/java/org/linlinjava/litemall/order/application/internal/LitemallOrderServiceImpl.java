@@ -107,24 +107,22 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("Address info is required");
         }
 
-        if(command.getGrouponRulesId() == null){
-            throw  new IllegalArgumentException("The groupon is required");
-        }
-        if(command.getUserCouponId() == null){
-            throw new IllegalArgumentException("The user coupon is required");
-        }
-        if(command.getCouponId() == null){
-            throw  new IllegalArgumentException("The coupon is required");
-        }
-        if(command.getGrouponLinkId() == null){
-            throw new IllegalArgumentException("The groupon link is required");
-        }
+        // Groupon and coupon are OPTIONAL checkout selections. litemall encodes
+        // "none" as the sentinel 0 (couponId may also be -1 = none); cartId 0 means
+        // "whole checked cart". A plain order arrives with these null/0, so normalize
+        // null -> 0 here rather than rejecting it. The previous hard null-checks 500'd
+        // every order placed without a groupon AND a coupon.
+        int cartId = command.getCartId() == null ? 0 : command.getCartId();
+        int grouponLinkId = command.getGrouponLinkId() == null ? 0 : command.getGrouponLinkId();
 
         LitemallUserId cmdUserId = new LitemallUserId(command.getUserId());
         LitemallAddressId cmdAddressId = new LitemallAddressId(command.getAddressId());
-        LitemallGrouponRulesId cmdGrouponRulesId = new LitemallGrouponRulesId(command.getGrouponRulesId());
-        LitemallCouponId cmdCouponId =  new LitemallCouponId(command.getCouponId());
-        LitemallCouponUserId cmdCouponUserId = new LitemallCouponUserId(command.getUserCouponId());
+        LitemallGrouponRulesId cmdGrouponRulesId = new LitemallGrouponRulesId(
+                command.getGrouponRulesId() == null ? 0 : command.getGrouponRulesId());
+        LitemallCouponId cmdCouponId = new LitemallCouponId(
+                command.getCouponId() == null ? 0 : command.getCouponId());
+        LitemallCouponUserId cmdCouponUserId = new LitemallCouponUserId(
+                command.getUserCouponId() == null ? 0 : command.getUserCouponId());
 
 
        /* LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
@@ -133,8 +131,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("User is not found");
         }*/
 
-        // Validate and process Groupon if applicable
-        LitemallGrouponValidationResult grouponValidationResult = grouponServiceLayer.validateGrouponRules(cmdUserId.getId(), cmdGrouponRulesId.getId(), command.getGrouponLinkId());
+        // Validate the groupon rules ONLY for an actual groupon purchase. A plain
+        // order carries grouponRulesId 0, which must skip validation — otherwise
+        // validateGrouponRules throws "Groupon rules not found" for the non-existent
+        // rule 0 and fails every normal checkout. Args follow the method signature
+        // order (grouponRulesId, grouponLinkId, userId); the previous call passed
+        // them as (userId, rulesId, linkId), mis-validating every groupon order.
+        boolean grouponValid = cmdGrouponRulesId.getId() > 0
+                && grouponServiceLayer.validateGrouponRules(
+                        cmdGrouponRulesId.getId(), grouponLinkId, cmdUserId.getId()).isValid();
 
         // Get and Check the shipping address
         LitemallAddressAggregate addressAggregate = addressRepository.findAddress(cmdUserId, cmdAddressId);
@@ -142,7 +147,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         // Get the Checked cart items
         List<LitemallCartAggregate> cartList = null;
-        cartList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(command.getCartId()), cmdUserId);
+        cartList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(cartId), cmdUserId);
 
         if(cartList == null){
             return LitemallOrderSubmitResult.failed();
@@ -153,7 +158,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         // Group purchase discount
         BigDecimal grouponPrice = new BigDecimal(0);  // initialize grouponPrice is not redundant;
-        if(grouponValidationResult.isValid()) {
+        if(grouponValid) {
             grouponPrice = grouponServiceLayer.getGrouponDiscount(cmdGrouponRulesId).getAmount();
         }
 
@@ -248,11 +253,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             orderGoodsRepository.add(orderGoodsAggregate);
         }
         // Clear the cart
-        clearCart(cmdUserId, new LitemallCartId(command.getCartId()));
+        clearCart(cmdUserId, new LitemallCartId(cartId));
 
         // Update coupon usage if applicable
-        if (command.getCouponId() != 0 && command.getCouponId() != -1) {
-            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(new LitemallCouponUserId(command.getUserCouponId()));
+        if (cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1) {
+            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(cmdCouponUserId);
             //couponUserAggregate.setStatus(CouponUserConstant.STATUS_USED);
             couponUserAggregate.setStatus(LitemallCouponUserStatus.USED);
             couponUserAggregate.setUsedTime(LocalDateTime.now());
@@ -261,12 +266,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         }
 
         // If it's a groupon purchase project, add group buying information
-        Integer grouponLinkId = grouponServiceLayer.createGrouponOrder(
-                command.getGrouponLinkId(), cmdUserId.getId(), cmdGrouponRulesId.getId(), existingOrderAggregate.getOrderId());
+        Integer createdGrouponLinkId = grouponServiceLayer.createGrouponOrder(
+                grouponLinkId, cmdUserId.getId(), cmdGrouponRulesId.getId(), existingOrderAggregate.getOrderId());
 
-        if (grouponLinkId != null) {
+        if (createdGrouponLinkId != null) {
             // Handle groupon-specific logic if needed
-            log.info("Groupon order created with link ID: {}", grouponLinkId);
+            log.info("Groupon order created with link ID: {}", createdGrouponLinkId);
         }
 
         // Reserve/reduce stock LAST — the remote decrement (a Feign call to
@@ -281,7 +286,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 existingOrderAggregate.getOrderId().getId(),
                 existingOrderAggregate.getOrderSn(),
                 false, // payment handled by orchestrator
-                command.getGrouponLinkId(),
+                grouponLinkId,
                 existingOrderAggregate.getActualPrice().getAmount(),
                 LocalDateTime.now(),
                 LitemallOrderSubmitResult.LitemallOrderSubmitResultStatus.SUCCESS
