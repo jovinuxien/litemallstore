@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservi
 import com.google.common.util.concurrent.RateLimiter;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.linlinjava.litemall.db.domain.LitemallGoods.Column.categoryId;
@@ -33,16 +35,11 @@ public class CJProductService {
     private CjDropshippingApiUtils apiUtils;
     @Autowired
     private CJDropshippingConfig config;
+    // Durable staging buffer for raw CJ payloads (replaces the old per-instance in-memory caches:
+    // cachedProducts / cachedCategories / detailCache). TTL is owned by Redis (config raw-ttl-seconds).
+    @Autowired
+    private CjRawCacheRepository rawCache;
 
-    private CJProductDataResponse cachedProducts;
-    private CJCategoryDataResponse cachedCategories;
-    private long lastProductFetchTime = 0;
-    private long lastCategoryFetchTime = 0;
-    // Per-pid detail cache (1h TTL): the detail page is requested on demand and CJ's
-    // quota is tight, so we memoize each product/query response rather than re-fetching.
-    private final java.util.Map<String, CachedDetail> detailCache = new java.util.concurrent.ConcurrentHashMap<>();
-
-    private record CachedDetail(CJProductDetailData data, long time) {}
     // Rate limiter - 1 request per second
     private final RateLimiter rateLimiter = RateLimiter.create(1.0); // 1 request per second
     // Paced limiter for the bulk category fetch (indexing path): blocks fetch-pace-seconds between
@@ -52,10 +49,11 @@ public class CJProductService {
 
 
     public synchronized CJProductDataResponse fetchProductList(){
-        //return productClient.getProductList();
-        // Check if we have recent cached data (e.g., within last hour)
-        if (cachedProducts != null && System.currentTimeMillis() - lastProductFetchTime < 3600000) {
-            return cachedProducts;
+        // Serve from the Redis staging buffer when present (survives restart, spares the CJ quota).
+        Optional<CJProductDataResponse> cached =
+                rawCache.get(CjRawCacheRepository.defaultListKey(), CJProductDataResponse.class);
+        if (cached.isPresent()) {
+            return cached.get();
         }
 
         // Wait for rate limiter permit
@@ -63,8 +61,7 @@ public class CJProductService {
 
         try {
             CJProductDataResponse response = productClient.getProductList();
-            cachedProducts = response;
-            lastProductFetchTime = System.currentTimeMillis();
+            rawCache.put(CjRawCacheRepository.defaultListKey(), response);
             return response;
         } catch (Exception e) {
             logger.error("Failed to fetch products", e);
@@ -75,16 +72,17 @@ public class CJProductService {
 
 
     public synchronized CJCategoryDataResponse fetchCategoryList(){
-        if (cachedCategories != null && System.currentTimeMillis() - lastCategoryFetchTime < 86400000) {
-            return cachedCategories; // Categories change less often, cache longer
+        Optional<CJCategoryDataResponse> cached =
+                rawCache.get(CjRawCacheRepository.categoriesKey(), CJCategoryDataResponse.class);
+        if (cached.isPresent()) {
+            return cached.get(); // Categories change less often; the raw TTL covers them too.
         }
 
         rateLimiter.acquire();
 
         try {
             CJCategoryDataResponse response = productClient.getCategoryList();
-            cachedCategories = response;
-            lastCategoryFetchTime = System.currentTimeMillis();
+            rawCache.put(CjRawCacheRepository.categoriesKey(), response);
             return response;
         } catch (Exception e) {
             logger.error("Failed to fetch categories", e);
@@ -101,11 +99,12 @@ public class CJProductService {
     }
 
     /**
-     * Fetch up to {@code targetCount} CJ products from one CJ category, paging at {@code pageSize}
-     * and pacing each upstream call by {@code fetch-pace-seconds} (blocking) so the CJ quota is
-     * respected. Stops at {@code targetCount}, on category exhaustion, on an empty page, or on the
-     * first failed page (returning whatever was gathered so far). Bypasses the 1h list cache — the
-     * nightly indexing job wants fresh data and pacing, not the cached single-page blob.
+     * Fetch up to {@code targetCount} CJ products from one CJ category, paging at {@code pageSize}.
+     * Each page is read THROUGH the Redis staging buffer: a cached page is reused directly (no
+     * pacing, no API call); a miss triggers a paced upstream call (blocking {@code fetch-pace-seconds})
+     * whose raw response is then cached, so a re-index within the raw TTL never re-hits the CJ quota.
+     * Stops at {@code targetCount}, on category exhaustion, on an empty page, or on the first failed
+     * page (returning whatever was gathered so far).
      */
     public List<CJProduct> fetchByCategory(String categoryId, int targetCount, int pageSize) {
         List<CJProduct> acc = new ArrayList<>();
@@ -114,13 +113,19 @@ public class CJProductService {
         }
         int page = 1;
         while (acc.size() < targetCount) {
-            pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between CJ calls
-            CJProductDataResponse resp;
-            try {
-                resp = productClient.getProductList(categoryId, page, pageSize);
-            } catch (RuntimeException ex) {
-                logger.warn("CJ category {} page {} fetch failed: {}", categoryId, page, ex.getMessage());
-                break;
+            String key = CjRawCacheRepository.listKey(categoryId, page);
+            CJProductDataResponse resp = rawCache.get(key, CJProductDataResponse.class).orElse(null);
+            if (resp == null) {
+                pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between live CJ calls
+                try {
+                    resp = productClient.getProductList(categoryId, page, pageSize);
+                } catch (RuntimeException ex) {
+                    logger.warn("CJ category {} page {} fetch failed: {}", categoryId, page, ex.getMessage());
+                    break;
+                }
+                if (resp != null) {
+                    rawCache.put(key, resp);
+                }
             }
             if (resp == null || resp.getData() == null || resp.getData().getList() == null
                     || resp.getData().getList().isEmpty()) {
@@ -173,22 +178,24 @@ public class CJProductService {
     }
 
     /**
-     * Fetch one CJ product's full detail by UUID {@code pid}, memoized for 1h. Returns {@code null}
-     * if CJ has no such product (so the caller can surface a clean not-found rather than throwing).
+     * Fetch one CJ product's full detail by raw UUID {@code pid}, memoized in the Redis staging buffer.
+     * Returns {@code null} if CJ has no such product (so the caller can surface a clean not-found
+     * rather than throwing).
      */
     public CJProductDetailData getProductDetail(String pid) {
         if (pid == null || pid.isBlank()) {
             return null;
         }
-        CachedDetail cached = detailCache.get(pid);
-        if (cached != null && System.currentTimeMillis() - cached.time() < 3600000) {
-            return cached.data();
+        String key = CjRawCacheRepository.detailKey(pid);
+        Optional<CJProductDetailData> cached = rawCache.get(key, CJProductDetailData.class);
+        if (cached.isPresent()) {
+            return cached.get();
         }
         rateLimiter.acquire();
         CJProductDetailResponse response = productClient.getProductDetail(pid);
         CJProductDetailData data = response != null ? response.getData() : null;
         if (data != null) {
-            detailCache.put(pid, new CachedDetail(data, System.currentTimeMillis()));
+            rawCache.put(key, data);
         }
         return data;
     }

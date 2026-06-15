@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCjProductMapper">
+
+  <!-- map-underscore-to-camel-case is enabled, so snake_case columns auto-map to camelCase fields. -->
+  <sql id="Base_Column_List">
+    pid, source, title, price, discount_price, description, image_url, brand,
+    category_names, category_ids, variants_json, attributes_json, add_time, update_time, deleted
+  </sql>
+
+  <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_product
+    where deleted = 0
+  </select>
+
+  <select id="selectByPid" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_product
+    where pid = #{pid} and deleted = 0
+  </select>
+
+  <select id="selectLivePids" resultType="java.lang.String">
+    select pid from litemall_cj_product where deleted = 0
+  </select>
+
+  <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    insert into litemall_cj_product
+      (pid, source, title, price, discount_price, description, image_url, brand,
+       category_names, category_ids, variants_json, attributes_json, add_time, update_time, deleted)
+    values
+      (#{pid}, #{source}, #{title}, #{price}, #{discountPrice}, #{description}, #{imageUrl}, #{brand},
+       #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, now(), now(), 0)
+    on duplicate key update
+      source = values(source),
+      title = values(title),
+      price = values(price),
+      discount_price = values(discount_price),
+      description = values(description),
+      image_url = values(image_url),
+      brand = values(brand),
+      category_names = values(category_names),
+      category_ids = values(category_ids),
+      variants_json = values(variants_json),
+      attributes_json = values(attributes_json),
+      update_time = now(),
+      deleted = 0
+  </insert>
+
+  <update id="softDeleteByPids">
+    update litemall_cj_product
+    set deleted = 1, update_time = now()
+    where deleted = 0 and pid in
+    <foreach collection="pids" item="pid" open="(" separator="," close=")">
+      #{pid}
+    </foreach>
+  </update>
+
+</mapper>

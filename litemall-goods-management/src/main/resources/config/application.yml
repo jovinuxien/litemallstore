@@ -63,6 +63,11 @@ spring:
     default-stock: 100
     # Recorded CJ product-list response, used only when the live CJ API is unreachable.
     sample-path: "sample-cj-products.json"
+    # Redis staging buffer for raw CJ /product/list payloads (fetch → Redis → DB → OCS). The fetch
+    # lands raw responses here (survives restart, avoids re-hitting the 1-req/300s CJ API); the
+    # snapshot sync reads them back to normalize + persist into litemall_cj_product.
+    redis:
+      raw-ttl-seconds: 21600   # 6h
     # Nightly cron (sec min hour dom mon dow) for the CJ catalog indexing job. 03:00 daily.
     refresh-cron: "0 0 3 * * *"
     # Seconds the job blocks between consecutive CJ /product/list calls (matches the CJ quota), so a

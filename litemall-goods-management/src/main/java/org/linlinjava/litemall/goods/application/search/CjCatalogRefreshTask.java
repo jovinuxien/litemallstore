@@ -14,20 +14,16 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Keeps CJ Dropshipping documents current in {@code litemall_index} between full reindexes,
- * via the incremental {@code upsert} path (CJ has no {@code GoodsIndexEvent}, so this is its
- * equivalent of the local write-path → Rabbit → consumer loop). Deliberately separate from the
- * local incremental path.
+ * Keeps CJ Dropshipping documents current in {@code litemall_index} between full reindexes. CJ has no
+ * {@code GoodsIndexEvent}, so this scheduled job is its equivalent of the local write-path → Rabbit →
+ * consumer loop. Deliberately separate from the local incremental path.
  *
- * <p>Rate-limit respecting: it reads through {@link CjProductIndexingService} →
- * {@code CJProductService}, whose {@code fetchByCategory} paces each CJ {@code /product/list} call by
- * the configured {@code fetch-pace-seconds} (blocking) — so a multi-category plan stays within the CJ
- * quota even though one run issues several upstream requests. Runs on a config-driven cron
- * ({@code spring.cjdropship.refresh-cron}, default 03:00 nightly).
- *
- * <p>Scope: indexes the configured {@code catalog-targets} (category + per-category limit) via the
- * incremental {@code upsert} path. Stale-CJ-doc deletion (a product removed upstream) is a documented
- * follow-up — this path only upserts.
+ * <p>Two-step refresh: (1) {@link CjSnapshotSyncService#syncAll()} pulls the configured
+ * {@code catalog-targets} (paced via the Redis staging buffer, respecting the CJ quota) and refreshes
+ * the durable {@code litemall_cj_product} snapshot; (2) the current snapshot is upserted into OCS and
+ * the pids the sync soft-deleted are removed from OCS by their {@code cj_<pid>} id. Because the
+ * snapshot now records what was indexed, stale-doc deletion is handled here (no longer deferred).
+ * Runs on a config-driven cron ({@code spring.cjdropship.refresh-cron}, default 03:00 nightly).
  *
  * <p>In addition to the nightly cron, a one-shot run fires shortly after startup
  * ({@code spring.cjdropship.refresh-startup-delay-ms}, default 10 min; toggle with
@@ -40,13 +36,16 @@ public class CjCatalogRefreshTask {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CjCatalogRefreshTask.class);
 
+    private final CjSnapshotSyncService snapshotSyncService;
     private final CjProductIndexingService cjIndexingService;
     private final ProductIndexer productIndexer;
     private final CJDropshippingConfig config;
 
-    public CjCatalogRefreshTask(CjProductIndexingService cjIndexingService,
+    public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
+                                CjProductIndexingService cjIndexingService,
                                 ProductIndexer productIndexer,
                                 CJDropshippingConfig config) {
+        this.snapshotSyncService = snapshotSyncService;
         this.cjIndexingService = cjIndexingService;
         this.productIndexer = productIndexer;
         this.config = config;
@@ -84,13 +83,24 @@ public class CjCatalogRefreshTask {
             return;
         }
         try {
+            // 1) Fetch (paced, via Redis) → normalize → persist the snapshot; learn which pids vanished.
+            CjSnapshotSyncService.SyncResult result = snapshotSyncService.syncAll();
+
+            // 2) Upsert the current snapshot into OCS.
             List<ProductDocument> docs = cjIndexingService.buildDocuments();
             int upserted = 0;
             for (ProductDocument doc : docs) {
                 productIndexer.upsert(doc);
                 upserted++;
             }
-            LOGGER.info("CJ catalog refresh upserted {} documents", upserted);
+
+            // 3) Drop docs for products removed upstream (stale deletion, by cj_<pid> id).
+            int deleted = 0;
+            for (String pid : result.removedPids()) {
+                productIndexer.delete(CjProductIndexingService.CJ_ID_PREFIX + pid);
+                deleted++;
+            }
+            LOGGER.info("CJ catalog refresh: upserted {} documents, deleted {} stale", upserted, deleted);
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ catalog refresh failed: {}", ex.getMessage());
         }

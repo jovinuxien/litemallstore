@@ -74,6 +74,20 @@ public class CJDropshippingConfig {
     /** Classpath resource of a recorded CJ product-list response, used when the live CJ API is unreachable. */
     private String samplePath;
 
+    /** Redis staging-buffer settings for raw CJ API payloads (the fetch → Redis → DB → OCS pipeline). */
+    private Redis redis = new Redis();
+
+    /**
+     * Redis is the durable staging buffer for raw CJ {@code /product/list} responses: a rate-limited
+     * fetch lands payloads here (surviving restarts, so we don't re-hit the 1-request/300s CJ API),
+     * and the snapshot sync reads them back to normalize → persist into {@code litemall_cj_product}.
+     */
+    @Data
+    public static class Redis {
+        /** TTL (seconds) for a cached raw CJ list page; default 6h. */
+        private long rawTtlSeconds = 21600;
+    }
+
     /**
      * Retail = CJ wholesale {@code sellPrice} (USD) × {@code usdToCny} × {@code margin}, indexed in the
      * local price basis (CNY) — so CJ products sort/compare sanely against local retail prices rather
