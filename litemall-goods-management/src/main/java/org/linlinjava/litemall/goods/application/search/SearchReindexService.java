@@ -21,9 +21,11 @@ import java.util.List;
  *
  * <p>{@link ProductIndexer#replaceAll} is a full import that swaps the WHOLE index, so local
  * goods and CJ Dropshipping products must be committed together in one pass — CJ documents are
- * appended to the same list here so {@code /srv/search} sees a single unified index. A CJ
- * fetch/auth failure is logged and the reindex proceeds local-only (never fails the whole
- * rebuild); the CJ refresh scheduler keeps CJ docs current incrementally between full reindexes.
+ * appended to the same list here so {@code /srv/search} sees a single unified index. CJ docs are
+ * built from the persisted {@code litemall_cj_product} snapshot ({@link CjProductIndexingService},
+ * DB-sourced — NO CJ API call here), so this reindex is fast; the snapshot itself is refreshed
+ * (paced, via Redis) by {@code CjSnapshotSyncService} / the nightly {@code CjCatalogRefreshTask}.
+ * Any snapshot-read error is logged and the reindex proceeds local-only (never fails the rebuild).
  */
 @Service
 public class SearchReindexService {

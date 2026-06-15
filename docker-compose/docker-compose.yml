@@ -86,6 +86,23 @@ services:
       ports:
         - "5672:5672" #JMS Port
         - "15672:15672" #Management Port - default user:pass = guest:guest
+
+    redis:
+      container_name: ocs_redis
+      image: redis:7
+      # Staging buffer for raw CJ Dropshipping payloads (fetch → Redis → DB → OCS).
+      # Published on 6379 so goods-management running on the host (default/localhost
+      # profile) reaches it; inside compose the `docker` profile points at host `redis`.
+      ports:
+        - "6379:6379"
+      healthcheck:
+        test: ["CMD", "redis-cli", "ping"]
+        interval: 5s
+        timeout: 3s
+        retries: 10
+      networks:
+        - ocs
+
     keycloak:
       container_name: baeldung-keycloak.openid-provider
       image: quay.io/keycloak/keycloak:24.0.1
