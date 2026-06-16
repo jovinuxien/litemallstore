@@ -400,3 +400,64 @@
     }
   }
 }
+
+/* litemall-vue detail additions: collect, coupon strip, reviews */
+.lm-pdp {
+  &__collect {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    background: var(--lm-surface);
+    color: var(--lm-muted);
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    &:hover { border-color: var(--lm-accent); color: var(--lm-accent); }
+    &.is-on { color: var(--lm-accent); border-color: var(--lm-accent); }
+  }
+
+  &__coupons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 4px;
+  }
+  &__coupon {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px dashed var(--lm-accent);
+    border-radius: var(--lm-radius);
+    background: #fff5f5;
+    color: var(--lm-accent-dark);
+    font-size: 0.82rem;
+    cursor: pointer;
+    &:disabled { opacity: 0.6; cursor: default; }
+    &-val { font-weight: 700; }
+    &-min { color: var(--lm-muted); }
+    &-cta { font-weight: 600; text-decoration: underline; }
+  }
+
+  &__stars { color: var(--lm-star); letter-spacing: 1px; }
+
+  &__reviews {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid var(--lm-border);
+  }
+  &__reviewstitle { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; }
+  &__reviewlist { list-style: none; margin: 0; padding: 0; }
+  &__review { padding: 12px 0; border-bottom: 1px solid var(--lm-border); }
+  &__reviewhead { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
+  &__reviewer { font-weight: 600; }
+  &__reviewbody { margin: 0; color: var(--lm-text); }
+  &__reviewpics {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+  }
+}

@@ -1,0 +1,90 @@
+/* Customer order history / detail (Teal & Coral) */
+.lm-orders {
+  &__tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--lm-border, #eceff1);
+    margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  &__tab {
+    border: 0;
+    background: none;
+    padding: 8px 14px;
+    color: var(--lm-muted, #6b7b82);
+    font-weight: 600;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    &.is-active {
+      color: var(--lm-primary, #0e7c86);
+      border-bottom-color: var(--lm-primary, #0e7c86);
+    }
+  }
+}
+
+.lm-order-card {
+  border: 1px solid var(--lm-border, #eceff1);
+  border-radius: var(--lm-radius, 10px);
+  background: var(--lm-surface, #fff);
+  padding: 14px 16px;
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  &__status { color: var(--lm-accent, #ff5a5f); font-weight: 600; }
+
+  &__goods {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  &__line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; }
+  }
+  &__lineinfo { flex: 1 1 auto; min-width: 0; }
+  &__name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  &__lineqty { text-align: right; flex: none; }
+
+  &__foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--lm-border, #eceff1);
+    padding-top: 10px;
+    margin-top: 6px;
+  }
+  &__actions { display: flex; gap: 6px; flex-wrap: wrap; }
+}
+
+.lm-order-detail {
+  &__ship {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--lm-border, #eceff1);
+    margin-bottom: 6px;
+  }
+  &__totals {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--lm-border, #eceff1);
+    li {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      color: var(--lm-muted, #6b7b82);
+    }
+  }
+  &__grand { color: var(--lm-text, #1f2a2e) !important; font-size: 1.05rem; }
+}

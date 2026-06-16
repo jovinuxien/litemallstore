@@ -1,0 +1,119 @@
+/* Customer account / user-center (Teal & Coral) */
+.lm-user {
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px;
+    border-radius: var(--lm-radius, 10px);
+    background: linear-gradient(135deg, var(--lm-primary, #0e7c86), var(--lm-primary-dark, #0a5d65));
+    color: #fff;
+    margin-bottom: 20px;
+  }
+  &__avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    flex: none;
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+  &__name { font-size: 1.15rem; font-weight: 700; }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 12px;
+  }
+  &__tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 8px;
+    border: 1px solid var(--lm-border, #eceff1);
+    border-radius: var(--lm-radius, 10px);
+    background: var(--lm-surface, #fff);
+    color: var(--lm-text, #1f2a2e);
+    text-decoration: none;
+    transition: border-color 0.15s, transform 0.1s;
+    i { font-size: 1.5rem; color: var(--lm-primary, #0e7c86); }
+    &:hover { border-color: var(--lm-primary, #0e7c86); transform: translateY(-2px); }
+  }
+}
+
+/* Address rows */
+.lm-addr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--lm-border, #eceff1);
+  border-radius: var(--lm-radius, 10px);
+  background: var(--lm-surface, #fff);
+  &__actions { display: flex; gap: 4px; flex: none; }
+}
+
+/* Favorites grid */
+.lm-fav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+.lm-fav-card {
+  border: 1px solid var(--lm-border, #eceff1);
+  border-radius: var(--lm-radius, 10px);
+  overflow: hidden;
+  background: var(--lm-surface, #fff);
+  a { text-decoration: none; color: inherit; display: block; }
+  img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+  &__name { padding: 8px 10px 0; font-size: 0.9rem; min-height: 2.4em; }
+  &__foot { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 10px; }
+  &__price { color: var(--lm-accent, #ff5a5f); font-weight: 700; }
+  &__remove { border: 0; background: none; color: var(--lm-accent, #ff5a5f); cursor: pointer; }
+}
+
+/* Footprint rows */
+.lm-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--lm-border, #eceff1);
+  border-radius: var(--lm-radius, 10px);
+  background: var(--lm-surface, #fff);
+  text-decoration: none;
+  color: inherit;
+  img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; }
+  &__info { flex: 1 1 auto; min-width: 0; }
+  &__price { color: var(--lm-accent, #ff5a5f); font-weight: 600; flex: none; }
+}
+
+/* Coupon rows */
+.lm-coupon-row {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  border: 1px solid var(--lm-border, #eceff1);
+  border-radius: var(--lm-radius, 10px);
+  background: var(--lm-surface, #fff);
+  overflow: hidden;
+  &__val {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 96px;
+    padding: 12px;
+    background: #fff5f5;
+    color: var(--lm-accent-dark, #e8484d);
+  }
+  &__amt { font-size: 1.5rem; font-weight: 800; }
+  &__min { font-size: 0.72rem; color: var(--lm-muted, #6b7b82); }
+  &__info { padding: 12px 8px; display: flex; flex-direction: column; justify-content: center; }
+}
