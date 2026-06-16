@@ -278,6 +278,12 @@ public class LitemallGoodsController {
     }
 
 
+    /** Total on-sale goods count (litemall-wx-api {@code /wx/goods/count} parity); anonymous. */
+    @GetMapping("/count")
+    public Object count() {
+        return ResponseUtil.ok(goodsServiceApi.getGoodsOnSale());
+    }
+
     @GetMapping("/goodsdetail")
     public Object getGoodsDetail(@NotNull Integer id) {
         LitemallGoodsId goodsId = new LitemallGoodsId(id);
