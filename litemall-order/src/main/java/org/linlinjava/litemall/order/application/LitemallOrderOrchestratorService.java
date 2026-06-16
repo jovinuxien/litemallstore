@@ -5,9 +5,11 @@ import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.notify.NotifyType;
-import org.linlinjava.litemall.order.application.exceptions.LitemallOrderServiceException;
+import org.linlinjava.litemall.order.application.internal.LitemallCartServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallGrouponServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
+import org.linlinjava.litemall.order.application.internal.UnpaidOrderTaskScheduler;
+import org.linlinjava.litemall.order.application.util.exception.order.LitemallOrderServiceException;
 import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponParticipatedEvent;
 import org.linlinjava.litemall.order.domain.events.order.LitemallOrderCreatedEvent;
@@ -17,54 +19,64 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggre
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
-import org.linlinjava.litemall.order.domain.model.commands.cart.LitemallAddCartItemCommand;
-import org.linlinjava.litemall.order.domain.model.commands.cart.LitemallUpdateCartItemCommand;
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
+import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletDebitCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.payment.PaymentMethod;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
-import org.linlinjava.litemall.order.domain.model.repositories.LitemallCartRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderHandleOption;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderStatusQuery;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallGrouponStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
-import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 @Transactional
 public class LitemallOrderOrchestratorService {
 
+    private static final Logger log = LoggerFactory.getLogger(LitemallOrderOrchestratorService.class);
+
     private final LitemallOrderServiceImpl orderServiceImpl;
     private final LitemallOrderRepository orderRepository;
     private final LitemallGrouponServiceLayer grouponServiceLayer;
-    private final LitemallCartRepository cartRepository;
+
+    @Autowired
+    private LitemallCartServiceLayer cartServiceLayer;
 
     @Autowired
     private NotifyService notifyService;
 
+    // Unpaid-order timeout mechanism: DB-row + @Scheduled sweep
+    // (see UnpaidOrderTaskScheduler). Survives restart; replaces the
+    // in-memory DelayQueue/TaskService that used to live in litemall-core.
+    @Autowired
+    private UnpaidOrderTaskScheduler unpaidOrderTaskScheduler;
+
     @Autowired
     LitemallDomainEventPublisher domainEventPublisher;
 
+    // Wallet vertical (absorbed from litemall-wallet-service). Used to debit the
+    // user's wallet when PaymentMethod.WALLET is selected — mirrors how groupon
+    // flows through grouponServiceLayer.
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.linlinjava.litemall.order.application.LitemallIWalletService walletService;
+
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
-                                            LitemallGrouponServiceLayer grouponService,
-                                            LitemallCartRepository cartRepository) {
+                                            LitemallGrouponServiceLayer grouponService) {
         this.orderServiceImpl = orderService;
         this.orderRepository = orderRepository;
         this.grouponServiceLayer = grouponService;
-        this.cartRepository = cartRepository;
     }
 
 
@@ -86,13 +98,11 @@ public class LitemallOrderOrchestratorService {
             case CANCEL:
                 return handleOrderCancellation((LitemallOrderCancelCommand) actionData);
 
-           /* case PAY:
-                return handlePayAction((OrderActionRequest) actionData);*/
-
-            // ... other actions
+            case PAY:
+                return handlePaymentAction((LitemallOrderPaymentCommand) actionData);
 
             default:
-                throw new IllegalStateException("Unmapped order action: " + action);
+                throw new IllegalStateException("Unhandled order action: " + action);
         }
     }
 
@@ -105,18 +115,20 @@ public class LitemallOrderOrchestratorService {
             LitemallOrderSubmitResult submitResult = orderServiceImpl.placeOrder(command);
             LitemallOrderOperationResult result = convertSubmitResultToOperationResult(submitResult, command);
 
-            // Domain-event emission is in-process here; the AFTER_COMMIT
-            // listener forwards to Kafka only if this transaction commits.
-            publishOrderCreationEvents(submitResult.getOrderId(), !submitResult.isNeedsPayment());
+            boolean paymentProcessed = !submitResult.isNeedsPayment();
+            publishOrderCreationEvents(submitResult.getOrderId(), paymentProcessed);
+            if (!paymentProcessed) {
+                scheduleUnpaidOrderTask(new LitemallOrderId(submitResult.getOrderId()));
+            }
 
             return result;
-
         } catch (LitemallOrderServiceException e) {
             return LitemallOrderOperationResult.submitFailed("Order creation failed: " + e.getMessage());
-        } catch (Exception e) {
-            return LitemallOrderOperationResult.operationFailed(
-                    LitemallOrderOperationResult.OperationType.SUBMIT, null,
-                    "System error during order creation: " + e.getMessage());
+        } catch (com.google.protobuf.ServiceException e) {
+            return LitemallOrderOperationResult.submitFailed("Order creation failed: " + e.getMessage());
+        } catch (RuntimeException e) {
+            log.error("System error during order creation", e);
+            throw new LitemallOrderServiceException("System error during order creation: " + e.getMessage(), e);
         }
     }
 
@@ -159,12 +171,23 @@ public class LitemallOrderOrchestratorService {
                     order.getOrderStatus());
         }
 
+        // Wallet payment: debit the user's wallet through the wallet vertical
+        // (aggregate -> LitemallWalletDomainService -> repository, emitting
+        // LitemallWalletDebitedEvent). Insufficient balance raises
+        // LitemallInsufficientBalanceException, which rolls back this transaction
+        // so no paid order is produced.
+        if (paymentCommand.getPaymentMethod() == PaymentMethod.WALLET) {
+            debitWalletForOrder(order, orderId);
+        }
+
         // Process payment (simplified - integrate with your payment gateway)
         boolean paymentSuccess = processPayment(order, paymentCommand.getPaymentInfo());
 
         if (paymentSuccess) {
-            // Update order status
-            //updateOrderStatusToPaid(orderId);
+            // Transition the order to PAID and persist it within this transaction,
+            // so a wallet debit (above) and the paid status are atomic — either both
+            // commit or both roll back. Emits LitemallOrderPaidEvent.
+            orderServiceImpl.markOrderPaid(orderId);
 
             // Handle post-payment logic
             handlePostPayment(orderId, paymentCommand);
@@ -215,15 +238,42 @@ public class LitemallOrderOrchestratorService {
    private void handlePostPayment(LitemallOrderId orderId, LitemallOrderPaymentCommand paymentCommand) {
        handleGrouponAfterPayment(orderId);
        sendPaymentSuccessNotifications(orderRepository.findById(orderId).get());
-       // No per-order timeout to cancel — LitemallOrderUnpaidSweeper now
-       // reaps unpaid orders by querying status + add_time, so a paid order
-       // is naturally excluded by its updated status.
+       unpaidOrderTaskScheduler.cancel(orderId);
    }
 
     private boolean processPayment(LitemallOrderAggregate order, Object paymentInfo) {
         // Integrate with your payment gateway here
         // This is a simplified implementation
         return true; // Assume success for demo
+    }
+
+    /**
+     * Debit the order's actual price from the buyer's wallet via the wallet
+     * vertical. Propagates {@code LitemallInsufficientBalanceException} on an
+     * underfunded wallet so the payment transaction rolls back without producing
+     * a paid order.
+     */
+    private void debitWalletForOrder(LitemallOrderAggregate order, LitemallOrderId orderId) {
+        LitemallMoney payable = order.getActualPrice();
+        if (payable == null) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " has no payable amount; cannot debit wallet");
+        }
+        if (payable.getAmount().signum() <= 0) {
+            // Nothing to charge (e.g. a fully discounted order) — skip the wallet
+            // debit rather than writing a zero-value debit and bill.
+            log.info("Skipping wallet debit for order {}: non-positive payable amount", orderId.getId());
+            return;
+        }
+        LitemallWalletDebitCommand debitCommand = new LitemallWalletDebitCommand(
+                order.getUserId().getId(),
+                payable.getAmount(),
+                "Order payment",
+                "ORDER",
+                "PAYMENT",
+                String.valueOf(orderId.getId()),
+                "Wallet debit for order " + order.getOrderSn());
+        walletService.debit(debitCommand);
     }
 
     private void handlePostCancellation(LitemallOrderAggregate order) {
@@ -281,6 +331,10 @@ public class LitemallOrderOrchestratorService {
         );
     }
 
+    private void scheduleUnpaidOrderTask(LitemallOrderId orderId) {
+        unpaidOrderTaskScheduler.schedule(orderId);
+    }
+
     private void handleGrouponAfterPayment(LitemallOrderId orderId) {
         LitemallGrouponAggregate grouponAggregate = grouponServiceLayer.getGrouponAggregateByOrderId(orderId);
 
@@ -306,6 +360,44 @@ public class LitemallOrderOrchestratorService {
 
     public LitemallOrderOperationResult createOrder(LitemallPlaceOrderCommand command) {
         return performOrderAction(OrderAction.CREATE, command);
+    }
+
+    public java.util.List<LitemallOrderAggregate> listOrders(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+                                                             java.util.List<Short> orderStatuses,
+                                                             int page, int limit, String sort, String order) {
+        return orderRepository.queryByOrderStatus(userId, orderStatuses, page, limit, sort, order);
+    }
+
+    // =========================================================================
+    // CART OPERATIONS (per-user; admin acts on behalf of a userId)
+    // =========================================================================
+
+    public java.util.List<LitemallCartAggregate> listCartItems(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId) {
+        return cartServiceLayer.listAllCartItems(userId);
+    }
+
+    public LitemallCartAggregate getCartItem(org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId cartId,
+                                             org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId) {
+        return cartServiceLayer.getCartItem(cartId, userId);
+    }
+
+    public LitemallCartAggregate addCartItem(LitemallCartAggregate cart) {
+        return cartServiceLayer.addCartItem(cart);
+    }
+
+    public LitemallCartAggregate updateCartItem(org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId cartId,
+                                                org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+                                                Integer number, String[] specifications) {
+        return cartServiceLayer.updateCartItem(cartId, userId, number, specifications);
+    }
+
+    public void removeCartItem(org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId cartId,
+                               org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId) {
+        cartServiceLayer.removeCartItem(cartId, userId);
+    }
+
+    public void clearCart(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId) {
+        cartServiceLayer.clearCart(userId);
     }
 
     //public LitemallOrderOperationResult cancelOrder(LitemallOrderId orderId, LitemallUserId userId, String reason) {
@@ -346,80 +438,4 @@ public class LitemallOrderOrchestratorService {
         }
     }
 
-    // =========================================================================
-    // CART CRUD — exposed for LitemallCartController. The controller never
-    // touches persistence directly; every read and write flows through here.
-    // =========================================================================
-
-    public List<LitemallCartAggregate> getCart(LitemallUserId userId) {
-        return cartRepository.findByUserId(userId);
-    }
-
-    public LitemallCartAggregate getCartItem(LitemallCartId cartId) {
-        LitemallCartAggregate item = cartRepository.findById(cartId);
-        if (item == null) {
-            throw new LitemallOrderServiceException("Cart item not found: " + cartId.getId());
-        }
-        return item;
-    }
-
-    public LitemallCartAggregate addCartItem(LitemallAddCartItemCommand command) {
-        if (command.getNumber() == null || command.getNumber() <= 0) {
-            throw new LitemallOrderServiceException("Cart item number must be positive");
-        }
-        LitemallUserId userId = new LitemallUserId(command.getUserId());
-        LitemallGoodsId goodsId = new LitemallGoodsId(command.getGoodsId());
-        LitemallGoodsProductId productId = new LitemallGoodsProductId(command.getProductId());
-
-        LitemallCartAggregate existing = cartRepository.findByUserIdAndGoodsId(userId, goodsId, productId);
-        if (existing != null) {
-            existing.setNumber(existing.getNumber() + command.getNumber());
-            cartRepository.update(existing);
-            return existing;
-        }
-
-        LitemallCartAggregate cart = new LitemallCartAggregate();
-        cart.setUserId(userId);
-        cart.setGoodsId(goodsId);
-        cart.setProductId(productId);
-        cart.setNumber(command.getNumber());
-        cart.setGoodsName(command.getGoodsName());
-        cart.setGoodsSn(command.getGoodsSn());
-        cart.setPicUrl(command.getPicUrl());
-        cart.setPrice(command.getPrice() == null ? null : new LitemallMoney(command.getPrice()));
-        cart.setSpecifications(command.getSpecifications());
-        cart.setChecked(true);
-        cart.setDeleted(false);
-        cartRepository.addNewCart(cart);
-        return cart;
-    }
-
-    public LitemallCartAggregate updateCartItem(LitemallUpdateCartItemCommand command) {
-        LitemallCartAggregate existing = cartRepository.findById(new LitemallCartId(command.getCartId()));
-        if (existing == null) {
-            throw new LitemallOrderServiceException("Cart item not found: " + command.getCartId());
-        }
-        if (command.getNumber() != null) {
-            if (command.getNumber() <= 0) {
-                throw new LitemallOrderServiceException("Cart item number must be positive");
-            }
-            existing.setNumber(command.getNumber());
-        }
-        if (command.getProductId() != null) {
-            existing.setProductId(new LitemallGoodsProductId(command.getProductId()));
-        }
-        if (command.getSpecifications() != null) {
-            existing.setSpecifications(command.getSpecifications());
-        }
-        cartRepository.update(existing);
-        return existing;
-    }
-
-    public void removeCartItem(LitemallCartId cartId) {
-        cartRepository.deleteById(cartId);
-    }
-
-    public void clearCart(LitemallUserId userId) {
-        cartRepository.clearCheckedByUserId(userId);
-    }
 }

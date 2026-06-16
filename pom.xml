@@ -107,7 +107,6 @@
         <module>litemall-goods-management</module>
         <module>litemall-goodsapi-analytic</module>
 
-        <module>litemall-wallet-service</module>
         <module>litemall-promotion-service</module>
         <module>litemall-eureka</module>
         <module>litemall-authserver</module>
