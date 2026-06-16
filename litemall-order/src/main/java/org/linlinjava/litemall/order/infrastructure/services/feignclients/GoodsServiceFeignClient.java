@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class)
+@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class,
+        fallbackFactory = GoodsServiceFeignClientFallbackFactory.class)
 public interface GoodsServiceFeignClient {
 
     @GetMapping(value = "/goods/goodsdetail" )
@@ -46,4 +47,14 @@ public interface GoodsServiceFeignClient {
     @PostMapping("/stock/batch-reduce")
     //ApiResponse<BatchStockReduceResult> batchReduceStock(@RequestBody List<BatchStockReduceRequest> request);
     ApiResponse<Map<Integer, Boolean>> batchReduceStock(@RequestBody List<ReduceStockRequest> request);
+
+    /**
+     * Compensating inverse of {@link #batchReduceStock}: release (add back)
+     * previously-reserved stock. Invoked only from rollback / cancellation paths.
+     * NOTE: requires a matching {@code POST /stock/batch-restore} endpoint on
+     * goods-management — tracked as a goods-management follow-up; until it ships
+     * the call degrades to a logged best-effort no-op (see LitemallGoodsFacadeImpl).
+     */
+    @PostMapping("/stock/batch-restore")
+    ApiResponse<Map<Integer, Boolean>> batchRestoreStock(@RequestBody List<ReduceStockRequest> request);
 }

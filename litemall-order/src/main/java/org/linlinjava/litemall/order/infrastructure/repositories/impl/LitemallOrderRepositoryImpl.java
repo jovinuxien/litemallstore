@@ -196,6 +196,20 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int markPaidIfCreated(LitemallOrderId orderId) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
+        patch.setUpdateTime(LocalDateTime.now());
+
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode());
+
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());
