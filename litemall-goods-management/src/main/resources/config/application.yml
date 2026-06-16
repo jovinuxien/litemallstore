@@ -133,10 +133,36 @@ litemall:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS
     # (replaces Keycloak). Dev default; config-server overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+    # Anonymous customer surface (litemall-wx-api parity): these /srv/** reads are
+    # reachable with NO token so gateway-api can serve visitors. svcsecurity is
+    # deny-by-default (publicPaths permitAll → adminPaths ROLE_ADMIN → else
+    # authenticated), so the full customer set must be listed here explicitly.
+    # /srv/private/admin/** stays ROLE_ADMIN (NOT listed).
+    public-paths:
+      - /actuator/health/**
+      - /srv/authenticate/**
+      - /srv/catalog/**
+      - /srv/search/**
+      - /srv/cjAuth/**
+      - /srv/goods/**
+      - /srv/brand/**
+      - /srv/issue/**
+      - /srv/comment/**
+      - /srv/topic/**
+      - /srv/home/**
   goods:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
     stock-low-threshold: 5
+  # Storefront "about" metadata served anonymously at /srv/home/about (wx-api /home/about parity).
+  # Config-driven (no litemall_system dependency); override per-env via config-server.
+  mall:
+    name: litemall
+    address: ""
+    phone: ""
+    qq: ""
+    longitude: ""
+    latitude: ""
   # Object storage for the admin image/file uploads (/srv/private/admin/storage). Local disk by
   # default so the core StorageService bean resolves standalone; config-server / a cloud profile
   # can override active=aliyun|tencent|qiniu. 'address' is the public URL prefix for served files
