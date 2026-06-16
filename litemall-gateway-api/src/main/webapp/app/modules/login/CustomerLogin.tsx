@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loginCustomerThunk } from 'app/auth/customerAuthSlice';
@@ -49,6 +49,11 @@ const CustomerLogin: React.FC = () => {
               {loading === 'pending' ? <Spinner animation='border' size='sm' /> : 'Sign in'}
             </Button>
           </Form>
+          <div className='text-center mt-3'>
+            <small className='text-muted'>
+              New here? <Link to='/register'>Create an account</Link>
+            </small>
+          </div>
         </Card.Body>
       </Card>
     </Container>
