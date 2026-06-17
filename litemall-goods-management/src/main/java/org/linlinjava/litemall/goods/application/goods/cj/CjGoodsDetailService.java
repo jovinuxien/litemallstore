@@ -23,10 +23,14 @@ import java.util.Map;
  *
  * <p>CJ products live in OCS only (index-only ADR — no {@code litemall_goods} row), so the local
  * DB-backed {@code /srv/goods/detail} aggregation can't serve them. This service fetches the live
- * CJ detail ({@code product/query}) and maps it into the SAME key shape the local detail returns
- * ({@code info / productList / specificationList / attribute / brand / issue / comment / groupon /
- * share / shareImage}) so the customer SPA renders a CJ hit with no branch. Sections CJ has no data
- * for ({@code issue / comment / groupon / userHasCollect}) come back empty/zero.
+ * CJ detail ({@code product/query}) and maps it into the SAME key shape the local detail returns —
+ * {@code goods / products / specifications / attributes / categoryIds} — so the customer SPA's
+ * Detail page renders a CJ hit with no branch. (An earlier version emitted the legacy wx keys
+ * {@code info / productList / specificationList / attribute}; the rebuilt SPA reads
+ * {@code goods / products / specifications / attributes}, so CJ pages rendered blank.) Field names
+ * mirror the local aggregates: {@code goods.goodsId:{id} / goodsName}, flat
+ * {@code specifications[{specifications,value,picUrl}]}, {@code attributes[{attributeName,
+ * attributeValue}]}, {@code products[{goodsProductId:{id},specifications[]}]}.
  *
  * <p>Pricing mirrors {@code CjProductIndexingService}: retail = CJ wholesale (USD) × usdToCny ×
  * margin in the local CNY basis — never raw wholesale cost.
@@ -76,39 +80,66 @@ public class CjGoodsDetailService {
         String docId = CJ_ID_PREFIX + pid;
         BigDecimal retail = retailPrice(d.getSellPrice());
         List<CJProductVariantData> variants = d.getVariants() != null ? d.getVariants() : List.of();
+        List<String> images = imagesOf(d.getProductImage());
+        String picUrl = images.isEmpty() ? null : images.get(0);
 
-        // info — the LitemallGoods-shaped header the SPA reads (id is the cj_<pid> String, so this
-        // is a map, not a LitemallGoods whose id is an int).
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("id", docId);
-        info.put("name", title(d));
-        info.put("brief", d.getCategoryName());
-        info.put("detail", d.getDescription());
-        info.put("picUrl", d.getProductImage());
-        info.put("gallery", galleryOf(d, variants));
-        info.put("retailPrice", retail);
-        info.put("counterPrice", retail);
-        info.put("isOnSale", Boolean.TRUE);
-        info.put("isHot", Boolean.FALSE);
-        info.put("isNew", Boolean.FALSE);
-        info.put("categoryId", null);
-        info.put("brandId", 0);
-        info.put("shareUrl", null);
-        info.put("source", CjProductIndexingService.SOURCE_CJ);
+        // goods — the LitemallGoods-shaped header the SPA reads. goodsId mirrors the local value
+        // object ({id}); for CJ the id is the cj_<pid> String (goodId() reads it through verbatim).
+        Map<String, Object> goods = new LinkedHashMap<>();
+        goods.put("goodsId", Map.of("id", docId));
+        goods.put("goodsSn", docId);
+        goods.put("goodsName", title(d));
+        goods.put("brief", d.getCategoryName());
+        goods.put("detail", d.getDescription());
+        goods.put("picUrl", picUrl);
+        goods.put("gallery", images);
+        goods.put("retailPrice", retail);
+        goods.put("counterPrice", retail);
+        goods.put("categoryId", null);
+        goods.put("manufacturerId", null);
+        goods.put("keyword", null);
+        goods.put("unit", d.getProductUnit());
+        goods.put("onSale", Boolean.TRUE);
+        goods.put("hot", Boolean.FALSE);
+        goods.put("new", Boolean.FALSE);
+        goods.put("sortOrder", 0);
+        goods.put("shareUrl", null);
+        goods.put("source", CjProductIndexingService.SOURCE_CJ);
 
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("info", info);
-        data.put("userHasCollect", 0);
-        data.put("issue", List.of());
-        data.put("comment", Map.of("count", 0, "data", List.of()));
-        data.put("specificationList", specificationList(variants));
-        data.put("productList", productList(docId, variants, retail));
-        data.put("attribute", attributes(d));
-        data.put("brand", brand(d));
-        data.put("groupon", List.of());
-        data.put("share", Boolean.FALSE);
-        data.put("shareImage", null);
+        data.put("goods", goods);
+        data.put("products", productList(docId, variants, retail));
+        data.put("specifications", specificationList(variants));
+        data.put("attributes", attributes(d));
+        data.put("categoryIds", List.of());
         return ResponseUtil.ok(data);
+    }
+
+    /**
+     * Normalize the CJ {@code productImage} field, which can be a plain URL or a JSON-stringified
+     * array ({@code "[\"https://…\"]"}). Returns a clean list of URLs so the SPA's
+     * {@code <img src>} and gallery get real strings, not a bracketed blob.
+     */
+    private List<String> imagesOf(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        String t = raw.trim();
+        if (t.startsWith("[")) {
+            try {
+                String[] arr = objectMapper.readValue(t, String[].class);
+                List<String> out = new ArrayList<>();
+                for (String u : arr) {
+                    if (u != null && !u.isBlank()) {
+                        out.add(u.trim());
+                    }
+                }
+                return out;
+            } catch (Exception e) {
+                // fall through to the raw value
+            }
+        }
+        return List.of(t);
     }
 
     private static String title(CJProductDetailData d) {
@@ -116,14 +147,6 @@ public class CjGoodsDetailService {
             return d.getProductNameEn().trim();
         }
         return d.getProductName();
-    }
-
-    private List<String> galleryOf(CJProductDetailData d, List<CJProductVariantData> variants) {
-        List<String> gallery = new ArrayList<>();
-        if (d.getProductImage() != null) {
-            gallery.add(d.getProductImage());
-        }
-        return gallery;
     }
 
     /** Retail = wholesale USD × usdToCny × margin, in the local CNY basis; null on no cost. */
@@ -147,8 +170,8 @@ public class CjGoodsDetailService {
         List<Map<String, Object>> out = new ArrayList<>();
         for (CJProductVariantData v : variants) {
             Map<String, Object> p = new LinkedHashMap<>();
-            p.put("id", v.getVid());
-            p.put("goodsId", docId);
+            p.put("goodsProductId", idMap(v.getVid()));
+            p.put("goodsId", idMap(docId));
             p.put("specifications", variantValues(v));
             BigDecimal price = retailPrice(v.getVariantSellPrice());
             p.put("price", price != null ? price : productRetail);
@@ -160,33 +183,35 @@ public class CjGoodsDetailService {
         return out;
     }
 
+    /** A {@code {id}} value-object wrapper that tolerates a null id (Map.of does not). */
+    private static Map<String, Object> idMap(Object id) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", id);
+        return m;
+    }
+
     /**
-     * A single specification group ("Specification") whose values are the distinct variant values —
-     * enough for the page to render the variant picker. Multi-axis CJ variants (colour + size) are
-     * flattened here; full per-axis specs are a follow-up.
+     * Flat specification rows in the LOCAL shape ({@code {specifications, value, picUrl}}) — the SPA
+     * groups them by the {@code specifications} group-name. A single "Specification" group whose
+     * values are the distinct variant values is enough for the page to render the variant picker.
+     * Multi-axis CJ variants (colour + size) are flattened here; full per-axis specs are a follow-up.
      */
     private List<Map<String, Object>> specificationList(List<CJProductVariantData> variants) {
-        List<Map<String, Object>> valueList = new ArrayList<>();
+        List<Map<String, Object>> out = new ArrayList<>();
         List<String> seen = new ArrayList<>();
         for (CJProductVariantData v : variants) {
             for (String value : variantValues(v)) {
                 if (value != null && !value.isBlank() && !seen.contains(value)) {
                     seen.add(value);
-                    Map<String, Object> entry = new LinkedHashMap<>();
-                    entry.put("id", seen.size());
-                    entry.put("value", value);
-                    entry.put("picUrl", null);
-                    valueList.add(entry);
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("specifications", "Specification");
+                    row.put("value", value);
+                    row.put("picUrl", null);
+                    out.add(row);
                 }
             }
         }
-        if (valueList.isEmpty()) {
-            return List.of();
-        }
-        Map<String, Object> group = new LinkedHashMap<>();
-        group.put("name", "Specification");
-        group.put("valueList", valueList);
-        return List.of(group);
+        return out;
     }
 
     /** Parse a CJ {@code variantKey} (e.g. {@code ["Black","XL"]}) into its value strings. */
@@ -215,19 +240,32 @@ public class CjGoodsDetailService {
     }
 
     private void addAttr(List<Map<String, Object>> attrs, String name, String value) {
-        if (value != null && !value.isBlank()) {
+        String readable = readable(value);
+        if (readable != null && !readable.isBlank()) {
             Map<String, Object> a = new LinkedHashMap<>();
-            a.put("attribute", name);
-            a.put("value", value);
+            a.put("attributeName", name);
+            a.put("attributeValue", readable);
             attrs.add(a);
         }
     }
 
-    /** CJ has no brand for most items; expose supplier name as a thin brand stand-in. */
-    private Map<String, Object> brand(CJProductDetailData d) {
-        Map<String, Object> brand = new LinkedHashMap<>();
-        brand.put("id", 0);
-        brand.put("name", d.getSupplierName());
-        return brand;
+    /**
+     * Some CJ fields (e.g. materialNameEn) come back JSON-stringified ({@code "[\"Cloth\"]"}).
+     * Flatten those to a readable comma-joined string; pass plain values through untouched.
+     */
+    private String readable(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String t = raw.trim();
+        if (t.startsWith("[")) {
+            try {
+                String[] arr = objectMapper.readValue(t, String[].class);
+                return String.join(", ", arr);
+            } catch (Exception e) {
+                // fall through to the raw value
+            }
+        }
+        return t;
     }
 }
