@@ -1,5 +1,5 @@
 -- =============================================================================
--- V17 — CJ Dropshipping product snapshot (the DB-backed store the OCS index is
+-- V19 — CJ Dropshipping product snapshot (the DB-backed store the OCS index is
 -- built from). CJ catalog products are fetched (rate-limited) into Redis, then
 -- normalized and persisted here as the system of record; OCS indexing reads
 -- these rows exactly like local goods read litemall_goods.
@@ -10,7 +10,7 @@
 -- This is a dedicated table (NOT litemall_goods) because CJ ids are UUIDs and
 -- must never be shoehorned into the int-keyed local schema.
 --
--- Undo: db/undo/U17__undo_cj_product_snapshot.sql
+-- Undo: db/undo/U19__undo_cj_product_snapshot.sql
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS `litemall_cj_product` (

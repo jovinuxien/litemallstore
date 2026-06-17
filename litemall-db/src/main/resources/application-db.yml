@@ -63,6 +63,14 @@ spring:
     validate-on-migrate: true
     out-of-order: false
     encoding: UTF-8
+    # The shared `litemall` dev DB was migrated by the promotion branch, which
+    # applied V17 (add combination) + V18 (add promotion campaign). Those files
+    # don't exist in master's litemall-db (master's CJ snapshot was renumbered
+    # V17 -> V19 to dodge the version collision), so Flyway flags them as
+    # "missing" applied migrations and halts every service. Ignore ONLY that
+    # category — checksum and all other validation rules stay on. Drop this once
+    # promotion's V17/V18 are merged into master's litemall-db lineage.
+    ignore-migration-patterns: "*:missing"
     # Flyway uses its own JDBC connection independent of Druid.
     # Mirror the same coordinates used by the Druid pool above.
     url: jdbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&verifyServerCertificate=false&useSSL=false
