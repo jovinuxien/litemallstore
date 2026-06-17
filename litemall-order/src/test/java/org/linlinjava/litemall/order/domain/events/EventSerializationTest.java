@@ -50,8 +50,8 @@ class EventSerializationTest {
         assertThat(json).contains("\"orderSn\":\"ORD-7-42\"");
         assertThat(json).contains("\"userId\":7");
         assertThat(json).contains("\"correlationId\":\"corr-abc\"");
-        assertThat(json).contains("\"schemaVersion\":1");
-        assertThat(json).contains("\"occurredAt\":");
+        assertThat(json).contains("\"schemaVersion\":\"1\"");
+        assertThat(json).contains("\"occurredOn\":");
     }
 
     @Test
@@ -61,7 +61,7 @@ class EventSerializationTest {
                 new LitemallMoney(new BigDecimal("15.00")),
                 LocalDateTime.now());
         String json = mapper.writeValueAsString(event);
-        assertThat(json).contains("\"schemaVersion\":1");
+        assertThat(json).contains("\"schemaVersion\":\"1\"");
         assertThat(json).contains("\"paidAmount\":");
     }
 
@@ -80,7 +80,7 @@ class EventSerializationTest {
     void grouponSucceededEvent_serializes() throws Exception {
         LitemallGrouponSucceededEvent event = new LitemallGrouponSucceededEvent(new LitemallGrouponId(5));
         String json = mapper.writeValueAsString(event);
-        assertThat(json).contains("\"schemaVersion\":1");
+        assertThat(json).contains("\"schemaVersion\":\"1\"");
     }
 
     @Test
@@ -90,7 +90,7 @@ class EventSerializationTest {
                 new LitemallOrderId(42), 7,
                 new LitemallMoney(new BigDecimal("5.00")));
         String json = mapper.writeValueAsString(event);
-        assertThat(json).contains("\"schemaVersion\":1");
+        assertThat(json).contains("\"schemaVersion\":\"1\"");
         assertThat(json).contains("\"userId\":7");
     }
 }
