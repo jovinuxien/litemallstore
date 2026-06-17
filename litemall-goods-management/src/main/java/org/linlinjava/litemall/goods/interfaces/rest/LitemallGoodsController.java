@@ -211,8 +211,15 @@ public class LitemallGoodsController {
      * @return Recommended products on product details page
      */
     @GetMapping("related")
-    public Object related(@NotNull Integer id) {
-        LitemallGoodsId goodsId = new LitemallGoodsId(id);
+    public Object related(@NotBlank String id) {
+        // CJ Dropshipping products carry a cj_<uuid> id and are OCS-only (no
+        // litemall_goods row, no local category), so the category-based
+        // recommendation can't run for them. Return an empty related list
+        // instead of 400ing on the non-numeric id (mirrors /detail's cj branch).
+        if (CjGoodsDetailService.isCjId(id)) {
+            return ResponseUtil.okList(java.util.Collections.emptyList());
+        }
+        LitemallGoodsId goodsId = new LitemallGoodsId(Integer.valueOf(id.trim()));
         LitemallGoodsAggregate goods = goodsServiceApi.getGoodsById(goodsId);
         if (goods == null) {
             return ResponseUtil.badArgumentValue();
