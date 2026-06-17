@@ -31,8 +31,14 @@ public class LitemallSpringDomainEventPublisher implements LitemallDomainEventPu
 
     @Override
     public void publish(LitemallDomainEvent event) {
-        if (event instanceof AbstractLitemallOrderDomainEvent orderEvent && orderEvent.getCorrelationId() == null) {
-            orderEvent.setCorrelationId(UserContext.getCorrelationId());
+        // core auto-assigns a random correlationId at construction, so bind the
+        // event to the current request's correlation id whenever one is present
+        // (preserves cross-process tracing instead of leaving a stray UUID).
+        if (event instanceof AbstractLitemallOrderDomainEvent orderEvent) {
+            String correlationId = UserContext.getCorrelationId();
+            if (correlationId != null) {
+                orderEvent.setCorrelationId(correlationId);
+            }
         }
         applicationEventPublisher.publishEvent(event);
     }

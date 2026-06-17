@@ -1,36 +1,28 @@
 package org.linlinjava.litemall.order.domain.events;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import lombok.Getter;
-import lombok.Setter;
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 
-import java.time.LocalDateTime;
-
-// Order-scoped base. Adds cross-process transport fields (correlationId set by
-// the publisher; schemaVersion per subclass) on top of litemall-core's
-// LitemallDomainEvent. Kept in litemall-order to avoid rippling into other
-// modules that extend the core base (wallet, loyalty, promotion).
-@Getter
-@Setter
+// Order-scoped base over litemall-core's LitemallDomainEvent.
+//
+// core's LitemallDomainEvent now carries correlationId, schemaVersion and
+// occurredOn itself, so this base no longer redeclares them (doing so shadowed
+// the core fields and made Jackson see duplicate correlationId/schemaVersion
+// properties, and clashed core's String getSchemaVersion() with an int one).
+// It now only adapts the per-event int SCHEMA_VERSION constants to core's
+// String schemaVersion and keeps field-level Jackson visibility so subclass
+// payload fields round-trip through the Spring Cloud Stream JSON converter.
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
         getterVisibility = JsonAutoDetect.Visibility.NONE,
         isGetterVisibility = JsonAutoDetect.Visibility.NONE,
         setterVisibility = JsonAutoDetect.Visibility.NONE)
 public abstract class AbstractLitemallOrderDomainEvent extends LitemallDomainEvent {
 
-    private String correlationId;
-    private int schemaVersion;
-    private LocalDateTime occurredAt;
-
     protected AbstractLitemallOrderDomainEvent() {
         super();
-        this.occurredAt = LocalDateTime.now();
     }
 
     protected AbstractLitemallOrderDomainEvent(int schemaVersion) {
-        super();
-        this.schemaVersion = schemaVersion;
-        this.occurredAt = LocalDateTime.now();
+        super(null, String.valueOf(schemaVersion));
     }
 }
