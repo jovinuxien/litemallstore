@@ -1,7 +1,9 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.LenientDoubleDeserializer;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvariant.CJProductVariantData;
 
 import java.util.List;
@@ -77,7 +79,8 @@ public class CJProductDetailData {
     private String productKeyEn; // Product key in English
 
     @JsonProperty("sellPrice")
-    private Double sellPrice; // Sell price
+    @JsonDeserialize(using = LenientDoubleDeserializer.class)
+    private Double sellPrice; // Sell price (CJ may send a "low-high" range string)
 
     @JsonProperty("sourceFrom")
     private Integer sourceFrom; // Source from (e.g., 1)

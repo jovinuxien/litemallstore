@@ -133,16 +133,13 @@ public class CjDropshippingApiUtils {
         goods.setNew(false); // Default not new
         goods.setUnit(cjProduct.getProductUnit());
 
-        // Convert prices
-        try {
-            BigDecimal price = new BigDecimal(cjProduct.getSellPrice());
-            goods.setCounterPrice(new LitemallMoney(price.multiply(new BigDecimal("2")))); // Assuming counter price is 2x sell price
-            goods.setRetailPrice(new LitemallMoney(price));
-        } catch (NumberFormatException e) {
-            // Handle invalid price format
-            goods.setCounterPrice(new LitemallMoney(BigDecimal.ZERO));
-            goods.setRetailPrice(new LitemallMoney(BigDecimal.ZERO));
-        }
+        // Convert prices. CJ may send sellPrice as a "low-high" range string
+        // (e.g. "14.71-64.38") for products whose variants span a price range;
+        // take the low ("from") bound rather than collapsing to ZERO (consistent
+        // with CjSnapshotSyncService.retailPrice).
+        BigDecimal price = parseLowPrice(cjProduct.getSellPrice());
+        goods.setCounterPrice(new LitemallMoney(price.multiply(new BigDecimal("2")))); // counter price is 2x sell price
+        goods.setRetailPrice(new LitemallMoney(price));
 
         // Convert createTime from timestamp to LocalDateTime
         try {
@@ -156,6 +153,18 @@ public class CjDropshippingApiUtils {
         goods.setDeleted(false);
 
         return goods;
+    }
+
+    /**
+     * Parse CJ's sellPrice — a plain number or a "low-high" range string — to its low ("from")
+     * bound. Returns ZERO only when no numeric token is present (never throws on a range).
+     */
+    private static BigDecimal parseLowPrice(String sellPrice) {
+        if (sellPrice == null || sellPrice.isBlank()) {
+            return BigDecimal.ZERO;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?").matcher(sellPrice);
+        return m.find() ? new BigDecimal(m.group()) : BigDecimal.ZERO;
     }
 
     private int safeConvertToInt(String idStr) {
