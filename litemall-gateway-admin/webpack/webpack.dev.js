@@ -61,6 +61,11 @@ module.exports = async options =>
                   changeOrigin: true,
                   logLevel: 'debug'
        },
+        '/auth': {
+                target: 'http://localhost:8080',
+                secure: false,
+                changeOrigin: true
+        },
         '/management': {
                  target: 'http://localhost:8080',
                  secure: false,

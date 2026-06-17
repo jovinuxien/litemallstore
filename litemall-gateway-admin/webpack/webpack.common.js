@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const webpack = require('webpack');
 const { merge } = require('webpack-merge');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -34,11 +35,13 @@ const getTsLoaderRule = env => {
 
 module.exports = async options => {
   const development = options.env === 'development';
-  const languagesHash = await hashElement(path.resolve(__dirname, '../src/main/webapp/i18n'), {
-    algo: 'md5',
-    encoding: 'hex',
-    files: { include: ['*.json'] },
-  });
+  // The admin SPA carries no i18n bundles (the JHipster i18n copy is disabled
+  // below). Guard the hash so a missing i18n folder doesn't break the build;
+  // I18N_HASH is only a cache-busting define.
+  const i18nDir = path.resolve(__dirname, '../src/main/webapp/i18n');
+  const languagesHash = fs.existsSync(i18nDir)
+    ? await hashElement(i18nDir, { algo: 'md5', encoding: 'hex', files: { include: ['*.json'] } })
+    : { hash: 'noi18n' };
 
   return merge(
     {

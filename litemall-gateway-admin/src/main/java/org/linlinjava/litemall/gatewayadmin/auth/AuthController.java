@@ -5,8 +5,8 @@ import java.util.Map;
 
 import org.linlinjava.litemall.db.auth.JwtService;
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
-import org.linlinjava.litemall.gatewayadmin.domain.valueobjects.user.ApiResponse;
 import org.linlinjava.litemall.gatewayadmin.infrastructure.config.security.AuthoritiesConstants;
+import org.linlinjava.litemall.gatewayadmin.web.ApiResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,7 +44,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public Mono<ApiResponse<Map<String, Object>>> login(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> login(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             LitemallAdmin admin = credentials.authenticate(
                     body.get("username"), body.get("password"));
@@ -52,8 +52,9 @@ public class AuthController {
                     Map.of("uid", admin.getId(), "typ", "admin",
                             // roles MUST be a String[] (not List): JwtService.addClaim
                             // only serializes String/Number/Boolean/String[] as native
-                            // claims — a List is stored as "[ROLE_ADMIN]", which
-                            // IdentityForwardingFilter cannot read back as a list, so no
+                            // claims — a List falls through to String.valueOf() and is
+                            // stored as "[ROLE_ADMIN]", which IdentityForwardingFilter
+                            // cannot read back via getClaim("roles").asList(...). Then no
                             // X-User-Roles is forwarded and downstream returns 403.
                             "roles", new String[] { AuthoritiesConstants.ADMIN }));
             String refresh = refreshTokens.issue(admin.getId(), LOGIN_TYPE);
@@ -66,38 +67,39 @@ public class AuthController {
             data.put("token", access);
             data.put("refreshToken", refresh);
             data.put("adminInfo", adminInfo);
-            return ApiResponse.ok(data);
+            return ApiResponse.<Object>ok(data);
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(AdminCredentialsService.BadCredentialsException.class,
                         e -> Mono.just(ApiResponse.fail(401, e.getMessage())));
     }
 
     @PostMapping("/refresh")
-    public Mono<ApiResponse<Map<String, Object>>> refresh(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> refresh(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             AdminRefreshTokenService.Rotation r = refreshTokens.rotate(body.get("refreshToken"));
             String access = jwt.issue(String.valueOf(r.getAdminId()),
                     Map.of("uid", r.getAdminId(), "typ", "admin",
                             // roles MUST be a String[] (not List): JwtService.addClaim
                             // only serializes String/Number/Boolean/String[] as native
-                            // claims — a List is stored as "[ROLE_ADMIN]", which
-                            // IdentityForwardingFilter cannot read back as a list, so no
+                            // claims — a List falls through to String.valueOf() and is
+                            // stored as "[ROLE_ADMIN]", which IdentityForwardingFilter
+                            // cannot read back via getClaim("roles").asList(...). Then no
                             // X-User-Roles is forwarded and downstream returns 403.
                             "roles", new String[] { AuthoritiesConstants.ADMIN }));
             Map<String, Object> data = new HashMap<>();
             data.put("token", access);
             data.put("refreshToken", r.getRefreshToken());
-            return ApiResponse.ok(data);
+            return ApiResponse.<Object>ok(data);
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(InvalidRefreshTokenException.class,
                         e -> Mono.just(ApiResponse.fail(401, e.getMessage())));
     }
 
     @PostMapping("/logout")
-    public Mono<ApiResponse<Map<String, Object>>> logout(@RequestBody Map<String, String> body) {
+    public Mono<ApiResponse<Object>> logout(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             refreshTokens.revoke(body.get("refreshToken"));
-            return ApiResponse.<Map<String, Object>>ok(null);
+            return ApiResponse.<Object>ok(null);
         }).subscribeOn(Schedulers.boundedElastic());
     }
 }
