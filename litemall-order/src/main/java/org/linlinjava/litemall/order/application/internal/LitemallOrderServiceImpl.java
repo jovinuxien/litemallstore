@@ -207,9 +207,20 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Order creation
         newOrderId = new LitemallOrderId(0);// the OrderId to be generated
         orderAggregate.setOrderId(newOrderId);
+        orderAggregate.setUserId(cmdUserId);// authoritative buyer from the gateway header
         orderAggregate.setOrderSn(orderRepository.generateOrderSn(cmdUserId));
 
         orderAggregate.setOrderStatus(LitemallOrderStatus.CREATED);
+        // Creation-time defaults for fields the data mapper dereferences but that a
+        // fresh order doesn't carry yet (else convertToDataModel NPEs / inserts null
+        // into NOT NULL columns).
+        orderAggregate.setAfterSaleStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_INIT);
+        orderAggregate.setRefundAmount(new LitemallMoney(new BigDecimal(0)));
+        orderAggregate.setRefundType("");
+        orderAggregate.setComments((short) 0);
+        orderAggregate.setDeleted(false);
+        orderAggregate.setAddTime(LocalDateTime.now());
+        orderAggregate.setUpdateTime(LocalDateTime.now());
         orderAggregate.setConsignee(addressAggregate.getName());
         orderAggregate.setMobile(addressAggregate.getTel());
         orderAggregate.setMessage(command.getMessage());
@@ -247,8 +258,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             orderGoodsAggregate.setPrice(cartGoods.getPrice());
             orderGoodsAggregate.setNumber(cartGoods.getNumber().shortValue());
             orderGoodsAggregate.setSpecifications(cartGoods.getSpecifications());
+            orderGoodsAggregate.setPicUrl(cartGoods.getPicUrl());
 
             orderGoodsAggregate.setAddTime(LocalDateTime.now());
+            orderGoodsAggregate.setUpdateTime(LocalDateTime.now());
 
             orderGoodsRepository.add(orderGoodsAggregate);
         }
@@ -479,7 +492,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
             CompletableFuture<Map<LitemallGoodsProductId, LitemallGoodsProductAggregate>> productsFuture =
                     CompletableFuture.supplyAsync(() ->
-                            batchGetProductAggregates(productIds));
+                            batchGetProductAggregates(goodsIds));
 
             // Wait for all batch requests to complete
             //Map<LitemallGoodsId, LitemallGoodsAggregate> goodsMap = goodsFuture.get();
@@ -516,8 +529,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         return goodsFacade.batchGetGoods(goodsIds);
     }
 
-    private Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> batchGetProductAggregates(Set<Integer> productIds) {
-        return goodsFacade.batchGetProducts(productIds);
+    private Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> batchGetProductAggregates(Set<Integer> goodsIds) {
+        // goods-management is goodsId-centric; fetch each goods' variants through the
+        // ACL and key them by product id for the stock-validation lookups.
+        Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> productsMap = new java.util.HashMap<>();
+        for (Integer goodsId : goodsIds) {
+            for (LitemallGoodsProductAggregate product : goodsFacade.getProductsByGoods(new LitemallGoodsId(goodsId))) {
+                productsMap.put(product.getGoodsProductId(), product);
+            }
+        }
+        return productsMap;
     }
 
     private void validateStockForAllItems(List<LitemallCartAggregate> cartList, AggregatesValidationContext context){

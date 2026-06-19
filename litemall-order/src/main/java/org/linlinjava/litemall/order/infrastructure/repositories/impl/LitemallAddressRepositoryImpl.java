@@ -103,7 +103,8 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
 
         // Relationship mappings
         domainModel.setAddressId(new LitemallAddressId(record.getId()));
-        domainModel.setUserId(new LitemallUserId(record.getId()));
+        domainModel.setUserId(new LitemallUserId(record.getUserId()));
+        domainModel.setName(record.getName());// consignee name — required NOT NULL on the order
         domainModel.setProvince(record.getProvince());
         domainModel.setCity(record.getCity());
         domainModel.setCounty(record.getCounty());

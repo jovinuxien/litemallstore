@@ -36,7 +36,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
     @Override
     public Optional<LitemallOrderAggregate> findById(LitemallOrderId orderId) {
-        return Optional.of(convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId())));
+        LitemallOrder record = litemallOrderMapper.selectByPrimaryKey(orderId.getId());
+        return record == null ? Optional.empty() : Optional.of(convertToDomainModel(record));
     }
 
 
@@ -59,6 +60,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
        litemallOrder.setUpdateTime(LocalDateTime.now());
 
        litemallOrderMapper.insertSelective(litemallOrder);
+       // Propagate the DB-generated primary key back onto the aggregate; placeOrder
+       // re-loads the order and attaches order-goods by this id (was left at 0).
+       order.setOrderId(new LitemallOrderId(litemallOrder.getId()));
     }
 
     @Override
@@ -321,8 +325,10 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setOrderId(new LitemallOrderId(record.getId()));
         domainModel.setUserId(new LitemallUserId(record.getUserId()));
         domainModel.setOrderSn(record.getOrderSn());
-        domainModel.setOrderStatus(LitemallOrderStatus.valueOf(record.getOrderStatus().toString()));
-        domainModel.setAfterSaleStatus(LitemallAfterSaleStatus.valueOf(record.getAftersaleStatus().toString()));
+        // Map by numeric code, not enum NAME — the column stores the code (e.g. 101),
+        // so valueOf("101") would throw "No enum constant ...101".
+        domainModel.setOrderStatus(LitemallOrderStatus.fromCode(record.getOrderStatus()));
+        domainModel.setAfterSaleStatus(LitemallAfterSaleStatus.fromStatusCode(record.getAftersaleStatus()));
 
 
         domainModel.setConsignee(record.getConsignee());
