@@ -6,6 +6,14 @@ spring:
   profiles:
     #active: db, db1, core, elastic, admin, wx
     active: dev, db, core, elastic, admin, wx
+  # The shared dev DB carries migrations from sibling services that are NOT on this
+  # module's classpath (e.g. V21 cj_product_detail_columns, owned by goods-management).
+  # Flyway's validate would otherwise abort on "applied migration not resolved locally: 21".
+  # Tolerate applied-but-missing migrations so startup proceeds; NEVER `flyway repair` the
+  # shared DB. (litemall-db's application-db.yml declares this too, but it is not taking
+  # effect for this service's config wiring, so it is set explicitly here.)
+  flyway:
+    ignore-migration-patterns: "*:missing"
   messages:
     encoding: UTF-8
   servlet:
