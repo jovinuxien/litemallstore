@@ -18,8 +18,14 @@ import java.util.Set;
 @RequestMapping("/srv/search")
 public class LitemallSearchController {
 
-    /** Reserved params handled explicitly; everything else is treated as a candidate facet filter. */
-    private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort");
+    /**
+     * Reserved params handled explicitly; everything else is treated as a candidate facet filter.
+     * {@code offset}/{@code limit} are reserved too: some callers (the InstantSearch adapter) send
+     * raw OCS pagination params alongside {@code page}/{@code size}; without stripping them here they
+     * leak into the filter map and OcsSearchClient re-appends them, producing a duplicated/zeroed
+     * {@code offset=&limit=} on the OCS URL.
+     */
+    private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort", "offset", "limit");
 
     private final SearchService searchService;
     private final SearchKeywordService searchKeywordService;
