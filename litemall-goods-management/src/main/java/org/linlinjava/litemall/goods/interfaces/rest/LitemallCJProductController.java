@@ -3,9 +3,9 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 import jakarta.servlet.http.HttpServletRequest;
 import org.linlinjava.litemall.core.util.JacksonUtil;
 import org.linlinjava.litemall.core.util.ResponseUtil;
-import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.db.domain.LitemallCjProduct;
+import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
-import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationRequest;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.CJAuthenticationService;
@@ -29,38 +29,30 @@ public class LitemallCJProductController {
     private CJProductService productService;
     @Autowired
     private CJAuthenticationService authenticationService;
+    @Autowired
+    private LitemallCjProductService cjProductStore;
 
 
+    /**
+     * Paginated CJ product list, served from the durable {@code litemall_cj_product} snapshot in the
+     * DB — NOT a live CJ API call. Paging through this surface only walks the DB (offset/limit), so
+     * navigating pages never re-hits the rate-limited (1-request/300s) CJ API; the snapshot is kept
+     * fresh out-of-band by the daily {@code CjCatalogRefreshTask} / {@code POST /srv/private/admin/search/cj-sync}.
+     */
     @GetMapping("/productCJList")
-    public Object getProductList(@RequestParam(required = false) String categoryId){
+    public Object getProductList(@RequestParam(defaultValue = "1") Integer page,
+                                 @RequestParam(defaultValue = "20") Integer size) {
+        List<LitemallCjProduct> rows = cjProductStore.queryLivePaged(page, size);
+        int total = cjProductStore.countLive();
+        int totalPages = size <= 0 ? 0 : (total + size - 1) / size;
 
-        var productResponse = productService.fetchProductList();
         Map<String, Object> data = new HashMap<>();
-        data.put("code", productResponse.getCode());
-        data.put("result", productResponse.isResult());
-        data.put("message", productResponse.getMessage());
-        data.put("data", productResponse.getData());
-
+        data.put("list", rows);
+        data.put("total", total);
+        data.put("page", page);
+        data.put("limit", size);
+        data.put("totalPages", totalPages);
         return ResponseUtil.ok(data);
-
-       /* try{
-            List<LitemallGoodsAggregate> products;
-            if (categoryId != null) {
-                products = productService.cjFilterProductByCategory(categoryId);
-            } else {
-                CJProductDataResponse response = productService.fetchProductList();
-                products = productService.convertProducts(response);
-            }
-            //productService.cjFilterProductByCategory();
-            Map<String, Object> data = new HashMap<>();
-           *//* data.put("code", productListResponse.getCode());
-            data.put("result", productListResponse.isResult());
-            data.put("message", productListResponse.getMessage());*//*
-            data.put("data", products);
-            return ResponseUtil.ok(data);
-        }catch (Exception e){
-            return ResponseUtil.fail();
-        }*/
     }
 
 

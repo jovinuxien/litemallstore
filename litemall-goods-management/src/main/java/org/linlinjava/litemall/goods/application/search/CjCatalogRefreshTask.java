@@ -100,7 +100,9 @@ public class CjCatalogRefreshTask {
                 productIndexer.delete(CjProductIndexingService.CJ_ID_PREFIX + pid);
                 deleted++;
             }
-            LOGGER.info("CJ catalog refresh: upserted {} documents, deleted {} stale", upserted, deleted);
+            LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed products; "
+                            + "upserted {} OCS documents, deleted {} stale",
+                    result.inserted(), result.updated(), result.removedPids().size(), upserted, deleted);
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ catalog refresh failed: {}", ex.getMessage());
         }

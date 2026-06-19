@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Durable staging buffer for RAW CJ Dropshipping API payloads, backed by Redis.
@@ -78,6 +79,28 @@ public class CjRawCacheRepository {
         } catch (Exception ex) {
             LOGGER.warn("Failed to parse cached CJ payload '{}': {}", key, ex.getMessage());
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Drop the consumed raw {@code list:*} staging pages (per-category/page list payloads) after a
+     * sync has landed them in {@code litemall_cj_product}. Best-effort: a Redis failure is logged and
+     * ignored (the TTL still reclaims them). The {@code categories} / {@code detail:*} keys are left
+     * in place — they are cheap and reused by the detail/category surfaces. Returns the count removed.
+     */
+    public long purgeRawListKeys() {
+        try {
+            Set<String> keys = redis.keys(PREFIX + "list:*");
+            if (keys == null || keys.isEmpty()) {
+                return 0L;
+            }
+            Long removed = redis.delete(keys);
+            long count = removed == null ? 0L : removed;
+            LOGGER.info("Purged {} raw CJ list staging keys from Redis after sync", count);
+            return count;
+        } catch (RuntimeException ex) {
+            LOGGER.warn("Failed to purge raw CJ list staging keys ({}); TTL will reclaim them", ex.getMessage());
+            return 0L;
         }
     }
 

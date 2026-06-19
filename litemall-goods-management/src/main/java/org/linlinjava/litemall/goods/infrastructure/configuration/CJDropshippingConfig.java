@@ -86,6 +86,14 @@ public class CJDropshippingConfig {
     public static class Redis {
         /** TTL (seconds) for a cached raw CJ list page; default 6h. */
         private long rawTtlSeconds = 21600;
+
+        /**
+         * Purge the raw CJ {@code list:*} staging keys from Redis once a daily sync has safely landed
+         * the data in {@code litemall_cj_product}. The DB is the durable source after a sync, so the
+         * consumed raw pages are dead weight; clearing them frees Redis and forces the next cycle to
+         * re-fetch fresh pages. Off → rely solely on {@link #rawTtlSeconds} expiry.
+         */
+        private boolean purgeAfterSync = true;
     }
 
     /**
