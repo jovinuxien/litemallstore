@@ -14,6 +14,18 @@
     where deleted = 0
   </select>
 
+  <select id="selectLivePaged" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_product
+    where deleted = 0
+    order by add_time desc, pid asc
+    limit #{limit} offset #{offset}
+  </select>
+
+  <select id="countLive" resultType="int">
+    select count(*) from litemall_cj_product where deleted = 0
+  </select>
+
   <select id="selectByPid" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
     select <include refid="Base_Column_List"/>
     from litemall_cj_product

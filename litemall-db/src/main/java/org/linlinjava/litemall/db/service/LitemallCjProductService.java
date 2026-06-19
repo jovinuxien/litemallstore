@@ -23,6 +23,22 @@ public class LitemallCjProductService {
         return cjProductMapper.selectAllLive();
     }
 
+    /**
+     * A 1-based page of live snapshot rows, newest first — the paginated list-read source so a list
+     * surface pages the DB instead of re-hitting the CJ API. Page/size are clamped to sane bounds.
+     */
+    public List<LitemallCjProduct> queryLivePaged(int page, int size) {
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 1);
+        int offset = (safePage - 1) * safeSize;
+        return cjProductMapper.selectLivePaged(offset, safeSize);
+    }
+
+    /** Count of live (non-deleted) snapshot rows — paging total. */
+    public int countLive() {
+        return cjProductMapper.countLive();
+    }
+
     /** One snapshot row by RAW CJ pid (detail / order lookup), or null. */
     public LitemallCjProduct findByPid(String pid) {
         if (pid == null || pid.isBlank()) {
