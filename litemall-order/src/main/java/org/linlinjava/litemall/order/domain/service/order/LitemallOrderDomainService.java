@@ -35,7 +35,12 @@ public class LitemallOrderDomainService {
     public void validateProductStock(List<LitemallCartAggregate> checkedCartItems, LitemallGoodsFacade goodsFacade) {
         for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProductAggregate goodsProduct = goodsFacade.getGoodsProduct(cartItem.getProductId());
+            // goods-management exposes products per goods (not per product id), so
+            // fetch the goods' variants and pick the one this cart line references.
+            LitemallGoodsProductAggregate goodsProduct = goodsFacade.getProductsByGoods(cartItem.getGoodsId()).stream()
+                    .filter(p -> p.getGoodsProductId().equals(cartItem.getProductId()))
+                    .findFirst()
+                    .orElseThrow(LitemallInsufficientStockException::new);
 
             if(goodsProduct.getNumber() < cartItem.getNumber()){
                 throw new LitemallInsufficientStockException();

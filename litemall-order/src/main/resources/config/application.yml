@@ -57,7 +57,7 @@ server:
 
 goods:
   service:
-    url: http://localhost:8083
+    url: http://localhost:8082
 
 # Goods-service client resilience: connect/read timeouts + circuit breaker with
 # fallback (GoodsServiceFeignClientFallbackFactory). A goods-management outage

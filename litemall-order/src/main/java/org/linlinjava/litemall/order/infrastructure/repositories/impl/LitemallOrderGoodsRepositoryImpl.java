@@ -84,7 +84,7 @@ public class LitemallOrderGoodsRepositoryImpl implements LitemallOrderGoodsRepos
         if(orderGoodsAggregate.getOrderGoodsId() != null){
             dataModel.setId(orderGoodsAggregate.getOrderGoodsId());
         }
-        dataModel.setOrderId(orderGoodsAggregate.getGoodsId().getId());
+        dataModel.setOrderId(orderGoodsAggregate.getOrderId().getId());// was wrongly set from goodsId
         dataModel.setGoodsId(orderGoodsAggregate.getGoodsId().getId());
         dataModel.setProductId(orderGoodsAggregate.getProductId().getId());
 
@@ -94,7 +94,8 @@ public class LitemallOrderGoodsRepositoryImpl implements LitemallOrderGoodsRepos
         dataModel.setNumber(orderGoodsAggregate.getNumber());
         dataModel.setPrice(orderGoodsAggregate.getPrice().getAmount());
         dataModel.setPicUrl(orderGoodsAggregate.getPicUrl());
-        dataModel.setComment(Integer.valueOf(orderGoodsAggregate.getComment()));
+        dataModel.setComment(orderGoodsAggregate.getComment() == null ? 0 : Integer.valueOf(orderGoodsAggregate.getComment()));
+        dataModel.setSpecifications(orderGoodsAggregate.getSpecifications());// was never mapped → NOT NULL violation
 
         dataModel.setAddTime(orderGoodsAggregate.getAddTime());
         dataModel.setUpdateTime(orderGoodsAggregate.getUpdateTime());

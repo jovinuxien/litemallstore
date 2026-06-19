@@ -32,4 +32,18 @@ public enum LitemallAfterSaleStatus {
     public String getDisplayName() {
         return displayName;
     }
+
+    /**
+     * Map a persisted aftersale_status code back to its STATUS_* constant. The
+     * TYPE_* constants share codes 0–2, so restrict the lookup to the STATUS_*
+     * lifecycle values. Defaults to STATUS_INIT for an unknown code.
+     */
+    public static LitemallAfterSaleStatus fromStatusCode(short code) {
+        for (LitemallAfterSaleStatus s : values()) {
+            if (s.name().startsWith("STATUS_") && s.getCode() == code) {
+                return s;
+            }
+        }
+        return STATUS_INIT;
+    }
 }
