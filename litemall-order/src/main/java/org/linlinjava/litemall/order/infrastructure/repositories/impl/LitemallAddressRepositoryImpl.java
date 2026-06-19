@@ -32,6 +32,13 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
        return convertToDomainModel(addressMapper.selectOneByExample(example));
     }
 
+    @Override
+    public LitemallAddressAggregate findDefaultAddress(LitemallUserId userId) {
+        LitemallAddressExample example = new LitemallAddressExample();
+        example.or().andUserIdEqualTo(userId.getId()).andIsDefaultEqualTo(true).andDeletedEqualTo(false);
+        return convertToDomainModel(addressMapper.selectOneByExample(example));
+    }
+
 
 
     @Override
