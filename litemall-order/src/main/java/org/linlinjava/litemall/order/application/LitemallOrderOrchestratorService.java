@@ -53,6 +53,11 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private LitemallCartServiceLayer cartServiceLayer;
 
+    // ACL over goods-management — used to enrich a cart line built from just
+    // {goodsId, productId, number} (legacy /srv/cart/add) with name/sn/price/specs/image.
+    @Autowired
+    private org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade goodsFacade;
+
     @Autowired
     private NotifyService notifyService;
 
@@ -111,6 +116,21 @@ public class LitemallOrderOrchestratorService {
     // =========================================================================
 
     private LitemallOrderOperationResult handleOrderCreation(LitemallPlaceOrderCommand command) {
+        // Pre-validate the cart OUTSIDE the nested transactional placeOrder. An empty
+        // checked cart is a clean client error (422 with this message), not a phantom
+        // zero-line order nor a rollback-only 502: throwing from inside placeOrder
+        // (@Transactional) would mark the shared transaction rollback-only and surface
+        // a generic 500/502 even though we catch it. placeOrder keeps its own guard as
+        // a safety net for any other caller.
+        int cartId = command.getCartId() == null ? 0 : command.getCartId();
+        java.util.List<LitemallCartAggregate> checkedItems = cartServiceLayer.getCheckedCartItems(
+                new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId(cartId),
+                new org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId(command.getUserId()));
+        if (checkedItems == null || checkedItems.isEmpty()
+                || checkedItems.stream().allMatch(java.util.Objects::isNull)) {
+            return LitemallOrderOperationResult.submitFailed(
+                    "Your cart is empty — add at least one item before placing an order.");
+        }
         try {
             LitemallOrderSubmitResult submitResult = orderServiceImpl.placeOrder(command);
             LitemallOrderOperationResult result = convertSubmitResultToOperationResult(submitResult, command);
@@ -382,6 +402,45 @@ public class LitemallOrderOrchestratorService {
     }
 
     public LitemallCartAggregate addCartItem(LitemallCartAggregate cart) {
+        return cartServiceLayer.addCartItem(cart);
+    }
+
+    /**
+     * Legacy cart-add ({@code POST /srv/cart/add}): the SPA sends only goodsId/productId/
+     * number, so look up the goods + chosen variant through the goods ACL and build a
+     * fully-populated, checked cart line before persisting. A missing goods/variant is a
+     * clean client error (mapped to a 4xx by the controller), not a later NPE.
+     */
+    public LitemallCartAggregate addToCart(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+                                           Integer goodsId, Integer productId, Integer number) {
+        org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId gid =
+                new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId(goodsId);
+
+        org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate goods =
+                goodsFacade.batchGetGoods(java.util.Set.of(goodsId)).get(gid);
+        org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate product =
+                goodsFacade.getProductsByGoods(gid).stream()
+                        .filter(p -> p.getGoodsProductId() != null && productId.equals(p.getGoodsProductId().getId()))
+                        .findFirst()
+                        .orElse(null);
+
+        if (goods == null || product == null || product.getPrice() == null) {
+            throw new LitemallOrderServiceException(
+                    "Cannot add to cart: goods " + goodsId + " / product " + productId + " not found in goods-management");
+        }
+
+        LitemallCartAggregate cart = new LitemallCartAggregate();
+        cart.setUserId(userId);
+        cart.setGoodsId(gid);
+        cart.setProductId(new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId(productId));
+        cart.setNumber(number == null || number < 1 ? 1 : number);
+        cart.setChecked(true);
+        cart.setGoodsName(goods.getGoodsName());
+        cart.setGoodsSn(goods.getGoodsSn());
+        cart.setPrice(product.getPrice());
+        cart.setSpecifications(product.getSpecification());
+        // Prefer the variant image; fall back to the goods cover.
+        cart.setPicUrl(product.getUrl() != null ? product.getUrl() : goods.getPicUrl());
         return cartServiceLayer.addCartItem(cart);
     }
 

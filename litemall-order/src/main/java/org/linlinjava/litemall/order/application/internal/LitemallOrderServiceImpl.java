@@ -156,8 +156,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         List<LitemallCartAggregate> cartList = null;
         cartList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(cartId), cmdUserId);
 
-        if(cartList == null){
-            return LitemallOrderSubmitResult.failed();
+        // An order needs at least one checked, non-deleted cart line. Without this
+        // guard an empty cart still creates a zero-line order and only fails much
+        // later in validateAndReduceStock with the misleading "Failed to load
+        // required product data for validation" (empty goodsIds -> empty maps).
+        // Fail fast with an accurate, client-facing message instead — handleOrderCreation
+        // maps LitemallOrderServiceException to a clean submitFailed result (not a 500).
+        if (cartList == null || cartList.stream().allMatch(java.util.Objects::isNull) || cartList.isEmpty()) {
+            throw new org.linlinjava.litemall.order.application.util.exception.order.LitemallOrderServiceException(
+                    "Cannot place an order: there are no checked items in the cart for user " + cmdUserId.getId());
         }
 
         // Validate the productStock through the goods ACL (price/stock authoritative read)

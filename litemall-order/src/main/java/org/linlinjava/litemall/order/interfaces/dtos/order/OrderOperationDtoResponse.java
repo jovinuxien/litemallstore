@@ -4,11 +4,15 @@ import org.linlinjava.litemall.db.domain.*;
 
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Getter;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.interfaces.dtos.groupon.GrouponInfoDtoResponse;
 
 import java.time.LocalDateTime;
 
+// @Getter exposes the fields to Jackson — without getters this DTO serialized to
+// {} on BOTH success and error, so the SPA never saw orderId/success/message.
+@Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OrderOperationDtoResponse {
 
