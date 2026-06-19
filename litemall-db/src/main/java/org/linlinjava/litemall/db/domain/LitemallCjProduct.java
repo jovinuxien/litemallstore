@@ -27,6 +27,7 @@ public class LitemallCjProduct {
     private String variantsJson;
     private String attributesJson;
     private String imagesJson;
+    private String detailHtml;
     private LocalDateTime enrichedTime;
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
@@ -134,6 +135,14 @@ public class LitemallCjProduct {
 
     public void setImagesJson(String imagesJson) {
         this.imagesJson = imagesJson;
+    }
+
+    public String getDetailHtml() {
+        return detailHtml;
+    }
+
+    public void setDetailHtml(String detailHtml) {
+        this.detailHtml = detailHtml;
     }
 
     public LocalDateTime getEnrichedTime() {
