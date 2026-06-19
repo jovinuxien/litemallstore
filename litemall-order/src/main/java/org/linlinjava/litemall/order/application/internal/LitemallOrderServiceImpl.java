@@ -103,9 +103,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("User id is required.");
         }
 
-        if(command.getAddressId() == null){
-            throw new IllegalArgumentException("Address info is required");
-        }
+        // addressId is OPTIONAL: when the command carries none (the customer SPA has no
+        // address picker yet — /srv/address follow-up), fall back to the user's default
+        // shipping address below. Resolution + the "no address at all" guard happen where
+        // the address is actually loaded.
 
         // Groupon and coupon are OPTIONAL checkout selections. litemall encodes
         // "none" as the sentinel 0 (couponId may also be -1 = none); cartId 0 means
@@ -116,7 +117,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         int grouponLinkId = command.getGrouponLinkId() == null ? 0 : command.getGrouponLinkId();
 
         LitemallUserId cmdUserId = new LitemallUserId(command.getUserId());
-        LitemallAddressId cmdAddressId = new LitemallAddressId(command.getAddressId());
         LitemallGrouponRulesId cmdGrouponRulesId = new LitemallGrouponRulesId(
                 command.getGrouponRulesId() == null ? 0 : command.getGrouponRulesId());
         LitemallCouponId cmdCouponId = new LitemallCouponId(
@@ -141,8 +141,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 && grouponServiceLayer.validateGrouponRules(
                         cmdGrouponRulesId.getId(), grouponLinkId, cmdUserId.getId()).isValid();
 
-        // Get and Check the shipping address
-        LitemallAddressAggregate addressAggregate = addressRepository.findAddress(cmdUserId, cmdAddressId);
+        // Get and Check the shipping address. Use the explicit addressId when supplied,
+        // otherwise fall back to the user's default address. Either way a missing address
+        // is a hard error — the order needs a consignee/mobile/address to ship to.
+        LitemallAddressAggregate addressAggregate = command.getAddressId() == null
+                ? addressRepository.findDefaultAddress(cmdUserId)
+                : addressRepository.findAddress(cmdUserId, new LitemallAddressId(command.getAddressId()));
+        if (addressAggregate == null) {
+            throw new IllegalArgumentException("Address info is required");
+        }
 
 
         // Get the Checked cart items
