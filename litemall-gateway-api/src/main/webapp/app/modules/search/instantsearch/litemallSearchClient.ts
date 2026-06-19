@@ -107,13 +107,14 @@ const numericToPrice = (nf: AlgoliaParams['numericFilters']): [string, string] |
 const buildQuery = (indexName: string, params: AlgoliaParams): string => {
   const qs = new URLSearchParams();
   qs.set('q', params.query ?? '');
-  const size = params.hitsPerPage ?? 12;
+  // `??` does NOT catch an explicit 0 (InstantSearch sends hitsPerPage=0 on facet-probe renders),
+  // which would page the backend at size=0 and return zero hits — guard for a positive size.
+  const size = params.hitsPerPage && params.hitsPerPage > 0 ? params.hitsPerPage : 12;
   const page = (params.page ?? 0) + 1; // Algolia is 0-based; backend is 1-based.
   qs.set('page', String(page));
   qs.set('size', String(size));
-  // Older backend pages by offset/limit — send both so this degrades cleanly.
-  qs.set('offset', String((page - 1) * size));
-  qs.set('limit', String(size));
+  // The OCS-backed /srv/search pages by page/size and derives offset/limit itself; sending raw
+  // offset/limit too leaked into the facet filters and got re-appended to the OCS URL.
 
   const sort = parseSort(indexName);
   if (sort) qs.set('sort', sort);
@@ -209,7 +210,7 @@ const emptyResponse = (indexName: string, params: AlgoliaParams): SearchResponse
 });
 
 const runSearch = async (indexName: string, params: AlgoliaParams): Promise<SearchResponse<any>> => {
-  const size = params.hitsPerPage ?? 12;
+  const size = params.hitsPerPage && params.hitsPerPage > 0 ? params.hitsPerPage : 12;
   try {
     const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(indexName, params)}`);
     const body = response.data ?? {};

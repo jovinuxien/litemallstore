@@ -32,6 +32,11 @@ public class SearchService {
     }
 
     public Map<String, Object> search(String query, int page, int size, String sort, Map<String, String> filters) {
+        // A non-positive page size (e.g. an InstantSearch facet-probe sending hitsPerPage=0) would
+        // become limit=0 on the OCS URL and return zero hits — clamp to a sane default instead.
+        if (size <= 0) {
+            size = 20;
+        }
         int offset = Math.max(0, (page - 1) * size);
         // Forward all candidate filters; OCS only acts on params matching a configured Facet field and
         // ignores the rest (verified), so the "whitelist" is the index's own facet set, not a hardcoded
