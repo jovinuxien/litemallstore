@@ -7,8 +7,10 @@ public class LitemallCouponUserId {
     private final Integer id;
 
     public LitemallCouponUserId(Integer id) {
-        if (id == null || id <= 0) {
-            throw new IllegalArgumentException("Coupon user id must not be null or empty");
+        // 0 is the "no user-coupon" sentinel for a plain order (placeOrder normalizes
+        // a missing selection to 0). Reject only null/negative.
+        if (id == null || id < 0) {
+            throw new IllegalArgumentException("Coupon user id must not be null or negative");
         }
         this.id = id;
     }
