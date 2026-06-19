@@ -15,6 +15,12 @@ public interface LitemallCjProductMapper {
     /** All live (non-deleted) snapshot rows — the OCS indexing source. */
     List<LitemallCjProduct> selectAllLive();
 
+    /** A page of live (non-deleted) snapshot rows, newest first — the paginated list-read source. */
+    List<LitemallCjProduct> selectLivePaged(@Param("offset") int offset, @Param("limit") int limit);
+
+    /** Count of live (non-deleted) snapshot rows — paging total. */
+    int countLive();
+
     /** A single snapshot row by raw CJ pid (detail / order lookup), or null. */
     LitemallCjProduct selectByPid(@Param("pid") String pid);
 

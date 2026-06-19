@@ -14,6 +14,7 @@ import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
+import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.ReduceStockRequest;
@@ -50,6 +51,8 @@ public class LitemallGoodsController {
     private LitemallGoodsManagementService goodsManagementService;
     @Autowired
     private CjGoodsDetailService cjGoodsDetailService;
+    @Autowired
+    private SearchService searchService;
 
     // Home-page marketing data sourced from litemall-db (mirrors the monolith's
     // WxHomeController): banners (ads), channels (channel categories), coupons.
@@ -161,18 +164,38 @@ public class LitemallGoodsController {
             @Sort(accepts = {"add_time", "retail_price", "name"}) @RequestParam(defaultValue = "add_time") String sort,
             @Order @RequestParam(defaultValue = "desc") String order
     ) {
+        // Customer browse routes through the unified OCS index so the listing spans BOTH local and CJ
+        // products and carries the same facets/aggregations as /srv/search. brandId / isNew / isHot are
+        // local-only signals with no indexed field, so a request constrained by them (or an OCS outage)
+        // falls back to the local-DB path below.
+        boolean ocsServable = brandId == null && !Boolean.TRUE.equals(isNew) && !Boolean.TRUE.equals(isHot);
+        if (ocsServable) {
+            try {
+                Map<String, String> filters = new HashMap<>();
+                if (categoryId != null) {
+                    filters.put("category_ids", String.valueOf(categoryId));
+                }
+                Map<String, Object> result = searchService.search(keyword, page, limit, ocsSort(sort, order), filters);
+
+                Map<String, Object> entity = new HashMap<>();
+                entity.put("list", result.get("goodsList"));   // legacy key; unified local+CJ hit list
+                entity.put("total", result.get("total"));
+                entity.put("page", result.get("page"));
+                entity.put("limit", result.get("limit"));
+                entity.put("pages", result.get("totalPages"));
+                entity.put("filters", result.get("filters"));  // OCS facets/aggregations (new)
+                entity.put("filterCategoryList", null);
+                entity.put("source", "ocs");
+                return ResponseUtil.ok(entity);
+            } catch (RuntimeException ex) {
+                // OCS unavailable — degrade to the local-DB listing rather than failing the page.
+            }
+        }
+
         LitemallCategoryId catId = categoryId != null ? new LitemallCategoryId(categoryId) : null;
         LitemallManufacturerId manufacturerId = brandId != null ? new LitemallManufacturerId(brandId) : null;
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsBySelective(catId, manufacturerId, keyword, isHot, isNew, page, limit, sort);
 
-        List<Integer> goodsCatsId = goodsServiceApi.getCatIds(brandId, keyword, isHot, isNew);
-        List<LitemallCategoryAggregate> catList = null;
-
-        /*if(goodsCatsId!= null &&! goodsCatsId.isEmpty()){
-            catList = categoryServiceApi.getSecondLevelCategories(goodsCatsId);
-        }*/
-
-        //System.out.println("the goodsList are: " + goodsList.stream().map(LitemallGoodsAggregate::getDetail).toList());
         PageInfo<LitemallGoodsAggregate> pagedList = PageInfo.of(goodsList);
 
         Map<String, Object> entity = new HashMap<>();
@@ -181,9 +204,30 @@ public class LitemallGoodsController {
         entity.put("page", pagedList.getPageNum());
         entity.put("limit", pagedList.getPageSize());
         entity.put("pages", pagedList.getPages());
-        entity.put("filterCategoryList", catList);
+        entity.put("filterCategoryList", null);
+        entity.put("source", "db");
 
         return ResponseUtil.ok(entity);
+    }
+
+    /**
+     * Map the local browse {@code sort}/{@code order} onto the OCS sort syntax ({@code field} asc,
+     * {@code -field} desc). Only fields that exist in {@code litemall_index} are mappable; {@code add_time}
+     * has no indexed counterpart, so it yields {@code null} (OCS default relevance ordering).
+     */
+    private String ocsSort(String sort, String order) {
+        if (sort == null) {
+            return null;
+        }
+        String field = switch (sort) {
+            case "retail_price" -> "price";
+            case "name" -> "title";
+            default -> null; // add_time and anything else → default OCS ordering
+        };
+        if (field == null) {
+            return null;
+        }
+        return "desc".equalsIgnoreCase(order) ? "-" + field : field;
     }
 
     @GetMapping("by-category")

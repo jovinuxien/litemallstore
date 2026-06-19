@@ -51,6 +51,8 @@ public class LitemallSearchAdminController {
         CjSnapshotSyncService.SyncResult result = cjSnapshotSyncService.syncAll();
         return ResponseUtil.ok(Map.of(
                 "upserted", result.upserted(),
+                "inserted", result.inserted(),
+                "updated", result.updated(),
                 "removed", result.removedPids().size()));
     }
 }
