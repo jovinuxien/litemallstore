@@ -504,46 +504,54 @@ CJ docs' **null `brand` does not penalize** — they still match/rank via title/
 no config change is needed for CJ findability. Guard it with a golden-query regression set spanning
 both origins (catalog-targets seed CJ into Women's Clothing / Toys-Kids-Babies / Consumer Electronics):
 
-| # | `q=` | Expected top-result origin / category | query_stage |
-|---|------|----------------------------------------|-------------|
-| 1 | `quilt`   | local — bedding            | 0 |
-| 2 | `luggage` | local — Functional luggage | 0 |
-| 3 | `sofa`    | local — living room        | 0 |
-| 4 | `hoodie`  | CJ — Women's Clothing      | 0 |
-| 5 | `dress`   | CJ — Women's Clothing      | 0 |
-| 6 | `charger` | CJ — Consumer Electronics  | 0 |
-| 7 | `baby`    | CJ — Toys, Kids & Babies   | 0 |
+Regression contract = each query returns at `query_stage 0` (exact, not the ngram/relaxed fallback) and
+the unified list contains BOTH origins where the catalog has them. OBSERVED LIVE 2026-06-19 (700 CJ +
+local in `litemall_index`): the local catalog out-ranks at #1 for these terms (legitimate relevance —
+local items match the term well), with CJ products blended lower. CJ-at-#1 was an over-optimistic guess.
 
-- **Verify:** each query returns its expected origin in the top hits at `meta.query_stage = 0` (not via
-  the ngram fallback); capture the request/response for #4–#7 (CJ rows, null brand) here once the live
-  stack run is done. CJ hits are identifiable solely by the `cj_<pid>` id prefix; results stay ONE
-  unified ranked list (no source-scoping).
+| # | `q=` | Observed #1 hit (id, origin) | CJ in top-6 | query_stage |
+|---|------|------------------------------|-------------|-------------|
+| 1 | `quilt`   | 1006014 local (mulberry silk quilt) | — | 0 |
+| 2 | `luggage` | 1152101 local                        | — | 0 |
+| 3 | `sofa`    | 1009024 local (Japanese lazy sofa)   | — | 0 |
+| 4 | `hoodie`  | 1111007 local                        | 1 | 0 |
+| 5 | `dress`   | 1046001 local                        | 4 | 0 |
+| 6 | `charger` | 1021001 local                        | 5 | 0 |
+| 7 | `baby`    | 1116005 local                        | 0 (lower) | 0 |
 
-> Live capture against the verify stack (`verify/docker-compose.verify.yml`) is the remaining step;
-> the golden-query expected origins above are the regression contract to confirm.
+CJ hits are identifiable solely by the `cj_<pid>` id prefix; results are ONE unified ranked list (no
+source-scoping). For a future change to regress this, watch for: any query dropping to stage >0, or the
+CJ-in-top-6 counts for `dress`/`charger` collapsing to 0 (would mean CJ docs stopped blending).
 
-### Observed 2026-06-19 (partial live, against the running OCS+DB stack)
+### Verified LIVE 2026-06-19 — post-merge, new code on :8082 (ALL §15 checks green)
 
-The OCS stack (ES 9200, indexer 8535, searcher 8534, suggest 8081, redis 6379) was up and
-goods-management was running on :8082 **from the main checkout (pre-merge / OLD code)**. So the
-"before" state and the delegate path were verified live; the new code paths (WS1/WS2a/WS3 runtime)
-are deferred to a post-merge run from main (the running 8082 carries `litemall-db-0.1.0.jar` from the
-shared `~/.m2`, and config-server — which holds the real datasource creds — was down, so a clean
-standalone run of this branch was not attempted per the run-from-main rule).
+Ran the merged code from the MAIN checkout: `mvn -o -pl litemall-db -am install` (the shared `~/.m2`
+litemall-db jar was stale → goods-mgmt couldn't see the new `queryLivePaged`/`countLive`; reinstalling
+fixed the `cannot find symbol` build error), then booted the exec jar with the `verify` profile
+(`--spring.profiles.active=…,verify --spring.config.additional-location=file:./litemall-goods-management/verify/`,
+cloud-config/eureka OFF, local DB `root/Calliste_1006` + OCS + redis, `--spring.flyway.enabled=false`,
+dummy wx/notify/storage, JDK21 `--add-opens`). config-server was DOWN, so the `verify` profile (not
+config-server) supplied the datasource — that is the canonical standalone path here.
 
-- **WS2b delegate path — VERIFIED LIVE.** `GET /srv/search?category_ids=1008000&size=5` returns the
-  exact shape `listGoods` now emits: `total:9, totalPages:2`, a `goodsList`, and `filters` facets
-  `[price, category_ids, category_names, variant_price, source]`. `listGoods` simply forwards this.
-- **Unified blend — VERIFIED LIVE.** `q=dress` → one ranked list mixing `1046001:local` with four
-  `cj_<pid>:cj_dropshipping` hits; `q=quilt`/`q=hoodie` → local hits. Confirms local+CJ share the index.
-- **WS2a bug reproduced — VERIFIED LIVE (old code).** `GET /srv/cjAuth/productCJList?page=1&size=3`
-  returned the raw live CJ payload (Chinese `productName` array, `total:1422370` = CJ's whole catalog),
-  ignoring `page`/`size` — i.e. a live CJ API call per request. The fix pages `litemall_cj_product`.
-- **WS1 target — OBSERVED.** Redis held 5 `cj:raw:list:*` staging keys that the old path never purges.
-- **WS2a SQL — validated by inspection** (DB creds unavailable: config-server down). The query mirrors
-  the proven `selectAllLive`/`selectLivePids` with `order by add_time desc, pid asc limit ? offset ?`.
+- **WS2a — VERIFIED LIVE.** `GET /srv/cjAuth/productCJList?page=1&size=3` → `{total:700, totalPages:234,
+  page, limit, list}` (the DB snapshot count, NOT CJ's 1.42M catalog), English titles, and page-1 vs
+  page-2 pids DISTINCT. Served from `litemall_cj_product` with no CJ API call (response instant). The
+  per-page refetch is fixed.
+- **WS2b — VERIFIED LIVE.** `GET /srv/goods/list?categoryId=1008000` → `source:"ocs"`, `total:9,
+  pages:2`, `filters` facets `[price, category_ids, category_names, variant_price, source]`. `?brandId=…`
+  → `source:"db"` (local-only fallback). Unified OCS browse works; fallback works.
+- **WS1 — VERIFIED LIVE.** `POST /srv/private/admin/search/cj-sync` fetched 4 list pages into Redis then
+  logged `Purged 4 raw CJ list staging keys from Redis after sync`; post-sync `cj:raw:list:* = 0` while
+  `cj:raw:categories`/`detail:*` (8 keys) remained — purge fires after a successful land, correctly
+  scoped to list keys.
+- **WS3 — VERIFIED LIVE.** `cj-sync` returned `{upserted:700, updated:700, inserted:0, removed:0}` and
+  logged `CJ snapshot sync: 0 new, 700 updated, 0 soft-deleted stale` (the 700 pids already existed →
+  all updates). New/updated/removed split surfaced end-to-end.
+- **Golden queries — VERIFIED LIVE.** All 7 return at `query_stage 0`; unified blend confirmed (`dress`
+  4 CJ / `charger` 5 CJ in top-6). See the corrected table above.
 
-**Post-merge re-run (from main) to close the remaining checks:** rebuild + restart goods-management,
-then `POST /srv/private/admin/search/cj-sync` (expect `inserted/updated/removed` + `redis-cli KEYS
-'cj:raw:list:*'` empty), `GET /srv/cjAuth/productCJList?page=1..2` (distinct DB rows, no CJ API call),
-`GET /srv/goods/list?categoryId=…` (`source:"ocs"` + facets), and the §15 golden-query table.
+Notes for re-running: `cj-sync` paces live CJ calls at `spring.cjdropship.fetch-pace-seconds` (default
+300s → slow); the run above set `=5` (+ `refresh-on-startup=false`) so the full 700-product sync took
+~21s. The OCS index is SHARED — a cj-sync from this instance updates whatever goods-mgmt instances read
+`litemall_index`. **Normal (eureka-registered) operation needs config-server up**; the `verify` profile
+is the standalone substitute used here.
