@@ -30,14 +30,14 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.AggregatesValidationContext;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.FeignResponseHandler;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchGoodsRequest;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.BatchProductsRequest;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.ReduceStockRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -73,7 +73,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private  TaskService taskService;
     @Autowired
-    private GoodsServiceFeignClient goodsServiceFeignClient;
+    private LitemallGoodsFacade goodsFacade;
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
 
@@ -95,6 +95,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     @Override
     //public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command)  {
+    @Transactional
     public LitemallOrderSubmitResult placeOrder(LitemallPlaceOrderCommand command) throws ServiceException {
 
         // Validate the command
@@ -106,24 +107,22 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("Address info is required");
         }
 
-        if(command.getGrouponRulesId() == null){
-            throw  new IllegalArgumentException("The groupon is required");
-        }
-        if(command.getUserCouponId() == null){
-            throw new IllegalArgumentException("The user coupon is required");
-        }
-        if(command.getCouponId() == null){
-            throw  new IllegalArgumentException("The coupon is required");
-        }
-        if(command.getGrouponLinkId() == null){
-            throw new IllegalArgumentException("The groupon link is required");
-        }
+        // Groupon and coupon are OPTIONAL checkout selections. litemall encodes
+        // "none" as the sentinel 0 (couponId may also be -1 = none); cartId 0 means
+        // "whole checked cart". A plain order arrives with these null/0, so normalize
+        // null -> 0 here rather than rejecting it. The previous hard null-checks 500'd
+        // every order placed without a groupon AND a coupon.
+        int cartId = command.getCartId() == null ? 0 : command.getCartId();
+        int grouponLinkId = command.getGrouponLinkId() == null ? 0 : command.getGrouponLinkId();
 
         LitemallUserId cmdUserId = new LitemallUserId(command.getUserId());
         LitemallAddressId cmdAddressId = new LitemallAddressId(command.getAddressId());
-        LitemallGrouponRulesId cmdGrouponRulesId = new LitemallGrouponRulesId(command.getGrouponRulesId());
-        LitemallCouponId cmdCouponId =  new LitemallCouponId(command.getCouponId());
-        LitemallCouponUserId cmdCouponUserId = new LitemallCouponUserId(command.getUserCouponId());
+        LitemallGrouponRulesId cmdGrouponRulesId = new LitemallGrouponRulesId(
+                command.getGrouponRulesId() == null ? 0 : command.getGrouponRulesId());
+        LitemallCouponId cmdCouponId = new LitemallCouponId(
+                command.getCouponId() == null ? 0 : command.getCouponId());
+        LitemallCouponUserId cmdCouponUserId = new LitemallCouponUserId(
+                command.getUserCouponId() == null ? 0 : command.getUserCouponId());
 
 
        /* LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
@@ -132,8 +131,15 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalArgumentException("User is not found");
         }*/
 
-        // Validate and process Groupon if applicable
-        LitemallGrouponValidationResult grouponValidationResult = grouponServiceLayer.validateGrouponRules(cmdUserId.getId(), cmdGrouponRulesId.getId(), command.getGrouponLinkId());
+        // Validate the groupon rules ONLY for an actual groupon purchase. A plain
+        // order carries grouponRulesId 0, which must skip validation — otherwise
+        // validateGrouponRules throws "Groupon rules not found" for the non-existent
+        // rule 0 and fails every normal checkout. Args follow the method signature
+        // order (grouponRulesId, grouponLinkId, userId); the previous call passed
+        // them as (userId, rulesId, linkId), mis-validating every groupon order.
+        boolean grouponValid = cmdGrouponRulesId.getId() > 0
+                && grouponServiceLayer.validateGrouponRules(
+                        cmdGrouponRulesId.getId(), grouponLinkId, cmdUserId.getId()).isValid();
 
         // Get and Check the shipping address
         LitemallAddressAggregate addressAggregate = addressRepository.findAddress(cmdUserId, cmdAddressId);
@@ -141,18 +147,18 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         // Get the Checked cart items
         List<LitemallCartAggregate> cartList = null;
-        cartList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(command.getCartId()), cmdUserId);
+        cartList = cartServiceLayer.getCheckedCartItems(new LitemallCartId(cartId), cmdUserId);
 
         if(cartList == null){
             return LitemallOrderSubmitResult.failed();
         }
 
-        // Validate the productStock
-        this.orderDomainService.validateProductStock(cartList, goodsServiceFeignClient);
+        // Validate the productStock through the goods ACL (price/stock authoritative read)
+        this.orderDomainService.validateProductStock(cartList, goodsFacade);
 
         // Group purchase discount
         BigDecimal grouponPrice = new BigDecimal(0);  // initialize grouponPrice is not redundant;
-        if(grouponValidationResult.isValid()) {
+        if(grouponValid) {
             grouponPrice = grouponServiceLayer.getGrouponDiscount(cmdGrouponRulesId).getAmount();
         }
 
@@ -247,14 +253,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             orderGoodsRepository.add(orderGoodsAggregate);
         }
         // Clear the cart
-        clearCart(cmdUserId, new LitemallCartId(command.getCartId()));
-
-        // Reduce the product stock
-        validateAndReduceStock(cartList);
+        clearCart(cmdUserId, new LitemallCartId(cartId));
 
         // Update coupon usage if applicable
-        if (command.getCouponId() != 0 && command.getCouponId() != -1) {
-            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(new LitemallCouponUserId(command.getUserCouponId()));
+        if (cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1) {
+            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(cmdCouponUserId);
             //couponUserAggregate.setStatus(CouponUserConstant.STATUS_USED);
             couponUserAggregate.setStatus(LitemallCouponUserStatus.USED);
             couponUserAggregate.setUsedTime(LocalDateTime.now());
@@ -263,23 +266,27 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         }
 
         // If it's a groupon purchase project, add group buying information
-        Integer grouponLinkId = grouponServiceLayer.createGrouponOrder(
-                command.getGrouponLinkId(), cmdUserId.getId(), cmdGrouponRulesId.getId(), existingOrderAggregate.getOrderId());
+        Integer createdGrouponLinkId = grouponServiceLayer.createGrouponOrder(
+                grouponLinkId, cmdUserId.getId(), cmdGrouponRulesId.getId(), existingOrderAggregate.getOrderId());
 
-        if (grouponLinkId != null) {
+        if (createdGrouponLinkId != null) {
             // Handle groupon-specific logic if needed
-            log.info("Groupon order created with link ID: {}", grouponLinkId);
+            log.info("Groupon order created with link ID: {}", createdGrouponLinkId);
         }
 
-
-        //publish domain events
+        // Reserve/reduce stock LAST — the remote decrement (a Feign call to
+        // goods-management) cannot be rolled back by this local DB transaction, so
+        // it is kept as the final mutation to minimise the window in which a later
+        // step could fail after stock is taken. reduceStockForAllItems additionally
+        // registers a rollback-time compensating restore (best-effort).
+        validateAndReduceStock(cartList);
 
         //Validate and process groupon if available
         return new LitemallOrderSubmitResult(
                 existingOrderAggregate.getOrderId().getId(),
                 existingOrderAggregate.getOrderSn(),
                 false, // payment handled by orchestrator
-                command.getGrouponLinkId(),
+                grouponLinkId,
                 existingOrderAggregate.getActualPrice().getAmount(),
                 LocalDateTime.now(),
                 LitemallOrderSubmitResult.LitemallOrderSubmitResultStatus.SUCCESS
@@ -341,29 +348,94 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         return orderRepository.findById(orderId);
     }
 
+    /**
+     * Customer-initiated cancellation. Transitions the order to CANCELED,
+     * persists the new status, releases reserved stock (best-effort) and publishes
+     * the resulting domain events.
+     */
     public void cancelOrder(LitemallOrderId orderId, String reason) {
-        LitemallOrderAggregate orderAggregate =  orderRepository.findById(orderId).orElseThrow(() -> new NoSuchElementException("Order not found"));
-
-        if(orderAggregate == null){
-            //throw new LitemallOrderNotFoundException("Order not found");
-            throw new IllegalArgumentException("Order not found");
-        }
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
         orderAggregate.cancel(reason);
-        // 4. Publish a domain event to notify other parts of the system: Moved to LitemallOrderServiceImpl class.
-        // The steps 1,2 and 3 of this cancel method are implemented in LitemallOrderAggregate class
-        List<LitemallDomainEvent> domainEvents = orderAggregate.getDomainEvents();
-        // The logic of publishing domain events is moved to LitemallDomainEventPublisher class
+        finishCancellation(orderAggregate, orderId);
     }
 
     /**
+     * System-initiated cancellation (e.g. the unpaid-order sweep). Transitions the
+     * order to SYSTEM_CANCELED; otherwise identical to {@link #cancelOrder}.
      *
-     * @param orderId
+     * <p>Runs in its OWN transaction (REQUIRES_NEW): the sweep calls this while
+     * holding {@code FOR UPDATE SKIP LOCKED} claim-locks on the task rows, so an
+     * independent transaction here means a failure rolls back only this order's
+     * work and does not mark the sweep's claim transaction rollback-only. It
+     * touches order tables only (never the task table), so there is no lock
+     * contention with the sweep's claim.
      */
-    private void updateOrderStatusToPaid(LitemallOrderId orderId) {
-        LitemallOrderAggregate paidOrder = new LitemallOrderAggregate();
-        paidOrder.setOrderId(orderId);
-        paidOrder.setOrderStatus(LitemallOrderStatus.PAID);
-        orderRepository.updateSelective(paidOrder);
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void autoCancelOrder(LitemallOrderId orderId, String reason) {
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        orderAggregate.autoCancel();
+        finishCancellation(orderAggregate, orderId);
+    }
+
+    /**
+     * Persist the cancelled status, restore reserved stock, and drain/publish the
+     * aggregate's domain events. The aggregate has already applied + validated the
+     * status transition.
+     */
+    private void finishCancellation(LitemallOrderAggregate orderAggregate, LitemallOrderId orderId) {
+        LitemallOrderAggregate patch = new LitemallOrderAggregate();
+        patch.setOrderId(orderId);
+        patch.setOrderStatus(orderAggregate.getOrderStatus());
+        orderRepository.updateSelective(patch);
+
+        // Release the stock reserved at placement (best-effort — see
+        // LitemallGoodsFacade.restoreStock).
+        restoreStockForOrder(orderId);
+
+        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+    }
+
+    /**
+     * Mark an order as paid: validate + apply the CREATED→PAID transition on the
+     * aggregate, persist the status, and publish the resulting domain events.
+     * Runs inside the caller's transaction so it is atomic with the payment debit.
+     */
+    public void markOrderPaid(LitemallOrderId orderId) {
+        LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        orderAggregate.markAsPaid();
+
+        // Conditional CREATED->PAID transition: the UPDATE only matches a row still
+        // in CREATED, so a retried or concurrent PAY (which already flipped the row)
+        // affects 0 rows. We then abort, rolling back any wallet debit applied in
+        // this same transaction — preventing a double charge for one order.
+        int updated = orderRepository.markPaidIfCreated(orderId);
+        if (updated == 0) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");
+        }
+
+        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+    }
+
+    /**
+     * Best-effort release of the stock reserved for an order's lines (used when an
+     * order is cancelled). Reads the persisted order-goods rows and asks the goods
+     * ACL to add the quantities back; never throws.
+     */
+    private void restoreStockForOrder(LitemallOrderId orderId) {
+        List<LitemallOrderGoodsAggregate> orderGoods = orderGoodsRepository.findByOId(orderId);
+        if (orderGoods == null || orderGoods.isEmpty()) {
+            return;
+        }
+        Map<Integer, Integer> productQuantities = orderGoods.stream()
+                .collect(Collectors.toMap(
+                        g -> g.getProductId().getId(),
+                        g -> (int) g.getNumber(),
+                        Integer::sum));
+        goodsFacade.restoreStock(productQuantities);
     }
     /**
      * @Desc: Validate and reduce stock for all items in a batch
@@ -418,10 +490,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
 
         } catch (Exception e) {
-            // Handle exceptions gracefully
-            log.error("Failed to load goods from the feign client validation context for cartList {}",
-                  cartList, e);
-            return AggregatesValidationContext.mapsGoodsAndMapsProductsNotFound();
+            // A goods-management outage must fail placement cleanly (rollback, no
+            // stock taken), not be swallowed into an empty validation context.
+            Throwable cause = (e instanceof java.util.concurrent.CompletionException && e.getCause() != null)
+                    ? e.getCause() : e;
+            log.error("Failed to load goods from the goods ACL for cartList {}", cartList, cause);
+            if (cause instanceof org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException unavailable) {
+                throw unavailable;
+            }
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "failed to load goods for stock reservation", cause);
         }
     }
 
@@ -434,44 +512,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     }
 
     private Map<LitemallGoodsId, LitemallGoodsAggregate> batchGetGoodsAggregates(Set<Integer> goodsIds) {
-        if (goodsIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        // Single batch call instead of N individual calls
-        Map<LitemallGoodsId, LitemallGoodsAggregate> response = null;
-        try {
-            response = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchGetGoodsAggregates(new BatchGoodsRequest(goodsIds)),
-                    "Batch Get Goods Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Convert back to domain IDs
-       /* return response.entrySet().stream()
-                .collect(Collectors.toMap(
-                        entry -> new LitemallGoodsId(entry.getKey()),
-                        Map.Entry::getValue
-                ));*/
-        return response;
+        // Single batch call through the goods ACL instead of N individual calls
+        return goodsFacade.batchGetGoods(goodsIds);
     }
 
     private Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> batchGetProductAggregates(Set<Integer> productIds) {
-        if (productIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        Map<LitemallGoodsProductId, LitemallGoodsProductAggregate> response = null;
-        try {
-            response = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchGetGoodsProductsAggregate(new BatchProductsRequest(productIds)),
-                    "Batch Get Products Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
-        return response;
+        return goodsFacade.batchGetProducts(productIds);
     }
 
     private void validateStockForAllItems(List<LitemallCartAggregate> cartList, AggregatesValidationContext context){
@@ -502,34 +548,54 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     private void reduceStockForAllItems(List<LitemallCartAggregate> cartList, AggregatesValidationContext context){
 
-        // Prepare batch reduce stock requests
-        List<ReduceStockRequest> reduceStockRequests = cartList.stream()
-                .map(cartItem -> new ReduceStockRequest(
-                        cartItem.getProductId().getId(),
-                        cartItem.getNumber()
-                ))
-                .toList();
+        // Prepare batch reduce stock requests (product id -> requested quantity)
+        Map<Integer, Integer> productQuantities = cartList.stream()
+                .collect(Collectors.toMap(
+                        cartItem -> cartItem.getProductId().getId(),
+                        LitemallCartAggregate::getNumber,
+                        Integer::sum
+                ));
 
-        // Single batch call instead of N individual calls
-        Map<Integer, Boolean> reduceResults = null;
-        try {
-             reduceResults = FeignResponseHandler.handleResponse(
-                    goodsServiceFeignClient.batchReduceStock(reduceStockRequests),
-                    "Batch Reduce Stock Operation"
-            );
-        } catch (ServiceException e) {
-            throw new RuntimeException(e);
-        }
-        // Verify all reductions were successful
-        List<Integer> failedReductions = reduceResults.entrySet().stream()
-                .filter(entry -> !entry.getValue())
-                .map(Map.Entry::getKey)
+        // Single batch reserve/reduce through the goods ACL
+        Map<Integer, Boolean> reduceResults = goodsFacade.reduceStock(productQuantities);
+
+        // Verify EVERY requested product was confirmed reduced. Treat a missing key
+        // (null) the same as an explicit false — a degraded/partial response must
+        // never be read as "all reduced".
+        List<Integer> failedReductions = productQuantities.keySet().stream()
+                .filter(productId -> !Boolean.TRUE.equals(reduceResults.get(productId)))
                 .toList();
 
         if (!failedReductions.isEmpty()) {
-            throw new RuntimeException("Stock reduction failed for product IDs: " + failedReductions);
+            throw new RuntimeException("Stock reduction failed/unconfirmed for product IDs: " + failedReductions);
         }
 
+        // The remote reserve has now committed in goods-management. If THIS local
+        // transaction subsequently rolls back, the decrement would be orphaned, so
+        // register a compensating release on rollback (best-effort — see
+        // LitemallGoodsFacade.restoreStock).
+        registerStockRestoreOnRollback(productQuantities);
+    }
+
+    /**
+     * Register a transaction-synchronization that releases the just-reserved stock
+     * if (and only if) the surrounding transaction rolls back. No-op when there is
+     * no active transaction.
+     */
+    private void registerStockRestoreOnRollback(Map<Integer, Integer> productQuantities) {
+        if (productQuantities.isEmpty() || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    log.warn("Order placement rolled back after stock reserve; compensating restore for {}",
+                            productQuantities);
+                    goodsFacade.restoreStock(productQuantities);
+                }
+            }
+        });
     }
 
     public LitemallGrouponRepository getGrouponRepository() {
