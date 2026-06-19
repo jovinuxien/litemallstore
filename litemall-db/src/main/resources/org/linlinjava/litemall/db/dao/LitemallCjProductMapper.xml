@@ -5,7 +5,8 @@
   <!-- map-underscore-to-camel-case is enabled, so snake_case columns auto-map to camelCase fields. -->
   <sql id="Base_Column_List">
     pid, source, title, price, discount_price, description, image_url, brand,
-    category_names, category_ids, variants_json, attributes_json, add_time, update_time, deleted
+    category_names, category_ids, variants_json, attributes_json, images_json, enriched_time,
+    add_time, update_time, deleted
   </sql>
 
   <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
@@ -36,28 +37,55 @@
     select pid from litemall_cj_product where deleted = 0
   </select>
 
+  <!--
+    List-sync upsert (CjSnapshotSyncService): writes the SHALLOW catalog fields. On a re-sync it must
+    NOT clobber the fields the enrichment pass owns (variants_json, attributes_json, discount_price,
+    images_json, enriched_time) — those are deliberately omitted from the ON DUPLICATE KEY UPDATE so a
+    nightly list refresh preserves real inventory/variants/attributes. A brand-new row inserts the
+    default variant + null enrichment; the enrichment job fills the rest later.
+  -->
   <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
     insert into litemall_cj_product
       (pid, source, title, price, discount_price, description, image_url, brand,
-       category_names, category_ids, variants_json, attributes_json, add_time, update_time, deleted)
+       category_names, category_ids, variants_json, attributes_json, images_json, enriched_time,
+       add_time, update_time, deleted)
     values
       (#{pid}, #{source}, #{title}, #{price}, #{discountPrice}, #{description}, #{imageUrl}, #{brand},
-       #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, now(), now(), 0)
+       #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, #{imagesJson}, #{enrichedTime},
+       now(), now(), 0)
     on duplicate key update
       source = values(source),
       title = values(title),
       price = values(price),
-      discount_price = values(discount_price),
       description = values(description),
       image_url = values(image_url),
       brand = values(brand),
       category_names = values(category_names),
       category_ids = values(category_ids),
-      variants_json = values(variants_json),
-      attributes_json = values(attributes_json),
       update_time = now(),
       deleted = 0
   </insert>
+
+  <!-- Enrichment pass (CjDetailEnrichmentService): writes ONLY the enriched fields + stamps enriched_time. -->
+  <update id="enrich" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    update litemall_cj_product
+    set variants_json = #{variantsJson},
+        attributes_json = #{attributesJson},
+        discount_price = #{discountPrice},
+        images_json = #{imagesJson},
+        enriched_time = now(),
+        update_time = now()
+    where pid = #{pid} and deleted = 0
+  </update>
+
+  <!-- Rows due for enrichment: never-enriched (enriched_time NULL) first, then oldest. -->
+  <select id="selectForEnrichment" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_product
+    where deleted = 0
+    order by (enriched_time is null) desc, enriched_time asc, add_time desc
+    limit #{limit}
+  </select>
 
   <update id="softDeleteByPids">
     update litemall_cj_product

@@ -30,6 +30,12 @@ public interface LitemallCjProductMapper {
     /** Insert or refresh a snapshot row (keyed on the raw CJ pid). Clears the deleted flag on update. */
     int upsert(LitemallCjProduct row);
 
+    /** Write ONLY the enriched fields (variants/attributes/discount/images) + stamp enriched_time. */
+    int enrich(LitemallCjProduct row);
+
+    /** Live rows due for detail+inventory enrichment: never-enriched first, then oldest. */
+    List<LitemallCjProduct> selectForEnrichment(@Param("limit") int limit);
+
     /** Soft-delete the given raw pids (product removed upstream); returns rows affected. */
     int softDeleteByPids(@Param("pids") List<String> pids);
 }

@@ -37,18 +37,40 @@ public class CjCatalogRefreshTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(CjCatalogRefreshTask.class);
 
     private final CjSnapshotSyncService snapshotSyncService;
+    private final CjDetailEnrichmentService detailEnrichmentService;
     private final CjProductIndexingService cjIndexingService;
     private final ProductIndexer productIndexer;
     private final CJDropshippingConfig config;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
+                                CjDetailEnrichmentService detailEnrichmentService,
                                 CjProductIndexingService cjIndexingService,
                                 ProductIndexer productIndexer,
                                 CJDropshippingConfig config) {
         this.snapshotSyncService = snapshotSyncService;
+        this.detailEnrichmentService = detailEnrichmentService;
         this.cjIndexingService = cjIndexingService;
         this.productIndexer = productIndexer;
         this.config = config;
+    }
+
+    /**
+     * Incremental CJ detail+inventory enrichment (config cron {@code spring.cjdropship.enrich-cron},
+     * default 03:30 — after the list sync). Enriches a capped batch of the least-recently-enriched rows
+     * with real per-SKU prices, real warehouse stock, gallery + attributes, then reindexes them. Capped
+     * per run to respect the CJ daily quota; converges over successive runs via the {@code enriched_time}
+     * cursor.
+     */
+    @Scheduled(cron = "${spring.cjdropship.enrich-cron:0 30 3 * * *}")
+    public void enrichCjDetails() {
+        if (!config.isEnabled()) {
+            return;
+        }
+        try {
+            detailEnrichmentService.enrichBatch(config.getEnrichBatchSize());
+        } catch (RuntimeException ex) {
+            LOGGER.warn("CJ detail enrichment run failed: {}", ex.getMessage());
+        }
     }
 
     /**
