@@ -2,14 +2,12 @@ package org.linlinjava.litemall.order.domain.service.order;
 import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.*;
 
-import com.google.protobuf.ServiceException;
 import org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.FeignResponseHandler;
-import org.linlinjava.litemall.order.infrastructure.services.feignclients.GoodsServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -34,15 +32,21 @@ public class LitemallOrderDomainService {
      *
      * @param checkedCartItems
      */
-    public void validateProductStock(List<LitemallCartAggregate> checkedCartItems, GoodsServiceFeignClient goodsServiceFeignClient) throws ServiceException {
+    public void validateProductStock(List<LitemallCartAggregate> checkedCartItems, LitemallGoodsFacade goodsFacade) {
         for(LitemallCartAggregate cartItem : checkedCartItems){
 
-            LitemallGoodsProductAggregate goodsProduct = FeignResponseHandler.handleResponse(goodsServiceFeignClient.getGoodsProductAggregate(cartItem.getProductId().getId()), "Get goods Product");
-
-            System.out.println("the goodsProduct is: " + goodsProduct);
+            LitemallGoodsProductAggregate goodsProduct = goodsFacade.getGoodsProduct(cartItem.getProductId());
 
             if(goodsProduct.getNumber() < cartItem.getNumber()){
                 throw new LitemallInsufficientStockException();
+            }
+
+            // Stamp the authoritative current price from goods-management onto the
+            // cart line, so downstream price calculation and the persisted
+            // order-goods price come from the source of truth rather than a stale
+            // or tampered cart row.
+            if(goodsProduct.getPrice() != null){
+                cartItem.setPrice(goodsProduct.getPrice());
             }
         }
     }

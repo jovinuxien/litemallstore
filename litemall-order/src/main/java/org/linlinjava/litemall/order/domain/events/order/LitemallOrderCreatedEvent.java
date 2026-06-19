@@ -3,28 +3,25 @@ import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.*;
 
 import lombok.Getter;
-import org.linlinjava.litemall.core.events.LitemallDomainEvent;
+import org.linlinjava.litemall.order.domain.events.AbstractLitemallOrderDomainEvent;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 
 @Getter
-public class LitemallOrderCreatedEvent extends LitemallDomainEvent {
+public class LitemallOrderCreatedEvent extends AbstractLitemallOrderDomainEvent {
 
+    public static final int SCHEMA_VERSION = 1;
 
     private final LitemallOrderId orderId;
     private final LitemallMoney orderAmount;
     private final Integer userId;
     private final String orderSn;
-    //private final LitemallOrder order;
 
-    //public LitemallOrderCreatedEvent(LitemallOrderId orderId, LitemallMoney orderAmount, Integer userId, String orderSn, LitemallOrder order) {
     public LitemallOrderCreatedEvent(LitemallOrderId orderId, LitemallMoney orderAmount, Integer userId, String orderSn) {
-        //super("ORDER_CREATED");
+        super(SCHEMA_VERSION);
         this.orderId = orderId;
         this.orderAmount = orderAmount;
         this.userId = userId;
         this.orderSn = orderSn;
-        //this.order = order;
     }
-
 }

@@ -40,5 +40,13 @@ public interface LitemallOrderRepository {
 
     public int updateSelective(LitemallOrderAggregate orderAggregate);
 
+    /**
+     * Conditionally transition an order from CREATED to PAID. The update only
+     * matches a row still in CREATED, so a retried or concurrent payment (which
+     * already flipped the row) affects 0 rows. Returns the number of rows
+     * updated (1 on success, 0 if the order was no longer in CREATED).
+     */
+    int markPaidIfCreated(LitemallOrderId orderId);
+
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 }
