@@ -108,7 +108,10 @@ public class CjGoodsDetailService {
         goods.put("goodsSn", docId);
         goods.put("goodsName", row.getTitle());
         goods.put("brief", brief);
-        goods.put("detail", row.getDescription());
+        // Full rich description (enriched); fall back to the short brief for a not-yet-enriched row.
+        String detail = row.getDetailHtml() != null && !row.getDetailHtml().isBlank()
+                ? row.getDetailHtml() : row.getDescription();
+        goods.put("detail", detail);
         goods.put("picUrl", picUrl);
         goods.put("gallery", images);
         goods.put("retailPrice", row.getDiscountPrice() != null ? row.getDiscountPrice() : row.getPrice());

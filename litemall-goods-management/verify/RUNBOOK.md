@@ -596,3 +596,13 @@ checksum; recorded `now at version v21`). `POST /cj-enrich?batch=2` → `{enrich
   fallback when no row exists.
 - **429 retry.** A later `batch=1` run logged **0 inventory failures** and the variant landed REAL stock —
   the backoff-retry recovers the 1-QPS bursts the plain limiter let through.
+
+### Follow-up — full detail description (V22, 2026-06-19)
+The DB-served detail page showed an empty/brief description: the snapshot `description` column holds only
+the CJ list `remark` (or the title fallback) and feeds OCS/search-result `brief` (kept short like local
+goods' brief), while the rich full description lives only in the CJ `product/query` detail — which the
+enrichment pass discarded. Fix: new `litemall_cj_product.detail_html` column (V22) that enrichment fills
+from `d.getDescription()`; `CjGoodsDetailService.buildFromRow` serves it as `goods.detail` (falling back
+to the brief for a not-yet-enriched row). Verified live: enriched pid `1373927926633992192` →
+`detail_html` 818 chars; `GET /srv/goods/detail?id=cj_<pid>` returns `goods.detail` with the real HTML
+("Product Information … Wire Core Material: Bare Copper Wire …") while `brief` stays the short category leaf.

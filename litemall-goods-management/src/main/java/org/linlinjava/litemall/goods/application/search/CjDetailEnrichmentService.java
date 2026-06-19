@@ -132,6 +132,13 @@ public class CjDetailEnrichmentService {
         row.setVariantsJson(writeJson(variantMaps));
         row.setAttributesJson(writeJson(attributesOf(d)));
         row.setImagesJson(writeJson(imagesOf(d.getProductImage())));
+        // Full rich product description (HTML) for the DB-served detail page — the snapshot list only
+        // carried a short brief (remark/title); `description` stays that brief (OCS/search), detail_html
+        // gets the full text so the page renders it (mirrors local goods.detail vs goods.brief).
+        String fullDescription = d.getDescription();
+        if (fullDescription != null && !fullDescription.isBlank()) {
+            row.setDetailHtml(fullDescription);
+        }
         // CJ has no was/now strike-through price (suggestSellPrice is a recommendation, not a discount),
         // so discount_price stays null — leaving it real rather than fabricating a markdown.
         row.setDiscountPrice(null);

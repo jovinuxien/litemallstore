@@ -5,7 +5,7 @@
   <!-- map-underscore-to-camel-case is enabled, so snake_case columns auto-map to camelCase fields. -->
   <sql id="Base_Column_List">
     pid, source, title, price, discount_price, description, image_url, brand,
-    category_names, category_ids, variants_json, attributes_json, images_json, enriched_time,
+    category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
     add_time, update_time, deleted
   </sql>
 
@@ -47,11 +47,11 @@
   <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
     insert into litemall_cj_product
       (pid, source, title, price, discount_price, description, image_url, brand,
-       category_names, category_ids, variants_json, attributes_json, images_json, enriched_time,
+       category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
        add_time, update_time, deleted)
     values
       (#{pid}, #{source}, #{title}, #{price}, #{discountPrice}, #{description}, #{imageUrl}, #{brand},
-       #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, #{imagesJson}, #{enrichedTime},
+       #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, #{imagesJson}, #{detailHtml}, #{enrichedTime},
        now(), now(), 0)
     on duplicate key update
       source = values(source),
@@ -73,6 +73,7 @@
         attributes_json = #{attributesJson},
         discount_price = #{discountPrice},
         images_json = #{imagesJson},
+        detail_html = #{detailHtml},
         enriched_time = now(),
         update_time = now()
     where pid = #{pid} and deleted = 0
