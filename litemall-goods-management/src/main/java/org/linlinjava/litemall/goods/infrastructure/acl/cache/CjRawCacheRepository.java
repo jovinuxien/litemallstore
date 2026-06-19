@@ -62,6 +62,11 @@ public class CjRawCacheRepository {
         return PREFIX + "detail:" + pid;
     }
 
+    /** Key for a single CJ variant's warehouse inventory by vid. */
+    public static String inventoryKey(String vid) {
+        return PREFIX + "inventory:" + vid;
+    }
+
     /** Read and deserialize a cached payload, or empty on a miss / Redis error / parse error. */
     public <T> Optional<T> get(String key, Class<T> type) {
         String json;

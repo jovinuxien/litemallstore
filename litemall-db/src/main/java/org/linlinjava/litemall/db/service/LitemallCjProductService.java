@@ -57,6 +57,16 @@ public class LitemallCjProductService {
         return cjProductMapper.upsert(row);
     }
 
+    /** Write the enriched detail/inventory fields onto an existing row + stamp enriched_time. */
+    public int enrich(LitemallCjProduct row) {
+        return cjProductMapper.enrich(row);
+    }
+
+    /** Live rows due for detail+inventory enrichment (never-enriched first, then oldest), capped. */
+    public List<LitemallCjProduct> queryForEnrichment(int limit) {
+        return cjProductMapper.selectForEnrichment(limit);
+    }
+
     /** Soft-delete rows whose pids are no longer present upstream; returns rows affected. */
     public int softDelete(List<String> pids) {
         if (pids == null || pids.isEmpty()) {

@@ -6,12 +6,16 @@ import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Maps persisted CJ Dropshipping snapshot rows ({@code litemall_cj_product}) into the SAME flat OCS
@@ -44,13 +48,16 @@ public class CjProductIndexingService {
 
     private final LitemallCjProductService cjProductStore;
     private final CJDropshippingConfig config;
+    private final LitemallSearchProperties searchProperties;
     private final ObjectMapper objectMapper;
 
     public CjProductIndexingService(LitemallCjProductService cjProductStore,
                                     CJDropshippingConfig config,
+                                    LitemallSearchProperties searchProperties,
                                     ObjectMapper objectMapper) {
         this.cjProductStore = cjProductStore;
         this.config = config;
+        this.searchProperties = searchProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -95,12 +102,28 @@ public class CjProductIndexingService {
         for (Map<String, Object> variant : readMapList(row.getVariantsJson())) {
             doc.addVariant(variant);
         }
+        // Only the FACETABLE attributes reach OCS (same curated allow-list as local goods, so CJ folds
+        // into the SAME attribute facets, not a parallel set). Descriptive specs stored on the row for
+        // the detail page (e.g. Unit/Supplier) are dropped here so they don't pollute the facets.
+        Set<String> allowed = facetAttributeAllowList();
         for (Map.Entry<String, Object> attr : readAttributes(row.getAttributesJson()).entrySet()) {
-            if (attr.getValue() != null) {
+            if (attr.getValue() != null && attr.getKey() != null
+                    && allowed.contains(attr.getKey().toLowerCase(Locale.ROOT))) {
                 doc.addAttribute(attr.getKey(), String.valueOf(attr.getValue()));
             }
         }
         return doc;
+    }
+
+    private Set<String> facetAttributeAllowList() {
+        List<String> allow = searchProperties.getFacetAttributes();
+        if (allow == null) {
+            return Set.of();
+        }
+        return allow.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
     }
 
     private List<String> readStringList(String json) {

@@ -5,7 +5,10 @@ import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAgg
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductInventoryClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
@@ -31,6 +34,8 @@ public class CJProductService {
 
     @Autowired
     private CJProductClient productClient;
+    @Autowired
+    private CJProductInventoryClient inventoryClient;
     @Autowired
     private CjDropshippingApiUtils apiUtils;
     @Autowired
@@ -198,6 +203,51 @@ public class CJProductService {
             rawCache.put(key, data);
         }
         return data;
+    }
+
+    /**
+     * Fetch one CJ variant's warehouse inventory by {@code vid}, memoized in the Redis staging buffer
+     * (so a re-enrich within the raw TTL never re-hits the CJ quota). Returns the per-area stock list
+     * (empty on a miss / error), which the caller sums to a single SKU stock figure. CJ inventory is
+     * per-variant, so this is one call per SKU — the enrichment job batches + paces these.
+     */
+    public List<CJInventoryData> getInventory(String vid) {
+        if (vid == null || vid.isBlank()) {
+            return List.of();
+        }
+        String key = CjRawCacheRepository.inventoryKey(vid);
+        Optional<CJInventoryDataResponse> cached = rawCache.get(key, CJInventoryDataResponse.class);
+        if (cached.isPresent()) {
+            return cached.get().getData() != null ? cached.get().getData() : List.of();
+        }
+        // CJ enforces a hard 1-request/second global QPS; on a 429 ("Too Many Requests") back off and
+        // retry once so a transient burst doesn't drop the variant to fallback stock.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            rateLimiter.acquire();
+            try {
+                CJInventoryDataResponse response = inventoryClient.queryByVid(vid);
+                if (response != null && response.getData() != null) {
+                    rawCache.put(key, response);
+                    return response.getData();
+                }
+                return List.of();
+            } catch (RuntimeException ex) {
+                boolean rateLimited = ex.getMessage() != null
+                        && (ex.getMessage().contains("429") || ex.getMessage().contains("Too Many Requests"));
+                if (rateLimited && attempt == 0) {
+                    try {
+                        Thread.sleep(1200);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    continue; // retry once after backing off past the 1s window
+                }
+                logger.warn("CJ inventory fetch failed for vid {}: {}", vid, ex.getMessage());
+                break;
+            }
+        }
+        return List.of();
     }
 
     public  List<LitemallGoodsAggregate> convertProducts(CJProductDataResponse productData) {
