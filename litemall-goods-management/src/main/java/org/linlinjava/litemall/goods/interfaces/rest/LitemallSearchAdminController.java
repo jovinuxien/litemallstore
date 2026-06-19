@@ -1,10 +1,12 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentService;
 import org.linlinjava.litemall.goods.application.search.CjSnapshotSyncService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -22,11 +24,14 @@ public class LitemallSearchAdminController {
 
     private final SearchReindexService reindexService;
     private final CjSnapshotSyncService cjSnapshotSyncService;
+    private final CjDetailEnrichmentService cjDetailEnrichmentService;
 
     public LitemallSearchAdminController(SearchReindexService reindexService,
-                                         CjSnapshotSyncService cjSnapshotSyncService) {
+                                         CjSnapshotSyncService cjSnapshotSyncService,
+                                         CjDetailEnrichmentService cjDetailEnrichmentService) {
         this.reindexService = reindexService;
         this.cjSnapshotSyncService = cjSnapshotSyncService;
+        this.cjDetailEnrichmentService = cjDetailEnrichmentService;
     }
 
     /**
@@ -54,5 +59,20 @@ public class LitemallSearchAdminController {
                 "inserted", result.inserted(),
                 "updated", result.updated(),
                 "removed", result.removedPids().size()));
+    }
+
+    /**
+     * Run one incremental CJ detail+inventory enrichment batch on demand (the same work the
+     * {@code enrich-cron} job does): for the least-recently-enriched CJ rows, fetch real per-variant
+     * prices + warehouse stock + gallery/attributes (paced, via Redis), persist, and reindex. This
+     * touches the rate-limited CJ API ({@code 1 detail + N inventory} calls per product), so the
+     * {@code batch} is small by default — keep it within the CJ daily quota.
+     */
+    @PostMapping("/cj-enrich")
+    public Object cjEnrich(@RequestParam(name = "batch", defaultValue = "20") int batch) {
+        CjDetailEnrichmentService.EnrichResult result = cjDetailEnrichmentService.enrichBatch(batch);
+        return ResponseUtil.ok(Map.of(
+                "enriched", result.enriched(),
+                "failed", result.failed()));
     }
 }
