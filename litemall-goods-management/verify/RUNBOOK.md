@@ -555,3 +555,44 @@ Notes for re-running: `cj-sync` paces live CJ calls at `spring.cjdropship.fetch-
 ~21s. The OCS index is SHARED — a cj-sync from this instance updates whatever goods-mgmt instances read
 `litemall_index`. **Normal (eureka-registered) operation needs config-server up**; the `verify` profile
 is the standalone substitute used here.
+
+## §16 — Real CJ inventory + variant/attribute enrichment into OCS + DB-served CJ detail (2026-06-19)
+
+Makes CJ products first-class in OCS — real warehouse stock, real per-SKU variant prices, color/size +
+material attributes, gallery — through the existing **CJ API → Redis → DB → OCS** pipeline, and serves
+the CJ detail page from the DB (no live CJ call). Branch `feat/cj-inventory-enrichment`.
+
+**Pipeline (unchanged shape, deeper data):** a paced, incremental `CjDetailEnrichmentService` takes a
+capped batch of the least-recently-enriched `litemall_cj_product` rows (`enriched_time` NULL first),
+per pid fetches CJ `product/query` detail (variants `vid`/`variantSellPrice`/`variantKey`, gallery,
+material) + per-variant `product/stock/queryByVid` inventory THROUGH the Redis staging buffer, writes
+real `variants_json` / `attributes_json` / `images_json` onto the row (mapper `enrich` — the list-sync
+`upsert` no longer clobbers these), then `productIndexer.upsert(toDocument(row))`. `CjProductIndexingService`
+already reads `variants_json`/`attributes_json` generically, now filtered to the
+`litemall.search.facet-attributes` allow-list. On-demand trigger: `POST /srv/private/admin/search/cj-enrich?batch=N`.
+
+**Key constraint — CJ enforces a hard 1 request/second global QPS** (`429 code 1600200 "QPS limit is
+1 time/1second"`). Inventory is per-VARIANT (`queryByVid`), so a product costs 1 detail + N stock calls.
+`CJProductService.getInventory` retries once after a >1s backoff on a 429; enrichment is incremental
+(`enrich-batch-size`, default 20; `enrich-cron` 03:30) and converges over runs — it CANNOT enrich the
+whole catalog in one shot. CJ has no real discount concept (`suggestSellPrice` is a recommendation, not
+a strike-through), so `discount_price` stays null by design.
+
+### Verified LIVE 2026-06-19 (verify-profile exec jar on :8092, flyway applied V21)
+Flyway applied V21 cleanly (`validate-on-migrate=false` to skip the unrelated promotion-V17 history
+checksum; recorded `now at version v21`). `POST /cj-enrich?batch=2` → `{enriched:2, failed:0}`.
+
+- **Real variants/prices/stock — DB.** Row `2606170304541613900` → `variants_json` with **7 variants**,
+  each `{vid, variant_sku, options, variant_price:57.89, stock}`; first variant `stock:7246` (REAL, ≠ the
+  old flat 100). `attributes_json` `{"Material":"Cloth","Weight":"325.00"}`; `images_json` a 13-URL gallery.
+- **OCS facets over CJ.** Searcher doc `cj_2606170304541613900` carries `source=cj_dropshipping`,
+  `Material:Cloth`, `Weight:325.00`. Broad `GET /srv/search?q=cape` (49 hits) → facets `[price,
+  category_names, category_ids, variant_price, source, Material, color, Origin]` with a real **variant_price
+  price-range spread** `<29.99 / 35-59.99 / 65-89.99 / 95-319.99 / >345` and CJ Material values — price-range
+  + attribute facets now span CJ, not just local.
+- **DB-served detail (no live CJ call).** `GET /srv/goods/detail?id=cj_2606170304541613900` → 13 gallery
+  images, 7 SKUs (`price`/`number` incl. real `7246`), `attributes [Material=Cloth, Weight=325.00]` — built
+  by `CjGoodsDetailService.buildFromRow` straight from the snapshot; the live CJ `product/query` is only a
+  fallback when no row exists.
+- **429 retry.** A later `batch=1` run logged **0 inventory failures** and the variant landed REAL stock —
+  the backoff-retry recovers the 1-QPS bursts the plain limiter let through.

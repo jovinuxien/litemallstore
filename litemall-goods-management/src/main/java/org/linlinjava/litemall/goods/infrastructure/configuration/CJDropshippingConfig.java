@@ -55,6 +55,20 @@ public class CJDropshippingConfig {
     private long refreshStartupDelayMs = 600000;
 
     /**
+     * Spring cron for the incremental CJ detail+inventory enrichment job ({@code CjDetailEnrichmentService}).
+     * Runs after the list sync (default 03:30 daily). Each enriched product costs 1 detail + N inventory
+     * calls, so enrichment is intentionally incremental — see {@link #enrichBatchSize}.
+     */
+    private String enrichCron = "0 30 3 * * *";
+
+    /**
+     * Number of CJ products enriched per run. Keep small: enrichment fetches detail (1 call) + per-variant
+     * inventory (N calls) per product, against CJ's daily request quota — a batch of N products is roughly
+     * N×(1+avgVariants) CJ calls. The job converges over successive runs via the {@code enriched_time} cursor.
+     */
+    private int enrichBatchSize = 20;
+
+    /**
      * Category fetch plan: which CJ categories to index and how many products from each, fetched
      * before indexing. {@code category} is a CJ first/second/third-level name (resolved to leaf
      * category ids via {@code getCategory}); alternatively set {@code categoryId} to a CJ leaf UUID
@@ -144,6 +158,8 @@ public class CJDropshippingConfig {
     public static class Product {
         private String listUrl;
         private String productDetailUrl;
+        /** CJ {@code product/stock/queryByVid} endpoint — per-variant warehouse inventory. */
+        private String stockQueryUrl;
     }
 
     // Helper method for easy access to commonly used properties
@@ -172,6 +188,10 @@ public class CJDropshippingConfig {
 
     public String getProductDetailUrl(){
        return api != null && api.getProduct()!= null ? api.getProduct().getProductDetailUrl() : null;
+    }
+
+    public String getStockQueryUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getStockQueryUrl() : null;
     }
 
 }
