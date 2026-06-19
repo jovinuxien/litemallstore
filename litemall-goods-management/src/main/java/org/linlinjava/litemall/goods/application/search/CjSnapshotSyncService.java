@@ -6,6 +6,7 @@ import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
+import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProduct;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
@@ -52,23 +53,29 @@ public class CjSnapshotSyncService {
     private final LitemallCjProductService cjProductStore;
     private final CJDropshippingConfig config;
     private final ObjectMapper objectMapper;
+    private final CjRawCacheRepository rawCache;
 
     public CjSnapshotSyncService(CJProductService cjProductService,
                                  LitemallCategoryService categoryService,
                                  LitemallCjProductService cjProductStore,
                                  CJDropshippingConfig config,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 CjRawCacheRepository rawCache) {
         this.cjProductService = cjProductService;
         this.categoryService = categoryService;
         this.cjProductStore = cjProductStore;
         this.config = config;
         this.objectMapper = objectMapper;
+        this.rawCache = rawCache;
     }
 
-    /** Outcome of a snapshot refresh. */
-    public record SyncResult(int upserted, List<String> removedPids) {
+    /**
+     * Outcome of a snapshot refresh. {@code upserted} = {@code inserted} + {@code updated}, split so the
+     * daily job can report how many products are genuinely NEW vs refreshed.
+     */
+    public record SyncResult(int upserted, int inserted, int updated, List<String> removedPids) {
         public static SyncResult empty() {
-            return new SyncResult(0, List.of());
+            return new SyncResult(0, 0, 0, List.of());
         }
     }
 
@@ -83,27 +90,38 @@ public class CjSnapshotSyncService {
         }
         List<CJProduct> products = fetchProducts();
 
+        // Snapshot the currently-live pids BEFORE upserting, so each write classifies as an insert
+        // (a genuinely new / resurrected product) vs an update, and the SAME set drives stale
+        // detection below without a second DB round-trip.
+        java.util.Set<String> preexistingPids = new java.util.HashSet<>(cjProductStore.queryLivePids());
+
         java.util.Set<String> livePids = new java.util.LinkedHashSet<>();
-        int upserted = 0;
+        int inserted = 0;
+        int updated = 0;
         for (CJProduct p : products) {
             if (p == null || p.getPid() == null || p.getPid().isBlank()) {
                 continue;
             }
             try {
                 cjProductStore.upsert(toRow(p));
+                if (preexistingPids.contains(p.getPid())) {
+                    updated++;
+                } else {
+                    inserted++;
+                }
                 livePids.add(p.getPid());
-                upserted++;
             } catch (RuntimeException ex) {
                 LOGGER.warn("Skipping malformed CJ product pid={}: {}", p.getPid(), ex.getMessage());
             }
         }
+        int upserted = inserted + updated;
 
         // Stale detection: any previously-live row not seen in this fetch is soft-deleted (and its
         // pid returned so the OCS doc cj_<pid> can be dropped). Skipped when the fetch yielded nothing
         // (likely an upstream/auth outage) so a transient failure never wipes the snapshot.
         List<String> removed = new ArrayList<>();
         if (!livePids.isEmpty()) {
-            for (String existing : cjProductStore.queryLivePids()) {
+            for (String existing : preexistingPids) {
                 if (!livePids.contains(existing)) {
                     removed.add(existing);
                 }
@@ -112,8 +130,16 @@ public class CjSnapshotSyncService {
                 cjProductStore.softDelete(removed);
             }
         }
-        LOGGER.info("CJ snapshot sync: upserted {} rows, soft-deleted {} stale", upserted, removed.size());
-        return new SyncResult(upserted, removed);
+
+        // The DB snapshot is now the durable source for everything just fetched, so the consumed raw
+        // list staging pages in Redis are dead weight — purge them. Only after a successful land
+        // (upserted > 0): a failed/empty fetch keeps the cache so we don't re-hit the 1-req/300s CJ API.
+        if (upserted > 0 && config.getRedis().isPurgeAfterSync()) {
+            rawCache.purgeRawListKeys();
+        }
+
+        LOGGER.info("CJ snapshot sync: {} new, {} updated, {} soft-deleted stale", inserted, updated, removed.size());
+        return new SyncResult(upserted, inserted, updated, removed);
     }
 
     // ---- CJProduct → snapshot row (normalization lives here) --------------------------------------
