@@ -134,13 +134,18 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
     public LitemallCart convertToDataModel(LitemallCartAggregate cartAggregate) {
         LitemallCart dataModel = new LitemallCart();
 
-        if(cartAggregate.getCartId().getId() != null){
+        // A freshly-built cart line (legacy /srv/cart/add, /cart/items) has no cartId
+        // yet — leave the PK unset so insertSelective auto-increments. Only carry an
+        // explicit id through on update. (Previously this NPE'd on every brand-new line.)
+        if(cartAggregate.getCartId() != null && cartAggregate.getCartId().getId() != null){
             dataModel.setId(cartAggregate.getCartId().getId());
         }
         dataModel.setUserId(cartAggregate.getUserId().getId());
         dataModel.setProductId(cartAggregate.getProductId().getId());
         dataModel.setGoodsId(cartAggregate.getGoodsId().getId());
 
+        dataModel.setGoodsSn(cartAggregate.getGoodsSn());
+        dataModel.setGoodsName(cartAggregate.getGoodsName());
         dataModel.setPrice(cartAggregate.getPrice().getAmount());
         dataModel.setNumber(cartAggregate.getNumber().shortValue());
         dataModel.setSpecifications(cartAggregate.getSpecifications());

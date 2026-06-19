@@ -108,6 +108,10 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
         LitemallGoodsAggregate goods = new LitemallGoodsAggregate();
         goods.setGoodsId(new LitemallGoodsId(node.path("goodsId").path("id").asInt()));
         goods.setGoodsName(node.path("goodsName").asText(null));
+        // goodsSn + picUrl are needed to enrich a cart line built from just
+        // {goodsId, productId, number} (legacy /srv/cart/add); placement ignores them.
+        goods.setGoodsSn(node.path("goodsSn").asText(null));
+        goods.setPicUrl(node.path("picUrl").asText(null));
         return goods;
     }
 
@@ -121,6 +125,14 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
         if (!amount.isMissingNode() && !amount.isNull()) {
             product.setPrice(new LitemallMoney(amount.decimalValue()));
         }
+        // Variant specifications + image, used to enrich a cart line (legacy /srv/cart/add).
+        JsonNode specs = node.path("specifications");
+        if (specs.isArray()) {
+            List<String> specList = new ArrayList<>();
+            specs.forEach(s -> specList.add(s.asText()));
+            product.setSpecification(specList.toArray(new String[0]));
+        }
+        product.setUrl(node.path("url").asText(null));
         return product;
     }
 
