@@ -11,8 +11,11 @@ public class LitemallCartId {
     private final Integer id;
 
     public LitemallCartId(Integer id) {
-        if(id == null || id <= 0) {
-            throw new IllegalArgumentException("Cart ID must be a positive integer.");
+        // 0 is the "whole checked cart" sentinel at checkout (placeOrder passes
+        // cartId 0 to mean "all checked items", and clearCart treats 0 the same).
+        // Reject only null/negative.
+        if(id == null || id < 0) {
+            throw new IllegalArgumentException("Cart ID must not be null or negative.");
         }
         this.id = id;
     }
