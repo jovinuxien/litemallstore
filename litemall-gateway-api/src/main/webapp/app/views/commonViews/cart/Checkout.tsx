@@ -118,8 +118,21 @@ const CheckoutView: React.FC = () => {
   // Saved address is pre-validated; a new address needs the core fields.
   const addressValid = usingNewAddress ? !!(shipping.name && shipping.address && shipping.region && shipping.zip) : selectedAddressId != null;
 
+  // The order submit binds a saved-address id (LitemallPlaceOrderCommand.addressId);
+  // it cannot take the inline form. Until `/srv/address/save` lands (order/user
+  // follow-up, docs/SRV-FOLLOWUPS.md) only a picked saved address can be submitted.
+  const savedAddressId = typeof selectedAddressId === 'number' ? selectedAddressId : null;
+
   const handlePlaceOrder = async () => {
-    const result = await dispatch(placeOrder({ items: cartList, shipping, paymentMethod }));
+    if (savedAddressId == null) return; // guarded by the disabled button below
+    const result = await dispatch(
+      placeOrder({
+        cartId: 0, // 0 == checkout the whole checked cart
+        addressId: savedAddressId,
+        userCouponId: selectedCouponId ?? undefined,
+        paymentMethod,
+      })
+    );
     if (placeOrder.fulfilled.match(result)) {
       dispatch(clearCart());
       navigate(`/order-confirmation/${result.payload.orderId}`);
@@ -311,6 +324,14 @@ const CheckoutView: React.FC = () => {
                     </Alert>
                   )}
 
+                  {savedAddressId == null && (
+                    <Alert variant='warning' className='mt-3'>
+                      Placing an order needs a saved delivery address. The address book
+                      (<code>/srv/address</code>) is a pending order/user backend follow-up, so a
+                      manually-typed address cannot be submitted yet.
+                    </Alert>
+                  )}
+
                   {orderError && (
                     <Alert variant='danger' className='mt-3'>
                       {orderError}
@@ -321,7 +342,7 @@ const CheckoutView: React.FC = () => {
                   <Button variant='outline-secondary' onClick={() => setStep('address')} disabled={orderLoading === 'pending'}>
                     Back
                   </Button>
-                  <Button variant='success' onClick={handlePlaceOrder} disabled={orderLoading === 'pending'}>
+                  <Button variant='success' onClick={handlePlaceOrder} disabled={orderLoading === 'pending' || savedAddressId == null}>
                     {orderLoading === 'pending' ? (
                       <>
                         <Spinner animation='border' size='sm' className='me-2' />

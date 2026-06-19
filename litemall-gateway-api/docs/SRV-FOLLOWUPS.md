@@ -34,15 +34,24 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 | `/srv/order/{id}/actions/confirm` | POST | OrderList | confirm receipt |
 | `/srv/order/{id}/actions/refund` | POST | OrderList | refund request |
 | `/srv/order/{id}/actions/delete` | POST | (reserved) | delete order |
-| `/srv/order/prepay` | POST | `views/commonViews/cart/Payment` | pay an order |
-| `/srv/cart/checkout?addressId=&couponId=` | GET | `Checkout` (summary) | totals/freight/available coupons |
-| `/srv/address/list` | GET | `Checkout`, `modules/user/AddressList` | address book |
+| `/srv/order/prepay` (or `/srv/order/{id}/actions/pay`) | POST | `Checkout` payment step, `views/commonViews/cart/Payment` | **pay a placed order** — CARD (Stripe) / WALLET debit. `POST /srv/order/submit` has NO `paymentMethod`; payment is a separate post-submit action the SPA cannot complete until this lands. |
+| `/srv/address/list` | GET | `Checkout`, `modules/user/AddressList` | address book — **blocks checkout** (submit needs a saved `addressId`) |
 | `/srv/address/detail?id=` | GET | `AddressEdit` | |
-| `/srv/address/save` | POST | `AddressEdit` | create/update |
+| `/srv/address/save` | POST | `Checkout`, `AddressEdit` | create/update — without it a typed address yields no `addressId` |
 | `/srv/address/delete` | POST | `AddressList` | |
 
-> `/srv/order/submit` and the `/srv/cart` REST verbs (GET/POST/PUT/DELETE) already exist and
-> are consumed as-is.
+> **Verified live (2026-06-19) against the running order service — corrections:**
+> - The cart REST verbs are mounted under **`/srv/cart/items`** (`/items`, `/items/{cartItemId}`),
+>   NOT bare `/srv/cart`. `cartApi.ts` now targets `/srv/cart/items`.
+> - `POST /srv/order/submit` exists but takes a **`LitemallPlaceOrderCommand`**
+>   `{ cartId, addressId, couponId, userCouponId, message, grouponRulesId, grouponLinkId }`
+>   with the buyer bound from the gateway-injected `X-User-Id` header — it does **not** accept
+>   inline `items`/`shipping`/`paymentMethod`. `orderSlice.ts` now sends this command shape.
+> - End-to-end checkout is therefore blocked on two order/user follow-ups: (1) `/srv/address/*`
+>   to produce a saved `addressId`; (2) a post-order payment action for CARD/WALLET.
+> - Runtime note: `order-service-app` (:8085) was observed crashing during verification
+>   (`NoRouteToHost :8085`); its bring-up/stability is owned by the `order` worktree
+>   (shared-DB V20 reinstall + restart per the run-from-MAIN rule).
 
 ## Owner: order / promotion (coupons) — routing decision needed
 | Endpoint | Verb | Used by |
