@@ -30,6 +30,9 @@ export interface ShippingInfo {
   region: string;
   kommune: string;
   zip: string;
+  // Required only when the cart contains CJ lines (CJ createOrder needs a real country).
+  country?: string;
+  countryCode?: string;
 }
 
 export interface PlaceOrderParams {
@@ -43,6 +46,8 @@ export interface PlacedOrder {
   orderSn?: string;
   actualPrice?: number;
   paymentMethod?: CheckoutPaymentMethod;
+  // Set when CJ Dropshipping lines were placed (pass-through; no local order row).
+  cjOrderNum?: string;
 }
 
 /**
@@ -64,48 +69,82 @@ const customerUserId = (): number | null => {
 
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async ({ items, shipping, paymentMethod }, thunkApi) => {
     const userId = customerUserId();
     if (userId == null) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
     }
     try {
-      // Mirror the client-side cart into the server cart the order service reads from:
-      // wipe stale rows, then add each line (checked=true). CJ items (non-numeric goodsId)
-      // can't use the Integer-keyed cart endpoint yet, so skip them (follow-up).
-      await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`, { params: { userId } });
-      for (const it of items) {
-        const goodsId = Number(it.goodsId);
-        if (!Number.isFinite(goodsId)) continue;
-        // eslint-disable-next-line no-await-in-loop
-        await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
-          userId,
-          goodsId,
-          productId: it.productId,
-          number: it.number,
-          specifications: it.specifications,
-          goodsSn: it.goodsSn,
-          goodsName: it.goodsName,
-          price: it.price,
-          picUrl: it.picUrl,
-        });
+      // Split the cart by source. Local lines go through the Integer-keyed cart +
+      // /order/submit; CJ lines (goodsId "cj_<pid>", non-numeric) bypass the cart
+      // and go straight to the CJ dropship endpoint with their raw vid.
+      const isCjItem = (it: IItemCart) => it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
+      const localItems = items.filter(it => !isCjItem(it));
+      const cjItems = items.filter(isCjItem);
+
+      let placed: PlacedOrder = { orderId: 0, paymentMethod };
+
+      // 1) Local lines: mirror the client cart into the server cart, then submit.
+      if (localItems.length) {
+        await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`, { params: { userId } });
+        for (const it of localItems) {
+          const goodsId = Number(it.goodsId);
+          if (!Number.isFinite(goodsId)) continue;
+          // eslint-disable-next-line no-await-in-loop
+          await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
+            userId,
+            goodsId,
+            productId: it.productId,
+            number: it.number,
+            specifications: it.specifications,
+            goodsSn: it.goodsSn,
+            goodsName: it.goodsName,
+            price: it.price,
+            picUrl: it.picUrl,
+          });
+        }
+        // userId is taken from the gateway header; addressId omitted -> default address.
+        const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, { cartId: 0, message: '' });
+        const data = response.data ?? {};
+        if (data.success === false) {
+          return thunkApi.rejectWithValue({ errno: 400, errmsg: data.message ?? data.errorCode ?? 'Order placement failed', data: null });
+        }
+        placed = { ...placed, orderId: data.orderId, orderSn: data.orderSn, actualPrice: data.actualPrice };
       }
 
-      // Cart-based submit. userId is taken from the gateway header; addressId omitted ->
-      // the order service falls back to the user's default address.
-      const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, { cartId: 0, message: '' });
-      const data = response.data ?? {};
-      // Order service returns OrderOperationDtoResponse (201), NOT an {errno,data} envelope.
-      if (data.success === false) {
-        return thunkApi.rejectWithValue({ errno: 400, errmsg: data.message ?? data.errorCode ?? 'Order placement failed', data: null });
+      // 2) CJ lines: pass-through to the CJ dropship order endpoint (real CJ order).
+      if (cjItems.length) {
+        const lines = cjItems
+          .filter(it => it.vid)
+          .map(it => ({ vid: String(it.vid), quantity: it.number ?? 1 }));
+        if (!lines.length) {
+          return thunkApi.rejectWithValue({ errno: 400, errmsg: 'CJ item is missing a variant id — reopen the product and pick a variant.', data: null });
+        }
+        const cjBody = {
+          orderNumber: `CJ-${userId}-${Date.now()}`,
+          customerName: shipping.name,
+          phone: shipping.mobile,
+          countryCode: shipping.countryCode ?? '',
+          country: shipping.country ?? '',
+          province: shipping.region,
+          city: shipping.kommune || shipping.region,
+          address: [shipping.address, shipping.addressTwo].filter(Boolean).join(', '),
+          zip: shipping.zip,
+          remark: '',
+          lines,
+        };
+        try {
+          const cjResp = await baseAxios.post(`${BASE_URL_CONTEXT}/order/cj/orders`, cjBody);
+          placed = { ...placed, cjOrderNum: cjResp.data?.cjOrderNum ?? cjResp.data?.cjOrderId };
+        } catch (cjErr) {
+          const cjMsg = cjErr.response?.data?.message ?? cjErr.message ?? 'CJ order failed';
+          // If the local order already committed, say so — it must not look like a total failure.
+          const prefix = localItems.length ? 'Your local order was placed, but the CJ order failed: ' : 'CJ order failed: ';
+          return thunkApi.rejectWithValue({ errno: cjErr.response?.status ?? 502, errmsg: prefix + cjMsg, data: null });
+        }
       }
-      return {
-        orderId: data.orderId,
-        orderSn: data.orderSn,
-        actualPrice: data.actualPrice,
-        paymentMethod,
-      } as PlacedOrder;
+
+      return placed;
     } catch (error) {
       const resp = error.response?.data;
       return thunkApi.rejectWithValue({

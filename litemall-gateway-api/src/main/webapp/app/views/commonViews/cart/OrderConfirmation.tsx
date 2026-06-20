@@ -14,6 +14,8 @@ const OrderConfirmation: React.FC = () => {
   const lastOrder = useAppSelector(state => state.order.data.lastOrder);
 
   const orderId = lastOrder?.orderId ?? (id ? Number(id) : undefined);
+  // A CJ-only checkout has no local order row (orderId 0) — show the CJ reference instead.
+  const hasLocal = orderId != null && orderId > 0;
 
   return (
     <Container className='my-5'>
@@ -23,10 +25,15 @@ const OrderConfirmation: React.FC = () => {
             <i className='bi bi-check-circle-fill' />
           </div>
           <h2>Thank you for your order!</h2>
-          {orderId != null && (
+          {hasLocal && (
             <p className='lead'>
               Your order reference is <strong>#{orderId}</strong>
               {lastOrder?.orderSn ? ` (${lastOrder.orderSn})` : ''}.
+            </p>
+          )}
+          {lastOrder?.cjOrderNum && (
+            <p className='lead'>
+              Your CJ Dropshipping order: <strong>{lastOrder.cjOrderNum}</strong>.
             </p>
           )}
           {lastOrder?.actualPrice != null && <p className='text-muted'>Total charged: ${lastOrder.actualPrice}</p>}

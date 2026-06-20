@@ -23,12 +23,24 @@ public class FeignConfig {
     }
 
     /**
-     * Attach a service-to-service machine token to every outbound Feign call so
-     * goods-management (a svcsecurity resource-server) accepts them instead of
-     * returning 401. Token is fetched/cached by {@link GoodsMachineTokenProvider}.
+     * Attach a service-to-service machine token to outbound Feign calls aimed at our
+     * INTERNAL svcsecurity resource-servers (e.g. goods-management), so they accept the
+     * call instead of returning 401. Token is fetched/cached by {@link GoodsMachineTokenProvider}.
+     *
+     * <p>It MUST NOT be sent to external third parties: the CJ Dropshipping clients
+     * ({@code cj-*}) authenticate with their own {@code CJ-Access-Token} header, and
+     * relaying our internal Bearer there both leaks the machine token and trips CJ's
+     * gateway (surfacing as "transport/auth failure"). So skip CJ targets by client name.
      */
     @Bean
     public RequestInterceptor goodsMachineTokenInterceptor(GoodsMachineTokenProvider tokenProvider) {
-        return template -> template.header("Authorization", "Bearer " + tokenProvider.getToken());
+        return template -> {
+            feign.Target<?> target = template.feignTarget();
+            String clientName = target != null ? target.name() : "";
+            if (clientName != null && clientName.startsWith("cj-")) {
+                return; // external CJ client — never relay the internal machine token
+            }
+            template.header("Authorization", "Bearer " + tokenProvider.getToken());
+        };
     }
 }

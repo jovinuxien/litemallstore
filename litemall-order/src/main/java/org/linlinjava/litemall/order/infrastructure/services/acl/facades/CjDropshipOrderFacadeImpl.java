@@ -28,10 +28,18 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
 
     private final CjOrderFeignClient cjOrderFeignClient;
     private final CjTokenService cjTokenService;
+    /** CJ ship-from warehouse country. CJ createOrder rejects a missing one (code 1600300). */
+    private final String fromCountryCode;
+    /** CJ logistics line. CJ createOrder also requires this (code 1600300 "logisticName must be not empty"). */
+    private final String logisticName;
 
-    public CjDropshipOrderFacadeImpl(CjOrderFeignClient cjOrderFeignClient, CjTokenService cjTokenService) {
+    public CjDropshipOrderFacadeImpl(CjOrderFeignClient cjOrderFeignClient, CjTokenService cjTokenService,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.from-country-code:CN}") String fromCountryCode,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName) {
         this.cjOrderFeignClient = cjOrderFeignClient;
         this.cjTokenService = cjTokenService;
+        this.fromCountryCode = fromCountryCode;
+        this.logisticName = logisticName;
     }
 
     @Override
@@ -46,9 +54,17 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             String token = cjTokenService.getValidToken();
             response = cjOrderFeignClient.createOrder(token, request);
         } catch (RuntimeException e) {
-            // Transport errors (connect/read timeout, 5xx) and auth failures surface here.
-            log.error("CJ create-order transport/auth failure for orderNumber={}", placement.getOrderNumber(), e);
-            throw new LitemallCjOrderException("transport/auth failure", e);
+            // Transport/auth errors AND CJ business rejections (the FeignErrorDecoder turns a CJ
+            // error body into an exception) surface here. Unwrap to the root cause so the real CJ
+            // message (e.g. "fromCountryCode must not be empty") reaches the caller instead of a
+            // generic label.
+            Throwable root = e;
+            while (root.getCause() != null && root.getCause() != root) {
+                root = root.getCause();
+            }
+            String detail = root.getMessage() != null ? root.getMessage() : "transport/auth failure";
+            log.error("CJ create-order failed for orderNumber={}: {}", placement.getOrderNumber(), detail, e);
+            throw new LitemallCjOrderException(detail, e);
         }
 
         if (response == null || !response.isResult() || response.getData() == null) {
@@ -67,6 +83,8 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .collect(Collectors.toList());
         return CjCreateOrderRequest.builder()
                 .orderNumber(p.getOrderNumber())
+                .fromCountryCode(fromCountryCode)
+                .logisticName(logisticName)
                 .shippingCustomerName(p.getCustomerName())
                 .shippingPhone(p.getPhone())
                 .shippingCountryCode(p.getCountryCode())
