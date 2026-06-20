@@ -11,6 +11,22 @@ type Step = 'review' | 'shipping' | 'payment';
 
 const REGIONS = ['Stockholm', 'Skåne', 'Göteborg', 'Uppsala'];
 
+// CJ createOrder needs a real destination country + ISO code. Small built-in list;
+// the selected option supplies both the country name and the countryCode.
+const COUNTRIES: Array<{ name: string; code: string }> = [
+  { name: 'United States', code: 'US' },
+  { name: 'United Kingdom', code: 'GB' },
+  { name: 'Sweden', code: 'SE' },
+  { name: 'Norway', code: 'NO' },
+  { name: 'Germany', code: 'DE' },
+  { name: 'France', code: 'FR' },
+  { name: 'Canada', code: 'CA' },
+  { name: 'Australia', code: 'AU' },
+];
+
+const isCjItem = (it: { source?: string; goodsId?: string }) =>
+  it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
+
 const CheckoutView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -28,8 +44,13 @@ const CheckoutView: React.FC = () => {
     region: '',
     kommune: '',
     zip: '',
+    country: '',
+    countryCode: '',
   });
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
+
+  // CJ lines ship via the CJ dropship endpoint, which requires country + phone.
+  const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
 
   useEffect(() => {
     dispatch(fetchCart());
@@ -55,7 +76,15 @@ const CheckoutView: React.FC = () => {
     setShipping(prev => ({ ...prev, kommune: e.target.value }));
   };
 
-  const shippingValid = shipping.name && shipping.email && shipping.address && shipping.region && shipping.zip;
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const code = e.target.value;
+    const country = COUNTRIES.find(c => c.code === code)?.name ?? '';
+    setShipping(prev => ({ ...prev, countryCode: code, country }));
+  };
+
+  const baseValid = shipping.name && shipping.email && shipping.address && shipping.region && shipping.zip;
+  // CJ orders additionally need a phone and a destination country.
+  const shippingValid = baseValid && (!hasCjItems || (shipping.mobile && shipping.countryCode));
 
   const handlePlaceOrder = async () => {
     const result = await dispatch(placeOrder({ items: cartList, shipping, paymentMethod }));
@@ -125,6 +154,11 @@ const CheckoutView: React.FC = () => {
               <Card className='mb-3'>
                 <Card.Header>Shipping information</Card.Header>
                 <Card.Body>
+                  {hasCjItems && (
+                    <Alert variant='info' className='mb-3'>
+                      Some items ship via <strong>CJ Dropshipping</strong> — please provide a <strong>country</strong> and a <strong>phone number</strong> for delivery.
+                    </Alert>
+                  )}
                   <Row className='g-3'>
                     <Col md={6}>
                       <Form.Label>Full name *</Form.Label>
@@ -135,8 +169,19 @@ const CheckoutView: React.FC = () => {
                       <Form.Control name='email' type='email' value={shipping.email} onChange={handleInputChange} required />
                     </Col>
                     <Col md={6}>
-                      <Form.Label>Mobile</Form.Label>
-                      <Form.Control name='mobile' value={shipping.mobile} onChange={handleInputChange} />
+                      <Form.Label>Mobile{hasCjItems ? ' *' : ''}</Form.Label>
+                      <Form.Control name='mobile' value={shipping.mobile} onChange={handleInputChange} required={hasCjItems} />
+                    </Col>
+                    <Col md={6}>
+                      <Form.Label>Country{hasCjItems ? ' *' : ''}</Form.Label>
+                      <Form.Select name='countryCode' value={shipping.countryCode} onChange={handleCountryChange} required={hasCjItems}>
+                        <option value=''>-- Country --</option>
+                        {COUNTRIES.map(c => (
+                          <option key={c.code} value={c.code}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </Form.Select>
                     </Col>
                     <Col md={12}>
                       <Form.Label>Address line 1 *</Form.Label>

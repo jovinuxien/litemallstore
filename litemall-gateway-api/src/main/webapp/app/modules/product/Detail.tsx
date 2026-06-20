@@ -121,6 +121,16 @@ const ProductDetailView: React.FC = () => {
     if (picUrl) setActiveImage(picUrl);
   };
 
+  // CJ products carry a "cj_<pid>" goodsId and a CJ variant id (vid) that exceeds JS
+  // safe-integer range, so the vid must be read as the RAW string from goodsProductId —
+  // never via productId() (which Number()-coerces and loses precision).
+  const isCj = String(gid).startsWith('cj_');
+  const rawVid = (() => {
+    const raw = selectedSku?.goodsProductId as { id?: string } | string | undefined;
+    const v = typeof raw === 'object' ? raw?.id : raw;
+    return v != null ? String(v) : undefined;
+  })();
+
   const buildCartItem = () => ({
     id: productId(selectedSku ?? ({} as DetailProduct)) ?? gid,
     goodsId: String(gid),
@@ -131,6 +141,8 @@ const ProductDetailView: React.FC = () => {
     picUrl: activeImage || goods.picUrl,
     specifications: specGroups.map(g => selected[g.name]).filter(Boolean),
     checked: true,
+    source: isCj ? 'cj_dropshipping' : undefined,
+    vid: isCj ? rawVid : undefined,
   });
 
   const handleAddToCart = () => {

@@ -41,6 +41,12 @@ spring:
   cjdropship:
     api:
       base-url: "https://developers.cjdropshipping.com/api2.0/v1"
+      # CJ ship-from warehouse country (required by createOrder, code 1600300 if empty).
+      # Default to China (most CJ stock); override per-deployment via litemall-config.
+      from-country-code: "CN"
+      # CJ logistics line (also required by createOrder). A widely-available default;
+      # the proper per-route value comes from CJ's freightCalculate API (follow-up).
+      logistic-name: "CJPacket Ordinary"
       auth:
         cj-email: "bimeni89@gmail.com"
         cj-api-key: "9520bc6b70fe45019688c5ae62be331b"
