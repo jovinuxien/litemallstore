@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.interfaces.rest;
 
+import org.linlinjava.litemall.order.application.internal.cj.CjOrderLineResolver;
 import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
@@ -27,9 +28,11 @@ import java.util.stream.Collectors;
 public class LitemallCjOrderController {
 
     private final CjDropshipOrderFacade cjOrderFacade;
+    private final CjOrderLineResolver lineResolver;
 
-    public LitemallCjOrderController(CjDropshipOrderFacade cjOrderFacade) {
+    public LitemallCjOrderController(CjDropshipOrderFacade cjOrderFacade, CjOrderLineResolver lineResolver) {
         this.cjOrderFacade = cjOrderFacade;
+        this.lineResolver = lineResolver;
     }
 
     @PostMapping("/orders")
@@ -46,7 +49,7 @@ public class LitemallCjOrderController {
     private CjOrderPlacement toPlacement(CjOrderRequestDto dto) {
         List<CjOrderPlacement.Line> lines = dto.getLines() == null ? List.of()
                 : dto.getLines().stream()
-                .map(l -> CjOrderPlacement.Line.builder().vid(l.getVid()).quantity(l.getQuantity()).build())
+                .map(l -> CjOrderPlacement.Line.builder().vid(resolveVid(l)).quantity(l.getQuantity()).build())
                 .collect(Collectors.toList());
         return CjOrderPlacement.builder()
                 .orderNumber(dto.getOrderNumber())
@@ -61,5 +64,20 @@ public class LitemallCjOrderController {
                 .remark(dto.getRemark())
                 .lines(lines)
                 .build();
+    }
+
+    /**
+     * Recover the CJ {@code cj_vid} for a line: prefer the native {@code productId} (server reads
+     * {@code cj_vid} off the row and confirms {@code source='cj'}); fall back to an explicitly-supplied
+     * {@code vid} for internal callers that already hold it.
+     */
+    private String resolveVid(CjOrderRequestDto.Line line) {
+        if (line.getProductId() != null) {
+            return lineResolver.resolveVid(line.getProductId());
+        }
+        if (line.getVid() != null && !line.getVid().isBlank()) {
+            return line.getVid();
+        }
+        throw new LitemallCjOrderException("CJ line needs a productId (or an explicit vid)");
     }
 }
