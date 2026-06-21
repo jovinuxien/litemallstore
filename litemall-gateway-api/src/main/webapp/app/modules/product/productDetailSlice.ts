@@ -48,6 +48,9 @@ export interface DetailGoods {
   counterPrice?: DetailMoney | number | null;
   retailPrice?: DetailMoney | number | null;
   detail?: string;
+  // Catalog origin: 'local' or 'cj' (CJ Dropshipping); the legacy DB-served CJ detail tags
+  // 'cj_dropshipping'. Drives the storefront's CJ-line detection at checkout.
+  source?: string;
 }
 
 export interface DetailProduct {

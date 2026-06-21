@@ -395,6 +395,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         domainModel.setUpdateTime(record.getUpdateTime());
         domainModel.setDeleted(isDeleted);
         domainModel.setDetail(record.getDetail());
+        domainModel.setSource(record.getSource()); // catalog origin (local|cj) for the storefront's CJ-line detection
 
 
         return  domainModel;

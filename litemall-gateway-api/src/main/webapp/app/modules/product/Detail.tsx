@@ -121,15 +121,11 @@ const ProductDetailView: React.FC = () => {
     if (picUrl) setActiveImage(picUrl);
   };
 
-  // CJ products carry a "cj_<pid>" goodsId and a CJ variant id (vid) that exceeds JS
-  // safe-integer range, so the vid must be read as the RAW string from goodsProductId —
-  // never via productId() (which Number()-coerces and loses precision).
-  const isCj = String(gid).startsWith('cj_');
-  const rawVid = (() => {
-    const raw = selectedSku?.goodsProductId as { id?: string } | string | undefined;
-    const v = typeof raw === 'object' ? raw?.id : raw;
-    return v != null ? String(v) : undefined;
-  })();
+  // CJ Dropshipping lines now live in the native catalog (source 'cj'); the legacy DB-served
+  // detail page still tags them 'cj_dropshipping'. Either marks the line CJ so checkout routes it
+  // to the dropship endpoint — by its native productId, off which the order service recovers the
+  // real CJ vid (no cj_<pid> id, no vid-as-productId hack).
+  const isCj = goods.source === 'cj' || goods.source === 'cj_dropshipping';
 
   const buildCartItem = () => ({
     id: productId(selectedSku ?? ({} as DetailProduct)) ?? gid,
@@ -141,8 +137,7 @@ const ProductDetailView: React.FC = () => {
     picUrl: activeImage || goods.picUrl,
     specifications: specGroups.map(g => selected[g.name]).filter(Boolean),
     checked: true,
-    source: isCj ? 'cj_dropshipping' : undefined,
-    vid: isCj ? rawVid : undefined,
+    source: isCj ? goods.source : undefined,
   });
 
   const handleAddToCart = () => {

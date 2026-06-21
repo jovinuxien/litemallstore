@@ -53,6 +53,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     goodsName?: string;
     new?: boolean;
     hot?: boolean;
+    source?: string;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -69,6 +70,8 @@ const ProductCard: React.FC<Props> = ({ product }) => {
 
   // Quick add: drop the goods into the (local) cart at qty 1. SKU/spec selection
   // still happens on the detail page; this gives the marketplace one-tap add.
+  // Carry `source` so a CJ line is recognized at checkout — a CJ quick-add has no chosen
+  // variant (productId), so checkout will prompt the shopper to open it and pick one.
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -83,6 +86,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
         picUrl,
         specifications: [],
         checked: true,
+        source: p.source,
       })
     );
     setAdded(true);
