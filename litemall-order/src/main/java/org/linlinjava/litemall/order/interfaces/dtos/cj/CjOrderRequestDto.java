@@ -24,6 +24,13 @@ public class CjOrderRequestDto {
 
     @Data
     public static class Line {
+        /**
+         * Native {@code litemall_goods_product.id} of the CJ line. Preferred: the server recovers the
+         * CJ variant id ({@code cj_vid}) off the row and confirms the parent goods is {@code source='cj'}
+         * — no {@code cj_<pid>} parsing, no {@code vid}-as-productId hack on the caller.
+         */
+        private Integer productId;
+        /** Optional fallback CJ variant id for internal callers that already hold it (else recovered from productId). */
         private String vid;
         private int quantity;
     }
