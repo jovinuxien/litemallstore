@@ -76,9 +76,11 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
     }
     try {
       // Split the cart by source. Local lines go through the Integer-keyed cart +
-      // /order/submit; CJ lines (goodsId "cj_<pid>", non-numeric) bypass the cart
-      // and go straight to the CJ dropship endpoint with their raw vid.
-      const isCjItem = (it: IItemCart) => it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
+      // /order/submit; CJ lines bypass the cart and go to the CJ dropship endpoint by their
+      // native productId — the order service recovers the real CJ vid off the row. CJ products
+      // now live in the native catalog (source 'cj'); 'cj_dropshipping' is the legacy detail tag.
+      const isCjItem = (it: IItemCart) =>
+        it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
       const localItems = items.filter(it => !isCjItem(it));
       const cjItems = items.filter(isCjItem);
 
@@ -112,13 +114,14 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
         placed = { ...placed, orderId: data.orderId, orderSn: data.orderSn, actualPrice: data.actualPrice };
       }
 
-      // 2) CJ lines: pass-through to the CJ dropship order endpoint (real CJ order).
+      // 2) CJ lines: pass-through to the CJ dropship order endpoint (real CJ order). Send the native
+      // productId; the order service reads cj_vid off litemall_goods_product and confirms source='cj'.
       if (cjItems.length) {
         const lines = cjItems
-          .filter(it => it.vid)
-          .map(it => ({ vid: String(it.vid), quantity: it.number ?? 1 }));
+          .filter(it => it.productId != null)
+          .map(it => ({ productId: it.productId, quantity: it.number ?? 1 }));
         if (!lines.length) {
-          return thunkApi.rejectWithValue({ errno: 400, errmsg: 'CJ item is missing a variant id — reopen the product and pick a variant.', data: null });
+          return thunkApi.rejectWithValue({ errno: 400, errmsg: 'CJ item is missing a product variant — reopen the product and pick a variant.', data: null });
         }
         const cjBody = {
           orderNumber: `CJ-${userId}-${Date.now()}`,
