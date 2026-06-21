@@ -103,6 +103,11 @@ public class CjSnapshotSyncService {
         }
         List<CJProduct> products = fetchProducts(targetsOverride);
 
+        // A targeted run (explicit targetsOverride) covers only the chosen categories, so it is
+        // ADDITIVE — it must NOT treat the rest of the catalog as "vanished". Stale detection /
+        // soft-delete only runs for a FULL sync (the configured plan, override null/empty).
+        boolean pruneStale = (targetsOverride == null || targetsOverride.isEmpty());
+
         // Snapshot the currently-live pids BEFORE upserting, so each write classifies as an insert
         // (a genuinely new / resurrected product) vs an update, and the SAME set drives stale
         // detection below without a second DB round-trip.
@@ -131,9 +136,10 @@ public class CjSnapshotSyncService {
 
         // Stale detection: any previously-live row not seen in this fetch is soft-deleted (and its
         // pid returned so the OCS doc cj_<pid> can be dropped). Skipped when the fetch yielded nothing
-        // (likely an upstream/auth outage) so a transient failure never wipes the snapshot.
+        // (likely an upstream/auth outage) so a transient failure never wipes the snapshot — and
+        // skipped entirely for a targeted run, which only knows about its chosen categories.
         List<String> removed = new ArrayList<>();
-        if (!livePids.isEmpty()) {
+        if (pruneStale && !livePids.isEmpty()) {
             for (String existing : preexistingPids) {
                 if (!livePids.contains(existing)) {
                     removed.add(existing);
