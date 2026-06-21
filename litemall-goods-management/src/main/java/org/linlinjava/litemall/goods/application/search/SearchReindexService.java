@@ -3,7 +3,6 @@ package org.linlinjava.litemall.goods.application.search;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
-import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
 import org.linlinjava.litemall.goods.domain.service.elastic.LitemallProductIndexingService;
 import org.linlinjava.litemall.goods.domain.service.elastic.ProductIndexer;
 import org.slf4j.Logger;
@@ -14,18 +13,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Drives full re-indexing of the goods catalog into OCS. The streaming-batch
- * shape lives here (application layer) so the {@link ProductIndexer} port
- * stays a pure list-in/commit-out abstraction and the domain
- * {@link LitemallProductIndexingService} only handles per-document mapping.
+ * Drives re-indexing of the goods catalog into OCS. The streaming-batch shape lives here
+ * (application layer) so the {@link ProductIndexer} port stays a pure list-in/commit-out
+ * abstraction and the domain {@link LitemallProductIndexingService} only handles per-document
+ * mapping.
  *
- * <p>{@link ProductIndexer#replaceAll} is a full import that swaps the WHOLE index, so local
- * goods and CJ Dropshipping products must be committed together in one pass — CJ documents are
- * appended to the same list here so {@code /srv/search} sees a single unified index. CJ docs are
- * built from the persisted {@code litemall_cj_product} snapshot ({@link CjProductIndexingService},
- * DB-sourced — NO CJ API call here), so this reindex is fast; the snapshot itself is refreshed
- * (paced, via Redis) by {@code CjSnapshotSyncService} / the nightly {@code CjCatalogRefreshTask}.
- * Any snapshot-read error is logged and the reindex proceeds local-only (never fails the rebuild).
+ * <p><b>Single source of truth (Phase 4):</b> OCS reads ONLY the native {@code litemall_goods}
+ * family. CJ Dropshipping products are landed into those same tables (with {@code source='cj'}) by
+ * {@code CjProductPromotionService}, so they flow through the SAME native indexing path as local
+ * goods — there is no longer a separate {@code cj_<pid>} document set to append. {@code /srv/search}
+ * still sees one unified, ranked index; it is just sourced entirely from the DB.
  */
 @Service
 public class SearchReindexService {
@@ -35,19 +32,21 @@ public class SearchReindexService {
 
     private final LitemallGoodsService goodsService;
     private final LitemallProductIndexingService indexingService;
-    private final CjProductIndexingService cjIndexingService;
     private final ProductIndexer productIndexer;
 
     public SearchReindexService(LitemallGoodsService goodsService,
                                 LitemallProductIndexingService indexingService,
-                                CjProductIndexingService cjIndexingService,
                                 ProductIndexer productIndexer) {
         this.goodsService = goodsService;
         this.indexingService = indexingService;
-        this.cjIndexingService = cjIndexingService;
         this.productIndexer = productIndexer;
     }
 
+    /**
+     * Full reindex: stream every on-sale native goods row (local + promoted CJ) and atomically swap
+     * the whole OCS index via {@link ProductIndexer#replaceAll}. Because it is a full replace, any
+     * soft-deleted / off-sale goods simply drop out of the index — no per-id delete needed.
+     */
     public int reindexAll() {
         List<ProductDocument> documents = new ArrayList<>();
         int page = 1;
@@ -67,21 +66,29 @@ public class SearchReindexService {
             }
             page++;
         }
-        int localCount = documents.size();
-
-        // Append CJ Dropshipping products into the SAME full import (unified index). Graceful: a CJ
-        // failure must never fail the local rebuild.
-        int cjCount = 0;
-        try {
-            List<ProductDocument> cjDocs = cjIndexingService.buildDocuments();
-            documents.addAll(cjDocs);
-            cjCount = cjDocs.size();
-        } catch (RuntimeException ex) {
-            LOGGER.warn("CJ indexing skipped during reindex ({}); committing local-only", ex.getMessage());
-        }
-
         productIndexer.replaceAll(documents);
-        LOGGER.info("Reindex committed: {} local + {} CJ = {} documents", localCount, cjCount, documents.size());
+        LOGGER.info("Reindex committed: {} documents from litemall_goods (single source)", documents.size());
         return documents.size();
+    }
+
+    /**
+     * Incrementally (re)index a single native goods row by id: upsert its document when the row is a
+     * live, on-sale product; otherwise drop it from the index. The DB-only equivalent of the local
+     * write-path → Rabbit → consumer loop, reused by the CJ promote/enrich flow so a freshly promoted
+     * CJ product appears in OCS without a full reindex.
+     */
+    public void reindexGoods(Integer goodsId) {
+        if (goodsId == null) {
+            return;
+        }
+        LitemallGoods goods = goodsService.findById(goodsId);
+        boolean indexable = goods != null
+                && Boolean.TRUE.equals(goods.getIsOnSale())
+                && !Boolean.TRUE.equals(goods.getDeleted());
+        if (indexable) {
+            productIndexer.upsert(indexingService.createProductDocument(goods));
+        } else {
+            productIndexer.delete(String.valueOf(goodsId));
+        }
     }
 }

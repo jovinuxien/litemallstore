@@ -1,8 +1,5 @@
 package org.linlinjava.litemall.goods.application.search;
 
-import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
-import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
-import org.linlinjava.litemall.goods.domain.service.elastic.ProductIndexer;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,18 +8,19 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-
 /**
  * Keeps CJ Dropshipping documents current in {@code litemall_index} between full reindexes. CJ has no
  * {@code GoodsIndexEvent}, so this scheduled job is its equivalent of the local write-path → Rabbit →
  * consumer loop. Deliberately separate from the local incremental path.
  *
- * <p>Two-step refresh: (1) {@link CjSnapshotSyncService#syncAll()} pulls the configured
- * {@code catalog-targets} (paced via the Redis staging buffer, respecting the CJ quota) and refreshes
- * the durable {@code litemall_cj_product} snapshot; (2) the current snapshot is upserted into OCS and
- * the pids the sync soft-deleted are removed from OCS by their {@code cj_<pid>} id. Because the
- * snapshot now records what was indexed, stale-doc deletion is handled here (no longer deferred).
+ * <p>Refresh (Phase 4, OCS single-source): (1) {@link CjSnapshotSyncService#syncAll()} pulls the
+ * configured {@code catalog-targets} (paced via the Redis staging buffer, respecting the CJ quota) and
+ * refreshes the durable {@code litemall_cj_product} snapshot; (2) the enriched snapshot rows are
+ * promoted into the native {@code litemall_goods} family ({@link CjProductPromotionService#promoteBatch})
+ * and native goods for pids that vanished upstream are soft-deleted
+ * ({@link CjProductPromotionService#reconcile}); (3) a full {@link SearchReindexService#reindexAll()}
+ * atomically swaps the OCS index from the DB, so promoted/refreshed products appear and soft-deleted
+ * ones drop out in one pass — there is no longer any {@code cj_<pid>} document to upsert/delete directly.
  * Runs on a config-driven cron ({@code spring.cjdropship.refresh-cron}, default 03:00 nightly).
  *
  * <p>In addition to the nightly cron, a one-shot run fires shortly after startup
@@ -38,19 +36,19 @@ public class CjCatalogRefreshTask {
 
     private final CjSnapshotSyncService snapshotSyncService;
     private final CjDetailEnrichmentService detailEnrichmentService;
-    private final CjProductIndexingService cjIndexingService;
-    private final ProductIndexer productIndexer;
+    private final CjProductPromotionService promotionService;
+    private final SearchReindexService reindexService;
     private final CJDropshippingConfig config;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
                                 CjDetailEnrichmentService detailEnrichmentService,
-                                CjProductIndexingService cjIndexingService,
-                                ProductIndexer productIndexer,
+                                CjProductPromotionService promotionService,
+                                SearchReindexService reindexService,
                                 CJDropshippingConfig config) {
         this.snapshotSyncService = snapshotSyncService;
         this.detailEnrichmentService = detailEnrichmentService;
-        this.cjIndexingService = cjIndexingService;
-        this.productIndexer = productIndexer;
+        this.promotionService = promotionService;
+        this.reindexService = reindexService;
         this.config = config;
     }
 
@@ -105,26 +103,22 @@ public class CjCatalogRefreshTask {
             return;
         }
         try {
-            // 1) Fetch (paced, via Redis) → normalize → persist the snapshot; learn which pids vanished.
+            // 1) Fetch (paced, via Redis) → normalize → persist the snapshot; learn live vs vanished pids.
             CjSnapshotSyncService.SyncResult result = snapshotSyncService.syncAll();
 
-            // 2) Upsert the current snapshot into OCS.
-            List<ProductDocument> docs = cjIndexingService.buildDocuments();
-            int upserted = 0;
-            for (ProductDocument doc : docs) {
-                productIndexer.upsert(doc);
-                upserted++;
-            }
+            // 2) Promote enriched rows into native litemall_goods, and soft-delete native goods for
+            //    pids that vanished upstream (only source='cj' rows are ever touched).
+            CjProductPromotionService.PromoteResult promote = promotionService.promoteBatch(Integer.MAX_VALUE);
+            int reconciled = promotionService.reconcile(result.livePids());
 
-            // 3) Drop docs for products removed upstream (stale deletion, by cj_<pid> id).
-            int deleted = 0;
-            for (String pid : result.removedPids()) {
-                productIndexer.delete(CjProductIndexingService.CJ_ID_PREFIX + pid);
-                deleted++;
-            }
-            LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed products; "
-                            + "upserted {} OCS documents, deleted {} stale",
-                    result.inserted(), result.updated(), result.removedPids().size(), upserted, deleted);
+            // 3) Atomically swap the OCS index from the DB: promoted/refreshed goods appear and the
+            //    just-soft-deleted ones drop out in one full replace.
+            int indexed = reindexService.reindexAll();
+
+            LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed (snapshot); "
+                            + "promoted {} (failed {}), reconciled {} stale native goods; reindexed {} docs",
+                    result.inserted(), result.updated(), result.removedPids().size(),
+                    promote.promoted(), promote.failed(), reconciled, indexed);
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ catalog refresh failed: {}", ex.getMessage());
         }
