@@ -5,11 +5,15 @@ import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentServic
 import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.CjSnapshotSyncService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -93,5 +97,54 @@ public class LitemallSearchAdminController {
                 "promoted", result.promoted(),
                 "failed", result.failed(),
                 "total", result.total()));
+    }
+
+    /**
+     * One-shot, admin-chosen CJ ingest: fetch the requested categories (each with its own product
+     * limit) from the CJ API through the SAME paced Redis→snapshot pipeline as the nightly job, then
+     * promote the whole live snapshot into native goods and reindex OCS. The storefront shows the new
+     * CJ products without waiting for 03:00. An empty/absent {@code targets} falls back to the
+     * configured {@code catalogTargets}. Body:
+     * <pre>{ "targets": [ { "category": "Scarves &amp; Wraps", "limit": 50 },
+     *                      { "categoryId": "&lt;CJ leaf uuid&gt;", "limit": 100 } ] }</pre>
+     * Detail/inventory enrichment stays on its own rate-limited cron (POST {@code /cj-enrich}); the
+     * freshly fetched products are browsable immediately and upgrade in place as they are enriched.
+     */
+    @PostMapping("/cj-fetch")
+    public Object cjFetch(@RequestBody(required = false) CjFetchRequest request) {
+        List<CJDropshippingConfig.CatalogTarget> targets = request == null ? null : request.toCatalogTargets();
+        CjSnapshotSyncService.SyncResult sync = cjSnapshotSyncService.syncAll(targets);
+        CjProductPromotionService.PromoteResult promote = cjProductPromotionService.promoteBatch(Integer.MAX_VALUE);
+        int indexed = reindexService.reindexAll();
+        return ResponseUtil.ok(Map.of(
+                "fetchedNew", sync.inserted(),
+                "fetchedUpdated", sync.updated(),
+                "removed", sync.removedPids().size(),
+                "promoted", promote.promoted(),
+                "promoteFailed", promote.failed(),
+                "indexed", indexed));
+    }
+
+    /** Request body for {@code POST /cj-fetch}: the categories to ingest and how many products from each. */
+    public record CjFetchRequest(List<Target> targets) {
+        /** One chosen category. Provide {@code category} (CJ category name, any level) OR {@code categoryId}
+         *  (CJ leaf UUID, wins when set); {@code limit} caps products fetched from it (default 200). */
+        public record Target(String category, String categoryId, Integer limit) {
+        }
+
+        List<CJDropshippingConfig.CatalogTarget> toCatalogTargets() {
+            if (targets == null || targets.isEmpty()) {
+                return null;
+            }
+            List<CJDropshippingConfig.CatalogTarget> out = new ArrayList<>(targets.size());
+            for (Target t : targets) {
+                CJDropshippingConfig.CatalogTarget ct = new CJDropshippingConfig.CatalogTarget();
+                ct.setCategory(t.category());
+                ct.setCategoryId(t.categoryId());
+                ct.setLimit(t.limit() != null && t.limit() > 0 ? t.limit() : 200);
+                out.add(ct);
+            }
+            return out;
+        }
     }
 }
