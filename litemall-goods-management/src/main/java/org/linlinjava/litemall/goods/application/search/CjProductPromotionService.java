@@ -92,11 +92,14 @@ public class CjProductPromotionService {
     }
 
     /**
-     * Promote up to {@code limit} enriched CJ rows into native goods. Each row runs in its own
-     * transaction; a failure is logged and counted, never aborting the batch.
+     * Promote up to {@code limit} live CJ snapshot rows into native goods — the WHOLE catalog, not
+     * just the rate-limited enriched subset, so every CJ product is browsable in the storefront.
+     * Shallow rows land as browsable goods with a single vid-less SKU (ordering is blocked until they
+     * are enriched and re-promoted in place). Each row runs in its own transaction; a failure is
+     * logged and counted, never aborting the batch.
      */
     public PromoteResult promoteBatch(int limit) {
-        List<LitemallCjProduct> rows = linkageMapper.selectEnriched(limit);
+        List<LitemallCjProduct> rows = linkageMapper.selectAllLive(limit);
         int promoted = 0;
         int failed = 0;
         for (LitemallCjProduct row : rows) {

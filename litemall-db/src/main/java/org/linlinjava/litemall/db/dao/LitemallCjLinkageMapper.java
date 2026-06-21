@@ -19,6 +19,14 @@ public interface LitemallCjLinkageMapper {
     /** Enriched, live CJ snapshot rows ready to promote (most recently enriched first). */
     List<LitemallCjProduct> selectEnriched(@Param("limit") int limit);
 
+    /**
+     * All live CJ snapshot rows (enriched or shallow), most recently updated first. Shallow rows
+     * (no real variants/attributes yet) promote into browsable native goods with a single vid-less
+     * SKU; enrichment later upgrades them in place. Used for the full backfill so the whole CJ
+     * catalog is visible in the storefront, not only the rate-limited enriched subset.
+     */
+    List<LitemallCjProduct> selectAllLive(@Param("limit") int limit);
+
     /** id of the native goods row already promoted from this CJ product, or null. */
     Integer findGoodsIdByCjPid(@Param("cjPid") String cjPid);
 
