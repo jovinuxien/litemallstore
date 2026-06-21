@@ -34,6 +34,17 @@ spring:
       kafka:
         binder:
           brokers: ${litemall.kafka.brokers:localhost:9092}
+          # Fail FAST when the broker is unreachable so a down Kafka never hangs customer
+          # checkout. The order is the system of record; event delivery is best-effort
+          # (after-commit) — a publish that can't reach the broker is logged, not awaited 60s.
+          health-timeout: 2
+          required-acks: 1
+          producer-properties:
+            max.block.ms: 1500          # cap metadata/buffer wait (default 60000) — the key anti-hang
+            request.timeout.ms: 1500
+            delivery.timeout.ms: 2000    # must be >= request.timeout.ms
+            retries: 0
+            acks: 1
 
   # CJ Dropshipping create-order ACL. Order owns its OWN CJ auth (token) to place
   # CJ-sourced lines via the CJ API. Host is config-driven (no hardcoded host in Java);
