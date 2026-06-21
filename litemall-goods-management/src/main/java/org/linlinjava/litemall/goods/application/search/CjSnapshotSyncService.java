@@ -88,10 +88,20 @@ public class CjSnapshotSyncService {
      * Disabled CJ indexing is a no-op.
      */
     public SyncResult syncAll() {
+        return syncAll(null);
+    }
+
+    /**
+     * Same as {@link #syncAll()} but fetches a caller-supplied set of targets (each a CJ category +
+     * a per-category product limit) instead of the configured {@code catalogTargets}. A null/empty
+     * override falls back to the configured plan, so the nightly job and an ad-hoc admin run share
+     * one code path. Everything downstream (Redis pacing, snapshot upsert, stale detection) is identical.
+     */
+    public SyncResult syncAll(List<CJDropshippingConfig.CatalogTarget> targetsOverride) {
         if (!config.isEnabled()) {
             return SyncResult.empty();
         }
-        List<CJProduct> products = fetchProducts();
+        List<CJProduct> products = fetchProducts(targetsOverride);
 
         // Snapshot the currently-live pids BEFORE upserting, so each write classifies as an insert
         // (a genuinely new / resurrected product) vs an update, and the SAME set drives stale
@@ -293,9 +303,11 @@ public class CjSnapshotSyncService {
 
     // ---- CJ catalog fetch (plan-driven, paced via Redis-through CJProductService) -----------------
 
-    private List<CJProduct> fetchProducts() {
-        if (config.getCatalogTargets() != null && !config.getCatalogTargets().isEmpty()) {
-            return fetchByPlan();
+    private List<CJProduct> fetchProducts(List<CJDropshippingConfig.CatalogTarget> targetsOverride) {
+        List<CJDropshippingConfig.CatalogTarget> targets =
+                (targetsOverride != null && !targetsOverride.isEmpty()) ? targetsOverride : config.getCatalogTargets();
+        if (targets != null && !targets.isEmpty()) {
+            return fetchByPlan(targets);
         }
         try {
             CJProductDataResponse response = cjProductService.fetchProductList();
@@ -310,8 +322,7 @@ public class CjSnapshotSyncService {
         return loadSample();
     }
 
-    private List<CJProduct> fetchByPlan() {
-        List<CJDropshippingConfig.CatalogTarget> targets = config.getCatalogTargets();
+    private List<CJProduct> fetchByPlan(List<CJDropshippingConfig.CatalogTarget> targets) {
         boolean needTree = targets.stream()
                 .anyMatch(t -> (t.getCategoryId() == null || t.getCategoryId().isBlank())
                         && t.getCategory() != null && !t.getCategory().isBlank());
