@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written CJ → native-goods promotion lookups. NOT MyBatis-Generator output.
+  Relies on the global mapUnderscoreToCamelCase=true (set on the SqlSessionFactory) so
+  resultType columns map snake_case -> camelCase automatically.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCjLinkageMapper">
+
+  <select id="selectEnriched" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select pid, source, title, price, discount_price, description, image_url, brand,
+           category_names, category_ids, variants_json, attributes_json, images_json,
+           detail_html, enriched_time, add_time, update_time, deleted
+    from litemall_cj_product
+    where enriched_time is not null and deleted = 0
+    order by update_time desc
+    limit #{limit}
+  </select>
+
+  <select id="findGoodsIdByCjPid" resultType="java.lang.Integer">
+    select id from litemall_goods
+    where source = 'cj' and cj_pid = #{cjPid} and deleted = 0
+    limit 1
+  </select>
+
+  <select id="findCjGoodsRefs" resultType="org.linlinjava.litemall.db.domain.LitemallGoods">
+    select id, cj_pid
+    from litemall_goods
+    where source = 'cj' and deleted = 0
+  </select>
+
+  <select id="findCjCategoryIdByCjId" resultType="java.lang.Integer">
+    select id from litemall_category
+    where source = 'cj' and cj_category_id = #{cjCategoryId} and deleted = 0
+    limit 1
+  </select>
+
+  <select id="findCjCategoryIdByName" resultType="java.lang.Integer">
+    select id from litemall_category
+    where source = 'cj' and `name` = #{name} and deleted = 0
+    limit 1
+  </select>
+
+  <select id="findCjBrandIdByName" resultType="java.lang.Integer">
+    select id from litemall_brand
+    where source = 'cj' and `name` = #{name} and deleted = 0
+    limit 1
+  </select>
+
+</mapper>

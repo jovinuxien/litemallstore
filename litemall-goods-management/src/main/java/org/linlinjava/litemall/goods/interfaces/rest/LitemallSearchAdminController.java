@@ -2,6 +2,7 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentService;
+import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.CjSnapshotSyncService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,13 +26,16 @@ public class LitemallSearchAdminController {
     private final SearchReindexService reindexService;
     private final CjSnapshotSyncService cjSnapshotSyncService;
     private final CjDetailEnrichmentService cjDetailEnrichmentService;
+    private final CjProductPromotionService cjProductPromotionService;
 
     public LitemallSearchAdminController(SearchReindexService reindexService,
                                          CjSnapshotSyncService cjSnapshotSyncService,
-                                         CjDetailEnrichmentService cjDetailEnrichmentService) {
+                                         CjDetailEnrichmentService cjDetailEnrichmentService,
+                                         CjProductPromotionService cjProductPromotionService) {
         this.reindexService = reindexService;
         this.cjSnapshotSyncService = cjSnapshotSyncService;
         this.cjDetailEnrichmentService = cjDetailEnrichmentService;
+        this.cjProductPromotionService = cjProductPromotionService;
     }
 
     /**
@@ -74,5 +78,20 @@ public class LitemallSearchAdminController {
         return ResponseUtil.ok(Map.of(
                 "enriched", result.enriched(),
                 "failed", result.failed()));
+    }
+
+    /**
+     * Promote already-enriched CJ snapshot rows into the native {@code litemall_goods} family so OCS
+     * and the storefront read the DB only. Pure DB work — no CJ API call — and idempotent (re-running
+     * updates in place), so {@code batch} can be large for a backfill. Follow with {@code /reindex} to
+     * push the freshly-promoted goods into OCS.
+     */
+    @PostMapping("/cj-promote")
+    public Object cjPromote(@RequestParam(name = "batch", defaultValue = "200") int batch) {
+        CjProductPromotionService.PromoteResult result = cjProductPromotionService.promoteBatch(batch);
+        return ResponseUtil.ok(Map.of(
+                "promoted", result.promoted(),
+                "failed", result.failed(),
+                "total", result.total()));
     }
 }
