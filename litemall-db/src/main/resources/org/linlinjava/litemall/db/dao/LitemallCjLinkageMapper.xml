@@ -17,6 +17,16 @@
     limit #{limit}
   </select>
 
+  <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
+    select pid, source, title, price, discount_price, description, image_url, brand,
+           category_names, category_ids, variants_json, attributes_json, images_json,
+           detail_html, enriched_time, add_time, update_time, deleted
+    from litemall_cj_product
+    where deleted = 0
+    order by update_time desc
+    limit #{limit}
+  </select>
+
   <select id="findGoodsIdByCjPid" resultType="java.lang.Integer">
     select id from litemall_goods
     where source = 'cj' and cj_pid = #{cjPid} and deleted = 0
