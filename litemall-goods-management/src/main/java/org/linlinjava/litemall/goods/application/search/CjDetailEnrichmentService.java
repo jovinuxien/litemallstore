@@ -3,8 +3,6 @@ package org.linlinjava.litemall.goods.application.search;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
-import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
-import org.linlinjava.litemall.goods.domain.service.elastic.ProductIndexer;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvariant.CJProductVariantData;
@@ -30,7 +28,9 @@ import java.util.Map;
  *
  * <p>Pipeline discipline is preserved: this reads CJ {@code product/query} detail + {@code product/stock/
  * queryByVid} inventory THROUGH the Redis staging buffer ({@link CJProductService}), writes the result
- * into {@code litemall_cj_product} (the system of record), and only then upserts the document into OCS.
+ * into {@code litemall_cj_product} (the enriched snapshot), then promotes the row into the native
+ * {@code litemall_goods} family ({@code CjProductPromotionService}) and indexes THAT native goods —
+ * OCS reads the DB only (Phase 4), never a parallel {@code cj_<pid>} document.
  *
  * <p>CJ inventory is keyed by VARIANT, so a product costs 1 detail + N inventory calls. Against CJ's
  * daily request quota this CANNOT run over the whole catalog in one shot, so enrichment is incremental:
@@ -44,21 +44,21 @@ public class CjDetailEnrichmentService {
 
     private final CJProductService cjProductService;
     private final LitemallCjProductService cjProductStore;
-    private final CjProductIndexingService cjIndexingService;
-    private final ProductIndexer productIndexer;
+    private final CjProductPromotionService promotionService;
+    private final SearchReindexService reindexService;
     private final CJDropshippingConfig config;
     private final ObjectMapper objectMapper;
 
     public CjDetailEnrichmentService(CJProductService cjProductService,
                                      LitemallCjProductService cjProductStore,
-                                     CjProductIndexingService cjIndexingService,
-                                     ProductIndexer productIndexer,
+                                     CjProductPromotionService promotionService,
+                                     SearchReindexService reindexService,
                                      CJDropshippingConfig config,
                                      ObjectMapper objectMapper) {
         this.cjProductService = cjProductService;
         this.cjProductStore = cjProductStore;
-        this.cjIndexingService = cjIndexingService;
-        this.productIndexer = productIndexer;
+        this.promotionService = promotionService;
+        this.reindexService = reindexService;
         this.config = config;
         this.objectMapper = objectMapper;
     }
@@ -143,8 +143,12 @@ public class CjDetailEnrichmentService {
         // so discount_price stays null — leaving it real rather than fabricating a markdown.
         row.setDiscountPrice(null);
 
-        cjProductStore.enrich(row);                                  // persist + stamp enriched_time
-        productIndexer.upsert(cjIndexingService.toDocument(row));    // reindex with real data
+        cjProductStore.enrich(row);                  // persist enriched snapshot + stamp enriched_time
+        // Land the freshly-enriched row into the native litemall_goods family and index THAT (OCS
+        // single-source, Phase 4) — no more parallel cj_<pid> document. promote() commits in its own
+        // transaction, so the subsequent reindex reads the committed native goods.
+        Integer goodsId = promotionService.promote(row);
+        reindexService.reindexGoods(goodsId);
     }
 
     /**

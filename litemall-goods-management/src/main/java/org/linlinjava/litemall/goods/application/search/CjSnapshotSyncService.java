@@ -71,11 +71,14 @@ public class CjSnapshotSyncService {
 
     /**
      * Outcome of a snapshot refresh. {@code upserted} = {@code inserted} + {@code updated}, split so the
-     * daily job can report how many products are genuinely NEW vs refreshed.
+     * daily job can report how many products are genuinely NEW vs refreshed. {@code livePids} is the set
+     * of pids seen in this fetch — the inverse of {@code removedPids}, fed to
+     * {@code CjProductPromotionService.reconcile} so native goods for vanished pids are soft-deleted.
      */
-    public record SyncResult(int upserted, int inserted, int updated, List<String> removedPids) {
+    public record SyncResult(int upserted, int inserted, int updated,
+                             List<String> removedPids, java.util.Set<String> livePids) {
         public static SyncResult empty() {
-            return new SyncResult(0, 0, 0, List.of());
+            return new SyncResult(0, 0, 0, List.of(), java.util.Set.of());
         }
     }
 
@@ -139,7 +142,7 @@ public class CjSnapshotSyncService {
         }
 
         LOGGER.info("CJ snapshot sync: {} new, {} updated, {} soft-deleted stale", inserted, updated, removed.size());
-        return new SyncResult(upserted, inserted, updated, removed);
+        return new SyncResult(upserted, inserted, updated, removed, livePids);
     }
 
     // ---- CJProduct → snapshot row (normalization lives here) --------------------------------------

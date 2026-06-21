@@ -114,6 +114,15 @@ public class CjProductPromotionService {
     }
 
     /**
+     * Promote a single enriched row into native goods in its own transaction and return the native
+     * goods id. Used by the enrichment flow, which holds the freshly-enriched row in hand and wants
+     * it landed + indexed immediately (rather than waiting for the next batch sweep).
+     */
+    public Integer promote(LitemallCjProduct row) {
+        return txTemplate.execute(status -> promoteOne(row));
+    }
+
+    /**
      * Soft-delete CJ-sourced goods (and their SKUs) whose {@code cj_pid} is no longer present in
      * the live snapshot. Only {@code source='cj'} rows are ever touched. Returns rows removed.
      */
