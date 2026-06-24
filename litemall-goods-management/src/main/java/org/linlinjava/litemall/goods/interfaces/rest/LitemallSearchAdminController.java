@@ -85,6 +85,26 @@ public class LitemallSearchAdminController {
     }
 
     /**
+     * Enrich ONE CJ product by its raw {@code pid}, on demand — the targeted counterpart to
+     * {@code /cj-enrich}. Use it to unblock a specific product whose SKUs still carry no {@code cj_vid}
+     * (so {@code litemall-order} rejects its CJ checkout) without waiting for the batch queue to reach it.
+     * Touches the rate-limited CJ API ({@code 1 detail + N inventory} calls); on success the row's real
+     * variant vids land on {@code litemall_goods_product.cj_vid} and the product becomes CJ-orderable.
+     * Returns {@code 400} if the pid is unknown / not a live CJ snapshot row, or CJ is disabled.
+     */
+    @PostMapping("/cj-enrich-one")
+    public Object cjEnrichOne(@RequestParam(name = "pid") String pid) {
+        try {
+            CjDetailEnrichmentService.EnrichOneResult result = cjDetailEnrichmentService.enrichByPid(pid);
+            return ResponseUtil.ok(Map.of(
+                    "pid", result.pid(),
+                    "goodsId", result.goodsId()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseUtil.fail(402, ex.getMessage());
+        }
+    }
+
+    /**
      * Promote already-enriched CJ snapshot rows into the native {@code litemall_goods} family so OCS
      * and the storefront read the DB only. Pure DB work — no CJ API call — and idempotent (re-running
      * updates in place), so {@code batch} can be large for a backfill. Follow with {@code /reindex} to

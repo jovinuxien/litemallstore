@@ -96,7 +96,37 @@ public class CjDetailEnrichmentService {
         return new EnrichResult(enriched, failed);
     }
 
-    private void enrichOne(LitemallCjProduct row) {
+    /** Outcome of a single-pid enrichment run: the native goods id the row promoted to, or null when skipped. */
+    public record EnrichOneResult(String pid, Integer goodsId) {
+    }
+
+    /**
+     * Enrich ONE CJ product by its raw {@code pid}, on demand — the targeted counterpart to
+     * {@link #enrichBatch(int)} for unblocking a specific product whose SKUs still carry no
+     * {@code cj_vid} (so it can't be ordered at CJ) without draining the whole least-recently-enriched
+     * queue. Fetches CJ detail + per-variant inventory (paced, via Redis), persists the real variants,
+     * re-promotes the row into native goods (filling {@code litemall_goods_product.cj_vid}) and reindexes.
+     *
+     * @throws IllegalArgumentException if CJ is disabled, the pid is blank, or no live snapshot row exists
+     *         for it (so the admin sees a clear 4xx rather than a silent no-op)
+     */
+    public EnrichOneResult enrichByPid(String pid) {
+        if (!config.isEnabled()) {
+            throw new IllegalArgumentException("CJ Dropshipping is disabled; cannot enrich pid " + pid);
+        }
+        if (pid == null || pid.isBlank()) {
+            throw new IllegalArgumentException("pid is required");
+        }
+        LitemallCjProduct row = cjProductStore.findByPid(pid);
+        if (row == null) {
+            throw new IllegalArgumentException("no live CJ snapshot row for pid " + pid);
+        }
+        Integer goodsId = enrichOne(row);
+        LOGGER.info("CJ targeted enrichment: pid={} enriched -> native goods {}", pid, goodsId);
+        return new EnrichOneResult(pid, goodsId);
+    }
+
+    private Integer enrichOne(LitemallCjProduct row) {
         String pid = row.getPid();
         CJProductDetailData d = cjProductService.getProductDetail(pid);
         if (d == null) {
@@ -149,6 +179,7 @@ public class CjDetailEnrichmentService {
         // transaction, so the subsequent reindex reads the committed native goods.
         Integer goodsId = promotionService.promote(row);
         reindexService.reindexGoods(goodsId);
+        return goodsId;
     }
 
     /**
