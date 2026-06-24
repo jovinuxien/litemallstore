@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.goods.application;
+package org.linlinjava.litemall.goods.application.goods.internal;
 
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.util.ResponseUtil;

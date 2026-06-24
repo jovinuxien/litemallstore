@@ -121,36 +121,15 @@
 			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
 
-		<!--<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>-->
-
 		<!-- Security section -->
-		<!-- Phase 4: shared machine-JWT resource-server auto-config -->
+		<!-- Phase 4: shared machine-JWT resource-server auto-config.
+		     litemall-svcsecurity transitively provides the resource-server stack
+		     (spring-security-oauth2-resource-server, -oauth2-jose, -config, -web →
+		     -core), so this module does not redeclare them. -->
 		<dependency>
 			<groupId>org.linlinjava</groupId>
 			<artifactId>litemall-svcsecurity</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-oauth2-resource-server</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-oauth2-jose</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-config</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-core</artifactId>
 		</dependency>
 
 
