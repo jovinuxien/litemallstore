@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Repository
 public class LitemallAddressRepositoryImpl implements LitemallAddressRepository {
@@ -22,7 +23,12 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
 
     @Override
     public List<LitemallAddressAggregate> getListAddressesByUserId(LitemallUserId userId) {
-        return List.of();
+        LitemallAddressExample example = new LitemallAddressExample();
+        example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        example.setOrderByClause("is_default DESC, add_time DESC");
+        return addressMapper.selectByExample(example).stream()
+                .map(this::convertToDomainModel)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -46,7 +52,19 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
         LitemallAddress litemallAddress =  convertToDataModel(address);
         litemallAddress.setAddTime(LocalDateTime.now());
         litemallAddress.setUpdateTime(LocalDateTime.now());
-        return addressMapper.insertSelective(litemallAddress);
+        if (litemallAddress.getDeleted() == null) {
+            litemallAddress.setDeleted(false);
+        }
+        if (litemallAddress.getIsDefault() == null) {
+            litemallAddress.setIsDefault(false);
+        }
+        int rows = addressMapper.insertSelective(litemallAddress);
+        // MyBatis populates the generated key on the data model; surface it on the
+        // aggregate so callers (the /save endpoint) can return the persisted id.
+        if (litemallAddress.getId() != null) {
+            address.setAddressId(new LitemallAddressId(litemallAddress.getId()));
+        }
+        return rows;
     }
 
     @Override
@@ -58,17 +76,36 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
 
     @Override
     public int deleteAddress(LitemallAddressId addressId) {
-        return 0;
+        return addressMapper.logicalDeleteByPrimaryKey(addressId.getId());
     }
 
     @Override
     public void resetDefaultAddress(LitemallUserId userId) {
-
+        // Clear the default flag on all of the user's live addresses before a new
+        // default is set, so at most one address is ever the default.
+        LitemallAddressExample example = new LitemallAddressExample();
+        example.or().andUserIdEqualTo(userId.getId())
+                .andIsDefaultEqualTo(true).andDeletedEqualTo(false);
+        LitemallAddress patch = new LitemallAddress();
+        patch.setIsDefault(false);
+        patch.setUpdateTime(LocalDateTime.now());
+        addressMapper.updateByExampleSelective(patch, example);
     }
 
     @Override
     public List<LitemallAddressAggregate> findAddresses(LitemallUserId userId, String name, Integer page, Integer limit, String sort, String order) {
-        return List.of();
+        LitemallAddressExample example = new LitemallAddressExample();
+        LitemallAddressExample.Criteria criteria = example.or()
+                .andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        if (name != null && !name.isBlank()) {
+            criteria.andNameLike("%" + name + "%");
+        }
+        String sortColumn = (sort == null || sort.isBlank()) ? "add_time" : sort;
+        String sortOrder = (order == null || order.isBlank()) ? "desc" : order;
+        example.setOrderByClause(sortColumn + " " + sortOrder);
+        return addressMapper.selectByExample(example).stream()
+                .map(this::convertToDomainModel)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -84,6 +121,7 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
             dataModel.setId(addressAggregate.getAddressId().getId());
         }
         dataModel.setUserId(addressAggregate.getUserId().getId());
+        dataModel.setName(addressAggregate.getName());
         dataModel.setProvince(addressAggregate.getProvince());
         dataModel.setCity(addressAggregate.getCity());
         dataModel.setCounty(addressAggregate.getCounty());
