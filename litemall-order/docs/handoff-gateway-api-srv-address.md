@@ -1,5 +1,9 @@
 # Follow-up → `order` worktree: expose the customer address book at `/srv/address/**`
 
+> **STATUS: RESOLVED (2026-06-27, `fix/order`).** `/srv/address/**` is implemented.
+> See **Resolution** at the bottom for what landed and the one remaining gateway-api follow-up.
+
+
 **Owner of the fix:** `fix/order` worktree (order service owns the customer address surface).
 **Raised by:** `fix/gateway-api` worktree, during live checkout verification (2026-06-19).
 **Why this doc lives here:** discovered while wiring the customer SPA checkout. Per the
@@ -75,3 +79,32 @@ flagged here so the two land together.
 ## Cross-references
 - `litemall-order/docs/handoff-gateway-api-order-routing.md` — the order/cart/wallet contract + the cart IDOR note.
 - `litemall-gateway-api/docs/SRV-FOLLOWUPS.md` — the SPA-side record of this and the post-order payment-action gap.
+
+---
+
+## Resolution (2026-06-27, `fix/order`)
+
+Implemented as specified. **Note:** the address repository was actually a *stub*
+(`getListAddressesByUserId`/`findAddresses`/`deleteAddress`/`resetDefaultAddress` were
+no-ops, the `name` column was never mapped, `userId` was mis-mapped from the row id, and
+insert never surfaced the generated key) — contrary to "the repository already provides
+everything a controller needs." Those gaps were fixed so the endpoint actually works.
+
+What landed:
+- `interfaces/rest/LitemallAddressController` mapped at `/srv/address` —
+  `GET /list`, `GET /detail?id=`, `POST /save`, `POST /delete`. Owner bound **only** from
+  the `X-User-Id` header; **no caller-supplied `userId` param** (no IDOR).
+- `interfaces/dtos/address/{AddressDtoResponse,AddressSaveRequest}` ⇄ the `IAddress` shape,
+  wrapped in the standard `ApiResponse`/errno envelope (`ApiResponse.ok/fail` helpers added).
+- `application/internal/LitemallAddressServiceLayer` — scopes every read/write to the header
+  user; `/save` clears the prior default via `resetDefaultAddress` when `isDefault` is set,
+  enforces ownership on update/delete, and **returns the persisted `id`**.
+- `infrastructure/repositories/impl/LitemallAddressRepositoryImpl` — real implementations:
+  list/find by user (live rows only), insert that captures the generated key onto the
+  aggregate, logical-delete, reset-default, `name` mapped, `userId` mapping bug fixed.
+
+Verification: `mvn -q -o -pl litemall-order -am compile` clean.
+
+**Remaining gateway-api follow-up (NOT done here):** add `/srv/address/**` to the
+`customer-order` route predicate so it reaches `order-service-app` instead of falling through
+to goods-management.

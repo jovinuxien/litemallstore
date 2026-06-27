@@ -1,13 +1,16 @@
 package org.linlinjava.litemall.order.interfaces.rest;
 
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
+import org.linlinjava.litemall.order.application.util.exception.wallet.LitemallInsufficientBalanceException;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
+import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.PaymentActionRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -67,7 +70,38 @@ public class LitemallOrderRestController {
         return buildResponse(result);
     }
 
-    // POST /{orderId}/actions/pay is deferred: LitemallPaymentInfo requires a
-    // Stripe PaymentMethod and the orchestrator's processPayment is a stub.
-    // Pay endpoint activation will land with the Stripe integration sprint.
+    /**
+     * Pay a placed order. Mirrors {@code /{orderId}/actions/cancel}: the order is
+     * taken from the path and the buyer from the gateway-injected {@code X-User-Id}
+     * header (never the body — same identity rule as submit/cancel). The body carries
+     * the selected {@code paymentMethod} and, for the CARD path, the client-confirmed
+     * Stripe {@code paymentIntentId} (client-confirmed boundary — see
+     * {@code docs/handoff-gateway-api-order-payment.md}).
+     *
+     * <p>WALLET debits the wallet vertical and marks the order PAID atomically. An
+     * underfunded wallet raises {@link LitemallInsufficientBalanceException}, which
+     * rolls the whole transaction back — no paid order is produced — and is surfaced
+     * here as a non-zero errno (HTTP 402) with the order left unpaid.
+     */
+    @PostMapping("/{orderId}/actions/pay")
+    public ResponseEntity<OrderOperationDtoResponse> payOrder(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody PaymentActionRequest request) {
+        LitemallOrderId orderIdVo = new LitemallOrderId(orderId);
+        LitemallOrderPaymentCommand command = new LitemallOrderPaymentCommand(
+                orderIdVo,
+                new LitemallUserId(userId),
+                request.getPaymentMethod(),
+                request.getPaymentIntentId());
+        try {
+            LitemallOrderOperationResult result = orderOrchestrationService.payOrder(command);
+            return buildResponse(result);
+        } catch (LitemallInsufficientBalanceException e) {
+            // Wallet underfunded: the orchestrator transaction rolled back (no paid
+            // order). Surface a clean payment-failed envelope rather than a raw 500.
+            return buildResponse(
+                    LitemallOrderOperationResult.payFailed(orderIdVo, e.getMessage()));
+        }
+    }
 }
