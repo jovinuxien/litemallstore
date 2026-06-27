@@ -12,13 +12,11 @@ import { getAdminToken } from 'app/shared/reducers/admin-auth';
 // One client covers brand / category / comment / keyword / issue / order;
 // mutations invalidate the matching list tag so the table refetches.
 //
-// ROUTING: the data lives in litemall-admin-api under '/admin/*'. The admin
-// edge rewrites '/srv/private/admin/{brand,category,keyword,issue,comment,
-// order}/**' → admin-api '/admin/**' (see application.yml 'admin-catalog'
-// route). The '/srv/private/admin/*' prefix is used (not '/admin/*') because
-// the admin SPA's own page routes already occupy the browser '/admin/*'
-// namespace, and only '/srv' is proxied by the dev server. A future migration
-// of these endpoints into the DDD services is a follow-up, out of scope here.
+// ROUTING: brand / category / keyword / issue / comment are served by
+// litemall-goods-management (interfaces/rest/admin/*) via the gateway '/srv/**'
+// catch-all — same path the SPA calls, no rewrite needed. ORDER has no admin
+// endpoint in the mesh yet; '/srv/private/admin/order/*' is the agreed target
+// and is a follow-up for the `order` worktree (the view stays empty until then).
 
 export interface ListParams {
   page: number;
