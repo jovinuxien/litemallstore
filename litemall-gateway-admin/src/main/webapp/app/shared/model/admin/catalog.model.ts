@@ -1,6 +1,7 @@
 // Admin catalog domain models, mirroring the litemall-db entities returned by
-// litemall-admin-api under /admin/* (brand, category, comment, keyword,
-// issue). Server-managed fields (addTime, updateTime, deleted) are optional
+// litemall-admin-api (brand, category, comment, keyword, issue), reached
+// through the gateway under /srv/private/admin/* (rewritten to admin-api
+// /admin/*). Server-managed fields (addTime, updateTime, deleted) are optional
 // and never sent on create.
 
 // Generic paged list envelope produced by ResponseUtil.okList:
