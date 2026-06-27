@@ -72,6 +72,19 @@ spring:
           uri: lb://litemall-promotion-service
           predicates:
             - Path=/srv/promotion/**
+        # --- Admin catalogue/orders: rewrite to the legacy admin-api ----------
+        # The admin SPA calls /srv/private/admin/{entity}/* (proxied + ADMIN-
+        # gated). Brand/category/keyword/issue/comment/order live in
+        # litemall-admin-api under /admin/*, so rewrite the prefix to reach it.
+        # Goods admin (/srv/private/admin/goods/**) is intentionally NOT listed
+        # — it falls through to goods-management below. Placed BEFORE the
+        # catch-all so the rewrite wins.
+        - id: admin-catalog
+          uri: lb://litemall-admin-api
+          predicates:
+            - Path=/srv/private/admin/brand/**,/srv/private/admin/category/**,/srv/private/admin/keyword/**,/srv/private/admin/issue/**,/srv/private/admin/comment/**,/srv/private/admin/order/**
+          filters:
+            - RewritePath=/srv/private/admin/(?<segment>.*), /admin/$\{segment}
         # --- Goods management: owns the remaining /srv namespace (LAST) ------
         - id: goods-service
           uri: lb://litemall-goods-management

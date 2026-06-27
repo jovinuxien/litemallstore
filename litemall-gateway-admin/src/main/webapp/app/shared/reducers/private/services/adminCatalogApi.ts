@@ -5,16 +5,20 @@ import { IOrderDetail, IOrderVo } from 'app/shared/model/admin/order.model';
 import { getAdminToken } from 'app/shared/reducers/admin-auth';
 
 // RTK Query API for the admin catalogue/order endpoints, served through the
-// gateway under '/admin/*' (litemall-admin-api) as an authenticated admin. The
-// admin JWT is attached as a Bearer token (prepareHeaders); the edge enforces
-// ROLE_ADMIN on '/admin/**' and relays a trusted identity downstream
+// gateway under '/srv/private/admin/*' as an authenticated admin. The admin JWT
+// is attached as a Bearer token (prepareHeaders); the edge enforces ROLE_ADMIN
+// on '/srv/private/admin/**' and relays a trusted identity downstream
 // (MachineTokenRelayFilter). No legacy admin-token header, no hardcoded host.
 // One client covers brand / category / comment / keyword / issue / order;
 // mutations invalidate the matching list tag so the table refetches.
 //
-// NOTE: the catalogue/order data lives in litemall-admin-api, already on the
-// sanctioned '/admin/**' route. A future migration of these endpoints into the
-// DDD services (goods-management/order) is a follow-up, out of scope here.
+// ROUTING: the data lives in litemall-admin-api under '/admin/*'. The admin
+// edge rewrites '/srv/private/admin/{brand,category,keyword,issue,comment,
+// order}/**' → admin-api '/admin/**' (see application.yml 'admin-catalog'
+// route). The '/srv/private/admin/*' prefix is used (not '/admin/*') because
+// the admin SPA's own page routes already occupy the browser '/admin/*'
+// namespace, and only '/srv' is proxied by the dev server. A future migration
+// of these endpoints into the DDD services is a follow-up, out of scope here.
 
 export interface ListParams {
   page: number;
@@ -64,7 +68,7 @@ const clean = (params: Record<string, unknown>): Record<string, unknown> => {
 export const adminCatalogApi = createApi({
   reducerPath: 'adminCatalogApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: '/admin',
+    baseUrl: '/srv/private/admin',
     prepareHeaders: headers => {
       const token = getAdminToken();
       if (token) {
