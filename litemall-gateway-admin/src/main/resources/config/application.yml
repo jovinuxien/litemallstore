@@ -53,6 +53,12 @@ spring:
           uri: lb://promotion-service-app
           predicates:
             - Path=/srv/promotion/**
+        # Admin order surface lives in order-service (not goods-management), so
+        # route the admin order namespace there explicitly before the catch-all.
+        - id: admin-order
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/admin/order/**
         # Goods catch-all — handles /srv/goods/**, /srv/search, /srv/suggest,
         # /srv/category/**, /srv/admin/goods/**, /srv/manufacturer/**, etc.
         # Must be LAST among /srv/** routes so the specific prefixes above win.
@@ -111,6 +117,10 @@ spring:
           uri: lb://promotion-service-app
           predicates:
             - Path=/srv/promotion/**
+        - id: admin-order
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/admin/order/**
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
