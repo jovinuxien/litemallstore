@@ -58,12 +58,13 @@ export const ADMIN_MENU: MenuGroup[] = [
     icon: IconShoppingBag,
     children: [
       { path: '/admin/mall/region', title: 'Regions' },
-      { path: '/admin/mall/brand', title: 'Brands' },
-      { path: '/admin/mall/category', title: 'Categories' },
-      { path: '/admin/mall/order', title: 'Orders' },
+      { path: '/admin/mall/brand', title: 'Brands', wired: true },
+      { path: '/admin/mall/category', title: 'Categories', wired: true },
+      { path: '/admin/mall/order', title: 'Orders', wired: true },
+      { path: '/admin/mall/order/:id', title: 'Order detail', wired: true, hidden: true },
       { path: '/admin/mall/aftersale', title: 'After-sale' },
-      { path: '/admin/mall/issue', title: 'Issues' },
-      { path: '/admin/mall/keyword', title: 'Keywords' },
+      { path: '/admin/mall/issue', title: 'Issues', wired: true },
+      { path: '/admin/mall/keyword', title: 'Keywords', wired: true },
     ],
   },
   {
@@ -74,7 +75,7 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/goods', title: 'Goods list', wired: true },
       { path: '/admin/goods/:id', title: 'Goods detail', wired: true, hidden: true },
       { path: '/admin/goods/create', title: 'Add goods' },
-      { path: '/admin/goods/comment', title: 'Comments' },
+      { path: '/admin/goods/comment', title: 'Comments', wired: true },
     ],
   },
   {
@@ -134,5 +135,13 @@ export const titleForPath = (pathname: string): string | undefined => {
   if (exact) return exact.title;
   // dynamic match for /admin/goods/:id style leaves
   if (/^\/admin\/goods\/[^/]+$/.test(pathname)) return 'Goods detail';
+  // order detail: /admin/mall/order/:id
+  if (/^\/admin\/mall\/order\/[^/]+$/.test(pathname)) return 'Order detail';
+  // catalog create/edit forms: resolve to "<Section> · New|Edit"
+  const form = /^\/admin\/mall\/(brand|category|keyword|issue)\/([^/]+)$/.exec(pathname);
+  if (form) {
+    const section = { brand: 'Brands', category: 'Categories', keyword: 'Keywords', issue: 'Issues' }[form[1]];
+    return `${section} · ${form[2] === 'create' ? 'New' : 'Edit'}`;
+  }
   return undefined;
 };
