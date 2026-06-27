@@ -180,8 +180,9 @@ public class LitemallOrderOrchestratorService {
             debitWalletForOrder(order, orderId);
         }
 
-        // Process payment (simplified - integrate with your payment gateway)
-        boolean paymentSuccess = processPayment(order, paymentCommand.getPaymentInfo());
+        // Process payment. WALLET is settled by the debit above; CARD is recorded
+        // from the client-confirmed Stripe PaymentIntent (see processPayment).
+        boolean paymentSuccess = processPayment(order, paymentCommand);
 
         if (paymentSuccess) {
             // Transition the order to PAID and persist it within this transaction,
@@ -241,10 +242,37 @@ public class LitemallOrderOrchestratorService {
        unpaidOrderTaskScheduler.cancel(orderId);
    }
 
-    private boolean processPayment(LitemallOrderAggregate order, Object paymentInfo) {
-        // Integrate with your payment gateway here
-        // This is a simplified implementation
-        return true; // Assume success for demo
+    /**
+     * Settle the non-wallet portion of a payment.
+     *
+     * <p>Boundary (accepted — see {@code docs/handoff-gateway-api-order-payment.md}):
+     * <ul>
+     *   <li><b>WALLET</b> — already debited server-side in {@link #debitWalletForOrder};
+     *       nothing more to do here, so this returns {@code true}.</li>
+     *   <li><b>CARD / digital</b> — <i>client-confirmed Stripe</i>: the SPA confirms the
+     *       PaymentIntent and passes its id as {@code paymentReference}; we record that
+     *       confirmed result rather than charging Stripe server-side. A missing reference
+     *       means the client never confirmed, so the payment fails (no paid order).</li>
+     * </ul>
+     * The server-side Stripe capture remains a deliberate seam: wiring a server-side
+     * charge would read the token from {@link LitemallPaymentInfo} here instead.
+     */
+    private boolean processPayment(LitemallOrderAggregate order, LitemallOrderPaymentCommand command) {
+        PaymentMethod method = command.getPaymentMethod();
+        if (method == PaymentMethod.WALLET) {
+            // Wallet debit already committed within this transaction.
+            return true;
+        }
+        // CARD / digital wallet: require the client-confirmed PaymentIntent id.
+        String reference = command.getPaymentReference();
+        if (reference == null || reference.isBlank()) {
+            log.warn("Payment for order {} via {} has no client-confirmed reference; rejecting",
+                    order.getOrderId().getId(), method);
+            return false;
+        }
+        log.info("Recording client-confirmed payment for order {} via {} (ref={})",
+                order.getOrderId().getId(), method, reference);
+        return true;
     }
 
     /**
@@ -406,10 +434,17 @@ public class LitemallOrderOrchestratorService {
         return performOrderAction(OrderAction.CANCEL, cancelCommand);
     }
 
-   /* public LitemallOrderOperationResult payOrder(LitemallOrderId orderId, LitemallUserId userId, PaymentInfo paymentInfo) {
-        OrderActionRequest request = new OrderActionRequest(orderId, userId, paymentInfo);
-        return performOrderAction(OrderAction.PAY, request);
-    }*/
+    /**
+     * Pay a placed order. Dispatches {@link OrderAction#PAY} through
+     * {@link #performOrderAction}, which (for WALLET) debits the wallet vertical
+     * and marks the order PAID within one transaction. An underfunded wallet lets
+     * {@link org.linlinjava.litemall.order.application.util.exception.wallet.LitemallInsufficientBalanceException}
+     * propagate so the whole transaction rolls back — no paid order is produced;
+     * the REST layer maps that to a clean errno.
+     */
+    public LitemallOrderOperationResult payOrder(LitemallOrderPaymentCommand paymentCommand) {
+        return performOrderAction(OrderAction.PAY, paymentCommand);
+    }
 
 
     // =========================================================================
