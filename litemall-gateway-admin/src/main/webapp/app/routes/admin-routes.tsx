@@ -1,6 +1,17 @@
 import AdminGoodsList from 'app/views/adminViews/adminModule/Goods/AdminGoodsList';
 import GoodsDetail from 'app/views/adminViews/adminModule/Goods/GoodsDetail/GoodsDetail';
 import Dashboard from 'app/views/adminViews/adminModule/Dashboard/Dashboard';
+import BrandList from 'app/views/adminViews/adminModule/Brand/BrandList';
+import BrandForm from 'app/views/adminViews/adminModule/Brand/BrandForm';
+import CategoryList from 'app/views/adminViews/adminModule/Category/CategoryList';
+import CategoryForm from 'app/views/adminViews/adminModule/Category/CategoryForm';
+import KeywordList from 'app/views/adminViews/adminModule/Keyword/KeywordList';
+import KeywordForm from 'app/views/adminViews/adminModule/Keyword/KeywordForm';
+import IssueList from 'app/views/adminViews/adminModule/Issue/IssueList';
+import IssueForm from 'app/views/adminViews/adminModule/Issue/IssueForm';
+import CommentList from 'app/views/adminViews/adminModule/Comment/CommentList';
+import OrderList from 'app/views/adminViews/adminModule/Order/OrderList';
+import OrderDetail from 'app/views/adminViews/adminModule/Order/OrderDetail';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
 import NotAvailable from 'app/shared/layout/admin/NotAvailable';
 import { ALL_LEAVES } from 'app/shared/layout/admin/menu.config';
@@ -27,7 +38,22 @@ export const AdminRoutes = () => (
       <Route index element={<Navigate to='dashboard' replace />} />
       <Route path='dashboard' element={<Dashboard />} />
       <Route path='goods' element={<AdminGoodsList />} />
+      <Route path='goods/comment' element={<CommentList />} />
       <Route path='goods/:id' element={<GoodsDetail />} />
+      <Route path='mall/brand' element={<BrandList />} />
+      <Route path='mall/brand/create' element={<BrandForm />} />
+      <Route path='mall/brand/:id' element={<BrandForm />} />
+      <Route path='mall/category' element={<CategoryList />} />
+      <Route path='mall/category/create' element={<CategoryForm />} />
+      <Route path='mall/category/:id' element={<CategoryForm />} />
+      <Route path='mall/keyword' element={<KeywordList />} />
+      <Route path='mall/keyword/create' element={<KeywordForm />} />
+      <Route path='mall/keyword/:id' element={<KeywordForm />} />
+      <Route path='mall/issue' element={<IssueList />} />
+      <Route path='mall/issue/create' element={<IssueForm />} />
+      <Route path='mall/issue/:id' element={<IssueForm />} />
+      <Route path='mall/order' element={<OrderList />} />
+      <Route path='mall/order/:id' element={<OrderDetail />} />
       {placeholderLeaves.map(leaf => (
         <Route key={leaf.path} path={leaf.path.slice(ADMIN_PREFIX.length)} element={<NotAvailable />} />
       ))}
