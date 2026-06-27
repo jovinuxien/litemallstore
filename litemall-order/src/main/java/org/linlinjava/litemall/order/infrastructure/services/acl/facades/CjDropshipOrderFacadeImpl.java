@@ -67,13 +67,26 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             throw new LitemallCjOrderException(detail, e);
         }
 
-        if (response == null || !response.isResult() || response.getData() == null) {
+        // Decide acceptance from CJ's own result/code flag — NOT from data being present.
+        // CJ returns result=true,message="Success" on acceptance but is inconsistent about the
+        // shape of data (object vs a bare orderId string vs empty); gating success on data!=null
+        // wrongly rejected genuinely-placed orders ("rejected ... : Success").
+        boolean accepted = response != null && (response.isResult() || response.getCode() == 200);
+        if (!accepted) {
             String message = response == null ? "null response" : response.getMessage();
             log.error("CJ create-order rejected for orderNumber={}: {}", placement.getOrderNumber(), message);
             throw new LitemallCjOrderException(message);
         }
 
         CjCreateOrderResponse.Data data = response.getData();
+        if (data == null) {
+            // CJ accepted the order (result=true) but returned data in a shape we could not bind
+            // (e.g. an empty/blank value). The order IS placed — surface success without the CJ id
+            // rather than failing the customer; our merchant orderNumber remains the idempotency key.
+            log.warn("CJ create-order accepted orderNumber={} but returned no parseable data object; "
+                    + "proceeding without CJ order id", placement.getOrderNumber());
+            return new CjOrderResult(null, null, null);
+        }
         return new CjOrderResult(data.getOrderId(), data.getOrderNum(), data.getOrderStatus());
     }
 
