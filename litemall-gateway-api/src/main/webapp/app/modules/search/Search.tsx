@@ -21,6 +21,7 @@ import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/cat
 import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
 
+import CategoryTree from './instantsearch/CategoryTree';
 import ProductHit from './instantsearch/ProductHit';
 import { litemallSearchClient, PRIMARY_INDEX, sortIndex } from './instantsearch/litemallSearchClient';
 import { searchRouting } from './instantsearch/searchRouting';
@@ -156,6 +157,10 @@ const SearchView: React.FC = () => {
   return (
     <div className="lm-isearch">
       <InstantSearch
+        // Remount per category route so initialUiState re-seeds the scope when
+        // drilling between categories (otherwise the refinement, seeded once at
+        // mount, would go stale on /category/:id → /category/:childId).
+        key={params.id ?? 'search'}
         searchClient={litemallSearchClient}
         indexName={PRIMARY_INDEX}
         initialUiState={initialUiState}
@@ -176,15 +181,22 @@ const SearchView: React.FC = () => {
               <ClearRefinements translations={{ resetButtonText: 'Clear all' }} />
             </div>
 
-            <section className="lm-isearch__facet">
-              <h3>Category</h3>
-              <RefinementList
-                attribute="category_ids"
-                limit={8}
-                showMore
-                transformItems={items => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label }))}
-              />
-            </section>
+            {params.id ? (
+              // On a /category/:id route, show the real subcategory tree + breadcrumb
+              // (with counts) instead of the flat category facet, which OCS collapses
+              // to the selected id alone once a category filter is active.
+              <CategoryTree categoryId={params.id} />
+            ) : (
+              <section className="lm-isearch__facet">
+                <h3>Category</h3>
+                <RefinementList
+                  attribute="category_ids"
+                  limit={8}
+                  showMore
+                  transformItems={items => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label }))}
+                />
+              </section>
+            )}
 
             <section className="lm-isearch__facet">
               <h3>Brand</h3>

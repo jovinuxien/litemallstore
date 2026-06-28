@@ -311,3 +311,64 @@
     }
   }
 }
+
+// ── Category tree (left rail on /category/:id) ────────────────────────────────
+// Breadcrumb + subcategory list with per-child counts, replacing the flat
+// category facet on a category route. Themed with the same tokens as the facets.
+.lm-cattree {
+  &__crumbs {
+    font-size: 12px;
+    color: var(--lm-muted);
+    margin: 0 0 10px;
+    line-height: 1.6;
+
+    a {
+      color: var(--lm-primary);
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+  }
+  &__sep {
+    margin: 0 5px;
+    color: var(--lm-muted);
+  }
+  &__current {
+    color: var(--lm-text);
+    font-weight: 700;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li { margin: 0; }
+
+    a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 4px;
+      border-radius: var(--lm-radius);
+      color: var(--lm-text);
+      text-decoration: none;
+      font-size: 14px;
+
+      &:hover {
+        background: var(--lm-primary-soft);
+        color: var(--lm-primary-dark);
+      }
+    }
+  }
+  &__count {
+    color: var(--lm-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  &__leaf {
+    color: var(--lm-muted);
+    font-size: 13px;
+    margin: 0;
+  }
+}
