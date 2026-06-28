@@ -21,7 +21,10 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggrega
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
+import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletCreditCommand;
 import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletDebitCommand;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderSubmitResult;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCommand;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
@@ -534,6 +537,144 @@ public class LitemallOrderOrchestratorService {
      */
     public LitemallOrderOperationResult payOrder(LitemallOrderPaymentCommand paymentCommand) {
         return performOrderAction(OrderAction.PAY, paymentCommand);
+    }
+
+    // =========================================================================
+    // FULFILMENT / POST-PAYMENT LIFECYCLE (ship → confirm → refund)
+    // =========================================================================
+
+    /**
+     * Admin/fulfilment ships a paid order (PAID → SHIPPED). Admin-gated at the gateway,
+     * so no per-user ownership check here.
+     */
+    public LitemallOrderOperationResult shipOrder(LitemallOrderId orderId, String shipChannel, String shipSn) {
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!previous.canTransitionTo(LitemallOrderStatus.SHIPPED)) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.SHIP, previous);
+        }
+        orderServiceImpl.shipOrder(orderId, shipChannel, shipSn);
+        return LitemallOrderOperationResult.shipSuccess(
+                orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.SHIPPED));
+    }
+
+    /**
+     * Customer confirms receipt of a shipped order (SHIPPED → DELIVERED). Scoped to the
+     * header user — a customer can only confirm their own order.
+     */
+    public LitemallOrderOperationResult confirmReceipt(LitemallOrderId orderId, LitemallUserId userId) {
+        LitemallOrderAggregate order = getOrderForUser(userId, orderId);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!previous.canTransitionTo(LitemallOrderStatus.DELIVERED)) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.CONFIRM, previous);
+        }
+        orderServiceImpl.confirmDelivery(orderId);
+        return LitemallOrderOperationResult.confirmSuccess(
+                orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.DELIVERED));
+    }
+
+    /**
+     * Customer opens a refund/return (PAID|SHIPPED → REFUND_REQUEST). Scoped to the
+     * header user. Awaits admin approval (see {@link #approveRefund}).
+     */
+    public LitemallOrderOperationResult requestRefund(LitemallOrderId orderId, LitemallUserId userId, String reason) {
+        LitemallOrderAggregate order = getOrderForUser(userId, orderId);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.REQUEST_REFUND)) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+        }
+        orderServiceImpl.requestRefund(orderId, reason);
+        return LitemallOrderOperationResult.refundRequestSuccess(
+                orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUND_REQUEST));
+    }
+
+    /**
+     * Admin approves a pending refund (REFUND_REQUEST → REFUNDED). Credits the order's
+     * actual price back to the buyer's wallet and flips the status in ONE transaction —
+     * so the money return and the REFUNDED status are atomic.
+     *
+     * <p>Refund destination: the WALLET. That is the only real-money payment path today
+     * (CARD is a client-confirmed stub — see {@code processPayment}); a real server-side
+     * card charge would instead reverse via Stripe here. Documented in
+     * {@code docs/handoff-gateway-api-order-timeline.md}.
+     */
+    public LitemallOrderOperationResult approveRefund(LitemallOrderId orderId) {
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!previous.canTransitionTo(LitemallOrderStatus.REFUNDED)) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+        }
+        creditWalletForRefund(order, orderId);
+        orderServiceImpl.refundOrder(orderId, order.getActualPrice());
+        return LitemallOrderOperationResult.refundSuccess(
+                orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+    }
+
+    /** Customer soft-deletes a terminal order (delete is offered only on terminal states). */
+    public LitemallOrderOperationResult deleteOrder(LitemallOrderId orderId, LitemallUserId userId) {
+        LitemallOrderAggregate order = getOrderForUser(userId, orderId);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus current = order.getOrderStatus();
+        if (!LitemallOrderHandleOption.forStatus(current).isDelete()) {
+            return LitemallOrderOperationResult.operationFailed(
+                    LitemallOrderOperationResult.OperationType.UPDATE, orderId,
+                    "Order cannot be deleted in " + current + " status");
+        }
+        orderServiceImpl.deleteOrder(orderId);
+        return LitemallOrderOperationResult.updateSuccess(
+                orderId, current, current, "deleted", LitemallOrderHandleOption.forStatus(current));
+    }
+
+    /** System auto-confirm hook for the SHIPPED→AUTO_DELIVERED sweep. */
+    public void autoConfirmOrder(LitemallOrderId orderId) {
+        orderServiceImpl.autoConfirmOrder(orderId);
+    }
+
+    /**
+     * Status-history timeline for an order, oldest first. Owner-scoped: returns null
+     * when the order does not exist or belongs to another user (caller → 404).
+     */
+    public java.util.List<LitemallOrderStatusChange> getOrderTimeline(LitemallUserId userId, LitemallOrderId orderId) {
+        if (getOrderForUser(userId, orderId) == null) {
+            return null;
+        }
+        return orderServiceImpl.getStatusHistory(orderId);
+    }
+
+    /** Credit the order's actual price back to the buyer's wallet (refund destination). */
+    private void creditWalletForRefund(LitemallOrderAggregate order, LitemallOrderId orderId) {
+        LitemallMoney payable = order.getActualPrice();
+        if (payable == null || payable.getAmount().signum() <= 0) {
+            log.info("Skipping wallet refund credit for order {}: non-positive amount", orderId.getId());
+            return;
+        }
+        LitemallWalletCreditCommand creditCommand = new LitemallWalletCreditCommand(
+                order.getUserId().getId(),
+                payable.getAmount(),
+                "Order refund",
+                "ORDER",
+                "REFUND",
+                String.valueOf(orderId.getId()),
+                "Wallet refund for order " + order.getOrderSn());
+        walletService.credit(creditCommand);
     }
 
 

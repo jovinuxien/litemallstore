@@ -14,6 +14,7 @@ import org.linlinjava.litemall.order.interfaces.dtos.order.OrderDetailDtoRespons
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListItemDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.OrderStatusTimelineDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.PaymentActionRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -154,5 +155,55 @@ public class LitemallOrderRestController {
             return buildResponse(
                     LitemallOrderOperationResult.payFailed(orderIdVo, e.getMessage()));
         }
+    }
+
+    /** Customer confirms receipt of a shipped order (SHIPPED → DELIVERED). */
+    @PostMapping("/{orderId}/actions/confirm")
+    public ResponseEntity<OrderOperationDtoResponse> confirmOrder(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId) {
+        LitemallOrderOperationResult result = orderOrchestrationService.confirmReceipt(
+                new LitemallOrderId(orderId), new LitemallUserId(userId));
+        return buildResponse(result);
+    }
+
+    /** Customer opens a refund/return (PAID|SHIPPED → REFUND_REQUEST). */
+    @PostMapping("/{orderId}/actions/refund")
+    public ResponseEntity<OrderOperationDtoResponse> refundOrder(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody(required = false) String reason) {
+        LitemallOrderOperationResult result = orderOrchestrationService.requestRefund(
+                new LitemallOrderId(orderId), new LitemallUserId(userId), reason);
+        return buildResponse(result);
+    }
+
+    /** Customer soft-deletes a terminal order. */
+    @PostMapping("/{orderId}/actions/delete")
+    public ResponseEntity<OrderOperationDtoResponse> deleteOrder(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId) {
+        LitemallOrderOperationResult result = orderOrchestrationService.deleteOrder(
+                new LitemallOrderId(orderId), new LitemallUserId(userId));
+        return buildResponse(result);
+    }
+
+    /**
+     * Full lifecycle timeline for an order (every recorded state transition, oldest
+     * first). Owner-scoped to {@code X-User-Id}; a non-owned/absent order returns 404.
+     */
+    @GetMapping("/{orderId}/timeline")
+    public ApiResponse<List<OrderStatusTimelineDtoResponse>> timeline(
+            @RequestHeader("X-User-Id") Integer userId,
+            @PathVariable Integer orderId) {
+        List<org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange> changes =
+                orderOrchestrationService.getOrderTimeline(
+                        new LitemallUserId(userId), new LitemallOrderId(orderId));
+        if (changes == null) {
+            return ApiResponse.fail(404, "Order not found");
+        }
+        return ApiResponse.ok(changes.stream()
+                .map(OrderStatusTimelineDtoResponse::fromDomain)
+                .collect(Collectors.toList()));
     }
 }

@@ -15,13 +15,17 @@ public enum LitemallOrderStatus {
     PAID(201, "PAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == SHIPPED || newStatus == CANCELED || newStatus == SYSTEM_CANCELED;
+            // Once paid, the order can be fulfilled (SHIPPED) or unwound via the
+            // refund flow. A paid order is never hard-CANCELED — that path is a refund.
+            return newStatus == SHIPPED || newStatus == REFUND_REQUEST;
         }
     },
     SHIPPED(301, "SHIPPED"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == DELIVERED ;
+            // Customer confirms receipt (DELIVERED), the system auto-confirms after the
+            // grace window (AUTO_DELIVERED), or the customer opens a return (REFUND_REQUEST).
+            return newStatus == DELIVERED || newStatus == AUTO_DELIVERED || newStatus == REFUND_REQUEST;
         }
     },
     DELIVERED(401, "DELIVERED"){

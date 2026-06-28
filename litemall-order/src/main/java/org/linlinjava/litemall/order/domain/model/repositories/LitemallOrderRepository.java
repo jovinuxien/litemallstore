@@ -51,5 +51,28 @@ public interface LitemallOrderRepository {
      */
     int markPaidIfCreated(LitemallOrderId orderId);
 
+    /**
+     * Guarded status transitions. Each mirrors {@link #markPaidIfCreated}: the UPDATE
+     * only matches a row in the expected source status, so concurrent/duplicate
+     * transitions affect 0 rows (the caller treats that as a clean conflict). They
+     * build a bare {@code LitemallOrder} patch touching only the relevant columns, so
+     * they never go through the full aggregate→row conversion.
+     */
+    int markCanceledIfCreated(LitemallOrderId orderId);
+
+    int markSystemCanceledIfCreated(LitemallOrderId orderId);
+
+    int markShippedIfPaid(LitemallOrderId orderId, String shipChannel, String shipSn, java.time.LocalDateTime shipTime);
+
+    int markDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
+
+    int markAutoDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
+
+    /** PAID or SHIPPED → REFUND_REQUEST. */
+    int markRefundRequestedIfPayable(LitemallOrderId orderId, String refundContent);
+
+    /** REFUND_REQUEST → REFUNDED. */
+    int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, java.time.LocalDateTime refundTime);
+
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 }
