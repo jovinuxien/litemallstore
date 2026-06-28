@@ -1,17 +1,19 @@
 package org.linlinjava.litemall.order.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
-import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.ShipActionRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -22,18 +24,28 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponseUtil.buildResponse;
+
 /**
- * Admin order surface for the admin SPA (litemall-gateway-admin). Served under
- * {@code /srv/private/admin/order/**} — the same admin namespace goods-management
- * uses for brand/category/etc. The edge gateway gates this prefix to ROLE_ADMIN
- * and relays the validated identity (machine token); this controller adds no
- * auth of its own. Read-only: a paged "all orders" list and a per-order detail.
+ * Admin order surface, served under {@code /srv/private/admin/order/**} — the same admin
+ * namespace goods-management uses for brand/category/etc. The edge gateway gates this
+ * prefix to ROLE_ADMIN and relays the validated identity (machine token); this controller
+ * adds no auth of its own.
  *
- * Built on the order module's own DDD repositories (LitemallOrderMapper-backed),
- * not the legacy litemall-db LitemallOrderService.queryVoSelective — that path's
- * OrderMapper.getOrderList has no SQL binding in this codebase (would 502).
- * Aggregates are mapped to flat DTOs so prices land as numbers (not LitemallMoney
- * objects) and dates as strings — the shapes the SPA already reads.
+ * <p>Two responsibilities:
+ * <ul>
+ *   <li><b>Read</b> — a paged "all orders" list and a per-order detail for the admin SPA
+ *       (litemall-gateway-admin). Built on the order module's own DDD repositories
+ *       (LitemallOrderMapper-backed), not the legacy LitemallOrderService.queryVoSelective
+ *       (whose OrderMapper.getOrderList has no SQL binding here and would 502). Aggregates
+ *       are mapped to flat DTOs so prices land as numbers and dates as strings.</li>
+ *   <li><b>Lifecycle transitions</b> — admin-driven ship (PAID→SHIPPED) and refund approval
+ *       (REFUND_REQUEST→REFUNDED, crediting the buyer's wallet back), through the
+ *       orchestrator.</li>
+ * </ul>
+ *
+ * <p>Routing note (gateway-admin follow-up): the admin gateway must route
+ * {@code /srv/private/admin/order/**} to the order service for these to be reachable.
  */
 @RestController
 @RequestMapping("/srv/private/admin/order")
@@ -54,13 +66,18 @@ public class LitemallAdminOrderController {
 
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
+    private final LitemallOrderOrchestratorService orchestrator;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
-                                        LitemallOrderGoodsRepository orderGoodsRepository) {
+                                        LitemallOrderGoodsRepository orderGoodsRepository,
+                                        LitemallOrderOrchestratorService orchestrator) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
+        this.orchestrator = orchestrator;
     }
+
+    // ---- read surface (admin SPA) ---------------------------------------------------
 
     /** Paged list of all orders. Returns the okList envelope { list, total, page, limit, pages }. */
     @GetMapping("/list")
@@ -127,6 +144,30 @@ public class LitemallAdminOrderController {
         data.put("user", null); // user lookup not wired here; SPA falls back to the order's userId
         return ResponseUtil.ok(data);
     }
+
+    // ---- lifecycle transitions (admin-driven) ---------------------------------------
+
+    /** Ship a paid order (PAID → SHIPPED), recording courier + tracking number. */
+    @PostMapping("/{orderId}/ship")
+    public ResponseEntity<OrderOperationDtoResponse> ship(
+            @PathVariable Integer orderId,
+            @RequestBody ShipActionRequest request) {
+        LitemallOrderOperationResult result = orchestrator.shipOrder(
+                new LitemallOrderId(orderId), request.getShipChannel(), request.getShipSn());
+        return buildResponse(result);
+    }
+
+    /**
+     * Approve a pending refund (REFUND_REQUEST → REFUNDED): credits the buyer's wallet
+     * back and flips the status atomically.
+     */
+    @PostMapping("/{orderId}/refund")
+    public ResponseEntity<OrderOperationDtoResponse> approveRefund(@PathVariable Integer orderId) {
+        LitemallOrderOperationResult result = orchestrator.approveRefund(new LitemallOrderId(orderId));
+        return buildResponse(result);
+    }
+
+    // ---- mapping helpers ------------------------------------------------------------
 
     private Map<String, Object> toRow(LitemallOrderAggregate o) {
         Map<String, Object> row = new LinkedHashMap<>();

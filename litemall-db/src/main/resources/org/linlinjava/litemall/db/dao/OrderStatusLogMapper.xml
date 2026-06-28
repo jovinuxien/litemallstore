@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_order_status (order status-history audit trail).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.OrderStatusLogMapper">
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderStatusLog"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_order_status
+      (order_id, old_status, new_status, change_type, change_message,
+       change_time, operator, add_time, update_time, deleted)
+    values
+      (#{orderId}, #{oldStatus}, #{newStatus}, #{changeType}, #{changeMessage},
+       #{changeTime}, #{operator}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectByOrderId" resultType="org.linlinjava.litemall.db.domain.LitemallOrderStatusLog">
+    select id, order_id, old_status, new_status, change_type, change_message,
+           change_time, operator, add_time, update_time, deleted
+    from litemall_order_status
+    where order_id = #{orderId} and deleted = 0
+    order by change_time asc, id asc
+  </select>
+
+  <select id="countByOrderId" resultType="int">
+    select count(*) from litemall_order_status
+    where order_id = #{orderId} and deleted = 0
+  </select>
+
+</mapper>
