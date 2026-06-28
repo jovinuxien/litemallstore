@@ -9,6 +9,9 @@ import ProductCard from 'app/components/userComponents/card/ProductCard';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
+import CollectButton from './productDetailComponent/CollectButton';
+import CouponStrip from './productDetailComponent/CouponStrip';
+import Reviews from './productDetailComponent/Reviews';
 import './Detail.scss';
 
 const fmt = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -192,6 +195,9 @@ const ProductDetailView: React.FC = () => {
             {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
           </div>
 
+          {/* Receivable coupons (litemall-vue coupon row); hidden until live. */}
+          <CouponStrip />
+
           {specGroups.map(g => (
             <div key={g.name} className='lm-pdp__optgroup'>
               <div className='lm-pdp__optlabel'>
@@ -256,6 +262,8 @@ const ProductDetailView: React.FC = () => {
             Buy now
           </button>
 
+          <CollectButton goodsId={gid} />
+
           <ul className='lm-pdp__assurance'>
             <li>
               <i className='bi bi-truck' /> Fast dispatch
@@ -310,6 +318,9 @@ const ProductDetailView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Customer reviews (litemall-vue comment list); hidden until live. */}
+      <Reviews goodsId={gid} />
 
       {/* Related products */}
       {related && related.length > 0 && (

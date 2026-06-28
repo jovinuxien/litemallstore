@@ -1,18 +1,19 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { BASE_URL_CONTEXT } from 'app/config/api';
-import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
+import { cartApi, isMissingEndpoint, toReject } from 'app/shared/api';
 import { ICartTotalData, IItemCart } from 'app/shared/model/cart/cart.models';
 
 /**
- * Customer cart. Ported from the legacy combined SPA onto the customer edge
- * contract: every server call goes through `baseAxios`, which injects the
+ * Customer cart. Every server call goes through the `/srv` api seam
+ * (`cartApi` → order-service `/srv/cart` REST contract), which carries the
  * customer JWT as `Authorization: Bearer` (sessionStorage 'customerToken').
- * The old `X-Litemall-Token` header + `sessionStorage 'token'` scheme is gone.
+ * No `/wx`.
  *
  * The cart is the single source of truth for the line items the checkout
  * submits. A guest cart is kept in sessionStorage ('cart') and merged with the
  * server cart on fetch so an anonymous customer keeps their basket after login.
+ * The order-service cart endpoints may not all be live yet — a missing endpoint
+ * degrades to the local cart rather than erroring (isMissingEndpoint).
  */
 interface RemoteIndexCartApiResult
   extends ApiResult<{
@@ -34,10 +35,14 @@ export const fetchCart = createAsyncThunk<RemoteIndexCartApiResult, void, { reje
     return { errno: 0, errmsg: '', data: { cartTotal: null, cartList: [] } };
   }
   try {
-    const response = await baseAxios.get<RemoteIndexCartApiResult>(BASE_URL_CONTEXT + '/cart/index');
-    return response.data;
+    const data = await cartApi.list();
+    return { errno: 0, errmsg: '', data: { cartTotal: (data?.cartTotal as ICartTotalData) ?? null, cartList: data?.cartList ?? [] } };
   } catch (error) {
-    return thunkApi.rejectWithValue({ errno: 500, errmsg: error.message, data: null });
+    // Cart endpoint not live yet → fall back to the local cart, don't error out.
+    if (isMissingEndpoint(error)) {
+      return { errno: 0, errmsg: '', data: { cartTotal: null, cartList: [] } };
+    }
+    return thunkApi.rejectWithValue(toReject(error));
   }
 });
 
@@ -45,10 +50,9 @@ export const remoteAddToCartThunk = createAsyncThunk<unknown, RemoteAddToCartPar
   'cart/addToCart',
   async ({ goodsId, productId, number }, thunkApi) => {
     try {
-      const response = await baseAxios.post(BASE_URL_CONTEXT + '/cart/add', { goodsId, productId, number });
-      return response.data;
+      return await cartApi.add({ goodsId, productId, number });
     } catch (error) {
-      return thunkApi.rejectWithValue({ errno: 500, errmsg: error.message, data: null });
+      return thunkApi.rejectWithValue(toReject(error));
     }
   }
 );
@@ -57,10 +61,12 @@ export const updateCartItem = createAsyncThunk<IItemCart, IItemCart, { rejectVal
   'cart/updateCartItem',
   async (cartItem, { rejectWithValue }) => {
     try {
-      const response = await baseAxios.put(BASE_URL_CONTEXT + '/cart/update', cartItem);
-      return response.data?.data ?? cartItem;
+      if (cartItem.id == null) return cartItem;
+      const updated = (await cartApi.update(cartItem.id, cartItem)) as IItemCart | undefined;
+      return updated ?? cartItem;
     } catch (err) {
-      return rejectWithValue({ errno: 500, errmsg: err.message, data: null });
+      if (isMissingEndpoint(err)) return cartItem; // local-only update
+      return rejectWithValue(toReject(err));
     }
   }
 );

@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { ApiResult, BaseState, createApiClient } from '@litemall/shared';
+import { authApi, RegisterBody } from 'app/shared/api';
 
 /**
  * Customer auth, split out of the former combined authSlice (no more
@@ -49,6 +50,22 @@ export const loginCustomerThunk = createAsyncThunk<
   }
 });
 
+export const registerCustomerThunk = createAsyncThunk<
+  ApiResult<{ token: string; refreshToken: string; userInfo: CustomerInfo }>,
+  RegisterBody,
+  { rejectValue: ApiResult<null> }
+>('customerAuth/register', async (body, thunkApi) => {
+  try {
+    const env = await authApi.register(body);
+    if (env.errno !== 0) {
+      return thunkApi.rejectWithValue({ errno: env.errno, errmsg: env.errmsg, data: null });
+    }
+    return env as ApiResult<{ token: string; refreshToken: string; userInfo: CustomerInfo }>;
+  } catch (e) {
+    return thunkApi.rejectWithValue({ errno: -1, errmsg: 'Registration failed', data: null });
+  }
+});
+
 export const logoutCustomerThunk = createAsyncThunk('customerAuth/logout', async () => {
   const refreshToken = sessionStorage.getItem('customerRefreshToken');
   await api.post('/auth/logout', { refreshToken });
@@ -83,6 +100,22 @@ const customerAuthSlice = createSlice({
       .addCase(loginCustomerThunk.rejected, (state, action) => {
         state.loading = 'failed';
         state.errorMessage = action.payload?.errmsg ?? 'Login failed';
+        state.errorNumber = action.payload?.errno ?? -1;
+      })
+      .addCase(registerCustomerThunk.pending, state => {
+        state.loading = 'pending';
+        state.errorMessage = null;
+      })
+      .addCase(registerCustomerThunk.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        const d = action.payload.data;
+        state.data = { ...d, isAuthenticated: true };
+        if (d.token) sessionStorage.setItem(TOKEN_KEY, d.token);
+        if (d.refreshToken) sessionStorage.setItem('customerRefreshToken', d.refreshToken);
+      })
+      .addCase(registerCustomerThunk.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.errorMessage = action.payload?.errmsg ?? 'Registration failed';
         state.errorNumber = action.payload?.errno ?? -1;
       })
       .addCase(logoutCustomerThunk.fulfilled, state => {
