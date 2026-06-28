@@ -148,11 +148,11 @@ const SearchView: React.FC = () => {
     dispatch(getCatalogAllData());
   }, [dispatch]);
 
-  // /category/:id deep-link: seed the category refinement. Query-string
-  // deep-links (?q=, ?category_ids=, …) are handled by searchRouting.
-  const initialUiState = params.id
-    ? { [PRIMARY_INDEX]: { refinementList: { category_ids: [params.id] } } }
-    : undefined;
+  // /category/:id scope is applied via <Configure facetFilters> below (not a
+  // RefinementList): on a category route the flat category facet is replaced by
+  // the subcategory tree, so there's no widget to carry an initialUiState
+  // refinement — Configure scopes the result set straight through the adapter.
+  // Query-string deep-links (?q=, ?category_ids=, …) are handled by searchRouting.
 
   return (
     <div className="lm-isearch">
@@ -163,11 +163,10 @@ const SearchView: React.FC = () => {
         key={params.id ?? 'search'}
         searchClient={litemallSearchClient}
         indexName={PRIMARY_INDEX}
-        initialUiState={initialUiState}
         routing={searchRouting}
         future={{ preserveSharedStateOnUnmount: true }}
       >
-        <Configure hitsPerPage={12} />
+        <Configure hitsPerPage={12} {...(params.id ? { facetFilters: [`category_ids:${params.id}`] } : {})} />
 
         <div className="lm-isearch__bar">
           <SearchBox placeholder="Search products…" className="lm-isearch__box" />
