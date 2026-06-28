@@ -36,6 +36,7 @@ public class LitemallOrderHandleOption {
                 break;
             case SHIPPED:
                 option.setConfirm(true);
+                option.setRefund(true); // customer may open a return while in transit / before confirming
                 break;
             case DELIVERED:
             case AUTO_DELIVERED:

@@ -125,6 +125,22 @@ public class LitemallOrderOperationResult {
     // SHIP FACTORY METHODS
     // =========================================================================
 
+    public static LitemallOrderOperationResult shipSuccess(LitemallOrderId orderId,
+                                                           LitemallOrderStatus previousStatus,
+                                                           LitemallOrderHandleOption availableOptions) {
+        return new LitemallOrderOperationResult(true, OperationType.SHIP, orderId,
+                previousStatus, LitemallOrderStatus.SHIPPED,
+                "Order shipped", availableOptions);
+    }
+
+    public static LitemallOrderOperationResult refundRequestSuccess(LitemallOrderId orderId,
+                                                                    LitemallOrderStatus previousStatus,
+                                                                    LitemallOrderHandleOption availableOptions) {
+        return new LitemallOrderOperationResult(true, OperationType.REFUND, orderId,
+                previousStatus, LitemallOrderStatus.REFUND_REQUEST,
+                "Refund requested", availableOptions);
+    }
+
     // Operation: CONFIRM (Delivery Confirmation)
     public static LitemallOrderOperationResult confirmSuccess(LitemallOrderId orderId,
                                                               LitemallOrderStatus previousStatus,

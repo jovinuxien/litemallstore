@@ -242,9 +242,11 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
     @Override
     public int markPaidIfCreated(LitemallOrderId orderId) {
+        LocalDateTime now = LocalDateTime.now();
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
-        patch.setUpdateTime(LocalDateTime.now());
+        patch.setPayTime(now);
+        patch.setUpdateTime(now);
 
         LitemallOrderExample example = new LitemallOrderExample();
         example.createCriteria()
@@ -252,6 +254,88 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
                 .andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode());
 
         return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
+    /**
+     * Shared helper for the guarded transitions: apply {@code patch} only to a row of
+     * {@code orderId} currently in one of {@code fromStatuses}. Returns rows updated
+     * (1 = applied, 0 = the order had already moved on / a race lost).
+     */
+    private int conditionalTransition(LitemallOrderId orderId, LitemallOrder patch,
+                                      LitemallOrderStatus... fromStatuses) {
+        patch.setUpdateTime(LocalDateTime.now());
+        List<Short> from = Arrays.stream(fromStatuses)
+                .map(LitemallOrderStatus::getCode).collect(Collectors.toList());
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusIn(from);
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
+    @Override
+    public int markCanceledIfCreated(LitemallOrderId orderId) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.CANCELED.getCode());
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.CREATED);
+    }
+
+    @Override
+    public int markSystemCanceledIfCreated(LitemallOrderId orderId) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED.getCode());
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.CREATED);
+    }
+
+    @Override
+    public int markShippedIfPaid(LitemallOrderId orderId, String shipChannel, String shipSn, LocalDateTime shipTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.SHIPPED.getCode());
+        patch.setShipChannel(shipChannel);
+        patch.setShipSn(shipSn);
+        patch.setShipTime(shipTime == null ? LocalDateTime.now() : shipTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.PAID);
+    }
+
+    @Override
+    public int markDeliveredIfShipped(LitemallOrderId orderId, LocalDateTime confirmTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.DELIVERED.getCode());
+        patch.setConfirmTime(confirmTime == null ? LocalDateTime.now() : confirmTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markAutoDeliveredIfShipped(LitemallOrderId orderId, LocalDateTime confirmTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.AUTO_DELIVERED.getCode());
+        patch.setConfirmTime(confirmTime == null ? LocalDateTime.now() : confirmTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markRefundRequestedIfPayable(LitemallOrderId orderId, String refundContent) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.REFUND_REQUEST.getCode());
+        if (refundContent != null) {
+            patch.setRefundContent(refundContent);
+        }
+        return conditionalTransition(orderId, patch,
+                LitemallOrderStatus.PAID, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, LocalDateTime refundTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.REFUNDED.getCode());
+        if (refundAmount != null) {
+            patch.setRefundAmount(refundAmount);
+        }
+        patch.setRefundTime(refundTime == null ? LocalDateTime.now() : refundTime);
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.REFUND_REQUEST);
     }
 
     @Override
