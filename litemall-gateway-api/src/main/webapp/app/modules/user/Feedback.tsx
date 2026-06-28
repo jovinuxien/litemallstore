@@ -1,14 +1,25 @@
 import React, { useState } from 'react';
-import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
+import { Alert, Form, Spinner } from 'react-bootstrap';
 
 import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
+
+const FEEDBACK_TYPES = [
+  { value: 'feedback', label: 'Suggestion' },
+  { value: 'complaint', label: 'Complaint' },
+  { value: 'bug', label: 'Bug' },
+  { value: 'other', label: 'Other' },
+];
+
+const CONTENT_MAX = 500;
 
 /**
  * Feedback form, modelled on litemall-vue `user/module-feedback`. Posts to
  * `/srv/feedback/submit`. Graceful when not live (follow-up: user worktree).
  */
 const Feedback: React.FC = () => {
+  const [type, setType] = useState('feedback');
   const [content, setContent] = useState('');
   const [mobile, setMobile] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,7 +31,7 @@ const Feedback: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      await userApi.feedbackSubmit({ content, mobile, type: 'feedback' });
+      await userApi.feedbackSubmit({ content, mobile, type });
       setDone(true);
       setContent('');
       setMobile('');
@@ -33,28 +44,53 @@ const Feedback: React.FC = () => {
   };
 
   return (
-    <Container className='my-4' style={{ maxWidth: 560 }}>
-      <h1 className='h4 mb-3'>Send feedback</h1>
-      <Card>
-        <Card.Body>
-          {done && <Alert variant='success'>Thanks — your feedback has been sent.</Alert>}
-          {error && <Alert variant='warning'>{error}</Alert>}
-          <Form onSubmit={submit}>
+    <Page>
+      <PageHead title='Feedback' sub='Tell us what you think — suggestions, complaints, or bugs.' />
+      <div className='container' style={{ maxWidth: 560 }}>
+        <CellGroup title='Feedback'>
+          <Form onSubmit={submit} className='p-3'>
+            {done && <Alert variant='success'>Thanks — your feedback has been sent.</Alert>}
+            {error && <Alert variant='warning'>{error}</Alert>}
+
             <Form.Group className='mb-3'>
-              <Form.Label>Your message</Form.Label>
-              <Form.Control as='textarea' rows={5} value={content} onChange={e => setContent(e.target.value)} required />
+              <Form.Label className='small text-muted mb-1'>Type</Form.Label>
+              <Form.Select value={type} onChange={e => setType(e.target.value)}>
+                {FEEDBACK_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </Form.Select>
             </Form.Group>
+
             <Form.Group className='mb-3'>
-              <Form.Label>Contact (optional)</Form.Label>
+              <Form.Label className='small text-muted mb-1'>Your message *</Form.Label>
+              <Form.Control
+                as='textarea'
+                rows={5}
+                maxLength={CONTENT_MAX}
+                placeholder='Share the details of your feedback'
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                required
+              />
+              <div className='text-end small text-muted'>
+                {content.length}/{CONTENT_MAX}
+              </div>
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label className='small text-muted mb-1'>Contact (optional)</Form.Label>
               <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} placeholder='Phone or email' />
             </Form.Group>
-            <Button type='submit' variant='primary' disabled={busy || !content.trim()}>
-              {busy ? <Spinner animation='border' size='sm' /> : 'Send feedback'}
-            </Button>
+
+            <button type='submit' className='btn btn-lm-primary' disabled={busy || !content.trim()}>
+              {busy ? <Spinner animation='border' size='sm' /> : 'Submit feedback'}
+            </button>
           </Form>
-        </Card.Body>
-      </Card>
-    </Container>
+        </CellGroup>
+      </div>
+    </Page>
   );
 };
 

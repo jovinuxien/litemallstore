@@ -1,77 +1,78 @@
 import React, { useState } from 'react';
-import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
+import { Alert, Form } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { CheckoutPaymentMethod, payOrder } from 'app/shared/reducers/orderSlice';
+import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { Cell, CellGroup, Page, PageHead, SubmitBar } from 'app/components/commonComponents/storefront';
 
 /**
- * Payment step for an already-placed order, modelled on litemall-vue
- * `order/payment`. Picks a method (card / wallet) and triggers the order
- * service's prepay (`/srv/order/prepay`). Until prepay is live, a missing
- * endpoint is treated as an optimistic success so the flow can be walked
- * end-to-end (follow-up: order worktree).
+ * Standalone pay screen for an already-placed order, modelled on litemall-vue
+ * `order/payment`. Picks a method (card / wallet) and charges the order through
+ * the order slice's `payOrder` thunk (`POST /srv/order/{id}/actions/pay`).
  */
 const Payment: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const [method, setMethod] = useState<'CARD' | 'WALLET'>('CARD');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const dispatch = useAppDispatch();
+
+  const { loading, errorMessage } = useAppSelector(state => state.order);
+  const lastOrder = useAppSelector(state => state.order.data.lastOrder);
+
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
+
+  const submitting = loading === 'pending';
+  const orderSn = lastOrder?.orderSn ?? (orderId ? `#${orderId}` : '');
+  const amountDue = lastOrder?.actualPrice != null ? priceNum(lastOrder.actualPrice) : undefined;
 
   const pay = async () => {
     if (!orderId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await orderApi.prepay(orderId);
-      navigate(`/pay/${orderId}/status?result=success`);
-    } catch (e) {
-      if (isMissingEndpoint(e)) {
-        navigate(`/pay/${orderId}/status?result=success`);
-        return;
-      }
-      setError((e as { message?: string })?.message ?? 'Payment failed');
-    } finally {
-      setBusy(false);
+    const result = await dispatch(payOrder({ orderId: Number(orderId), paymentMethod }));
+    if (payOrder.fulfilled.match(result)) {
+      navigate(`/pay/${orderId}/status?status=success`);
     }
   };
 
   return (
-    <Container className='my-5' style={{ maxWidth: 480 }}>
-      <Card className='shadow-sm'>
-        <Card.Body>
-          <h3 className='mb-1'>Pay for your order</h3>
-          <p className='text-muted'>Order #{orderId}</p>
+    <Page>
+      <PageHead title='Payment' />
+      <div className='container'>
+        {/* Order summary */}
+        <CellGroup title='Order'>
+          <Cell title='Order no.' value={orderSn} />
+          <Cell title='Amount due' value={<span className='lm-amount'>${(amountDue ?? 0).toFixed(2)}</span>} />
+        </CellGroup>
 
-          <Form.Check
-            type='radio'
-            id='pm-card'
-            name='pm'
-            label='Credit / debit card'
-            checked={method === 'CARD'}
-            onChange={() => setMethod('CARD')}
-          />
-          <Form.Check
-            type='radio'
-            id='pm-wallet'
-            name='pm'
-            label='Digital wallet (balance)'
-            checked={method === 'WALLET'}
-            onChange={() => setMethod('WALLET')}
-          />
+        {/* Payment method */}
+        <CellGroup title='Payment method'>
+          <Cell>
+            <Form.Check
+              type='radio'
+              id='pm-card'
+              name='pm'
+              label='Credit / debit card'
+              checked={paymentMethod === 'CARD'}
+              onChange={() => setPaymentMethod('CARD')}
+            />
+          </Cell>
+          <Cell>
+            <Form.Check
+              type='radio'
+              id='pm-wallet'
+              name='pm'
+              label='Digital wallet'
+              checked={paymentMethod === 'WALLET'}
+              onChange={() => setPaymentMethod('WALLET')}
+            />
+          </Cell>
+        </CellGroup>
 
-          {error && (
-            <Alert variant='danger' className='mt-3'>
-              {error}
-            </Alert>
-          )}
+        {errorMessage && <Alert variant='danger'>{errorMessage}</Alert>}
+      </div>
 
-          <Button variant='success' className='w-100 mt-3' onClick={pay} disabled={busy}>
-            {busy ? <Spinner animation='border' size='sm' /> : 'Pay now'}
-          </Button>
-        </Card.Body>
-      </Card>
-    </Container>
+      <SubmitBar total={amountDue} buttonText='Pay now' onSubmit={pay} loading={submitting} />
+    </Page>
   );
 };
 

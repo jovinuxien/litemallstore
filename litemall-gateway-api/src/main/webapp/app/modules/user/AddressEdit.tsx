@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Container, Form, Row, Spinner } from 'react-bootstrap';
+import { Alert, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { IAddress, isMissingEndpoint, userApi } from 'app/shared/api';
+import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
 const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '', addressDetail: '', postalCode: '', isDefault: false };
@@ -19,6 +20,7 @@ const AddressEdit: React.FC = () => {
   const [form, setForm] = useState<IAddress>(EMPTY);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,6 +54,24 @@ const AddressEdit: React.FC = () => {
     }
   };
 
+  const remove = async () => {
+    if (form.id == null) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await userApi.addressDelete(form.id);
+      navigate('/user/address');
+    } catch (err) {
+      if (isMissingEndpoint(err)) {
+        setError('Deleting addresses isn’t available yet.');
+      } else {
+        setError((err as { message?: string })?.message ?? 'Delete failed.');
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className='text-center my-5'>
@@ -61,62 +81,65 @@ const AddressEdit: React.FC = () => {
   }
 
   return (
-    <Container className='my-4' style={{ maxWidth: 560 }}>
-      <h1 className='h4 mb-3'>{isNew ? 'Add address' : 'Edit address'}</h1>
-      <Card>
-        <Card.Body>
-          {error && <Alert variant='warning'>{error}</Alert>}
-          <Form onSubmit={save}>
-            <Row className='g-3'>
-              <Col md={6}>
+    <Page>
+      <PageHead title='Edit address' />
+      <div className='container'>
+        {error && <Alert variant='warning'>{error}</Alert>}
+        <Form onSubmit={save}>
+          <CellGroup>
+            <div className='row g-3 p-3'>
+              <div className='col-md-6'>
                 <Form.Label>Recipient *</Form.Label>
                 <Form.Control value={form.name ?? ''} onChange={set('name')} required />
-              </Col>
-              <Col md={6}>
+              </div>
+              <div className='col-md-6'>
                 <Form.Label>Phone *</Form.Label>
                 <Form.Control value={form.tel ?? ''} onChange={set('tel')} required />
-              </Col>
-              <Col md={4}>
+              </div>
+              <div className='col-md-4'>
                 <Form.Label>Province / Region</Form.Label>
                 <Form.Control value={form.province ?? ''} onChange={set('province')} />
-              </Col>
-              <Col md={4}>
+              </div>
+              <div className='col-md-4'>
                 <Form.Label>City</Form.Label>
                 <Form.Control value={form.city ?? ''} onChange={set('city')} />
-              </Col>
-              <Col md={4}>
+              </div>
+              <div className='col-md-4'>
                 <Form.Label>District</Form.Label>
                 <Form.Control value={form.county ?? ''} onChange={set('county')} />
-              </Col>
-              <Col md={12}>
+              </div>
+              <div className='col-12'>
                 <Form.Label>Address detail *</Form.Label>
                 <Form.Control value={form.addressDetail ?? ''} onChange={set('addressDetail')} required />
-              </Col>
-              <Col md={6}>
+              </div>
+              <div className='col-md-6'>
                 <Form.Label>Postal code</Form.Label>
                 <Form.Control value={form.postalCode ?? ''} onChange={set('postalCode')} />
-              </Col>
-              <Col md={6} className='d-flex align-items-end'>
+              </div>
+              <div className='col-md-6 d-flex align-items-end'>
                 <Form.Check
                   type='checkbox'
                   label='Set as default'
                   checked={!!form.isDefault}
                   onChange={e => setForm(prev => ({ ...prev, isDefault: e.target.checked }))}
                 />
-              </Col>
-            </Row>
-            <div className='mt-3 d-flex gap-2'>
-              <Button type='submit' variant='primary' disabled={saving}>
-                {saving ? <Spinner animation='border' size='sm' /> : 'Save'}
-              </Button>
-              <Button variant='outline-secondary' onClick={() => navigate('/user/address')}>
-                Cancel
-              </Button>
+              </div>
             </div>
-          </Form>
-        </Card.Body>
-      </Card>
-    </Container>
+          </CellGroup>
+
+          <div className='mt-3 d-flex gap-2'>
+            <button type='submit' className='btn btn-lm-primary' disabled={saving || deleting}>
+              {saving ? <Spinner animation='border' size='sm' /> : 'Save'}
+            </button>
+            {!isNew && (
+              <button type='button' className='btn btn-lm-outline' onClick={remove} disabled={saving || deleting}>
+                {deleting ? <Spinner animation='border' size='sm' /> : 'Delete'}
+              </button>
+            )}
+          </div>
+        </Form>
+      </div>
+    </Page>
   );
 };
 

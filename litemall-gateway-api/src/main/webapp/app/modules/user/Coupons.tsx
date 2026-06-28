@@ -2,18 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
 import { ICoupon, isMissingEndpoint, userApi } from 'app/shared/api';
+import { EmptyState, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
 /** litemall-vue coupon-list status tabs: 0 unused, 1 used, 2 expired. */
-const TABS = [
-  { key: 0, label: 'Available' },
-  { key: 1, label: 'Used' },
-  { key: 2, label: 'Expired' },
-];
+const TABS = ['Unused', 'Used', 'Expired'];
 
 /**
  * My coupons, modelled on litemall-vue `user/coupon-list`. Sourced from
- * `/srv/coupon/mylist`; graceful empty when not live.
+ * `/srv/coupon/mylist`; graceful empty when not live. The tab index IS the
+ * status code the backend expects (0 unused / 1 used / 2 expired).
  */
 const Coupons: React.FC = () => {
   const [status, setStatus] = useState(0);
@@ -37,41 +35,42 @@ const Coupons: React.FC = () => {
     };
   }, [status]);
 
-  return (
-    <div className='container my-4 lm-user' style={{ maxWidth: 640 }}>
-      <h1 className='h4 mb-3'>My coupons</h1>
-      <div className='lm-orders__tabs mb-3'>
-        {TABS.map(t => (
-          <button key={t.key} type='button' className={`lm-orders__tab${status === t.key ? ' is-active' : ''}`} onClick={() => setStatus(t.key)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+  // Used/expired coupons render greyed-out.
+  const disabled = status !== 0;
 
-      {loading ? (
-        <div className='text-center my-5'>
-          <Spinner animation='border' />
-        </div>
-      ) : coupons.length === 0 ? (
-        <p className='text-muted text-center my-5'>No coupons in this category.</p>
-      ) : (
-        <div className='d-grid gap-2'>
-          {coupons.map(c => (
-            <div key={c.id} className='lm-coupon-row'>
-              <div className='lm-coupon-row__val'>
-                <span className='lm-coupon-row__amt'>${c.discount}</span>
-                <span className='lm-coupon-row__min'>{c.min ? `over $${c.min}` : 'no minimum'}</span>
+  return (
+    <Page>
+      <PageHead title='My Coupons' />
+      <div className='container'>
+        <StatusTabs tabs={TABS} active={status} onChange={setStatus} />
+
+        {loading ? (
+          <div className='text-center my-5'>
+            <Spinner animation='border' />
+          </div>
+        ) : coupons.length === 0 ? (
+          <EmptyState icon='bi-ticket-perforated' text='No coupons here.' />
+        ) : (
+          <div className='d-grid gap-3'>
+            {coupons.map(c => (
+              <div key={c.id} className={`lm-coupon-card${disabled ? ' is-disabled' : ''}`}>
+                <div className='lm-coupon-card__value'>
+                  <div className='lm-coupon-card__amt'>${c.discount}</div>
+                  <div className='lm-coupon-card__cond'>{c.min ? `Spend $${c.min}` : 'No minimum'}</div>
+                </div>
+                <div className='lm-coupon-card__body'>
+                  <div className='lm-coupon-card__name'>{c.name}</div>
+                  {(c.desc || c.tag) && <div className='lm-coupon-card__desc'>{c.desc || c.tag}</div>}
+                  {(c.startTime || c.endTime) && (
+                    <div className='lm-coupon-card__dates'>{[c.startTime, c.endTime].filter(Boolean).join(' – ')}</div>
+                  )}
+                </div>
               </div>
-              <div className='lm-coupon-row__info'>
-                <div className='fw-semibold'>{c.name}</div>
-                {c.desc && <div className='text-muted small'>{c.desc}</div>}
-                {(c.startTime || c.endTime) && <div className='text-muted small'>{[c.startTime, c.endTime].filter(Boolean).join(' – ')}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Page>
   );
 };
 

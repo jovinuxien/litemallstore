@@ -3,25 +3,20 @@ import { Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
 import { isMissingEndpoint, orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import './order.scss';
 
-/** litemall-vue order-list showType tabs. */
-const TABS: { key: number; label: string }[] = [
-  { key: 0, label: 'All' },
-  { key: 1, label: 'Unpaid' },
-  { key: 2, label: 'To ship' },
-  { key: 3, label: 'Shipped' },
-  { key: 4, label: 'To review' },
-];
+/** litemall-vue order-list showType tabs (index === showType 0–4). */
+const TABS = ['All', 'Unpaid', 'Unshipped', 'Unreceived', 'Unrated'];
 
 /**
  * Customer order history, modelled on litemall-vue `user/order-list`: status
  * tabs, per-order item thumbnails, status text, total, and contextual actions
- * (pay / cancel / confirm receipt / refund). Sourced from `/srv/order/list`.
- * When that endpoint isn't live yet it renders an empty state rather than an
- * error (follow-up: order worktree).
+ * (pay / cancel / confirm receipt / refund / delete / rebuy). Sourced from
+ * `/srv/order/list`. When that endpoint isn't live yet it renders an empty state
+ * rather than an error (follow-up: order worktree).
  */
 const OrderList: React.FC = () => {
   const navigate = useNavigate();
@@ -63,86 +58,80 @@ const OrderList: React.FC = () => {
   };
 
   return (
-    <div className='container my-4 lm-orders'>
-      <h1 className='h4 mb-3'>My orders</h1>
+    <Page>
+      <PageHead title='My Orders' />
+      <div className='container lm-orders'>
+        <StatusTabs tabs={TABS} active={showType} onChange={setShowType} />
 
-      <div className='lm-orders__tabs'>
-        {TABS.map(t => (
-          <button key={t.key} type='button' className={`lm-orders__tab${showType === t.key ? ' is-active' : ''}`} onClick={() => setShowType(t.key)}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className='text-center my-5'>
-          <Spinner animation='border' />
-        </div>
-      ) : orders.length === 0 ? (
-        <div className='text-center my-5 text-muted'>
-          <p className='mb-2'>You have no orders here yet.</p>
-          <Link to='/search' className='btn btn-outline-primary btn-sm'>
-            Start shopping
-          </Link>
-        </div>
-      ) : (
-        <div className='d-grid gap-3'>
-          {orders.map(o => (
-            <div key={o.id} className='lm-order-card'>
-              <div className='lm-order-card__head'>
-                <span className='text-muted small'>#{o.orderSn ?? o.id}</span>
-                <span className='lm-order-card__status'>{o.orderStatusText}</span>
+        {loading ? (
+          <div className='text-center my-5'>
+            <Spinner animation='border' />
+          </div>
+        ) : orders.length === 0 ? (
+          <EmptyState icon='bi-bag' text='You have no orders here yet.'>
+            <Link to='/search' className='btn btn-lm-primary btn-sm'>
+              Start shopping
+            </Link>
+          </EmptyState>
+        ) : (
+          orders.map(o => (
+            <div key={o.id} className='lm-order-panel'>
+              <div className='lm-order-panel__head'>
+                <span className='lm-order-panel__sn'>#{o.orderSn ?? o.id}</span>
+                <span className='lm-order-panel__status'>{o.orderStatusText}</span>
               </div>
-              <button type='button' className='lm-order-card__goods' onClick={() => navigate(`/order/${o.id}`)}>
+              <div role='button' tabIndex={0} onClick={() => navigate(`/order/${o.id}`)}>
                 {(o.goodsList ?? []).map(g => (
-                  <div key={g.id} className='lm-order-card__line'>
-                    <img src={g.picUrl} alt={g.goodsName} />
-                    <div className='lm-order-card__lineinfo'>
-                      <div className='lm-order-card__name'>{g.goodsName}</div>
-                      {g.specifications && g.specifications.length > 0 && <div className='text-muted small'>{g.specifications.join(' / ')}</div>}
-                    </div>
-                    <div className='lm-order-card__lineqty'>
-                      <div>${priceNum(g.price).toFixed(2)}</div>
-                      <div className='text-muted small'>×{g.number}</div>
-                    </div>
-                  </div>
+                  <GoodsLineCard
+                    key={g.id}
+                    picUrl={g.picUrl}
+                    name={g.goodsName}
+                    specs={g.specifications}
+                    price={priceNum(g.price)}
+                    qty={g.number}
+                  />
                 ))}
-              </button>
-              <div className='lm-order-card__foot'>
-                <span>
-                  Total: <strong>${priceNum(o.actualPrice).toFixed(2)}</strong>
-                </span>
-                <div className='lm-order-card__actions'>
-                  <Link to={`/order/${o.id}`} className='btn btn-sm btn-outline-secondary'>
-                    Details
-                  </Link>
+              </div>
+              <div className='lm-order-panel__foot'>
+                <span className='lm-amount'>Total: ${priceNum(o.actualPrice).toFixed(2)}</span>
+                <div className='lm-order-panel__actions'>
                   {o.handleOption?.pay && (
-                    <button type='button' className='btn btn-sm btn-primary' disabled={pending} onClick={() => navigate(`/pay/${o.id}`)}>
+                    <button type='button' className='btn btn-sm btn-lm-primary' disabled={pending} onClick={() => navigate(`/pay/${o.id}`)}>
                       Pay now
                     </button>
                   )}
                   {o.handleOption?.cancel && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-outline-danger' disabled={pending} onClick={() => act(() => orderApi.cancel(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.cancel(o.id as number))}>
                       Cancel
                     </button>
                   )}
                   {o.handleOption?.confirm && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-success' disabled={pending} onClick={() => act(() => orderApi.confirm(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.confirm(o.id as number))}>
                       Confirm receipt
                     </button>
                   )}
                   {o.handleOption?.refund && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-outline-warning' disabled={pending} onClick={() => act(() => orderApi.refund(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.refund(o.id as number))}>
                       Refund
+                    </button>
+                  )}
+                  {o.handleOption?.delete && o.id != null && (
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.remove(o.id as number))}>
+                      Delete
+                    </button>
+                  )}
+                  {o.handleOption?.rebuy && (
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => navigate(`/order/${o.id}`)}>
+                      Buy again
                     </button>
                   )}
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          ))
+        )}
+      </div>
+    </Page>
   );
 };
 

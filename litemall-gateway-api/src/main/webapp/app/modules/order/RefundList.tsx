@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { EmptyState, GoodsLineCard, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { isMissingEndpoint, orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import './order.scss';
@@ -36,32 +37,40 @@ const RefundList: React.FC = () => {
   }, []);
 
   return (
-    <div className='container my-4 lm-orders' style={{ maxWidth: 760 }}>
-      <h1 className='h4 mb-3'>After-sales & refunds</h1>
-      {loading ? (
-        <div className='text-center my-5'>
-          <Spinner animation='border' />
-        </div>
-      ) : orders.length === 0 ? (
-        <p className='text-muted text-center my-5'>No refund or after-sales requests.</p>
-      ) : (
-        <div className='d-grid gap-3'>
-          {orders.map(o => (
-            <Link key={o.id} to={`/order/${o.id}`} className='lm-order-card text-decoration-none text-reset'>
-              <div className='lm-order-card__head'>
-                <span className='text-muted small'>#{o.orderSn ?? o.id}</span>
-                <span className='lm-order-card__status'>{o.orderStatusText}</span>
+    <Page>
+      <PageHead title='Refunds' />
+      <div className='container lm-orders'>
+        {loading ? (
+          <div className='text-center my-5'>
+            <Spinner animation='border' />
+          </div>
+        ) : orders.length === 0 ? (
+          <EmptyState icon='bi-arrow-counterclockwise' text='No refund or after-sales requests.' />
+        ) : (
+          orders.map(o => (
+            <Link key={o.id} to={`/order/${o.id}`} className='lm-order-panel d-block text-decoration-none text-reset'>
+              <div className='lm-order-panel__head'>
+                <span className='lm-order-panel__sn'>#{o.orderSn ?? o.id}</span>
+                <span className='lm-order-panel__status'>{o.orderStatusText}</span>
               </div>
-              <div className='lm-order-card__foot'>
-                <span>
-                  Total: <strong>${priceNum(o.actualPrice).toFixed(2)}</strong>
-                </span>
+              {(o.goodsList ?? []).map(g => (
+                <GoodsLineCard
+                  key={g.id}
+                  picUrl={g.picUrl}
+                  name={g.goodsName}
+                  specs={g.specifications}
+                  price={priceNum(g.price)}
+                  qty={g.number}
+                />
+              ))}
+              <div className='lm-order-panel__foot'>
+                <span className='lm-amount'>Total: ${priceNum(o.actualPrice).toFixed(2)}</span>
               </div>
             </Link>
-          ))}
-        </div>
-      )}
-    </div>
+          ))
+        )}
+      </div>
+    </Page>
   );
 };
 
