@@ -24,6 +24,9 @@ public interface LitemallOrderRepository {
 
     List<LitemallOrderAggregate> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order);
 
+    /** Total orders for a user filtered by the same (optional) status set — the {@code total} for the paged list. */
+    int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus);
+
     /** Admin: page across ALL users' orders (not user-scoped). sortColumn must be a vetted DB column. */
     List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order);
 
