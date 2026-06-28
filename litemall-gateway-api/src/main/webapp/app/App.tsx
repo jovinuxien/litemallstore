@@ -18,17 +18,32 @@ const Cart = lazy(() => import('app/views/commonViews/cart/Cart'));
 const Checkout = lazy(() => import('app/views/commonViews/cart/Checkout'));
 const OrderConfirmation = lazy(() => import('app/views/commonViews/cart/OrderConfirmation'));
 const CustomerLogin = lazy(() => import('app/modules/login/CustomerLogin'));
+const Register = lazy(() => import('app/modules/login/Register'));
+const OrderList = lazy(() => import('app/modules/order/OrderList'));
+const OrderDetail = lazy(() => import('app/modules/order/OrderDetail'));
+const RefundList = lazy(() => import('app/modules/order/RefundList'));
+const Payment = lazy(() => import('app/views/commonViews/cart/Payment'));
+const PaymentStatus = lazy(() => import('app/views/commonViews/cart/PaymentStatus'));
+const UserCenter = lazy(() => import('app/modules/user/UserCenter'));
+const Profile = lazy(() => import('app/modules/user/Profile'));
+const AddressList = lazy(() => import('app/modules/user/AddressList'));
+const AddressEdit = lazy(() => import('app/modules/user/AddressEdit'));
+const Favorites = lazy(() => import('app/modules/user/Favorites'));
+const Footprint = lazy(() => import('app/modules/user/Footprint'));
+const Coupons = lazy(() => import('app/modules/user/Coupons'));
+const Feedback = lazy(() => import('app/modules/user/Feedback'));
+const GoodsListPage = lazy(() => import('app/modules/listing/GoodsListPage'));
+const BrandList = lazy(() => import('app/modules/brand/BrandList'));
+const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
+const TopicList = lazy(() => import('app/modules/topic/TopicList'));
+const TopicDetail = lazy(() => import('app/modules/topic/TopicDetail'));
+const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
+const Help = lazy(() => import('app/modules/static/Help'));
+const CustomerService = lazy(() => import('app/modules/static/CustomerService'));
 
 const Loading: React.FC = () => (
   <div className='text-center my-5'>
     <Spinner animation='border' />
-  </div>
-);
-
-const Orders: React.FC = () => (
-  <div className='container my-5'>
-    <h2>My orders</h2>
-    <p className='text-muted'>Your order history will appear here. (Order-history listing is a follow-up for the order worktree's /srv/order/list endpoint.)</p>
   </div>
 );
 
@@ -45,8 +60,18 @@ const App: React.FC = () => (
           <Route path='category/:id' element={<Search />} />
           <Route path='products' element={<Navigate to='/search' replace />} />
           <Route path='product/:id' element={<ProductDetail />} />
+          <Route path='hot' element={<GoodsListPage mode='hot' />} />
+          <Route path='new' element={<GoodsListPage mode='new' />} />
+          <Route path='brands' element={<BrandList />} />
+          <Route path='brand/:id' element={<BrandDetail />} />
+          <Route path='topics' element={<TopicList />} />
+          <Route path='topic/:id' element={<TopicDetail />} />
+          <Route path='groupon' element={<Groupon />} />
+          <Route path='help' element={<Help />} />
+          <Route path='service' element={<CustomerService />} />
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
+          <Route path='register' element={<Register />} />
           <Route
             path='checkout'
             element={
@@ -67,7 +92,104 @@ const App: React.FC = () => (
             path='orders'
             element={
               <CustomerProtectedRoute>
-                <Orders />
+                <OrderList />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='order/:id'
+            element={
+              <CustomerProtectedRoute>
+                <OrderDetail />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='refunds'
+            element={
+              <CustomerProtectedRoute>
+                <RefundList />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='pay/:orderId'
+            element={
+              <CustomerProtectedRoute>
+                <Payment />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='pay/:orderId/status'
+            element={
+              <CustomerProtectedRoute>
+                <PaymentStatus />
+              </CustomerProtectedRoute>
+            }
+          />
+          {/* Customer account (user center) — all behind the customer JWT. */}
+          <Route
+            path='user'
+            element={
+              <CustomerProtectedRoute>
+                <UserCenter />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/profile'
+            element={
+              <CustomerProtectedRoute>
+                <Profile />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/address'
+            element={
+              <CustomerProtectedRoute>
+                <AddressList />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/address/:id'
+            element={
+              <CustomerProtectedRoute>
+                <AddressEdit />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/favorites'
+            element={
+              <CustomerProtectedRoute>
+                <Favorites />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/footprint'
+            element={
+              <CustomerProtectedRoute>
+                <Footprint />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/coupons'
+            element={
+              <CustomerProtectedRoute>
+                <Coupons />
+              </CustomerProtectedRoute>
+            }
+          />
+          <Route
+            path='user/feedback'
+            element={
+              <CustomerProtectedRoute>
+                <Feedback />
               </CustomerProtectedRoute>
             }
           />

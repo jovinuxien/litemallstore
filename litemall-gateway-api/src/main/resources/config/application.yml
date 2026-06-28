@@ -3,6 +3,11 @@ spring:
     name: gateway-api
   main:
     web-application-type: reactive
+  # The 'db' profile (litemall-db/application-db.yml) brings the Druid datasource
+  # + Flyway. Migrations are owned by the DDD services / db module, so the
+  # customer edge must NOT run them.
+  flyway:
+    enabled: false
   cloud:
     gateway:
       # Explicit routes only (no discovery locator) for a predictable customer edge.
@@ -43,12 +48,14 @@ spring:
           predicates:
             - Path=/wx/**
 
-        # Protected customer surface (reachable after sign-in). Order + cart
-        # share the order service; wallet is its own service.
+        # Protected customer surface (reachable after sign-in). Order, cart and
+        # the address book all live on the order service (LitemallAddressController
+        # is mounted at /srv/address there); they MUST be claimed here so they do
+        # not fall through to the goods catch-all (/srv/**) below.
         - id: customer-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/order/**,/srv/cart/**
+            - Path=/srv/order/**,/srv/cart/**,/srv/address/**
         - id: customer-wallet
           uri: lb://wallet-service-app
           predicates:
@@ -72,11 +79,6 @@ spring:
 
       # Intentionally NO default TokenRelay filter: this is the customer edge,
       # not the Keycloak BFF (that is litemall-gateway-admin).
-  # The 'db' profile (litemall-db/application-db.yml) brings the Druid
-  # datasource + Flyway. Migrations are owned by the DDD services / db module,
-  # so the customer edge must NOT run them.
-  flyway:
-    enabled: false
 
 # Customer JWT realm. Distinct issuer/audience from litemall-gateway-admin so
 # a customer token can never be accepted as an admin token (and vice versa).
