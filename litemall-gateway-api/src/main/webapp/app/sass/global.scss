@@ -1,0 +1,54 @@
+// Global typography — Amazon.com-style sans-serif system.
+//
+// Amazon ships the proprietary "Amazon Ember" face and silently falls back to
+// Arial / Helvetica Neue where it isn't installed. We mirror that exact stack
+// so the storefront reads like Amazon.com on every platform: Amazon Ember when
+// present, otherwise the clean Helvetica/Arial grotesque Amazon itself degrades
+// to. Sizes stay as each view defines them — this only changes the typeface,
+// weight, and smoothing, never the layout metrics.
+:root {
+  --lm-font: 'Amazon Ember', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, sans-serif;
+  // Point Bootstrap's own font variable at the same stack so every Bootstrap
+  // surface (body, buttons, inputs, cards, dropdowns) inherits it for free.
+  --bs-body-font-family: var(--lm-font);
+}
+
+html,
+body {
+  font-family: var(--lm-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--lm-text, #1f2a2e);
+}
+
+// Belt-and-braces: a few Bootstrap components hard-set their own family rather
+// than reading the variable — repaint them explicitly so nothing escapes.
+body,
+button,
+input,
+select,
+textarea,
+optgroup,
+.btn,
+.form-control,
+.form-select,
+.navbar,
+.nav-link,
+.dropdown-menu,
+.card,
+.badge {
+  font-family: var(--lm-font);
+}
+
+// Amazon's headings are tightly-tracked and bold; match that cadence.
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--lm-font);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}

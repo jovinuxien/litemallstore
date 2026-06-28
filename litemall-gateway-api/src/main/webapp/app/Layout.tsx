@@ -198,47 +198,167 @@ const Layout: React.FC = () => {
       <main>
         <Outlet />
       </main>
-      <footer className='bg-dark text-light mt-5 py-4'>
-        <Container>
-          <div className='d-flex flex-wrap gap-4 justify-content-between'>
-            <div>
-              <div className='fw-bold mb-2'>litemall</div>
-              <small className='text-muted'>A demo storefront on the litemall customer gateway.</small>
+      <footer className='mt-5'>
+        {/* Back-to-top bar — Amazon's signature footer affordance. */}
+        <button
+          type='button'
+          className='w-100 border-0 text-white text-center py-3'
+          style={{ background: '#0a5d65', fontSize: '0.85rem', letterSpacing: '0.02em' }}
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <i className='bi bi-chevron-up me-2' />
+          Back to top
+        </button>
+
+        {/* Customer-promise strip. */}
+        <div className='bg-dark text-light border-bottom border-secondary'>
+          <Container>
+            <div className='row text-center py-4 g-3'>
+              <div className='col-6 col-md-3'>
+                <i className='bi bi-truck fs-3 d-block mb-1' />
+                <div className='fw-semibold small'>Fast, tracked delivery</div>
+                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
+                  On every order, nationwide
+                </div>
+              </div>
+              <div className='col-6 col-md-3'>
+                <i className='bi bi-shield-lock fs-3 d-block mb-1' />
+                <div className='fw-semibold small'>Secure payments</div>
+                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
+                  Card, Stripe &amp; wallet — encrypted
+                </div>
+              </div>
+              <div className='col-6 col-md-3'>
+                <i className='bi bi-arrow-repeat fs-3 d-block mb-1' />
+                <div className='fw-semibold small'>Easy returns</div>
+                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
+                  Hassle-free refunds &amp; exchanges
+                </div>
+              </div>
+              <div className='col-6 col-md-3'>
+                <i className='bi bi-headset fs-3 d-block mb-1' />
+                <div className='fw-semibold small'>Here to help</div>
+                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
+                  Customer care, every day
+                </div>
+              </div>
             </div>
-            <div className='d-flex gap-4'>
-              <div className='d-flex flex-column gap-1'>
-                <span className='text-uppercase small text-muted'>Shop</span>
-                <Link to='/search' className='link-light text-decoration-none small'>
-                  All products
+          </Container>
+        </div>
+
+        {/* Link columns + company blurb. */}
+        <div className='bg-dark text-light py-5'>
+          <Container>
+            <div className='row g-4'>
+              <div className='col-12 col-md-3'>
+                <div className='fw-bold fs-5 mb-2'>litemall</div>
+                <p className='text-muted small mb-3'>
+                  Your everyday marketplace — thousands of products across home, lifestyle, and
+                  more, brought together with curated deals, trusted brands, and a checkout that
+                  just works. Shop with confidence; we stand behind every order.
+                </p>
+                <div className='d-flex gap-3 fs-5'>
+                  <i className='bi bi-facebook' aria-hidden='true' />
+                  <i className='bi bi-instagram' aria-hidden='true' />
+                  <i className='bi bi-twitter-x' aria-hidden='true' />
+                  <i className='bi bi-youtube' aria-hidden='true' />
+                </div>
+              </div>
+
+              <div className='col-6 col-md-3'>
+                <span className='text-uppercase small text-muted d-block mb-2'>Shop</span>
+                <div className='d-flex flex-column gap-2'>
+                  <Link to='/search' className='link-light text-decoration-none small'>
+                    All products
+                  </Link>
+                  <Link to='/hot' className='link-light text-decoration-none small'>
+                    Hot deals
+                  </Link>
+                  <Link to='/new' className='link-light text-decoration-none small'>
+                    New arrivals
+                  </Link>
+                  <Link to='/brands' className='link-light text-decoration-none small'>
+                    Shop by brand
+                  </Link>
+                  <Link to='/topics' className='link-light text-decoration-none small'>
+                    Topics &amp; guides
+                  </Link>
+                  <Link to='/groupon' className='link-light text-decoration-none small'>
+                    Group buys
+                  </Link>
+                </div>
+              </div>
+
+              <div className='col-6 col-md-3'>
+                <span className='text-uppercase small text-muted d-block mb-2'>Your account</span>
+                <div className='d-flex flex-column gap-2'>
+                  <Link to='/user' className='link-light text-decoration-none small'>
+                    Account overview
+                  </Link>
+                  <Link to='/orders' className='link-light text-decoration-none small'>
+                    Your orders
+                  </Link>
+                  <Link to='/user/favorites' className='link-light text-decoration-none small'>
+                    Wish list
+                  </Link>
+                  <Link to='/user/address' className='link-light text-decoration-none small'>
+                    Addresses
+                  </Link>
+                  <Link to='/user/coupons' className='link-light text-decoration-none small'>
+                    Coupons &amp; rewards
+                  </Link>
+                </div>
+              </div>
+
+              <div className='col-6 col-md-3'>
+                <span className='text-uppercase small text-muted d-block mb-2'>Let us help you</span>
+                <div className='d-flex flex-column gap-2'>
+                  <Link to='/help' className='link-light text-decoration-none small'>
+                    Help center
+                  </Link>
+                  <Link to='/service' className='link-light text-decoration-none small'>
+                    Customer service
+                  </Link>
+                  <Link to='/orders' className='link-light text-decoration-none small'>
+                    Track an order
+                  </Link>
+                  <Link to='/refunds' className='link-light text-decoration-none small'>
+                    Returns &amp; refunds
+                  </Link>
+                  <Link to='/user/feedback' className='link-light text-decoration-none small'>
+                    Send feedback
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </Container>
+        </div>
+
+        {/* Legal / copyright bar. */}
+        <div className='bg-black text-muted py-3'>
+          <Container>
+            <div className='d-flex flex-wrap justify-content-between align-items-center gap-2'>
+              <small>
+                © {new Date().getFullYear()} litemall. All rights reserved. Prices and availability
+                are subject to change.
+              </small>
+              <div className='d-flex flex-wrap gap-3'>
+                <Link to='/help' className='link-secondary text-decoration-none small'>
+                  Conditions of Use
                 </Link>
-                <Link to='/hot' className='link-light text-decoration-none small'>
-                  Hot deals
+                <Link to='/help' className='link-secondary text-decoration-none small'>
+                  Privacy Notice
                 </Link>
-                <Link to='/new' className='link-light text-decoration-none small'>
-                  New arrivals
+                <Link to='/service' className='link-secondary text-decoration-none small'>
+                  Cookie Preferences
                 </Link>
-                <Link to='/brands' className='link-light text-decoration-none small'>
-                  Brands
-                </Link>
-                <Link to='/topics' className='link-light text-decoration-none small'>
-                  Topics
+                <Link to='/service' className='link-secondary text-decoration-none small'>
+                  Contact Us
                 </Link>
               </div>
-              <div className='d-flex flex-column gap-1'>
-                <span className='text-uppercase small text-muted'>Support</span>
-                <Link to='/help' className='link-light text-decoration-none small'>
-                  Help center
-                </Link>
-                <Link to='/service' className='link-light text-decoration-none small'>
-                  Customer service
-                </Link>
-                <Link to='/user/feedback' className='link-light text-decoration-none small'>
-                  Send feedback
-                </Link>
-              </div>
             </div>
-          </div>
-        </Container>
+          </Container>
+        </div>
       </footer>
     </>
   );
