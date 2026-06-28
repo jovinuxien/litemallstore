@@ -2,10 +2,12 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 
 import jakarta.validation.constraints.NotEmpty;
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.search.CategorySearchService;
 import org.linlinjava.litemall.goods.application.search.SearchKeywordService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.utils.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,11 +31,14 @@ public class LitemallSearchController {
 
     private final SearchService searchService;
     private final SearchKeywordService searchKeywordService;
+    private final CategorySearchService categorySearchService;
 
     public LitemallSearchController(SearchService searchService,
-                                    SearchKeywordService searchKeywordService) {
+                                    SearchKeywordService searchKeywordService,
+                                    CategorySearchService categorySearchService) {
         this.searchService = searchService;
         this.searchKeywordService = searchKeywordService;
+        this.categorySearchService = categorySearchService;
     }
 
     @GetMapping
@@ -46,6 +51,34 @@ public class LitemallSearchController {
         filters.keySet().removeAll(RESERVED_PARAMS);
         // SearchService whitelists these to the index's Facet fields before they reach OCS.
         return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+    }
+
+    /**
+     * Category-scoped faceted search: the landing page reached by clicking a category. Returns the
+     * category's goods plus a left-rail that conforms to that category — breadcrumb, a subcategory
+     * tree with per-node counts, and the brand/price/variant/attribute facets OCS scopes to it.
+     * Accepts the same drill-down filter params as {@link #search} ({@code brand}, {@code price},
+     * {@code source}, attribute names); {@code category_ids} is taken from the path, not the query.
+     */
+    @GetMapping("/category/{id}")
+    public Object searchByCategory(@PathVariable Integer id,
+                                   @RequestParam(value = "q", required = false) String query,
+                                   @RequestParam(value = "page", defaultValue = "1") Integer page,
+                                   @RequestParam(value = "size", defaultValue = "20") Integer size,
+                                   @RequestParam(value = "sort", required = false) String sort,
+                                   @RequestParam Map<String, String> allParams) {
+        if (id == null || id <= 0) {
+            return ResponseUtil.fail(404, "Category not found");
+        }
+        Map<String, String> filters = new HashMap<>(allParams);
+        filters.keySet().removeAll(RESERVED_PARAMS);
+        // The category scope is authoritative from the path; never let a query param override it.
+        filters.remove("category_ids");
+        Map<String, Object> result = categorySearchService.searchByCategory(id, query, page, size, sort, filters);
+        if (result == null) {
+            return ResponseUtil.fail(404, "Category not found");
+        }
+        return ResponseUtil.ok(result);
     }
 
     @GetMapping("/suggest")
