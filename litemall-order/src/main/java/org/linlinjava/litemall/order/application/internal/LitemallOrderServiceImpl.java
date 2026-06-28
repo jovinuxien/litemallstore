@@ -29,6 +29,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoo
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.AggregatesValidationContext;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
@@ -76,6 +77,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private LitemallGoodsFacade goodsFacade;
     @Autowired
     private UserServiceFeignClient userServiceFeignClient;
+    // Append-only status-history store. Written in the SAME transaction as each status
+    // change so the customer/admin timeline never loses a hop.
+    @Autowired
+    private LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
@@ -258,6 +263,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Get the id from the order
         LitemallOrderAggregate existingOrderAggregate = orderRepository.findById(orderAggregate.getOrderId()).orElseThrow(() -> new NoSuchElementException("Order not found"));
 
+        // First hop of the lifecycle timeline: the order was placed (→ CREATED). Recorded
+        // in THIS transaction so a row exists from the very first state. fromStatus is null.
+        statusHistoryRepository.record(new LitemallOrderStatusChange(
+                existingOrderAggregate.getOrderId(), null, LitemallOrderStatus.CREATED,
+                "create", "Order placed", "user", LocalDateTime.now()));
+
         // Add the order goods items information
         for(LitemallCartAggregate cartGoods: cartList){
 
@@ -376,15 +387,43 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     }
 
     /**
-     * Customer-initiated cancellation. Transitions the order to CANCELED,
-     * persists the new status, releases reserved stock (best-effort) and publishes
-     * the resulting domain events.
+     * Drain the aggregate's recorded status transitions into the history table
+     * (within the caller's transaction) and clear them so they are not double-written.
+     */
+    private void persistStatusHistory(LitemallOrderAggregate agg) {
+        for (LitemallOrderStatusChange change : agg.getStatusChanges()) {
+            statusHistoryRepository.record(change);
+        }
+        agg.getStatusChanges().clear();
+    }
+
+    /**
+     * Publish the aggregate's pending domain events, then clear them. Done after the
+     * status write + history persist so subscribers only see committed transitions.
+     */
+    private void publishAndClearEvents(LitemallOrderAggregate agg) {
+        agg.getDomainEvents().forEach(domainEventPublisher::publish);
+        agg.getDomainEvents().clear();
+    }
+
+    /**
+     * Customer-initiated cancellation (CREATED → CANCELED). Applies the guarded
+     * status update, records the transition to the history timeline, releases
+     * reserved stock (best-effort) and publishes the resulting domain events — all
+     * in one transaction.
      */
     public void cancelOrder(LitemallOrderId orderId, String reason) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
-        orderAggregate.cancel(reason);
-        finishCancellation(orderAggregate, orderId);
+        orderAggregate.cancel(reason); // validates CREATED→CANCELED, records change + event
+        int updated = orderRepository.markCanceledIfCreated(orderId);
+        if (updated == 0) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " can no longer be cancelled (already paid/cancelled)");
+        }
+        restoreStockForOrder(orderId);
+        persistStatusHistory(orderAggregate);
+        publishAndClearEvents(orderAggregate);
     }
 
     /**
@@ -402,32 +441,24 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     public void autoCancelOrder(LitemallOrderId orderId, String reason) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
-        orderAggregate.autoCancel();
-        finishCancellation(orderAggregate, orderId);
-    }
-
-    /**
-     * Persist the cancelled status, restore reserved stock, and drain/publish the
-     * aggregate's domain events. The aggregate has already applied + validated the
-     * status transition.
-     */
-    private void finishCancellation(LitemallOrderAggregate orderAggregate, LitemallOrderId orderId) {
-        LitemallOrderAggregate patch = new LitemallOrderAggregate();
-        patch.setOrderId(orderId);
-        patch.setOrderStatus(orderAggregate.getOrderStatus());
-        orderRepository.updateSelective(patch);
-
-        // Release the stock reserved at placement (best-effort — see
-        // LitemallGoodsFacade.restoreStock).
+        orderAggregate.autoCancel(); // validates CREATED→SYSTEM_CANCELED, records change + event
+        int updated = orderRepository.markSystemCanceledIfCreated(orderId);
+        if (updated == 0) {
+            // The order left CREATED between the sweep's selection and now (e.g. the
+            // customer paid). That is not an error for the sweep — just skip it.
+            log.info("Skipping auto-cancel of order {}: no longer in CREATED state", orderId.getId());
+            return;
+        }
         restoreStockForOrder(orderId);
-
-        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+        persistStatusHistory(orderAggregate);
+        publishAndClearEvents(orderAggregate);
     }
 
     /**
      * Mark an order as paid: validate + apply the CREATED→PAID transition on the
-     * aggregate, persist the status, and publish the resulting domain events.
-     * Runs inside the caller's transaction so it is atomic with the payment debit.
+     * aggregate, persist the status (+ pay_time) and history, and publish the
+     * resulting domain events. Runs inside the caller's transaction so it is atomic
+     * with the payment debit.
      */
     public void markOrderPaid(LitemallOrderId orderId) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
@@ -444,7 +475,98 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");
         }
 
-        orderAggregate.getDomainEvents().forEach(domainEventPublisher::publish);
+        persistStatusHistory(orderAggregate);
+        publishAndClearEvents(orderAggregate);
+    }
+
+    /**
+     * Admin/fulfillment ships a paid order (PAID → SHIPPED). Guarded so only a paid
+     * order can ship; records the transition and publishes the shipped event.
+     */
+    public void shipOrder(LitemallOrderId orderId, String shipChannel, String shipSn) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.ship(shipChannel, shipSn);
+        int updated = orderRepository.markShippedIfPaid(orderId, shipChannel, shipSn, agg.getShipTime());
+        if (updated == 0) {
+            throw new IllegalStateException("Order " + orderId.getId() + " cannot ship: not in PAID state");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+    }
+
+    /** Customer confirms receipt (SHIPPED → DELIVERED). */
+    public void confirmDelivery(LitemallOrderId orderId) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.confirmDelivery();
+        int updated = orderRepository.markDeliveredIfShipped(orderId, agg.getConfirmTime());
+        if (updated == 0) {
+            throw new IllegalStateException("Order " + orderId.getId() + " cannot be confirmed: not in SHIPPED state");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+    }
+
+    /**
+     * System auto-confirms a shipped order after the grace window
+     * (SHIPPED → AUTO_DELIVERED). Own transaction, like {@link #autoCancelOrder}.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void autoConfirmOrder(LitemallOrderId orderId) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.autoConfirm();
+        int updated = orderRepository.markAutoDeliveredIfShipped(orderId, agg.getConfirmTime());
+        if (updated == 0) {
+            log.info("Skipping auto-confirm of order {}: no longer in SHIPPED state", orderId.getId());
+            return;
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+    }
+
+    /** Customer opens a refund/return (PAID|SHIPPED → REFUND_REQUEST). */
+    public void requestRefund(LitemallOrderId orderId, String reason) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.requestRefund(reason);
+        int updated = orderRepository.markRefundRequestedIfPayable(orderId, reason);
+        if (updated == 0) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " cannot request refund: not in PAID/SHIPPED state");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+    }
+
+    /**
+     * Admin approves a refund; the money has already been returned by the caller
+     * (REFUND_REQUEST → REFUNDED). The orchestrator credits the wallet before calling
+     * this, so the credit and the status flip are atomic.
+     */
+    public void refundOrder(LitemallOrderId orderId, LitemallMoney amount) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.refund(amount);
+        int updated = orderRepository.markRefundedIfRequested(
+                orderId, amount == null ? null : amount.getAmount(), agg.getRefundTime());
+        if (updated == 0) {
+            throw new IllegalStateException(
+                    "Order " + orderId.getId() + " cannot be refunded: not in REFUND_REQUEST state");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+    }
+
+    /** Soft-delete a terminal order (sets the logical-delete flag). */
+    public void deleteOrder(LitemallOrderId orderId) {
+        orderRepository.deleteByOrderId(orderId);
+    }
+
+    /** Full status-history timeline for an order, oldest first. */
+    public List<LitemallOrderStatusChange> getStatusHistory(LitemallOrderId orderId) {
+        return statusHistoryRepository.findByOrderId(orderId);
     }
 
     /**

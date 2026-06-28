@@ -63,13 +63,11 @@ public class LitemallOrderStatusQuery {
         };
     }
 
+    /**
+     * Single source of truth: the legal transition graph lives on {@link LitemallOrderStatus#canTransitionTo}.
+     * This helper delegates so callers cannot drift from the aggregate's own guards.
+     */
     public static boolean isValidTransition(LitemallOrderStatus from, LitemallOrderStatus to) {
-        Map<LitemallOrderStatus, Set<LitemallOrderStatus>> validTransitions = Map.of(
-                LitemallOrderStatus.CREATED, Set.of(LitemallOrderStatus.PAID, LitemallOrderStatus.CANCELED),
-                LitemallOrderStatus.PAID, Set.of(LitemallOrderStatus.SHIPPED, LitemallOrderStatus.REFUNDED),
-                LitemallOrderStatus.SHIPPED, Set.of(LitemallOrderStatus.DELIVERED, LitemallOrderStatus.REFUNDED)
-                //LitemallOrderStatus.DELIVERED, Set.of(LitemallOrderStatus.COMPLETED, LitemallOrderStatus.REFUNDED)
-        );
-        return validTransitions.getOrDefault(from, Collections.emptySet()).contains(to);
+        return from != null && to != null && from.canTransitionTo(to);
     }
 }

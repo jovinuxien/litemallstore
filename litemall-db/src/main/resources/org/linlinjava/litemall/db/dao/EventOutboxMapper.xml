@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_event_outbox (transactional outbox). NOT MBG output.
+  Relies on the global mapUnderscoreToCamelCase=true on the SqlSessionFactory.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.EventOutboxMapper">
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallEventOutbox"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_event_outbox
+      (aggregate_type, aggregate_id, event_type, binding, payload, status, attempts, created_at, sent_at)
+    values
+      (#{aggregateType}, #{aggregateId}, #{eventType}, #{binding}, #{payload}, #{status},
+       #{attempts}, #{createdAt}, #{sentAt})
+  </insert>
+
+  <select id="selectPending" resultType="org.linlinjava.litemall.db.domain.LitemallEventOutbox">
+    select id, aggregate_type, aggregate_id, event_type, binding, payload, status,
+           attempts, created_at, sent_at
+    from litemall_event_outbox
+    where status = 'PENDING'
+    order by id asc
+    limit #{limit}
+  </select>
+
+  <update id="markSent">
+    update litemall_event_outbox
+    set status = 'SENT', sent_at = now(), attempts = attempts + 1
+    where id = #{id}
+  </update>
+
+  <update id="markFailed">
+    update litemall_event_outbox
+    set attempts = attempts + 1,
+        status = case when attempts + 1 &gt;= #{maxAttempts} then 'FAILED' else 'PENDING' end
+    where id = #{id}
+  </update>
+
+</mapper>
