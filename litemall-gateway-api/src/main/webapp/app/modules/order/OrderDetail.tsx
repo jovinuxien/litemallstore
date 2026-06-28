@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { isMissingEndpoint, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
 import './order.scss';
@@ -18,102 +19,162 @@ const OrderDetailView: React.FC = () => {
   const [order, setOrder] = useState<IOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  const fetchDetail = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const d = await orderApi.detail(id);
+      setOrder(d ?? null);
+    } catch (e) {
+      if (isMissingEndpoint(e)) setMissing(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    setLoading(true);
-    orderApi
-      .detail(id)
-      .then(d => {
-        if (!cancelled) setOrder(d ?? null);
-      })
-      .catch(e => {
-        if (cancelled) return;
-        if (isMissingEndpoint(e)) setMissing(true);
-      })
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+    fetchDetail();
+  }, [fetchDetail]);
+
+  // Run an order action (cancel/confirm/refund/delete) then refresh the detail.
+  const act = async (fn: () => Promise<unknown>) => {
+    setPending(true);
+    try {
+      await fn();
+      await fetchDetail();
+    } catch {
+      /* surfaced via reload; keep UI responsive */
+    } finally {
+      setPending(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div className='text-center my-5'>
-        <Spinner animation='border' />
-      </div>
+      <Page>
+        <PageHead title='Order detail' />
+        <div className='text-center my-5'>
+          <Spinner animation='border' />
+        </div>
+      </Page>
     );
   }
 
   if (missing || !order) {
     return (
-      <div className='container my-5 text-center text-muted'>
-        <p>Order details aren’t available right now.</p>
-        <Link to='/orders' className='btn btn-outline-primary btn-sm'>
-          Back to my orders
-        </Link>
-      </div>
+      <Page>
+        <PageHead title='Order detail' />
+        <div className='container'>
+          <CellGroup>
+            <EmptyState icon='bi-receipt' text='Order details aren’t available right now.'>
+              <Link to='/orders' className='btn btn-lm-outline'>
+                Back to my orders
+              </Link>
+            </EmptyState>
+          </CellGroup>
+        </div>
+      </Page>
     );
   }
 
+  const opt = order.handleOption;
+  const orderId = order.id;
+
   return (
-    <div className='container my-4 lm-orders' style={{ maxWidth: 760 }}>
-      <button type='button' className='btn btn-link px-0 mb-2' onClick={() => navigate('/orders')}>
-        <i className='bi bi-chevron-left' /> Back to my orders
-      </button>
-
-      <div className='lm-order-card'>
-        <div className='lm-order-card__head'>
-          <span className='text-muted small'>#{order.orderSn ?? order.id}</span>
-          <span className='lm-order-card__status'>{order.orderStatusText}</span>
-        </div>
-
-        <div className='lm-order-detail__ship'>
-          <i className='bi bi-geo-alt' /> <strong>{order.consignee}</strong> <span className='text-muted'>{order.mobile}</span>
-          <div className='text-muted'>{order.address}</div>
-        </div>
-
-        <div className='lm-order-card__goods'>
+    <Page>
+      <PageHead title='Order detail' sub={order.orderStatusText} />
+      <div className='container'>
+        {/* Goods */}
+        <CellGroup title='Items'>
           {(order.orderGoods ?? []).map(g => (
-            <div key={g.id} className='lm-order-card__line'>
-              <img src={g.picUrl} alt={g.goodsName} />
-              <div className='lm-order-card__lineinfo'>
-                <div className='lm-order-card__name'>{g.goodsName}</div>
-                {g.specifications && g.specifications.length > 0 && <div className='text-muted small'>{g.specifications.join(' / ')}</div>}
-              </div>
-              <div className='lm-order-card__lineqty'>
-                <div>${priceNum(g.price).toFixed(2)}</div>
-                <div className='text-muted small'>×{g.number}</div>
-              </div>
-            </div>
+            <GoodsLineCard
+              key={g.id}
+              picUrl={g.picUrl}
+              name={g.goodsName}
+              to={g.goodsId ? `/product/${g.goodsId}` : undefined}
+              specs={g.specifications}
+              price={priceNum(g.price)}
+              qty={g.number}
+            />
           ))}
-        </div>
+        </CellGroup>
 
-        <ul className='lm-order-detail__totals'>
-          <li>
-            <span>Goods</span>
-            <span>${priceNum(order.goodsPrice).toFixed(2)}</span>
-          </li>
-          <li>
-            <span>Freight</span>
-            <span>${priceNum(order.freightPrice).toFixed(2)}</span>
-          </li>
-          {priceNum(order.couponPrice) > 0 && (
-            <li className='text-success'>
-              <span>Coupon</span>
-              <span>−${priceNum(order.couponPrice).toFixed(2)}</span>
-            </li>
-          )}
-          <li className='lm-order-detail__grand'>
-            <span>Actual paid</span>
-            <strong>${priceNum(order.actualPrice).toFixed(2)}</strong>
-          </li>
-        </ul>
+        {/* Money */}
+        <CellGroup>
+          <OrderSummary
+            rows={[
+              { label: 'Goods total', value: `$${priceNum(order.goodsPrice).toFixed(2)}` },
+              {
+                label: 'Shipping',
+                value: priceNum(order.freightPrice) > 0 ? `$${priceNum(order.freightPrice).toFixed(2)}` : 'Free',
+                variant: 'muted',
+              },
+              ...(priceNum(order.couponPrice) > 0
+                ? [{ label: 'Coupon', value: `−$${priceNum(order.couponPrice).toFixed(2)}`, variant: 'success' as const }]
+                : []),
+              { label: 'Total paid', value: `$${priceNum(order.actualPrice).toFixed(2)}`, variant: 'total' },
+            ]}
+          />
+        </CellGroup>
 
-        {order.addTime && <div className='text-muted small mt-2'>Placed {order.addTime}</div>}
+        {/* Delivery address */}
+        <CellGroup title='Delivery address'>
+          <Cell title={`${order.consignee ?? ''}${order.mobile ? ` · ${order.mobile}` : ''}`}>
+            <span className='text-muted'>{order.address}</span>
+          </Cell>
+        </CellGroup>
+
+        {/* Order meta */}
+        <CellGroup>
+          {order.addTime && <Cell title='Order time' value={order.addTime} />}
+          <Cell title='Order no.' value={order.orderSn ?? order.id} />
+          {order.orderStatusText && <Cell title='Status' value={order.orderStatusText} />}
+        </CellGroup>
+
+        {/* Actions */}
+        {opt && (opt.pay || opt.cancel || opt.confirm || opt.refund || opt.delete) && (
+          <CellGroup>
+            <div className='p-3 d-flex flex-wrap gap-2 justify-content-end'>
+              {opt.pay && orderId != null && (
+                <button type='button' className='btn btn-lm-primary btn-sm' disabled={pending} onClick={() => navigate(`/pay/${orderId}`)}>
+                  Pay now
+                </button>
+              )}
+              {opt.cancel && orderId != null && (
+                <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.cancel(orderId))}>
+                  Cancel
+                </button>
+              )}
+              {opt.confirm && orderId != null && (
+                <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.confirm(orderId))}>
+                  Confirm receipt
+                </button>
+              )}
+              {opt.refund && orderId != null && (
+                <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.refund(orderId))}>
+                  Refund
+                </button>
+              )}
+              {opt.delete && orderId != null && (
+                <button
+                  type='button'
+                  className='btn btn-lm-outline btn-sm'
+                  disabled={pending}
+                  onClick={() => act(async () => {
+                    await orderApi.remove(orderId);
+                    navigate('/orders');
+                  })}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
+          </CellGroup>
+        )}
       </div>
-    </div>
+    </Page>
   );
 };
 

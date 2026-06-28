@@ -17,7 +17,14 @@ export interface OrderListParams {
 export const orderApi = {
   /** POST /srv/order/submit — place an order. */
   submit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/order/submit`, body)),
-  // TODO(/srv follow-up: order) — list/detail/ops/prepay not implemented yet.
+  /**
+   * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
+   * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment
+   * failure surfaces as a non-2xx (402) the caller catches. See orderSlice.payOrder.
+   */
+  pay: (orderId: number | string, body: { paymentMethod: string; paymentIntentId?: string }) =>
+    unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/pay`, body)),
+  // TODO(/srv follow-up: order) — list/detail/ops not implemented yet.
   list: (params: OrderListParams) => unwrap<{ list: IOrderListItem[]; total: number }>(baseAxios.get(`${SRV}/order/list`, { params })),
   detail: (orderId: number | string) => unwrap<IOrderDetail>(baseAxios.get(`${SRV}/order/detail?orderId=${encodeURIComponent(String(orderId))}`)),
   cancel: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/cancel`, {})),

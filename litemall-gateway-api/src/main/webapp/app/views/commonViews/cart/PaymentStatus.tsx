@@ -1,43 +1,51 @@
-import React from 'react';
-import { Button, Card, Container } from 'react-bootstrap';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+
+import { Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
  * Payment result, modelled on litemall-vue `order/payment-status`. Reads the
- * `result` query param (success|fail) set by the Payment step.
+ * outcome from the query param set by the Payment step (`status`/`result`), then
+ * auto-redirects to the customer's orders after a short delay.
  */
 const PaymentStatus: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [params] = useSearchParams();
-  const ok = params.get('result') !== 'fail';
+  const navigate = useNavigate();
+
+  const outcome = params.get('status') ?? params.get('result');
+  const ok = outcome !== 'fail' && outcome !== 'cancel' && outcome !== 'failed';
+
+  // Auto-redirect to the orders list after ~3s.
+  useEffect(() => {
+    const t = setTimeout(() => navigate('/orders'), 3000);
+    return () => clearTimeout(t);
+  }, [navigate]);
+
+  const sub = (
+    <>
+      {orderId && <p className='mb-1'>Order #{orderId}</p>}
+      <p className='mb-0 text-muted'>Redirecting to your orders…</p>
+    </>
+  );
+
+  const actions = (
+    <Link to='/orders' className='btn btn-lm-primary'>
+      View orders
+    </Link>
+  );
 
   return (
-    <Container className='my-5' style={{ maxWidth: 520 }}>
-      <Card className='text-center shadow-sm'>
-        <Card.Body className='py-5'>
-          <div className={ok ? 'text-success' : 'text-danger'} style={{ fontSize: '3rem' }}>
-            <i className={`bi ${ok ? 'bi-check-circle-fill' : 'bi-x-circle-fill'}`} />
-          </div>
-          <h2>{ok ? 'Payment successful' : 'Payment failed'}</h2>
-          {orderId && <p className='lead'>Order #{orderId}</p>}
-          {!ok && <p className='text-muted'>No charge was made. You can retry payment from your orders.</p>}
-          <div className='mt-4 d-flex gap-2 justify-content-center'>
-            {ok ? (
-              <Link to={`/order/${orderId}`} className='btn btn-outline-primary'>
-                View order
-              </Link>
-            ) : (
-              <Link to={`/pay/${orderId}`} className='btn btn-primary'>
-                Retry payment
-              </Link>
-            )}
-            <Button as={Link as any} to='/orders' variant='outline-secondary'>
-              My orders
-            </Button>
-          </div>
-        </Card.Body>
-      </Card>
-    </Container>
+    <Page>
+      <div className='container my-5'>
+        <ResultPanel
+          status={ok ? 'success' : 'fail'}
+          title={ok ? 'Payment successful' : 'Payment failed'}
+          sub={sub}
+          actions={actions}
+        />
+      </div>
+    </Page>
   );
 };
 

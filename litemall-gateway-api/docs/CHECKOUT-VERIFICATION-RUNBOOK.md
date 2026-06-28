@@ -4,6 +4,13 @@ Repeatable pass/fail checks for the customer checkout path. Use this to confirm 
 order-worktree follow-ups have landed and that order placement works end-to-end. Derived from
 the live verification on 2026-06-19 (gateway-api Task C).
 
+> **Status (2026-06-27):** both blockers have **landed** in the order service
+> (`LitemallAddressController` at `/srv/address/*`; `POST /srv/order/{id}/actions/pay`). The
+> gateway-api side is now wired e2e: the `customer-order` route predicate claims `/srv/address/**`,
+> and `orderSlice` runs the **two-step place→pay** flow against the `OrderOperationDtoResponse`
+> contract (201 created / 422 stock / 200 paid / 402 insufficient balance). Run the checks below
+> against a live stack to confirm.
+
 **Run services from the MAIN checkout** (`litemall/`), not a worktree — shared `~/.m2`/single
 litemall-db. Worktree refactors only count once merged.
 

@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Spinner } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Spinner } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 
 import { IAddress, isMissingEndpoint, userApi } from 'app/shared/api';
+import { AddressCard, CellGroup, EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
 /**
@@ -11,7 +12,6 @@ import './user.scss';
  * graceful empty when not live (follow-up: order/user worktree).
  */
 const AddressList: React.FC = () => {
-  const navigate = useNavigate();
   const [addresses, setAddresses] = useState<IAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,44 +42,56 @@ const AddressList: React.FC = () => {
   };
 
   return (
-    <div className='container my-4 lm-user' style={{ maxWidth: 640 }}>
-      <div className='d-flex justify-content-between align-items-center mb-3'>
-        <h1 className='h4 mb-0'>My addresses</h1>
-        <Button as={Link as any} to='/user/address/new' variant='primary' size='sm'>
-          <i className='bi bi-plus-lg' /> Add address
-        </Button>
-      </div>
+    <Page>
+      <PageHead title='My Addresses' />
+      <div className='container'>
+        <CellGroup>
+          <div className='p-3 d-flex justify-content-end'>
+            <Link to='/user/address/new' className='btn btn-lm-primary'>
+              <i className='bi bi-plus-lg me-1' /> Add new address
+            </Link>
+          </div>
+        </CellGroup>
 
-      {loading ? (
-        <div className='text-center my-5'>
-          <Spinner animation='border' />
-        </div>
-      ) : addresses.length === 0 ? (
-        <p className='text-muted text-center my-5'>No saved addresses yet.</p>
-      ) : (
-        <div className='d-grid gap-2'>
-          {addresses.map(a => (
-            <div key={a.id} className='lm-addr-row'>
-              <div>
-                <div>
-                  <strong>{a.name}</strong> <span className='text-muted'>{a.tel}</span>
-                  {a.isDefault && <span className='badge bg-primary ms-2'>Default</span>}
-                </div>
-                <div className='text-muted small'>{[a.province, a.city, a.county, a.addressDetail].filter(Boolean).join(' ')}</div>
-              </div>
-              <div className='lm-addr-row__actions'>
-                <Button variant='link' size='sm' onClick={() => navigate(`/user/address/${a.id}`)}>
-                  Edit
-                </Button>
-                <Button variant='link' size='sm' className='text-danger' onClick={() => remove(a.id)}>
-                  Delete
-                </Button>
-              </div>
+        {loading ? (
+          <div className='text-center my-5'>
+            <Spinner animation='border' />
+          </div>
+        ) : addresses.length === 0 ? (
+          <CellGroup>
+            <EmptyState icon='bi-geo-alt' text='No saved addresses yet.'>
+              <Link to='/user/address/new' className='btn btn-lm-primary'>
+                Add new address
+              </Link>
+            </EmptyState>
+          </CellGroup>
+        ) : (
+          <CellGroup>
+            <div className='p-2 d-grid gap-2'>
+              {addresses.map(a => (
+                <AddressCard
+                  key={a.id}
+                  name={a.name}
+                  tel={a.tel}
+                  detail={[a.province, a.city, a.county, a.addressDetail].filter(Boolean).join(' ')}
+                  isDefault={a.isDefault}
+                  trailing={
+                    <span className='d-inline-flex gap-2'>
+                      <Link to={'/user/address/' + a.id} className='btn btn-sm btn-lm-outline'>
+                        Edit
+                      </Link>
+                      <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => remove(a.id)}>
+                        Delete
+                      </button>
+                    </span>
+                  }
+                />
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          </CellGroup>
+        )}
+      </div>
+    </Page>
   );
 };
 

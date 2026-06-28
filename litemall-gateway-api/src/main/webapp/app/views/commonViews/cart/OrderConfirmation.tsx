@@ -1,13 +1,14 @@
 import React from 'react';
-import { Button, Card, Container } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
+import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
  * Post-placement confirmation. Reads the last placed order from the order slice
- * (set by placeOrder.fulfilled); falls back to the :id route param so a direct
- * visit / refresh still shows the order reference.
+ * (set by placeOrder/payOrder.fulfilled); falls back to the :id route param so a
+ * direct visit / refresh still shows the order reference.
  */
 const OrderConfirmation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -15,33 +16,40 @@ const OrderConfirmation: React.FC = () => {
 
   const orderId = lastOrder?.orderId ?? (id ? Number(id) : undefined);
 
+  const sub = (
+    <>
+      {orderId != null && (
+        <p className='mb-1'>
+          Your order reference is <strong>#{orderId}</strong>
+          {lastOrder?.orderSn ? ` (${lastOrder.orderSn})` : ''}.
+        </p>
+      )}
+      {lastOrder?.actualPrice != null && (
+        <p className='mb-1'>
+          Total charged: <span className='lm-amount'>${priceNum(lastOrder.actualPrice).toFixed(2)}</span>
+        </p>
+      )}
+      {lastOrder?.paymentMethod && <p className='mb-0'>Paid via {lastOrder.paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
+    </>
+  );
+
+  const actions = (
+    <>
+      <Link to='/orders' className='btn btn-lm-outline'>
+        View my orders
+      </Link>
+      <Link to='/' className='btn btn-lm-primary'>
+        Continue shopping
+      </Link>
+    </>
+  );
+
   return (
-    <Container className='my-5'>
-      <Card className='text-center shadow-sm'>
-        <Card.Body className='py-5'>
-          <div className='text-success mb-3' style={{ fontSize: '3rem' }}>
-            <i className='bi bi-check-circle-fill' />
-          </div>
-          <h2>Thank you for your order!</h2>
-          {orderId != null && (
-            <p className='lead'>
-              Your order reference is <strong>#{orderId}</strong>
-              {lastOrder?.orderSn ? ` (${lastOrder.orderSn})` : ''}.
-            </p>
-          )}
-          {lastOrder?.actualPrice != null && <p className='text-muted'>Total charged: ${lastOrder.actualPrice}</p>}
-          {lastOrder?.paymentMethod && <p className='text-muted'>Paid via {lastOrder.paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
-          <div className='mt-4 d-flex gap-2 justify-content-center'>
-            <Link to='/orders' className='btn btn-outline-primary'>
-              View my orders
-            </Link>
-            <Button as={Link as any} to='/' variant='primary'>
-              Continue shopping
-            </Button>
-          </div>
-        </Card.Body>
-      </Card>
-    </Container>
+    <Page>
+      <div className='container my-5'>
+        <ResultPanel status='success' title='Thank you for your order!' sub={sub} actions={actions} />
+      </div>
+    </Page>
   );
 };
 

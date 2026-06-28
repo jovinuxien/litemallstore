@@ -34,24 +34,35 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 | `/srv/order/{id}/actions/confirm` | POST | OrderList | confirm receipt |
 | `/srv/order/{id}/actions/refund` | POST | OrderList | refund request |
 | `/srv/order/{id}/actions/delete` | POST | (reserved) | delete order |
-| `/srv/order/prepay` (or `/srv/order/{id}/actions/pay`) | POST | `Checkout` payment step, `views/commonViews/cart/Payment` | **pay a placed order** — CARD (Stripe) / WALLET debit. `POST /srv/order/submit` has NO `paymentMethod`; payment is a separate post-submit action the SPA cannot complete until this lands. |
-| `/srv/address/list` | GET | `Checkout`, `modules/user/AddressList` | address book — **blocks checkout** (submit needs a saved `addressId`) |
-| `/srv/address/detail?id=` | GET | `AddressEdit` | |
-| `/srv/address/save` | POST | `Checkout`, `AddressEdit` | create/update — without it a typed address yields no `addressId` |
-| `/srv/address/delete` | POST | `AddressList` | |
+| `/srv/order/{id}/actions/pay` | POST | `Checkout` payment step (`orderSlice.payOrder`) | ✅ **LANDED** — pay a placed order. Body `PaymentActionRequest { paymentMethod, paymentIntentId }`; CARD → `CREDIT_CARD` (+ Stripe intent), WALLET → wallet debit. Returns `OrderOperationDtoResponse` (200 ok / **402** insufficient balance, order left unpaid). |
+| `/srv/address/list` | GET | `Checkout`, `modules/user/AddressList` | ✅ **LANDED** — address book, scoped by `X-User-Id` |
+| `/srv/address/detail?id=` | GET | `AddressEdit` | ✅ **LANDED** |
+| `/srv/address/save` | POST | `Checkout`, `AddressEdit` | ✅ **LANDED** — returns the new `addressId`; `Checkout` saves a typed address then submits with it |
+| `/srv/address/delete` | POST | `AddressList` | ✅ **LANDED** |
 
-> **Verified live (2026-06-19) against the running order service — corrections:**
-> - The cart REST verbs are mounted under **`/srv/cart/items`** (`/items`, `/items/{cartItemId}`),
->   NOT bare `/srv/cart`. `cartApi.ts` now targets `/srv/cart/items`.
-> - `POST /srv/order/submit` exists but takes a **`LitemallPlaceOrderCommand`**
+> **Update (2026-06-27) — the two checkout blockers have landed; Task C is now wired e2e:**
+> - `LitemallAddressController` (`/srv/address/{list,detail,save,delete}`, order's `ApiResponse`
+>   envelope) and `POST /srv/order/{id}/actions/pay` (`PaymentActionRequest`) now exist in the
+>   order service. The gateway `customer-order` route predicate was extended to claim
+>   **`/srv/address/**`** (it previously fell through to the goods catch-all → 404).
+> - Checkout is now a **two-step** place→pay flow: `POST /srv/order/submit` (creates the order,
+>   201) then `POST /srv/order/{id}/actions/pay` (charges it). Both return a bare
+>   **`OrderOperationDtoResponse`** with the outcome on the HTTP status (201 created / 422 stock /
+>   200 paid / 402 insufficient balance) — **not** an `{errno,errmsg,data}` envelope. `orderSlice`
+>   parses this shape; a payment retry pays the same placed order (no duplicate).
+> - CARD payment uses a **stub** Stripe PaymentIntent id (`pi_stub_<orderId>`) until real Stripe
+>   Elements/keys are wired — tracked below.
+>
+> **Earlier verification (2026-06-19) — still current:**
+> - The cart REST verbs are mounted under **`/srv/cart/items`**, NOT bare `/srv/cart`.
+> - `POST /srv/order/submit` takes a **`LitemallPlaceOrderCommand`**
 >   `{ cartId, addressId, couponId, userCouponId, message, grouponRulesId, grouponLinkId }`
->   with the buyer bound from the gateway-injected `X-User-Id` header — it does **not** accept
->   inline `items`/`shipping`/`paymentMethod`. `orderSlice.ts` now sends this command shape.
-> - End-to-end checkout is therefore blocked on two order/user follow-ups: (1) `/srv/address/*`
->   to produce a saved `addressId`; (2) a post-order payment action for CARD/WALLET.
-> - Runtime note: `order-service-app` (:8085) was observed crashing during verification
->   (`NoRouteToHost :8085`); its bring-up/stability is owned by the `order` worktree
->   (shared-DB V20 reinstall + restart per the run-from-MAIN rule).
+>   with the buyer bound from `X-User-Id` — no inline `items`/`shipping`/`paymentMethod`.
+> - Runtime note: `order-service-app` (:8085) bring-up/stability is owned by the `order` worktree
+>   (run-from-MAIN rule).
+>
+> **Remaining follow-up (gateway-api):** real Stripe Elements card capture (publishable key +
+> `@stripe/react-stripe-js` + a client-confirmed PaymentIntent) to replace the CARD stub.
 
 ## Owner: order / promotion (coupons) — routing decision needed
 | Endpoint | Verb | Used by |
@@ -72,6 +83,20 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 | `/srv/footprint/list` | GET | `modules/user/Footprint` |
 | `/srv/footprint/delete` | POST | (reserved) |
 | `/srv/feedback/submit` | POST | `modules/user/Feedback` |
+
+## Discovered during the order/user redesign (2026-06-27)
+- **Customer session is not rehydrated on reload (gateway-api SPA bug).** `auth/customerAuthSlice`
+  initialises `isAuthenticated:false` and only flips it on a live login; the stored `customerToken`
+  in sessionStorage is ignored at store-creation. So any full page reload of a gated route
+  (`/checkout`, `/orders`, `/user/**`) bounces the customer to `/login` even though their token is
+  still valid. Fix: seed `isAuthenticated` (and userInfo) from the stored token on slice init / an
+  app-bootstrap rehydrate thunk. In-scope for gateway-api; not yet done.
+- **CARD payment is a stub.** Checkout/Payment send a placeholder `pi_stub_<orderId>` PaymentIntent
+  id; real Stripe Elements (publishable key + `@stripe/react-stripe-js` + client-confirmed intent)
+  is still pending (gateway-api). WALLET is fully functional.
+- The redesigned order list/detail, coupons, and feedback views render graceful empty states until
+  the `/srv/order/list|detail`, `/srv/coupon/mylist`, and `/srv/feedback/submit` endpoints land
+  (order / promotion / user follow-ups already tabled above).
 
 ## Owner: auth edge (`/auth/**`, gateway-api `AuthController`)
 | Endpoint | Verb | Used by | Notes |

@@ -59,7 +59,9 @@ export const userApi = {
   index: () => unwrap(baseAxios.get(`${SRV}/user/index`)),
   profileUpdate: (body: unknown) => unwrap(baseAxios.post(`${SRV}/user/profile`, body)),
 
-  // TODO(/srv follow-up: order|user) — address book CRUD.
+  // Address book CRUD — LIVE on the order service (LitemallAddressController,
+  // /srv/address/*), routed via the gateway customer-order predicate. Buyer is
+  // bound from the gateway-injected X-User-Id.
   addressList: () => unwrap<IAddress[]>(baseAxios.get(`${SRV}/address/list`)),
   addressDetail: (id: number) => unwrap<IAddress>(baseAxios.get(`${SRV}/address/detail?id=${id}`)),
   addressSave: (body: IAddress) => unwrap(baseAxios.post(`${SRV}/address/save`, body)),
