@@ -4,6 +4,8 @@ import { Provider } from 'react-redux';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+// Global Amazon-style typography — imported AFTER Bootstrap so it wins.
+import 'app/sass/global.scss';
 
 import App from 'app/App';
 import store from 'app/config/store';
