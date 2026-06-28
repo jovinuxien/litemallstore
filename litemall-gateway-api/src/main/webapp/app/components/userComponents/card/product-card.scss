@@ -19,33 +19,38 @@
   --lm-radius: 10px;
 }
 
+// ── Deal-card look & feel ─────────────────────────────────────────────────────
+// Visual parity with the gateway-admin storefront "deal-card" (its
+// sass/components/_cards.scss): borderless rounded card, 200px cover image with
+// a hairline divider, scale-on-hover, green/orange "new/hot" badges, terracotta
+// price with a strikethrough original, a green discount pill, and a rounded CTA.
+// Colours are taken verbatim from that admin card so both storefronts match;
+// the storefront-wide --lm-* tokens are intentionally left alone (other views
+// read them), so these values are inlined here only.
 .lm-card {
   display: flex;
   flex-direction: column;
   background: var(--lm-surface);
-  border: 1px solid var(--lm-border);
+  border: none;
   border-radius: var(--lm-radius);
   overflow: hidden;
-  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
   height: 100%;
 
   &:hover {
-    box-shadow: 0 8px 22px rgba(14, 124, 134, 0.16);
-    transform: translateY(-3px);
-    border-color: var(--lm-primary-soft);
-
-    .lm-card__img {
-      transform: scale(1.06);
-    }
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    transform: scale(1.03);
   }
 
   &__media {
     position: relative;
     display: block;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    height: 200px;
     overflow: hidden;
     background: #f1f4f5;
+    border-bottom: 1px solid #ddd;
   }
 
   &__img {
@@ -53,43 +58,44 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.25s ease;
   }
 
   &__discount {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    background: var(--lm-accent);
+    top: 10px;
+    right: 10px;
+    background: #486f32;
     color: #fff;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 7px;
-    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 4px;
   }
 
   &__ribbons {
     position: absolute;
-    top: 8px;
-    left: 8px;
+    top: 10px;
+    left: 10px;
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
   }
 
   &__ribbon {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: bold;
     color: #fff;
-    padding: 2px 7px;
-    border-radius: 6px;
+    padding: 2px 6px;
+    border-radius: 3px;
     text-transform: uppercase;
     letter-spacing: 0.3px;
 
     &--new {
-      background: var(--lm-new);
+      background: #00a87e;
     }
     &--hot {
-      background: var(--lm-hot);
+      background: #f28b00;
     }
   }
 
@@ -106,14 +112,15 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    font-size: 13px;
-    line-height: 1.35;
-    min-height: 2.7em;
-    color: var(--lm-text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+    min-height: 2.6em;
+    color: #333;
     text-decoration: none;
 
     &:hover {
-      color: var(--lm-primary);
+      color: #b4593d;
     }
   }
 
@@ -125,20 +132,20 @@
   }
 
   &__price {
-    color: var(--lm-accent);
-    font-weight: 800;
+    color: #b4593d;
+    font-weight: bold;
     font-size: 18px;
     line-height: 1.1;
   }
 
   &__cur {
-    font-size: 12px;
-    font-weight: 700;
+    font-size: 13px;
+    font-weight: bold;
   }
 
   &__orig {
-    color: var(--lm-muted);
-    font-size: 12px;
+    color: #595454;
+    font-size: 14px;
     text-decoration: line-through;
   }
 
@@ -172,25 +179,25 @@
 
   &__cart {
     margin-top: 4px;
-    border: 0;
+    border: none;
     border-radius: 20px;
-    background: var(--lm-primary);
+    background: #a49e9e;
     color: #fff;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    padding: 7px 10px;
+    padding: 6px 12px;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: background 0.2s ease;
 
     &:hover {
-      background: var(--lm-primary-dark);
+      background: #3f542b;
     }
 
     &--added {
-      background: var(--lm-success);
+      background: #486f32;
 
       &:hover {
-        background: var(--lm-success);
+        background: #486f32;
       }
     }
   }
