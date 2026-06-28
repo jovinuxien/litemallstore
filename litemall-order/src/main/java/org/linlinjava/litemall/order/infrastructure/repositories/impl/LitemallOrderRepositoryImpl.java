@@ -106,6 +106,35 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
                 .map(this::convertToDomainModel).collect(Collectors.toList());
     }
 
+    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        LitemallOrderExample.Criteria criteria = example.or();
+        if (!StringUtils.isEmpty(orderSn)) {
+            criteria.andOrderSnEqualTo(orderSn);
+        }
+        if (orderStatus != null && !orderStatus.isEmpty()) {
+            criteria.andOrderStatusIn(orderStatus);
+        }
+        criteria.andDeletedEqualTo(false);
+        return example;
+    }
+
+    @Override
+    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order) {
+        LitemallOrderExample example = adminExample(orderSn, orderStatus);
+        // sortColumn is whitelisted by the caller; order normalised here.
+        String dir = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
+        example.setOrderByClause(sortColumn + " " + dir);
+        PageHelper.startPage(page, limit);
+        return litemallOrderMapper.selectByExample(example).stream()
+                .map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
+    public long adminCount(String orderSn, List<Short> orderStatus) {
+        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus));
+    }
+
     @Override
     public void deleteByOrderId(LitemallOrderId orderId) {
         litemallOrderMapper.logicalDeleteByPrimaryKey(orderId.getId());
