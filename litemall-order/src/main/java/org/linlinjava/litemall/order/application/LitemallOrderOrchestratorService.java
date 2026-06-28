@@ -18,6 +18,7 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregat
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.commands.wallet.LitemallWalletDebitCommand;
@@ -75,6 +76,11 @@ public class LitemallOrderOrchestratorService {
     // flows through grouponServiceLayer.
     @org.springframework.beans.factory.annotation.Autowired
     private org.linlinjava.litemall.order.application.LitemallIWalletService walletService;
+
+    // Read-side: order line items, used to populate the customer order list/detail
+    // (goodsList / orderGoods) without going back through goods-management.
+    @Autowired
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository orderGoodsRepository;
 
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
@@ -414,6 +420,31 @@ public class LitemallOrderOrchestratorService {
                                                              java.util.List<Short> orderStatuses,
                                                              int page, int limit, String sort, String order) {
         return orderRepository.queryByOrderStatus(userId, orderStatuses, page, limit, sort, order);
+    }
+
+    /** Total orders for the user under the same (optional) status filter — the {@code total} for the paged list. */
+    public int countOrders(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+                           java.util.List<Short> orderStatuses) {
+        return orderRepository.countByOrderStatus(userId, orderStatuses);
+    }
+
+    /**
+     * Resolve a single order for its owner. Returns {@code null} when the order
+     * does not exist or belongs to another user — the caller surfaces a 404,
+     * so a customer can never read another customer's order (same identity rule
+     * as submit/cancel/pay).
+     */
+    public LitemallOrderAggregate getOrderForUser(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+                                                  org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId orderId) {
+        return orderRepository.findById(orderId)
+                .filter(o -> o.getUserId() != null && o.getUserId().getId().equals(userId.getId()))
+                .orElse(null);
+    }
+
+    /** Line items of an order, for the list/detail {@code goodsList} / {@code orderGoods}. */
+    public java.util.List<LitemallOrderGoodsAggregate> getOrderGoods(
+            org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId orderId) {
+        return orderGoodsRepository.findByOId(orderId);
     }
 
     // =========================================================================

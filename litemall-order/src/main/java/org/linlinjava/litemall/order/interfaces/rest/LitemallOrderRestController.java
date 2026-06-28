@@ -8,13 +8,18 @@ import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCom
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.interfaces.dtos.order.OrderDetailDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListItemDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderOperationDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.PaymentActionRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponseUtil.buildResponse;
 
@@ -28,14 +33,60 @@ public class LitemallOrderRestController {
         this.orderOrchestrationService = orderOrchestrationService;
     }
 
+    /**
+     * Customer "My Orders" list. Returns the agreed {@code { list, total }} shape
+     * (SPA {@code orderApi.list}) inside the order {@code ApiResponse} envelope.
+     * Scoped to the gateway-injected {@code X-User-Id} — a caller only ever sees
+     * their own orders. {@code showType} filters by lifecycle bucket:
+     * 0/absent=all, 1=unpaid(101), 2=to-ship(201), 3=shipped(301), 4=completed(401/402).
+     */
     @GetMapping("/list")
-    public List<LitemallOrderAggregate> list(@RequestHeader("X-User-Id") Integer userId,
-                                             @RequestParam(required = false) List<Short> status,
-                                             @RequestParam(defaultValue = "1") int page,
-                                             @RequestParam(defaultValue = "10") int limit,
-                                             @RequestParam(defaultValue = "add_time") String sort,
-                                             @RequestParam(defaultValue = "desc") String order) {
-        return orderOrchestrationService.listOrders(new LitemallUserId(userId), status, page, limit, sort, order);
+    public ApiResponse<OrderListDtoResponse> list(@RequestHeader("X-User-Id") Integer userId,
+                                                  @RequestParam(defaultValue = "0") int showType,
+                                                  @RequestParam(defaultValue = "1") int page,
+                                                  @RequestParam(defaultValue = "10") int limit) {
+        LitemallUserId uid = new LitemallUserId(userId);
+        List<Short> statuses = orderStatusesForShowType(showType);
+        List<LitemallOrderAggregate> orders =
+                orderOrchestrationService.listOrders(uid, statuses, page, limit, "add_time", "desc");
+        long total = orderOrchestrationService.countOrders(uid, statuses);
+        List<OrderListItemDtoResponse> items = orders.stream()
+                .map(o -> OrderListItemDtoResponse.fromDomain(
+                        o, orderOrchestrationService.getOrderGoods(o.getOrderId())))
+                .collect(Collectors.toList());
+        return ApiResponse.ok(new OrderListDtoResponse(items, total));
+    }
+
+    /**
+     * Customer order detail. Scoped to {@code X-User-Id}; a request for an order
+     * the caller does not own returns a 404 envelope (no cross-customer read).
+     */
+    @GetMapping("/detail")
+    public ApiResponse<OrderDetailDtoResponse> detail(@RequestHeader("X-User-Id") Integer userId,
+                                                      @RequestParam Integer orderId) {
+        LitemallOrderAggregate order = orderOrchestrationService.getOrderForUser(
+                new LitemallUserId(userId), new LitemallOrderId(orderId));
+        if (order == null) {
+            return ApiResponse.fail(404, "Order not found");
+        }
+        return ApiResponse.ok(OrderDetailDtoResponse.fromDomain(
+                order, orderOrchestrationService.getOrderGoods(order.getOrderId())));
+    }
+
+    /** Map the SPA {@code showType} bucket to the order_status codes it covers (null = all). */
+    private static List<Short> orderStatusesForShowType(int showType) {
+        switch (showType) {
+            case 1:
+                return List.of((short) 101);
+            case 2:
+                return List.of((short) 201);
+            case 3:
+                return List.of((short) 301);
+            case 4:
+                return List.of((short) 401, (short) 402);
+            default:
+                return null;
+        }
     }
 
     @PostMapping("/submit")

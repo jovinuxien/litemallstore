@@ -24,6 +24,9 @@ public interface LitemallOrderRepository {
 
     List<LitemallOrderAggregate> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order);
 
+    /** Total orders for a user filtered by the same (optional) status set — the {@code total} for the paged list. */
+    int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus);
+
     void deleteByOrderId(LitemallOrderId orderId);
 
     public String generateOrderSn(LitemallUserId userId);

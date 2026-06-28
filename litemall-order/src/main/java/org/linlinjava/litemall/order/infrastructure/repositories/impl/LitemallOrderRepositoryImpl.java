@@ -107,6 +107,18 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        LitemallOrderExample.Criteria criteria = example.or();
+        criteria.andUserIdEqualTo(userId.getId());
+        if (orderStatus != null) {
+            criteria.andOrderStatusIn(orderStatus);
+        }
+        criteria.andDeletedEqualTo(false);
+        return (int) litemallOrderMapper.countByExample(example);
+    }
+
+    @Override
     public void deleteByOrderId(LitemallOrderId orderId) {
         litemallOrderMapper.logicalDeleteByPrimaryKey(orderId.getId());
     }
