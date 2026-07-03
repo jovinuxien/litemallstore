@@ -157,4 +157,14 @@ public class LitemallWalletServiceImpl implements LitemallIWalletService {
         LitemallUserId userIdVO = new LitemallUserId(userId);
         return billRepository.findByUserId(userIdVO);
     }
+
+    @Override
+    public java.util.Optional<LitemallBillAggregate> findOrderPaymentDebit(Integer userId, String orderRef) {
+        return billRepository.findOrderPaymentDebit(new LitemallUserId(userId), orderRef);
+    }
+
+    @Override
+    public boolean hasOrderRefundCredit(Integer userId, String orderRef) {
+        return billRepository.orderRefundCreditExists(new LitemallUserId(userId), orderRef);
+    }
 }

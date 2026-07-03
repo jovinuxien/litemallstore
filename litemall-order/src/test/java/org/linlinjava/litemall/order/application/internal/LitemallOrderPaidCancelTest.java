@@ -11,6 +11,7 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAg
 import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
@@ -53,16 +54,20 @@ class LitemallOrderPaidCancelTest {
     private LitemallDomainEventPublisher domainEventPublisher;
     @Mock
     private LitemallGoodsFacade goodsFacade;
+    @Mock
+    private LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
     @InjectMocks
     private LitemallOrderServiceImpl service;
 
     @BeforeEach
     void wireFieldInjectedDeps() {
-        // goodsFacade is a field-injected (@Autowired) dependency, not a constructor
-        // arg, so @InjectMocks (which uses constructor injection here) does not set
-        // it. Wire it explicitly so the cancel paths can call restoreStock.
+        // goodsFacade + statusHistoryRepository are field-injected (@Autowired), not
+        // constructor args, so @InjectMocks (which uses constructor injection here)
+        // does not set them. Wire them explicitly so the write-paths can restore
+        // stock and persist the status-history timeline.
         ReflectionTestUtils.setField(service, "goodsFacade", goodsFacade);
+        ReflectionTestUtils.setField(service, "statusHistoryRepository", statusHistoryRepository);
     }
 
     private LitemallOrderAggregate createdOrder(int id) {
@@ -78,11 +83,13 @@ class LitemallOrderPaidCancelTest {
         LitemallOrderId orderId = new LitemallOrderId(7);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(7)));
         // Conditional CREATED->PAID transition applied exactly one row.
-        when(orderRepository.markPaidIfCreated(orderId)).thenReturn(1);
+        when(orderRepository.markPaidIfCreated(orderId, "WALLET")).thenReturn(1);
 
-        service.markOrderPaid(orderId);
+        service.markOrderPaid(orderId, "WALLET");
 
-        verify(orderRepository).markPaidIfCreated(orderId);
+        // The tender is persisted alongside the status flip so refund settlement
+        // can route the money back to the channel that paid.
+        verify(orderRepository).markPaidIfCreated(orderId, "WALLET");
 
         ArgumentCaptor<LitemallDomainEvent> event = ArgumentCaptor.forClass(LitemallDomainEvent.class);
         verify(domainEventPublisher).publish(event.capture());
@@ -96,9 +103,9 @@ class LitemallOrderPaidCancelTest {
         // debit in the same transaction) and publish no paid event.
         LitemallOrderId orderId = new LitemallOrderId(8);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(8)));
-        when(orderRepository.markPaidIfCreated(orderId)).thenReturn(0);
+        when(orderRepository.markPaidIfCreated(orderId, "WALLET")).thenReturn(0);
 
-        assertThrows(IllegalStateException.class, () -> service.markOrderPaid(orderId));
+        assertThrows(IllegalStateException.class, () -> service.markOrderPaid(orderId, "WALLET"));
 
         verify(domainEventPublisher, never()).publish(org.mockito.ArgumentMatchers.any());
     }
@@ -107,14 +114,13 @@ class LitemallOrderPaidCancelTest {
     void cancelOrder_persistsCancelled_restoresStock_andPublishesEvent() {
         LitemallOrderId orderId = new LitemallOrderId(9);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(9)));
+        // Guarded CREATED->CANCELED transition applied exactly one row.
+        when(orderRepository.markCanceledIfCreated(orderId)).thenReturn(1);
         when(orderGoodsRepository.findByOId(orderId)).thenReturn(List.of(orderGoods(5, (short) 2)));
 
         service.cancelOrder(orderId, "changed my mind");
 
-        ArgumentCaptor<LitemallOrderAggregate> patch = ArgumentCaptor.forClass(LitemallOrderAggregate.class);
-        verify(orderRepository).updateSelective(patch.capture());
-        assertEquals(LitemallOrderStatus.CANCELED, patch.getValue().getOrderStatus());
-
+        verify(orderRepository).markCanceledIfCreated(orderId);
         verify(goodsFacade).restoreStock(Map.of(5, 2));
 
         ArgumentCaptor<LitemallDomainEvent> event = ArgumentCaptor.forClass(LitemallDomainEvent.class);
@@ -123,17 +129,30 @@ class LitemallOrderPaidCancelTest {
     }
 
     @Test
+    void cancelOrder_whenGuardedTransitionLoses_throwsAndReleasesNoStock() {
+        // The order left CREATED between the read and the guarded update (e.g. it
+        // was paid concurrently): cancellation must abort without touching stock.
+        LitemallOrderId orderId = new LitemallOrderId(10);
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(10)));
+        when(orderRepository.markCanceledIfCreated(orderId)).thenReturn(0);
+
+        assertThrows(IllegalStateException.class, () -> service.cancelOrder(orderId, "too late"));
+
+        verify(goodsFacade, never()).restoreStock(org.mockito.ArgumentMatchers.any());
+        verify(domainEventPublisher, never()).publish(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void autoCancelOrder_persistsSystemCancelled_andRestoresStock() {
         LitemallOrderId orderId = new LitemallOrderId(11);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(11)));
+        // Guarded CREATED->SYSTEM_CANCELED transition applied exactly one row.
+        when(orderRepository.markSystemCanceledIfCreated(orderId)).thenReturn(1);
         when(orderGoodsRepository.findByOId(orderId)).thenReturn(List.of(orderGoods(8, (short) 3)));
 
         service.autoCancelOrder(orderId, "auto-cancelled: unpaid timeout");
 
-        ArgumentCaptor<LitemallOrderAggregate> patch = ArgumentCaptor.forClass(LitemallOrderAggregate.class);
-        verify(orderRepository).updateSelective(patch.capture());
-        assertEquals(LitemallOrderStatus.SYSTEM_CANCELED, patch.getValue().getOrderStatus());
-
+        verify(orderRepository).markSystemCanceledIfCreated(orderId);
         verify(goodsFacade).restoreStock(Map.of(8, 3));
     }
 

@@ -241,12 +241,15 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int markPaidIfCreated(LitemallOrderId orderId) {
+    public int markPaidIfCreated(LitemallOrderId orderId, String payId) {
         LocalDateTime now = LocalDateTime.now();
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
         patch.setPayTime(now);
         patch.setUpdateTime(now);
+        if (payId != null && !payId.isBlank()) {
+            patch.setPayId(payId);
+        }
 
         LitemallOrderExample example = new LitemallOrderExample();
         example.createCriteria()
