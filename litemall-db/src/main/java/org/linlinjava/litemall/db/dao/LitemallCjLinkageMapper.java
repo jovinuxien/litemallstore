@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.db.dao;
 
 import org.apache.ibatis.annotations.Param;
+import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 
@@ -35,6 +36,16 @@ public interface LitemallCjLinkageMapper {
 
     /** id of a CJ-sourced category previously created for this CJ category id, or null. */
     Integer findCjCategoryIdByCjId(@Param("cjCategoryId") String cjCategoryId);
+
+    /**
+     * Full category row by CJ natural key (leaf UUID or synthetic L1:/L2: key), INCLUDING
+     * soft-deleted rows — the tree sync must resurrect them rather than collide with the
+     * unique index on cj_category_id.
+     */
+    LitemallCategory findCategoryByCjKey(@Param("cjCategoryId") String cjCategoryId);
+
+    /** Every category mirrored from the CJ tree (cj_category_id set), including soft-deleted. */
+    List<LitemallCategory> selectCjMappedCategories();
 
     /** id of a CJ-sourced category with this name (root or leaf), or null. */
     Integer findCjCategoryIdByName(@Param("name") String name);
