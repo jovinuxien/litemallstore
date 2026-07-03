@@ -456,20 +456,24 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     /**
      * Mark an order as paid: validate + apply the CREATED→PAID transition on the
-     * aggregate, persist the status (+ pay_time) and history, and publish the
-     * resulting domain events. Runs inside the caller's transaction so it is atomic
-     * with the payment debit.
+     * aggregate, persist the status (+ pay_time + the tender in pay_id) and history,
+     * and publish the resulting domain events. Runs inside the caller's transaction
+     * so it is atomic with the payment debit.
+     *
+     * @param payId tender record for {@code pay_id}: {@code "WALLET"} or
+     *              {@code "<METHOD>:<pspReference>"}; refund settlement routes by it.
      */
-    public void markOrderPaid(LitemallOrderId orderId) {
+    public void markOrderPaid(LitemallOrderId orderId, String payId) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
         orderAggregate.markAsPaid();
+        orderAggregate.setPayId(payId);
 
         // Conditional CREATED->PAID transition: the UPDATE only matches a row still
         // in CREATED, so a retried or concurrent PAY (which already flipped the row)
         // affects 0 rows. We then abort, rolling back any wallet debit applied in
         // this same transaction — preventing a double charge for one order.
-        int updated = orderRepository.markPaidIfCreated(orderId);
+        int updated = orderRepository.markPaidIfCreated(orderId, payId);
         if (updated == 0) {
             throw new IllegalStateException(
                     "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");
@@ -542,8 +546,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     /**
      * Admin approves a refund; the money has already been returned by the caller
-     * (REFUND_REQUEST → REFUNDED). The orchestrator credits the wallet before calling
-     * this, so the credit and the status flip are atomic.
+     * (REFUND_REQUEST → REFUNDED). The orchestrator settles the money to the paying
+     * tender first (wallet credit or PSP-reversal seam) inside this same transaction,
+     * and {@code amount} is the settled, capture-capped figure — persisted as
+     * {@code refund_amount} so the row records what was actually returned.
      */
     public void refundOrder(LitemallOrderId orderId, LitemallMoney amount) {
         LitemallOrderAggregate agg = orderRepository.findById(orderId)
