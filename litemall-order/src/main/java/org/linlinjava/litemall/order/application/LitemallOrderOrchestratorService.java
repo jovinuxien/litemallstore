@@ -30,6 +30,7 @@ import org.linlinjava.litemall.order.domain.model.commands.LitemallPlaceOrderCom
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.payment.PaymentMethod;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallBillRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderHandleOption;
 import org.linlinjava.litemall.order.domain.model.util.LitemallOrderStatusQuery;
@@ -216,8 +217,10 @@ public class LitemallOrderOrchestratorService {
         if (paymentSuccess) {
             // Transition the order to PAID and persist it within this transaction,
             // so a wallet debit (above) and the paid status are atomic — either both
-            // commit or both roll back. Emits LitemallOrderPaidEvent.
-            orderServiceImpl.markOrderPaid(orderId);
+            // commit or both roll back. Emits LitemallOrderPaidEvent. pay_id records
+            // the tender ("WALLET" or "<METHOD>:<reference>") so a later refund can
+            // be routed back to the channel that paid (see settleRefundToTender).
+            orderServiceImpl.markOrderPaid(orderId, tenderPayId(paymentCommand));
 
             // Handle post-payment logic
             handlePostPayment(orderId, paymentCommand);
@@ -305,6 +308,22 @@ public class LitemallOrderOrchestratorService {
     }
 
     /**
+     * Tender record for {@code pay_id}: {@code "WALLET"} for a wallet debit,
+     * {@code "<METHOD>:<reference>"} for a client-confirmed external charge.
+     * Refund settlement parses this back to route money to the paying channel.
+     */
+    private String tenderPayId(LitemallOrderPaymentCommand command) {
+        PaymentMethod method = command.getPaymentMethod();
+        if (method == null) {
+            return null;
+        }
+        String reference = command.getPaymentReference();
+        return reference == null || reference.isBlank()
+                ? method.name()
+                : method.name() + ":" + reference;
+    }
+
+    /**
      * Debit the order's actual price from the buyer's wallet via the wallet
      * vertical. Propagates {@code LitemallInsufficientBalanceException} on an
      * underfunded wallet so the payment transaction rolls back without producing
@@ -326,8 +345,8 @@ public class LitemallOrderOrchestratorService {
                 order.getUserId().getId(),
                 payable.getAmount(),
                 "Order payment",
-                "ORDER",
-                "PAYMENT",
+                LitemallBillRepository.CATEGORY_ORDER,
+                LitemallBillRepository.TYPE_PAYMENT,
                 String.valueOf(orderId.getId()),
                 "Wallet debit for order " + order.getOrderSn());
         walletService.debit(debitCommand);
@@ -601,14 +620,21 @@ public class LitemallOrderOrchestratorService {
     }
 
     /**
-     * Admin approves a pending refund (REFUND_REQUEST → REFUNDED). Credits the order's
-     * actual price back to the buyer's wallet and flips the status in ONE transaction —
-     * so the money return and the REFUNDED status are atomic.
+     * Admin approves a pending refund (REFUND_REQUEST → REFUNDED). Returns the money
+     * to the tender that paid — capped at the captured amount — and flips the status
+     * in ONE transaction, so the money return and REFUNDED are atomic.
      *
-     * <p>Refund destination: the WALLET. That is the only real-money payment path today
-     * (CARD is a client-confirmed stub — see {@code processPayment}); a real server-side
-     * card charge would instead reverse via Stripe here. Documented in
-     * {@code docs/handoff-gateway-api-order-timeline.md}.
+     * <p>Refund-to-tender (see {@code docs/plan-refund-tender-parity.md}):
+     * <ul>
+     *   <li><b>WALLET</b> — credit back exactly the wallet debit recorded at pay time
+     *       (the ledger is the captured amount), never more than {@code actualPrice}.</li>
+     *   <li><b>CARD / digital</b> — the charge lives at the PSP, not the wallet, so no
+     *       wallet credit; the reversal is a documented seam (log + the
+     *       {@code LitemallOrderRefundedEvent} the aggregate raises), mirroring the
+     *       client-confirmed-charge boundary in {@code processPayment}.</li>
+     *   <li><b>No tender / no capture</b> — nothing was taken, nothing to return;
+     *       the status still flips with {@code refund_amount = 0}.</li>
+     * </ul>
      */
     public LitemallOrderOperationResult approveRefund(LitemallOrderId orderId) {
         LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
@@ -620,10 +646,87 @@ public class LitemallOrderOrchestratorService {
             return LitemallOrderOperationResult.invalidStateTransition(
                     orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
         }
-        creditWalletForRefund(order, orderId);
-        orderServiceImpl.refundOrder(orderId, order.getActualPrice());
+        LitemallMoney refund = settleRefundToTender(order, orderId);
+        orderServiceImpl.refundOrder(orderId, refund);
         return LitemallOrderOperationResult.refundSuccess(
                 orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+    }
+
+    /**
+     * Route the refund money to the tender that paid and return the amount actually
+     * refunded (what {@code refund_amount} must record). Never exceeds the captured
+     * amount: WALLET refunds the recorded debit; an external (CARD/digital) charge is
+     * reversed at the PSP seam without touching the wallet.
+     */
+    private LitemallMoney settleRefundToTender(LitemallOrderAggregate order, LitemallOrderId orderId) {
+        LitemallMoney actual = order.getActualPrice();
+        if (actual == null || actual.getAmount().signum() <= 0) {
+            log.info("Refund for order {}: non-positive order amount, nothing to return", orderId.getId());
+            return new LitemallMoney(java.math.BigDecimal.ZERO);
+        }
+
+        String orderRef = String.valueOf(orderId.getId());
+        LitemallMoney captured = walletService
+                .findOrderPaymentDebit(order.getUserId().getId(), orderRef)
+                .map(bill -> bill.getAmount())
+                .orElse(null);
+        PaymentMethod tender = paidTender(order, captured != null);
+
+        if (tender == PaymentMethod.WALLET) {
+            if (captured == null) {
+                // Wallet tender but no debit on the ledger (e.g. the pay path skipped a
+                // non-positive debit). Nothing was captured, so nothing comes back.
+                log.warn("Refund for order {}: wallet tender but no recorded wallet debit; nothing to return",
+                        orderId.getId());
+                return new LitemallMoney(java.math.BigDecimal.ZERO);
+            }
+            LitemallMoney refund = new LitemallMoney(actual.getAmount().min(captured.getAmount()));
+            creditWalletForRefund(order, orderId, refund);
+            return refund;
+        }
+
+        if (tender == null) {
+            log.warn("Refund for order {}: no recorded tender and no wallet capture; "
+                    + "completing refund with amount 0", orderId.getId());
+            return new LitemallMoney(java.math.BigDecimal.ZERO);
+        }
+
+        // External charge (CARD / digital wallet): the money sits at the PSP, so the
+        // wallet must NOT be credited. The server-side reversal is the same deliberate
+        // seam as the charge itself (client-confirmed Stripe — see processPayment);
+        // the LitemallOrderRefundedEvent raised by the aggregate carries the signal.
+        log.info("Refund for order {}: would reverse {} charge {} for {} at the PSP (no wallet credit)",
+                orderId.getId(), tender, externalReference(order), actual.getAmount());
+        return actual;
+    }
+
+    /**
+     * The tender that paid this order, parsed from the {@code pay_id} record written
+     * by {@code markOrderPaid} ({@code "WALLET"} or {@code "<METHOD>:<reference>"}).
+     * Orders paid before the tender was recorded fall back to the wallet ledger:
+     * a payment debit for the order means it was wallet-paid; otherwise unknown.
+     */
+    private PaymentMethod paidTender(LitemallOrderAggregate order, boolean walletDebitExists) {
+        String payId = order.getPayId();
+        if (payId != null && !payId.isBlank()) {
+            String name = payId.split(":", 2)[0].trim();
+            try {
+                return PaymentMethod.valueOf(name);
+            } catch (IllegalArgumentException e) {
+                log.warn("Order {} has unparseable pay_id tender '{}'; falling back to the wallet ledger",
+                        order.getOrderId().getId(), payId);
+            }
+        }
+        return walletDebitExists ? PaymentMethod.WALLET : null;
+    }
+
+    /** The PSP reference recorded after the tender in {@code pay_id}, if any. */
+    private String externalReference(LitemallOrderAggregate order) {
+        String payId = order.getPayId();
+        if (payId == null || payId.indexOf(':') < 0) {
+            return "<none>";
+        }
+        return payId.substring(payId.indexOf(':') + 1);
     }
 
     /** Customer soft-deletes a terminal order (delete is offered only on terminal states). */
@@ -659,20 +762,31 @@ public class LitemallOrderOrchestratorService {
         return orderServiceImpl.getStatusHistory(orderId);
     }
 
-    /** Credit the order's actual price back to the buyer's wallet (refund destination). */
-    private void creditWalletForRefund(LitemallOrderAggregate order, LitemallOrderId orderId) {
-        LitemallMoney payable = order.getActualPrice();
-        if (payable == null || payable.getAmount().signum() <= 0) {
+    /**
+     * Credit the given (already capped) refund amount back to the buyer's wallet.
+     * Idempotent on the ledger's ORDER/REFUND/orderId business key: a retried or
+     * replayed approval finds the existing credit and skips — defense in depth on
+     * top of the guarded REFUND_REQUEST→REFUNDED transition that already rolls
+     * back a losing concurrent approval.
+     */
+    private void creditWalletForRefund(LitemallOrderAggregate order, LitemallOrderId orderId, LitemallMoney amount) {
+        if (amount == null || amount.getAmount().signum() <= 0) {
             log.info("Skipping wallet refund credit for order {}: non-positive amount", orderId.getId());
+            return;
+        }
+        String orderRef = String.valueOf(orderId.getId());
+        if (walletService.hasOrderRefundCredit(order.getUserId().getId(), orderRef)) {
+            log.warn("Refund credit for order {} already on the wallet ledger; skipping duplicate credit",
+                    orderId.getId());
             return;
         }
         LitemallWalletCreditCommand creditCommand = new LitemallWalletCreditCommand(
                 order.getUserId().getId(),
-                payable.getAmount(),
+                amount.getAmount(),
                 "Order refund",
-                "ORDER",
-                "REFUND",
-                String.valueOf(orderId.getId()),
+                LitemallBillRepository.CATEGORY_ORDER,
+                LitemallBillRepository.TYPE_REFUND,
+                orderRef,
                 "Wallet refund for order " + order.getOrderSn());
         walletService.credit(creditCommand);
     }

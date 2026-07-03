@@ -89,11 +89,22 @@ HTTP status mapping is unchanged (`buildResponse`): success 200, invalid-state 4
 | Ship | `POST /srv/private/admin/order/{id}/ship` (body: `{ shipChannel, shipSn }`) | PAID → SHIPPED |
 | Approve refund | `POST /srv/private/admin/order/{id}/refund` | REFUND_REQUEST → REFUNDED |
 
-**Refund money path:** approving a refund **credits the buyer's wallet** for the order's
-actual price (via `LitemallWalletDomainService`, atomic with the status flip). WALLET is
-the only real-money path today (CARD is a client-confirmed stub — see
-`handoff-gateway-api-order-payment.md`); a real server-side card charge would instead
-reverse via Stripe here. Documented boundary, not a gap.
+**Refund money path (refund-to-tender, capped at capture — see
+`plan-refund-tender-parity.md`):** approving a refund returns the money **to the tender
+that paid**, never more than was captured, atomic with the status flip:
+
+- **WALLET-paid** — credits the buyer's wallet with exactly the wallet debit recorded at
+  pay time (the `litemall_user_bill` ledger is the captured amount), capped at
+  `actualPrice`. The credit is idempotent on the ORDER/REFUND/orderId ledger key.
+- **CARD/digital-paid** — **no wallet credit**; the charge lives at the PSP, so the
+  reversal is a documented seam (log + `LitemallOrderRefundedEvent`), mirroring the
+  client-confirmed-charge boundary in `handoff-gateway-api-order-payment.md`.
+- **No tender / no capture** (legacy orders) — nothing to return; the status still flips
+  with `refund_amount = 0`.
+
+The tender is recorded in `litemall_order.pay_id` when the order is marked paid
+(`"WALLET"` or `"<METHOD>:<pspReference>"`); orders paid before that fall back to the
+wallet ledger. `refund_amount` always records what was actually returned.
 
 ## 5. Auto-confirm
 
@@ -129,6 +140,8 @@ placed order:
 4. `POST /srv/order/{id}/actions/confirm` → 200; timeline gains `receive` (301→401);
    `confirm_time` set; `orderStatusText` = "Completed".
 5. Refund path: from PAID/SHIPPED `POST /srv/order/{id}/actions/refund` → REFUND_REQUEST;
-   `POST /srv/private/admin/order/{id}/refund` → REFUNDED + wallet credited back.
+   `POST /srv/private/admin/order/{id}/refund` → REFUNDED. Wallet-paid: wallet credited
+   back exactly the recorded debit (`refund_amount` = that amount; net wallet movement
+   zero). Card-paid: wallet balance UNCHANGED; the reversal is logged for the PSP seam.
 6. Concurrency: a duplicate `pay`/`ship`/`confirm` affects 0 rows → clean conflict, no
    double transition (guarded `UPDATE ... WHERE order_status = <expected>`).
