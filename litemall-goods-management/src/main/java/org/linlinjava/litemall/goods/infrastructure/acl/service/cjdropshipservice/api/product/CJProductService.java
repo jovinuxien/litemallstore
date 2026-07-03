@@ -1,8 +1,6 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product;
 
 import com.google.common.util.concurrent.RateLimiter;
-import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
-import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductInventoryClient;
@@ -13,7 +11,6 @@ import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.pr
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailResponse;
-import org.linlinjava.litemall.goods.infrastructure.acl.utils.CjDropshippingApiUtils;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +20,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-
-import static org.linlinjava.litemall.db.domain.LitemallGoods.Column.categoryId;
 
 @Service
 public class CJProductService {
@@ -36,8 +30,6 @@ public class CJProductService {
     private CJProductClient productClient;
     @Autowired
     private CJProductInventoryClient inventoryClient;
-    @Autowired
-    private CjDropshippingApiUtils apiUtils;
     @Autowired
     private CJDropshippingConfig config;
     // Durable staging buffer for raw CJ payloads (replaces the old per-instance in-memory caches:
@@ -146,42 +138,6 @@ public class CJProductService {
         return acc.size() > targetCount ? new ArrayList<>(acc.subList(0, targetCount)) : acc;
     }
 
-    //public void cjFilterProductByCategory(String categoryId){
-    //public void cjFilterProductByCategory(String categoryId){
-    public List<LitemallGoodsAggregate> cjFilterProductByCategory(String categoryId){
-        CJProductDataResponse productDataResponse = this.fetchProductList();
-        CJCategoryDataResponse categoryDataResponse = this.fetchCategoryList();
-
-        /*List<CJProduct> productsInCategory = CjDropshippingApiUtils.getProductByCategory(
-                productDataResponse.getData().getList(),
-                "1E4A1FD7-738C-4AEF-9793-BDE062158BD6" // Belts & Cummerbunds
-        );
-
-        List<LitemallCategoryAggregate> litemallCategories = apiUtils.cjCategoryToLitemallCategory(categoryDataResponse);
-
-        List<LitemallGoodsAggregate> litemallGoods = apiUtils.convertProducts(productDataResponse);
-
-        List<LitemallGoodsAggregate> filteredLitemallGoods = productsInCategory.stream()
-                .map(cjProduct -> {
-                   return  apiUtils.convertProduct(cjProduct);
-                })
-                .toList();
-
-        System.out.println("the filtered goods are: " + filteredLitemallGoods);*/
-
-        // Process data
-        List<CJProduct> productsInCategory = CjDropshippingApiUtils.getProductByCategory(
-                productDataResponse.getData().getList(),
-                categoryId
-        );
-
-        List<LitemallCategoryAggregate> litemallCategories = apiUtils.cjCategoryToLitemallCategory(categoryDataResponse);
-
-        return productsInCategory.stream()
-                .map(apiUtils::convertProduct)
-                .toList();
-    }
-
     /**
      * Fetch one CJ product's full detail by raw UUID {@code pid}, memoized in the Redis staging buffer.
      * Returns {@code null} if CJ has no such product (so the caller can surface a clean not-found
@@ -248,11 +204,5 @@ public class CJProductService {
             }
         }
         return List.of();
-    }
-
-    public  List<LitemallGoodsAggregate> convertProducts(CJProductDataResponse productData) {
-        return productData.getData().getList().stream()
-                .map(apiUtils::convertProduct)
-                .collect(Collectors.toList());
     }
 }
