@@ -1,9 +1,7 @@
 package org.linlinjava.litemall.goods.application.search;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
-import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
 import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
@@ -20,11 +18,8 @@ import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -33,8 +28,9 @@ import java.util.Map;
  *
  * <p>Pipeline: fetch the configured {@code catalog-targets} through {@link CJProductService} (which
  * reads-through Redis and paces live calls by the CJ quota) → NORMALIZE each {@link CJProduct} into a
- * customer-ready {@link LitemallCjProduct} row (English title, retail-marked-up price, CJ-category →
- * local-category mapping, default-stock variant) → upsert. The row's primary key is the RAW CJ pid
+ * customer-ready {@link LitemallCjProduct} row (English title, retail-marked-up price, RAW CJ category
+ * path + leaf UUID — resolved onto the local tree at promotion time, default-stock variant) → upsert.
+ * The row's primary key is the RAW CJ pid
  * (a UUID), so it can be used directly to fetch CJ detail / place a CJ order; the {@code cj_} prefix
  * is applied only later, at OCS index time.
  *
@@ -49,24 +45,24 @@ public class CjSnapshotSyncService {
     private static final Logger LOGGER = LoggerFactory.getLogger(CjSnapshotSyncService.class);
 
     private final CJProductService cjProductService;
-    private final LitemallCategoryService categoryService;
     private final LitemallCjProductService cjProductStore;
     private final CJDropshippingConfig config;
     private final ObjectMapper objectMapper;
     private final CjRawCacheRepository rawCache;
+    private final CjCategoryTreeSyncService categoryTreeSync;
 
     public CjSnapshotSyncService(CJProductService cjProductService,
-                                 LitemallCategoryService categoryService,
                                  LitemallCjProductService cjProductStore,
                                  CJDropshippingConfig config,
                                  ObjectMapper objectMapper,
-                                 CjRawCacheRepository rawCache) {
+                                 CjRawCacheRepository rawCache,
+                                 CjCategoryTreeSyncService categoryTreeSync) {
         this.cjProductService = cjProductService;
-        this.categoryService = categoryService;
         this.cjProductStore = cjProductStore;
         this.config = config;
         this.objectMapper = objectMapper;
         this.rawCache = rawCache;
+        this.categoryTreeSync = categoryTreeSync;
     }
 
     /**
@@ -101,6 +97,17 @@ public class CjSnapshotSyncService {
         if (!config.isEnabled()) {
             return SyncResult.empty();
         }
+
+        // Mirror the CJ category tree first (cheap: the tree call is Redis-cached), so the
+        // promotion pass that follows a sync can resolve every product's leaf UUID onto a real
+        // root→leaf local chain. A failed fetch degrades to a no-op inside syncTree.
+        try {
+            categoryTreeSync.syncTree();
+        } catch (RuntimeException ex) {
+            LOGGER.warn("CJ category tree sync failed ({}); promotion will use the persisted mirror",
+                    ex.getMessage());
+        }
+
         List<CJProduct> products = fetchProducts(targetsOverride);
 
         // A targeted run (explicit targetsOverride) covers only the chosen categories, so it is
@@ -176,7 +183,7 @@ public class CjSnapshotSyncService {
         row.setPrice(retail);
         row.setDiscountPrice(null);
 
-        CategoryMapping mapping = resolveCategory(p.getCategoryName());
+        CategoryMapping mapping = rawCategory(p);
         row.setCategoryNames(writeJson(mapping.names));
         row.setCategoryIds(writeJson(mapping.ids));
 
@@ -241,70 +248,25 @@ public class CjSnapshotSyncService {
     private record CategoryMapping(List<String> names, List<String> ids) {}
 
     /**
-     * Resolve the CJ {@code categoryName} ("A / B / C") onto the local category tree: map its
-     * segments to a local category id (config), then walk that local category root→leaf to produce
-     * the SAME {@code category_names}/{@code category_ids} a local product would carry — so CJ folds
-     * into the one shared facet. Unmapped → a virtual "Imported" bucket (no junk numeric id).
+     * Store the CJ category RAW: {@code category_names} = the "A / B / C" path segments (leaf
+     * last), {@code category_ids} = the leaf's CJ category UUID. The snapshot no longer collapses
+     * the path onto the static config map — resolution onto the local tree happens at promotion
+     * time ({@code CjProductPromotionService}), against the full CJ tree that
+     * {@link CjCategoryTreeSyncService} mirrors into {@code litemall_category}.
      */
-    private CategoryMapping resolveCategory(String cjCategoryName) {
+    private CategoryMapping rawCategory(CJProduct p) {
         List<String> names = new ArrayList<>();
-        List<String> ids = new ArrayList<>();
-        String[] segments = (cjCategoryName == null) ? new String[0] : cjCategoryName.split("\\s*/\\s*");
-
-        Integer localId = lookupLocalCategory(segments);
-        if (localId != null) {
-            LitemallCategory category = categoryService.findById(localId);
-            while (category != null) {
-                names.add(category.getName());
-                ids.add(String.valueOf(category.getId()));
-                Integer parentId = category.getPid();
-                if (parentId == null || parentId.equals(0)) {
-                    break;
+        if (p.getCategoryName() != null) {
+            for (String segment : p.getCategoryName().split("\\s*/\\s*")) {
+                if (segment != null && !segment.isBlank()) {
+                    names.add(segment.trim());
                 }
-                category = categoryService.findById(parentId);
-            }
-            Collections.reverse(names);
-            Collections.reverse(ids);
-        } else {
-            names.add("Imported");
-            if (segments.length > 0) {
-                names.add(segments[segments.length - 1].trim());
             }
         }
+        List<String> ids = (p.getCategoryId() != null && !p.getCategoryId().isBlank())
+                ? List.of(p.getCategoryId().trim())
+                : List.of();
         return new CategoryMapping(names, ids);
-    }
-
-    private Integer lookupLocalCategory(String[] segments) {
-        List<String> mapping = config.getCategoryMapping();
-        if (segments == null || segments.length == 0 || mapping == null || mapping.isEmpty()) {
-            return null;
-        }
-        Map<String, Integer> normalized = new HashMap<>();
-        for (String entry : mapping) {
-            if (entry == null) {
-                continue;
-            }
-            int eq = entry.lastIndexOf('=');
-            if (eq <= 0 || eq == entry.length() - 1) {
-                continue;
-            }
-            String name = entry.substring(0, eq).trim().toLowerCase(Locale.ROOT);
-            try {
-                normalized.put(name, Integer.valueOf(entry.substring(eq + 1).trim()));
-            } catch (NumberFormatException ignore) {
-                // skip malformed entry
-            }
-        }
-        for (String segment : segments) {
-            if (segment == null) {
-                continue;
-            }
-            Integer id = normalized.get(segment.trim().toLowerCase(Locale.ROOT));
-            if (id != null) {
-                return id;
-            }
-        }
-        return null;
     }
 
     // ---- CJ catalog fetch (plan-driven, paced via Redis-through CJProductService) -----------------

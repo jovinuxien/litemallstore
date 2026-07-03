@@ -19,6 +19,7 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsSpecification;
 import org.linlinjava.litemall.db.domain.LitemallGoodsSpecificationExample;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativeAdapter;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.NativeGoodsAggregate;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -69,6 +71,8 @@ public class CjProductPromotionService {
     private final LitemallCategoryMapper categoryMapper;
     private final LitemallBrandMapper brandMapper;
     private final CjProductToNativeAdapter adapter;
+    private final CjCategoryTreeSyncService categoryTreeSync;
+    private final CJDropshippingConfig config;
     private final TransactionTemplate txTemplate;
 
     public CjProductPromotionService(LitemallCjLinkageMapper linkageMapper,
@@ -79,6 +83,8 @@ public class CjProductPromotionService {
                                      LitemallCategoryMapper categoryMapper,
                                      LitemallBrandMapper brandMapper,
                                      CjProductToNativeAdapter adapter,
+                                     CjCategoryTreeSyncService categoryTreeSync,
+                                     CJDropshippingConfig config,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
         this.goodsMapper = goodsMapper;
@@ -88,6 +94,8 @@ public class CjProductPromotionService {
         this.categoryMapper = categoryMapper;
         this.brandMapper = brandMapper;
         this.adapter = adapter;
+        this.categoryTreeSync = categoryTreeSync;
+        this.config = config;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -232,14 +240,27 @@ public class CjProductPromotionService {
     }
 
     /**
-     * Resolve (find-or-create) the litemall_category for a CJ category descriptor. Idempotent on
-     * cj_category_id when present, else on the leaf name; the resulting leaf hangs under a single
-     * "Imported" L1 root so the storefront channel nav stays clean.
+     * Resolve the litemall_category for a CJ category descriptor, preferring the full CJ tree that
+     * {@link CjCategoryTreeSyncService} mirrors into {@code litemall_category} (so the goods hangs
+     * off a real root&rarr;leaf chain, which the OCS doc builder and the category search walk via
+     * {@code pid}). Resolution order:
+     * <ol>
+     *   <li>the optional {@code category-mapping} config override — a CJ path segment pinned to a
+     *       specific native category id;</li>
+     *   <li>the mirrored tree by the product's leaf CJ UUID (idempotent natural key);</li>
+     *   <li>the mirrored tree by name path, for products that carry no leaf UUID;</li>
+     *   <li>legacy fallback (mirror never synced / unknown leaf): match by leaf name, else
+     *       find-or-create the leaf flat under the "Imported" L1 root — created lazily so the
+     *       retired root is not resurrected for nothing.</li>
+     * </ol>
      */
     private Integer resolveCategoryId(NativeGoodsAggregate.CategoryRef cat) {
-        Integer rootId = findOrCreateCategory(IMPORTED_ROOT, 0, "L1", null);
         if (cat == null) {
-            return rootId;
+            return findOrCreateCategory(IMPORTED_ROOT, 0, "L1", null);
+        }
+        Integer override = configOverrideCategoryId(cat.getNamePath());
+        if (override != null) {
+            return override;
         }
         if (StringUtils.hasText(cat.getCjCategoryId())) {
             Integer byCjId = linkageMapper.findCjCategoryIdByCjId(cat.getCjCategoryId());
@@ -247,15 +268,57 @@ public class CjProductPromotionService {
                 return byCjId;
             }
         }
+        Integer byPath = categoryTreeSync.resolveLeafIdByPath(cat.getNamePath());
+        if (byPath != null) {
+            return byPath;
+        }
         String leaf = cat.getLeafName();
         if (!StringUtils.hasText(leaf)) {
-            return rootId;
+            return findOrCreateCategory(IMPORTED_ROOT, 0, "L1", null);
         }
         Integer byName = linkageMapper.findCjCategoryIdByName(leaf);
         if (byName != null) {
             return byName;
         }
-        return createCategory(leaf, rootId, "L2", cat.getCjCategoryId());
+        return createCategory(leaf, findOrCreateCategory(IMPORTED_ROOT, 0, "L1", null), "L2", cat.getCjCategoryId());
+    }
+
+    /**
+     * The {@code spring.cjdropship.category-mapping} override ("<cj path segment>=<native category
+     * id>" entries): lets ops pin a CJ path onto an existing NATIVE category instead of the CJ
+     * mirror. Returns null when no segment matches (the common case).
+     */
+    private Integer configOverrideCategoryId(List<String> namePath) {
+        List<String> mapping = config.getCategoryMapping();
+        if (namePath == null || namePath.isEmpty() || mapping == null || mapping.isEmpty()) {
+            return null;
+        }
+        Map<String, Integer> normalized = new HashMap<>();
+        for (String entry : mapping) {
+            if (entry == null) {
+                continue;
+            }
+            int eq = entry.lastIndexOf('=');
+            if (eq <= 0 || eq == entry.length() - 1) {
+                continue;
+            }
+            try {
+                normalized.put(entry.substring(0, eq).trim().toLowerCase(Locale.ROOT),
+                        Integer.valueOf(entry.substring(eq + 1).trim()));
+            } catch (NumberFormatException ignore) {
+                // skip malformed entry
+            }
+        }
+        for (String segment : namePath) {
+            if (segment == null) {
+                continue;
+            }
+            Integer id = normalized.get(segment.trim().toLowerCase(Locale.ROOT));
+            if (id != null) {
+                return id;
+            }
+        }
+        return null;
     }
 
     private Integer findOrCreateCategory(String name, int pid, String level, String cjCategoryId) {

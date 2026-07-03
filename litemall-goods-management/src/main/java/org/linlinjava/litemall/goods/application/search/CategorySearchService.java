@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.goods.application.search;
 
+import org.linlinjava.litemall.db.domain.LitemallCategory;
+import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.category.LitemallCategoryId;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallCatalogService;
@@ -51,10 +53,13 @@ public class CategorySearchService {
 
     private final SearchService searchService;
     private final LitemallCatalogService catalogService;
+    private final LitemallCategoryService categoryService;
 
-    public CategorySearchService(SearchService searchService, LitemallCatalogService catalogService) {
+    public CategorySearchService(SearchService searchService, LitemallCatalogService catalogService,
+                                 LitemallCategoryService categoryService) {
         this.searchService = searchService;
         this.catalogService = catalogService;
+        this.categoryService = categoryService;
     }
 
     /**
@@ -77,42 +82,27 @@ public class CategorySearchService {
         stripCategoryFacets(result);
 
         result.put("category", toCategoryView(category));
-        result.put("breadcrumb", buildBreadcrumb(category));
+        result.put("breadcrumb", buildBreadcrumb(categoryId));
         result.put("subcategories", buildSubcategories(categoryId, childCounts));
         return result;
     }
 
     /**
-     * Root&rarr;leaf breadcrumb. NOTE: {@link LitemallCategoryAggregate#getParentId()} is unreliable —
-     * the repository maps it to the category's <em>own</em> id (see
-     * {@code LitemallCatalogRepositoryImpl#convertToDomainModel}), so it cannot be walked. The
-     * taxonomy is two-level (L1 &rarr; L2), so an L2's parent is resolved by finding the L1 whose
-     * children include it. (The buggy mapping is left untouched here; fixing it ripples into the
-     * catalog controller + write path and is a separate follow-up.)
+     * Root&rarr;leaf breadcrumb, walked over the persisted {@code pid} chain of the DB rows.
+     * (The aggregate's {@code getParentId()} is unreliable — the repository maps it to the
+     * category's <em>own</em> id — so the walk deliberately reads {@link LitemallCategoryService}
+     * instead. Depth is no longer assumed to be two levels: the CJ mirror adds an L3 tier.)
      */
-    private List<Map<String, Object>> buildBreadcrumb(LitemallCategoryAggregate category) {
+    private List<Map<String, Object>> buildBreadcrumb(Integer categoryId) {
         List<Map<String, Object>> crumbs = new ArrayList<>();
-        if (!"L1".equalsIgnoreCase(category.getLevel())) {
-            LitemallCategoryAggregate parent = findParent(category);
-            if (parent != null) {
-                crumbs.add(toCategoryView(parent));
-            }
+        LitemallCategory current = categoryService.findById(categoryId);
+        int guard = 0;
+        while (current != null && guard++ < 10) { // depth guard against a pid cycle
+            crumbs.add(0, toCategoryView(current));
+            Integer pid = current.getPid();
+            current = (pid == null || pid == 0) ? null : categoryService.findById(pid);
         }
-        crumbs.add(toCategoryView(category));
         return crumbs;
-    }
-
-    /** Finds the L1 whose direct children include {@code child}; null if none (data anomaly). */
-    private LitemallCategoryAggregate findParent(LitemallCategoryAggregate child) {
-        Integer childId = child.getCategoryId().getId();
-        for (LitemallCategoryAggregate l1 : catalogService.getFirstLevelCategories()) {
-            for (LitemallCategoryAggregate sub : catalogService.queryByPid(l1.getCategoryId().getId())) {
-                if (childId.equals(sub.getCategoryId().getId())) {
-                    return l1;
-                }
-            }
-        }
-        return null;
     }
 
     /** Direct children of the category, each annotated with its in-category doc count (matched by name). */
@@ -121,8 +111,8 @@ public class CategorySearchService {
         for (LitemallCategoryAggregate child : catalogService.queryByPid(categoryId)) {
             Map<String, Object> node = toCategoryView(child);
             node.put("count", childCounts.getOrDefault(child.getCategoryName(), 0L));
-            // The taxonomy is two-level (L1 -> L2 leaf); an L2 child has no further children.
-            node.put("hasChildren", "L1".equalsIgnoreCase(child.getLevel()));
+            // Actual children lookup, not a level heuristic — the tree may be 2 (native) or 3 (CJ) deep.
+            node.put("hasChildren", !catalogService.queryByPid(child.getCategoryId().getId()).isEmpty());
             nodes.add(node);
         }
         return nodes;
@@ -174,6 +164,16 @@ public class CategorySearchService {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("id", category.getCategoryId().getId());
         view.put("name", category.getCategoryName());
+        view.put("level", category.getLevel());
+        view.put("iconUrl", category.getIconUrl());
+        view.put("picUrl", category.getPicUrl());
+        return view;
+    }
+
+    private Map<String, Object> toCategoryView(LitemallCategory category) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", category.getId());
+        view.put("name", category.getName());
         view.put("level", category.getLevel());
         view.put("iconUrl", category.getIconUrl());
         view.put("picUrl", category.getPicUrl());
