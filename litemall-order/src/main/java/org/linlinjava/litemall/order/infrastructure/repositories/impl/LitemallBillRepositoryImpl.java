@@ -46,6 +46,28 @@ public class LitemallBillRepositoryImpl implements LitemallBillRepository {
         return record != null ? toDomainModel(record) : null;
     }
 
+    @Override
+    public java.util.Optional<LitemallBillAggregate> findOrderPaymentDebit(LitemallUserId userId, String orderRef) {
+        return billMapper.selectByUserId(userId.getId()).stream()
+                .filter(r -> matchesOrderBill(r, orderRef, TYPE_PAYMENT, (byte) 0))
+                .findFirst()
+                .map(this::toDomainModel);
+    }
+
+    @Override
+    public boolean orderRefundCreditExists(LitemallUserId userId, String orderRef) {
+        return billMapper.selectByUserId(userId.getId()).stream()
+                .anyMatch(r -> matchesOrderBill(r, orderRef, TYPE_REFUND, (byte) 1));
+    }
+
+    /** pm mirrors {@link #toDataModel}: 1 = credit, 0 = debit. */
+    private boolean matchesOrderBill(LitemallUserBill r, String orderRef, String type, byte pm) {
+        return CATEGORY_ORDER.equals(r.getCategory())
+                && type.equals(r.getType())
+                && orderRef != null && orderRef.equals(r.getLinkId())
+                && r.getPm() != null && r.getPm() == pm;
+    }
+
     private LitemallBillAggregate toDomainModel(LitemallUserBill r) {
         LitemallBillAggregate agg = new LitemallBillAggregate();
         agg.setBillId(new LitemallBillId(r.getId()));

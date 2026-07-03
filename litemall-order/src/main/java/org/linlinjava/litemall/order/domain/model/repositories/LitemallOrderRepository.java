@@ -54,8 +54,12 @@ public interface LitemallOrderRepository {
      * matches a row still in CREATED, so a retried or concurrent payment (which
      * already flipped the row) affects 0 rows. Returns the number of rows
      * updated (1 on success, 0 if the order was no longer in CREATED).
+     *
+     * @param payId tender record persisted to {@code pay_id} — {@code "WALLET"} or
+     *              {@code "<METHOD>:<pspReference>"}; refund routing reads it back
+     *              (see the orchestrator's refund-to-tender settlement). May be null.
      */
-    int markPaidIfCreated(LitemallOrderId orderId);
+    int markPaidIfCreated(LitemallOrderId orderId, String payId);
 
     /**
      * Guarded status transitions. Each mirrors {@link #markPaidIfCreated}: the UPDATE
