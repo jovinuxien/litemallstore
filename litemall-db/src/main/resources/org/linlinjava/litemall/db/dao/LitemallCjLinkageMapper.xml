@@ -51,6 +51,21 @@
     limit 1
   </select>
 
+  <select id="findCategoryByCjKey" resultType="org.linlinjava.litemall.db.domain.LitemallCategory">
+    select id, `name`, keywords, `desc`, pid, icon_url, pic_url, `level`, sort_order,
+           add_time, update_time, deleted, source, cj_category_id
+    from litemall_category
+    where cj_category_id = #{cjCategoryId}
+    limit 1
+  </select>
+
+  <select id="selectCjMappedCategories" resultType="org.linlinjava.litemall.db.domain.LitemallCategory">
+    select id, `name`, keywords, `desc`, pid, icon_url, pic_url, `level`, sort_order,
+           add_time, update_time, deleted, source, cj_category_id
+    from litemall_category
+    where cj_category_id is not null
+  </select>
+
   <select id="findCjBrandIdByName" resultType="java.lang.Integer">
     select id from litemall_brand
     where source = 'cj' and `name` = #{name} and deleted = 0
