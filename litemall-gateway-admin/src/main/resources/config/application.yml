@@ -41,8 +41,10 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/order/**,/srv/cart/**
+        # Wallet vertical was absorbed into litemall-order (litemall-wallet-service
+        # deleted); the /srv/wallet/** surface is served by order-service.
         - id: wallet-service
-          uri: lb://wallet-service-app
+          uri: lb://order-service-app
           predicates:
             - Path=/srv/wallet/**
         - id: loyalty-service
@@ -105,8 +107,9 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/order/**,/srv/cart/**
+        # Wallet lives in order-service (see default profile note).
         - id: wallet-service
-          uri: lb://wallet-service-app
+          uri: lb://order-service-app
           predicates:
             - Path=/srv/wallet/**
         - id: loyalty-service
