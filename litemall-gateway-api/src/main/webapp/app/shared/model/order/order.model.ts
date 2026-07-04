@@ -32,6 +32,8 @@ export interface IOrderListItem {
   handleOption?: IOrderHandleOption;
   aftersaleStatus?: number;
   goodsList?: IOrderGoods[];
+  source?: string; // 'local' | 'cj' — 'cj' rows are dropship orders
+  cjOrderNum?: string;
 }
 
 export interface IOrderDetail {
@@ -48,4 +50,7 @@ export interface IOrderDetail {
   couponPrice?: number | { amount: number };
   actualPrice?: number | { amount: number };
   orderGoods?: IOrderGoods[];
+  source?: string; // 'local' | 'cj' — 'cj' rows are dropship orders
+  cjOrderId?: string;
+  cjOrderNum?: string;
 }
