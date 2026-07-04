@@ -20,7 +20,9 @@ export const orderApi = {
   /**
    * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
    * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment
-   * failure surfaces as a non-2xx (402) the caller catches. See orderSlice.payOrder.
+   * failure surfaces as a non-2xx (402) the caller catches. For a source='cj' order
+   * the CJ placement runs inside the pay call (3-10s typical) — orderSlice.payOrder
+   * owns the long per-request timeout; this helper keeps the 5s global default.
    */
   pay: (orderId: number | string, body: { paymentMethod: string; paymentIntentId?: string }) =>
     unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/pay`, body)),

@@ -77,7 +77,10 @@ const OrderList: React.FC = () => {
           orders.map(o => (
             <div key={o.id} className='lm-order-panel'>
               <div className='lm-order-panel__head'>
-                <span className='lm-order-panel__sn'>#{o.orderSn ?? o.id}</span>
+                <span className='lm-order-panel__sn'>
+                  #{o.orderSn ?? o.id}
+                  {o.source === 'cj' && <span className='badge bg-lm-primary ms-2'>Dropship</span>}
+                </span>
                 <span className='lm-order-panel__status'>{o.orderStatusText}</span>
               </div>
               <div role='button' tabIndex={0} onClick={() => navigate(`/order/${o.id}`)}>
