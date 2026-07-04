@@ -85,12 +85,18 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 | `/srv/feedback/submit` | POST | `modules/user/Feedback` |
 
 ## Discovered during the order/user redesign (2026-06-27)
-- **Customer session is not rehydrated on reload (gateway-api SPA bug).** `auth/customerAuthSlice`
-  initialises `isAuthenticated:false` and only flips it on a live login; the stored `customerToken`
-  in sessionStorage is ignored at store-creation. So any full page reload of a gated route
-  (`/checkout`, `/orders`, `/user/**`) bounces the customer to `/login` even though their token is
-  still valid. Fix: seed `isAuthenticated` (and userInfo) from the stored token on slice init / an
-  app-bootstrap rehydrate thunk. In-scope for gateway-api; not yet done.
+- **Customer session is not rehydrated on reload (gateway-api SPA bug).** ✅ **FIXED (2026-07-04).**
+  `auth/customerAuthSlice` now seeds `token`/`refreshToken`/`userInfo`/`isAuthenticated` from
+  sessionStorage at slice init (`restoreFromStorage()`), persists `customerUserInfo` on
+  login/register, and clears all three keys on logout. `config/axiosinstance` additionally
+  auto-expires the session (clear storage + redirect `/login`) on HTTP **401** or a litemall
+  **`errno:501`** envelope.
+- **Order service answers a bad/missing JWT with HTTP 200 `{errno:502,"System internal error"}`**
+  (observed on `/srv/order/list`, `/srv/cart/index`, `/srv/address/list`, 2026-07-04) instead of
+  **401** or the canonical litemall `errno:501` "please login". The SPA's session-expiry hook keys
+  on 401/501, so an expired token currently surfaces as a generic error rather than a clean bounce
+  to `/login`. **Follow-up for the `order` worktree:** map auth failures (missing/invalid
+  `X-User-Id` / token) to 401 or `errno:501` on the customer `/srv/order|cart|address` paths.
 - **CARD payment is a stub.** Checkout/Payment send a placeholder `pi_stub_<orderId>` PaymentIntent
   id; real Stripe Elements (publishable key + `@stripe/react-stripe-js` + client-confirmed intent)
   is still pending (gateway-api). WALLET is fully functional.

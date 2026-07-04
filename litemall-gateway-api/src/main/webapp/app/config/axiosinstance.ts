@@ -24,4 +24,36 @@ baseAxios.interceptors.request.use(config => {
   return config;
 });
 
+// Expired/invalid JWT: drop the stored session and send the customer to
+// /login via a hard redirect — the full reload resets redux, which keeps this
+// module free of a circular import on the store. Auth failures surface two
+// ways depending on the service: HTTP 401, or the litemall envelope
+// {errno:501,"please login"} inside an HTTP 200. (Today the order service
+// answers a bad token with the generic errno 502 — follow-up filed for the
+// order worktree to emit 401/501 so this hook can fire.) The rejection still
+// propagates so callers' error paths run.
+function expireSession(): void {
+  sessionStorage.removeItem('customerToken');
+  sessionStorage.removeItem('customerRefreshToken');
+  sessionStorage.removeItem('customerUserInfo');
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+}
+
+baseAxios.interceptors.response.use(
+  response => {
+    if (response.data?.errno === 501 && sessionStorage.getItem('customerToken')) {
+      expireSession();
+    }
+    return response;
+  },
+  error => {
+    if (error?.response?.status === 401) {
+      expireSession();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default baseAxios;

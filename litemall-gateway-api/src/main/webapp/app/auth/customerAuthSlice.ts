@@ -9,7 +9,15 @@ import { authApi, RegisterBody } from 'app/shared/api';
  * realm now lives entirely in the gateway-admin SPA.
  */
 const TOKEN_KEY = 'customerToken';
+const REFRESH_TOKEN_KEY = 'customerRefreshToken';
+const USER_INFO_KEY = 'customerUserInfo';
 const api = createApiClient({ tokenKey: TOKEN_KEY });
+
+export function clearCustomerSession(): void {
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  sessionStorage.removeItem(USER_INFO_KEY);
+}
 
 interface Credentials {
   username: string;
@@ -67,23 +75,57 @@ export const registerCustomerThunk = createAsyncThunk<
 });
 
 export const logoutCustomerThunk = createAsyncThunk('customerAuth/logout', async () => {
-  const refreshToken = sessionStorage.getItem('customerRefreshToken');
-  await api.post('/auth/logout', { refreshToken });
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem('customerRefreshToken');
+  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  try {
+    await api.post('/auth/logout', { refreshToken });
+  } catch {
+    // Best-effort revoke: logout must still succeed locally when the edge
+    // call fails, so the fulfilled reducer always resets the auth state.
+  } finally {
+    clearCustomerSession();
+  }
 });
+
+/**
+ * Rehydrate auth from sessionStorage so a page reload does not log the
+ * customer out: the JWT survives the reload but redux used to reset to
+ * isAuthenticated=false, bouncing protected routes to /login.
+ */
+function restoreFromStorage(): CustomerAuthData {
+  const token = sessionStorage.getItem(TOKEN_KEY);
+  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  let userInfo: CustomerInfo | null = null;
+  try {
+    const raw = sessionStorage.getItem(USER_INFO_KEY);
+    if (raw) userInfo = JSON.parse(raw);
+  } catch {
+    userInfo = null;
+  }
+  return { token, refreshToken, userInfo, isAuthenticated: !!token };
+}
+
+const loggedOutData: CustomerAuthData = { token: null, refreshToken: null, userInfo: null, isAuthenticated: false };
 
 const initialState: BaseState<CustomerAuthData> = {
   loading: 'idle',
   errorMessage: null,
   errorNumber: null,
-  data: { token: null, refreshToken: null, userInfo: null, isAuthenticated: false },
+  data: restoreFromStorage(),
 };
 
 const customerAuthSlice = createSlice({
   name: 'customerAuth',
   initialState,
-  reducers: {},
+  reducers: {
+    // For in-app callers that detect an expired/invalid token (the axios 401
+    // interceptor clears storage and hard-redirects instead, to avoid a
+    // circular store import).
+    sessionExpired(state) {
+      clearCustomerSession();
+      state.data = loggedOutData;
+      state.loading = 'idle';
+    },
+  },
   extraReducers: builder => {
     builder
       .addCase(loginCustomerThunk.pending, state => {
@@ -95,7 +137,8 @@ const customerAuthSlice = createSlice({
         const d = action.payload.data;
         state.data = { ...d, isAuthenticated: true };
         if (d.token) sessionStorage.setItem(TOKEN_KEY, d.token);
-        if (d.refreshToken) sessionStorage.setItem('customerRefreshToken', d.refreshToken);
+        if (d.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, d.refreshToken);
+        if (d.userInfo) sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(d.userInfo));
       })
       .addCase(loginCustomerThunk.rejected, (state, action) => {
         state.loading = 'failed';
@@ -111,7 +154,8 @@ const customerAuthSlice = createSlice({
         const d = action.payload.data;
         state.data = { ...d, isAuthenticated: true };
         if (d.token) sessionStorage.setItem(TOKEN_KEY, d.token);
-        if (d.refreshToken) sessionStorage.setItem('customerRefreshToken', d.refreshToken);
+        if (d.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, d.refreshToken);
+        if (d.userInfo) sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(d.userInfo));
       })
       .addCase(registerCustomerThunk.rejected, (state, action) => {
         state.loading = 'failed';
@@ -119,10 +163,11 @@ const customerAuthSlice = createSlice({
         state.errorNumber = action.payload?.errno ?? -1;
       })
       .addCase(logoutCustomerThunk.fulfilled, state => {
-        state.data = { token: null, refreshToken: null, userInfo: null, isAuthenticated: false };
+        state.data = loggedOutData;
         state.loading = 'idle';
       });
   },
 });
 
+export const { sessionExpired } = customerAuthSlice.actions;
 export default customerAuthSlice.reducer;
