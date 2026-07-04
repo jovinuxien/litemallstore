@@ -90,6 +90,9 @@ public class CjFulfillmentService {
                 .customerName(order.getConsignee())
                 .phone(order.getMobile())
                 .countryCode(countryCode)
+                // CJ createOrder validates shippingCountry (the NAME) as non-empty on top
+                // of the code (error 1600300); we persist only the ISO code, so derive it.
+                .country(countryNameFor(countryCode))
                 .province(address.getProvince())
                 .city(address.getCity())
                 .address(joinNonBlank(address.getCounty(), address.getAddressDetail()))
@@ -116,6 +119,17 @@ public class CjFulfillmentService {
                             + " is no longer resolvable (deleted between submit and pay?)");
         }
         return address;
+    }
+
+    /** English display name for an ISO country code ("SE" -> "Sweden"); falls back to the code. */
+    private static String countryNameFor(String isoCode) {
+        try {
+            String name = new java.util.Locale.Builder().setRegion(isoCode.trim()).build()
+                    .getDisplayCountry(java.util.Locale.ENGLISH);
+            return name == null || name.isBlank() ? isoCode : name;
+        } catch (RuntimeException e) {
+            return isoCode;
+        }
     }
 
     private static String joinNonBlank(String... parts) {
