@@ -6,11 +6,15 @@ import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.db.domain.*;
 import org.linlinjava.litemall.db.service.*;
+import org.linlinjava.litemall.goods.domain.events.GoodsIndexEvent;
+import org.linlinjava.litemall.goods.infrastructure.messaging.source.GoodsIndexEventPublisher;
 import org.linlinjava.litemall.goods.interfaces.rest.admin.dto.GoodsAllinone;
 import org.linlinjava.litemall.goods.interfaces.rest.admin.vo.CatVo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -47,6 +51,31 @@ public class AdminGoodsService {
     private LitemallCartService cartService;
     @Autowired
     private QCodeService qCodeService;
+    @Autowired
+    private GoodsIndexEventPublisher goodsIndexEventPublisher;
+
+    /**
+     * Publish the incremental OCS index event only after the surrounding transaction
+     * commits: the Rabbit consumer re-fetches the goods row by id, so a mid-transaction
+     * publish can be consumed before the row is visible (a create would fall back to a
+     * DELETE and the document would never land).
+     */
+    private void publishGoodsIndexEvent(Integer goodsId, GoodsIndexEvent.Action action) {
+        if (goodsId == null) {
+            return;
+        }
+        GoodsIndexEvent event = new GoodsIndexEvent(goodsId, action);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    goodsIndexEventPublisher.publish(event);
+                }
+            });
+        } else {
+            goodsIndexEventPublisher.publish(event);
+        }
+    }
 
     public Object list(Integer goodsId, String goodsSn, String name,
                        Integer page, Integer limit, String sort, String order) {
@@ -203,6 +232,7 @@ public class AdminGoodsService {
             cartService.updateProduct(product.getId(), goods.getGoodsSn(), goods.getName(), product.getPrice(), product.getUrl());
         }
 
+        publishGoodsIndexEvent(gid, GoodsIndexEvent.Action.UPSERT);
         return ResponseUtil.ok();
     }
 
@@ -218,6 +248,7 @@ public class AdminGoodsService {
         specificationService.deleteByGid(gid);
         attributeService.deleteByGid(gid);
         productService.deleteByGid(gid);
+        publishGoodsIndexEvent(gid, GoodsIndexEvent.Action.DELETE);
         return ResponseUtil.ok();
     }
 
@@ -277,6 +308,7 @@ public class AdminGoodsService {
             product.setGoodsId(goods.getId());
             productService.add(product);
         }
+        publishGoodsIndexEvent(goods.getId(), GoodsIndexEvent.Action.UPSERT);
         return ResponseUtil.ok();
     }
 

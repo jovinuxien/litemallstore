@@ -1,0 +1,15 @@
+# Profile: docker — activate with --spring.profiles.active=docker when
+# goods-management itself runs inside the docker-compose network. Overrides the
+# localhost litemall.search.* defaults from application.yml with the OCS
+# compose service names (docker-compose/docker-compose.yml). When the service
+# runs on the HOST against the compose stack, keep the default profile: the OCS
+# containers publish 8535/8534/8081 on localhost.
+litemall:
+  search:
+    indexer-url: http://indexer:8535
+    search-url: http://searcher:8534
+    suggest-url: http://suggest:8081
+
+spring:
+  rabbitmq:
+    host: rabbitmq
