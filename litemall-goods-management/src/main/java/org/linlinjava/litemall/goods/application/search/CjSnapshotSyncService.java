@@ -305,24 +305,42 @@ public class CjSnapshotSyncService {
         int pageSize = Math.max(1, config.getPageSize());
         List<CJProduct> all = new ArrayList<>();
         for (CJDropshippingConfig.CatalogTarget target : targets) {
-            int limit = target.getLimit() > 0 ? target.getLimit() : 200;
             List<String> categoryIds = resolveCategoryIds(target, tree);
             if (categoryIds.isEmpty()) {
                 LOGGER.warn("CJ catalog-target '{}' resolved to no CJ category id; skipping", label(target));
                 continue;
             }
             int before = all.size();
-            int remaining = limit;
-            for (String categoryId : categoryIds) {
-                if (remaining <= 0) {
-                    break;
+            int perLeaf = target.getPerLeafLimit();
+            if (perLeaf > 0) {
+                // Per-leaf budgets: every resolved leaf gets its own quota, so a broad target fills
+                // ALL its leaves; `limit` (when > 0) only caps the target's overall haul.
+                int cap = target.getLimit() > 0 ? target.getLimit() : Integer.MAX_VALUE;
+                for (String categoryId : categoryIds) {
+                    int taken = all.size() - before;
+                    if (taken >= cap) {
+                        break;
+                    }
+                    List<CJProduct> got = cjProductService.fetchByCategory(
+                            categoryId, Math.min(perLeaf, cap - taken), pageSize);
+                    all.addAll(got);
                 }
-                List<CJProduct> got = cjProductService.fetchByCategory(categoryId, remaining, pageSize);
-                all.addAll(got);
-                remaining -= got.size();
+                LOGGER.info("CJ catalog-target '{}' fetched {} products (per-leaf {}, {} leaf categories)",
+                        label(target), all.size() - before, perLeaf, categoryIds.size());
+            } else {
+                int limit = target.getLimit() > 0 ? target.getLimit() : 200;
+                int remaining = limit;
+                for (String categoryId : categoryIds) {
+                    if (remaining <= 0) {
+                        break;
+                    }
+                    List<CJProduct> got = cjProductService.fetchByCategory(categoryId, remaining, pageSize);
+                    all.addAll(got);
+                    remaining -= got.size();
+                }
+                LOGGER.info("CJ catalog-target '{}' fetched {} products (limit {}, {} leaf categories)",
+                        label(target), all.size() - before, limit, categoryIds.size());
             }
-            LOGGER.info("CJ catalog-target '{}' fetched {} products (limit {}, {} leaf categories)",
-                    label(target), all.size() - before, limit, categoryIds.size());
         }
         if (all.isEmpty()) {
             LOGGER.warn("CJ plan yielded no products; falling back to sample (if configured)");
