@@ -67,58 +67,83 @@ class OcsSearchRoundTripVerificationTest {
         // product_id rides on the envelope id; the result-usage fields ride in data.
         assertThat(document.get("id")).as("product_id (document.id)").isNotNull();
         Map<String, Object> data = asMap(document.get("data"));
-        // These six Result fields are populated for every on-sale goods, so they are
-        // always present in result data. brand is also a Result field but OCS omits it
-        // from data when the goods has no brand (brand_id 0 -> null), and category_ids
-        // is Facet-usage only (never in result data) — both are asserted below.
+        // These five Result fields are populated for every on-sale goods, so they are
+        // always present in result data. OCS omits null fields from data, and three of
+        // the nine are nullable per goods: brand (brand_id 0 -> null), discount_price
+        // (CJ goods have no discount concept, §16) — both asserted on documents that
+        // have them below — and category_ids is Facet-usage only (never in result data).
         assertThat(data).containsKeys(
-                "title", "price", "discount_price", "description",
-                "image_url", "category_names");
+                "title", "price", "description", "image_url", "category_names");
 
-        // brand (Search+Result+Facet) and category_ids (Facet-only) must still be
-        // indexed — assert both surface as search facets.
+        // discount_price round-trips wherever a goods has one: sort by it descending so
+        // the top hit provably carries it (self-adapting — no hardcoded goods).
+        Map<String, Object> discounted = trySearch("", "-discount_price");
+        List<Map<String, Object>> discountedSlices = discounted == null ? null : asList(discounted.get("slices"));
+        assumeTrue(discountedSlices != null && !discountedSlices.isEmpty(), "discount-sorted search returned nothing — skipping");
+        List<Map<String, Object>> discountedHits = asList(discountedSlices.get(0).get("hits"));
+        assertThat(discountedHits).as("discount-sorted hits").isNotEmpty();
+        assertThat(asMap(asMap(discountedHits.get(0).get("document")).get("data")))
+                .as("discount_price present on the highest-discount_price document")
+                .containsKey("discount_price");
+
+        // category_ids (Facet-usage only, never in result data) must surface as a facet.
+        // brand is a facet field too, but the searcher ranks/caps the displayed facet
+        // set and with CJ attribute facets (Material, source, ...) in the index the
+        // brand facet no longer makes the cut for a broad query — so brand is proven
+        // through result data below instead of through facet display.
         List<Map<String, Object>> facets = asList(slices.get(0).get("facets"));
         assertThat(facets).as("facets present").isNotNull();
         assertThat(facetFieldNames(facets))
-                .as("brand and category_ids indexed as facets")
-                .contains("brand", "category_ids");
+                .as("category_ids indexed as a facet")
+                .contains("category_ids");
 
-        // Prove brand also round-trips as a result field: pull a real brand value from
-        // the brand facet, search it (brand is a Search field), and assert the matching
-        // document carries brand in its result data — the ninth field. Self-adapting to
-        // the live data so it never hardcodes a brand name.
-        String brandTerm = firstBrandSearchTerm(facets);
+        // Prove brand round-trips as a result field — the ninth field: scan a page of
+        // hits for a branded document (brand is nullable per goods, so not every hit
+        // carries it), then search its brand term and assert the match carries brand in
+        // result data. Self-adapting to the live data so it never hardcodes a brand name.
+        String brandTerm = firstBrandFromHits();
         assumeTrue(brandTerm != null, "no branded goods indexed — skipping brand result-data check");
         Map<String, Object> brandResult = trySearch(brandTerm);
         List<Map<String, Object>> brandSlices = brandResult == null ? null : asList(brandResult.get("slices"));
         assumeTrue(brandSlices != null && !brandSlices.isEmpty(), "brand search returned nothing — skipping");
         List<Map<String, Object>> brandHits = asList(brandSlices.get(0).get("hits"));
         assertThat(brandHits).as("brand search hits").isNotEmpty();
-        Map<String, Object> brandData = asMap(asMap(brandHits.get(0).get("document")).get("data"));
-        assertThat(brandData).as("brand present in result data for a branded goods").containsKey("brand");
+        boolean anyBranded = brandHits.stream()
+                .map(h -> asMap(asMap(h.get("document")).get("data")))
+                .anyMatch(d -> d.containsKey("brand"));
+        assertThat(anyBranded).as("brand present in result data for a branded goods").isTrue();
     }
 
-    /** Field names of the slice's facets (e.g. brand, price, category_ids, category_names). */
+    /** Field names of the slice's facets (e.g. price, category_ids, category_names). */
     private static List<String> facetFieldNames(List<Map<String, Object>> facets) {
         return facets.stream().map(f -> (String) f.get("fieldName")).toList();
     }
 
-    /** First whitespace-delimited token of the first brand facet entry's key, or null. */
-    @SuppressWarnings("unchecked")
-    private static String firstBrandSearchTerm(List<Map<String, Object>> facets) {
-        for (Map<String, Object> facet : facets) {
-            if (!"brand".equals(facet.get("fieldName"))) {
-                continue;
-            }
-            List<Map<String, Object>> entries = (List<Map<String, Object>>) facet.get("entries");
-            if (entries == null || entries.isEmpty()) {
+    /**
+     * First whitespace-delimited token of the first brand value found while paging
+     * through match-all hits, or null. Most CJ goods carry no brand, so one page is
+     * not enough — scan up to 500 documents.
+     */
+    private String firstBrandFromHits() {
+        for (int offset = 0; offset < 500; offset += 50) {
+            Map<String, Object> result = trySearch("", null, 50, offset);
+            if (result == null) {
                 return null;
             }
-            String key = (String) entries.get(0).get("key");
-            if (key == null || key.isBlank()) {
+            List<Map<String, Object>> slices = asList(result.get("slices"));
+            if (slices == null || slices.isEmpty()) {
                 return null;
             }
-            return key.trim().split("\\s+")[0];
+            List<Map<String, Object>> hits = asList(slices.get(0).get("hits"));
+            if (hits == null || hits.isEmpty()) {
+                return null;
+            }
+            for (Map<String, Object> hit : hits) {
+                Object brand = asMap(asMap(hit.get("document")).get("data")).get("brand");
+                if (brand instanceof String s && !s.isBlank()) {
+                    return s.trim().split("\\s+")[0];
+                }
+            }
         }
         return null;
     }
@@ -133,9 +158,21 @@ class OcsSearchRoundTripVerificationTest {
     }
 
     private Map<String, Object> trySearch(String q) {
+        return trySearch(q, null, 5, 0);
+    }
+
+    private Map<String, Object> trySearch(String q, String sort) {
+        return trySearch(q, sort, 5, 0);
+    }
+
+    private Map<String, Object> trySearch(String q, String sort, int limit, int offset) {
         try {
-            return http.getForObject(SEARCH_URL + "/search-api/v1/search/{index}?q={q}&offset=0&limit=5",
-                    Map.class, INDEX, q);
+            if (sort == null) {
+                return http.getForObject(SEARCH_URL + "/search-api/v1/search/{index}?q={q}&offset={offset}&limit={limit}",
+                        Map.class, INDEX, q, offset, limit);
+            }
+            return http.getForObject(SEARCH_URL + "/search-api/v1/search/{index}?q={q}&offset={offset}&limit={limit}&sort={sort}",
+                    Map.class, INDEX, q, offset, limit, sort);
         } catch (RuntimeException ex) {
             return null;
         }

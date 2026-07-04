@@ -606,3 +606,105 @@ from `d.getDescription()`; `CjGoodsDetailService.buildFromRow` serves it as `goo
 to the brief for a not-yet-enriched row). Verified live: enriched pid `1373927926633992192` →
 `detail_html` 818 chars; `GET /srv/goods/detail?id=cj_<pid>` returns `goods.detail` with the real HTML
 ("Product Information … Wire Core Material: Bare Copper Wire …") while `brief` stays the short category leaf.
+
+## §17 — End-to-end runtime proof of the OCS pipeline + incremental write-path fix (2026-07-04)
+
+Full re-verification of the indexing → search → application-surfacing path against the live
+docker-compose OCS stack (elasticsearch 9200, indexer 8535, searcher 8534, suggest 8081,
+kibana 5601, RabbitMQ 5672 — all healthy), plus the ONE real break found and fixed: **no REST
+write path published `GoodsIndexEvent`, so incremental indexing never fired.**
+
+### WS1 — Full reindex (DB → OCS) — VERIFIED LIVE
+`POST /srv/private/admin/search/reindex` on :8082 (master code) with a machine token
+(`client_credentials` gateway-admin @ authserver :8089) + `X-User-Roles: ROLE_ADMIN`:
+```
+{"errno":0,"data":{"indexed":943},"errmsg":"success"}     # == SELECT COUNT(*) on-sale (943)
+litemall_index/_count → 943; alias litemall_index → ocs-42-litemall_index-en (full replace, new gen)
+```
+Nine-field spot checks (ES `_search` by `_id`):
+- `1009009` (local, branded): `brand:"MUJI Manufacturer"` (resolved NAME, not id), `price:2019.0`
+  vs `discount_price:1999.0` (counter/retail split correct), `category_names:["home","quilt pillow"]` +
+  `category_ids:["1005000","1008008"]` (root→leaf), title/description/image_url/product_id(`_id`) all set.
+- `10000516` (CJ): real 3-level chain `["Toys, Kids & Babies","Toys & Hobbies","Electronic Pets"]` /
+  `["1036364","1036365","1036366"]` root→leaf; `discount_price` absent BY DESIGN (§16: CJ has no
+  discount concept; OCS omits null fields from result data).
+
+### WS2 — Search + suggest (OCS → app) — VERIFIED LIVE
+```
+GET /srv/search?q=quilt&page=1&size=5 → total:37, totalPages:8 (=ceil(37/5)), limit:5,
+  goodsList[{id,name,brief,picUrl,retailPrice,counterPrice,brand,categoryNames,source}]
+  page 1 hit: 1006014 brand:"Rollei Manufacturer" retail:1399.0 counter:14199.0
+GET /srv/search?q=quilt&page=2&size=5 → distinct ids (paging → OCS offset/limit correct)
+GET /srv/search/suggest?q=quil → ["quilt pillow", "Soft and cool Tencel hemp silk …", …] (phrases)
+```
+No SQL fallback exists on `/srv/search` (`SearchService` → `OcsSearchClient` only).
+
+### WS3 — THE BREAK: incremental indexing had no publisher — FOUND, FIXED, VERIFIED LIVE
+**Symptom.** `POST /srv/private/admin/goods/create` (the real §12 admin write path) persisted goods
+`10000816` (on-sale) but the doc NEVER appeared in `litemall_index`; `goods.index.queue` stayed at
+0 messages. Root cause: the event-publishing writes (`LitemallGoodsManagementServiceImpl.addGoods/
+updateGoods/deleteGoods`) are reachable from NO controller, and the actual write path
+(`AdminGoodsService.create/update/delete`) never published `GoodsIndexEvent`. Broker plumbing was
+fine all along: exchange `appExchange` / routing key `goods.index` / queue `goods.index.queue`,
+1 live consumer (`MessageConsumer`).
+
+**Fix (this worktree).**
+- `AdminGoodsService` now publishes `GoodsIndexEvent` UPSERT after create/update and DELETE after
+  delete — via `TransactionSynchronization.afterCommit` (the consumer re-fetches the row by id, so a
+  mid-transaction publish could be consumed before commit and a create would degrade to DELETE).
+- `MessageConsumer` UPSERT now removes missing **or off-sale** goods from the index (reindexAll only
+  ever indexes on-sale — same invariant, now enforced incrementally).
+
+**Verified live** (worktree exec jar, verify profile, :8092; events consumed from the shared queue):
+```
+create OCS-INCR-TEST-002 → id 10000817 → doc appears in litemall_index WITHOUT reindex,
+  all fields correct (brand resolved, category chain, price 222.0 / discount_price 199.0)
+update 10000816 (title "... UPDATED") → doc APPEARS (was missing from the index — pre-fix debt)
+  with the updated title
+update 10000817 isOnSale=false → consumer log:
+  "UPSERT for missing/off-sale goods id=10000817, removing from index" + doc deleted
+delete 10000816, 10000817 → both docs hits:0; DB rows deleted=1; index count back to 938 == on-sale 938
+```
+**Mixed-version rollout note:** while an OLD-code instance shares `goods.index.queue`, an off-sale
+update consumed by the old consumer re-upserts the doc (old behavior). Deploy order: merge + restart
+every goods-management instance, then off-sale removal is deterministic.
+
+### WS4 — Legacy duplicate reindex path — RETIRED
+`POST /srv/admin/goods/reindex` (old `OcsIndexerClient`+`OcsGoodsDocumentMapper`, guessed non-session
+contract, brand/category unresolved — 3+2 TODOs) returned `{"errno":502}` against the real indexer
+and failed cleanly (no partial import; the two extra index generations observed today were the CJ
+startup refresh on :8082, not this endpoint). The controller now delegates to the same
+`SearchReindexService.reindexAll()` as `/srv/private/admin/search/reindex`; the three legacy ACL
+classes are DELETED. Verified live on :8092: `POST /srv/admin/goods/reindex → {"indexed":938}`,
+alias swung to `ocs-44-litemall_index-en`, `_count` 938 == on-sale 938.
+
+### WS5 — Customer-path surfacing — VERIFIED (read-only)
+`/srv/search` item shape == `/srv/goods/list` item shape, field-for-field:
+`{id,name,brief,picUrl,retailPrice,counterPrice,brand,categoryNames,source}` — the OCS search path
+is drop-in for the SQL/browse listing before data reaches the customer. Envelope differs by design
+(`goodsList`/`totalPages`/`sortOptions` vs `list`/`pages`; browse already reports `source:"ocs"`).
+No gateway-api change required for shape compatibility.
+
+### WS6 — Guarded integration checks — 3/3 GREEN against the live stack
+- `OcsSearchRoundTripVerificationTest` (2 tests): nine-field round-trip + suggest phrases. Updated
+  for the post-CJ index: `discount_price` asserted via a `sort=-discount_price` search (CJ docs have
+  none), `brand` proven via result data on a branded doc found by paging match-all hits (the searcher
+  ranks/caps displayed facets, so brand-as-facet is no longer a stable assertion).
+- **NEW** `OcsIncrementalIndexVerificationTest` (1 test): PUT one synthetic doc through the exact
+  incremental contract (`PUT /indexer-api/v1/update/litemall_index`, `{"id","data":{nine fields}}`) →
+  polls the searcher until searchable → DELETE → polls until gone; cleans up in `finally`.
+  Both `assumeTrue`-skip when OCS is down (CI-safe). Run recipe unchanged from §6 (temp pom tweak:
+  drop `-XX:MaxPermSize`, drop `debugForkedProcess`), plus `-Docs.indexer-url=http://localhost:8535`:
+  `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0` (observed 2026-07-04).
+
+### WS7 — Config hygiene
+- No hardcoded search hosts/ports in main Java — all via `litemall.search.*` (`LitemallSearchProperties`).
+- NEW `config/application-docker.yml`: `docker` profile overrides to compose service names
+  (`http://indexer:8535`, `http://searcher:8534`, `http://suggest:8081`, rabbit `rabbitmq`) — the
+  override the `LitemallSearchProperties` javadoc always claimed existed.
+
+**Boot recipe** for the :8092 verify run — §15/§16 flags plus the full dummy-storage set:
+`--litemall.storage.{aliyun,tencent,qiniu}.*=x` (all four keys each; StorageAutoConfiguration
+instantiates every provider), `--spring.cjdropship.refresh-on-startup=false` (else a paced CJ list
+refresh fires ~25 min after boot and runs its own reindex — this is what produced the two extra
+index generations during today's session).
