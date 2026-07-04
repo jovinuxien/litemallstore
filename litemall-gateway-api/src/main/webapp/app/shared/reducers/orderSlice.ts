@@ -8,18 +8,22 @@ import { IItemCart } from 'app/shared/model/cart/cart.models';
  * Customer order placement + payment against the cart-based order service. baseAxios
  * relays the customer JWT as Bearer; the gateway forwards X-User-Id downstream.
  *
- * The cart is split by source:
- *  - LOCAL lines mirror the client cart into the server cart, then
- *    `POST /srv/order/submit { cartId:0, addressId, ... }` creates the order. Both submit
- *    and `POST /srv/order/{id}/actions/pay` return a bare `OrderOperationDtoResponse`
- *    ({success,orderId,orderSn,actualPrice,message}) with the outcome on the HTTP status
- *    (201 created / 422 stock / 200 paid / 402 insufficient balance) — NOT an
- *    {errno,errmsg,data} envelope. Placement is a TWO-STEP place->pay flow.
- *  - CJ Dropshipping lines (source 'cj'/'cj_dropshipping' or a 'cj_' goodsId) bypass the
- *    cart and go to `POST /srv/order/cj/orders` by their native productId; the order
- *    service recovers the real CJ vid off the goods_product row.
+ * Local and CJ Dropshipping lines run the SAME two-step place->pay flow, one order
+ * per cart group (the order service rejects a cart mixing CJ and local goods):
+ * mirror the group into the server cart, then `POST /srv/order/submit { cartId:0,
+ * addressId, ... }` creates an UNPAID order — for an all-CJ group the order carries
+ * `source='cj'` and the submit body's `countryCode` (CJ needs a destination
+ * country). Both submit and `POST /srv/order/{id}/actions/pay` return a bare
+ * `OrderOperationDtoResponse` ({success,orderId,orderSn,actualPrice,message}) with
+ * the outcome on the HTTP status (201 created / 422 stock / 200 paid / 402
+ * insufficient balance) — NOT an {errno,errmsg,data} envelope. Paying a CJ order
+ * also places it at CJ inside the payment transaction (3-10s typical; a CJ
+ * rejection rolls the payment back and the order stays unpaid).
  */
 export type CheckoutPaymentMethod = 'CARD' | 'WALLET';
+
+/** Which cart group an order was submitted for — local goods or CJ dropship goods. */
+export type OrderGroup = 'local' | 'cj';
 
 /** Map the SPA payment choice to the order service's PaymentMethod enum name. */
 const toBackendPaymentMethod = (m: CheckoutPaymentMethod): string => (m === 'WALLET' ? 'WALLET' : 'CREDIT_CARD');
@@ -39,30 +43,35 @@ export interface ShippingInfo {
   region: string;
   kommune: string;
   zip: string;
-  // Required only when the cart contains CJ lines (CJ createOrder needs a real country).
+  // Required only when the cart contains CJ lines (CJ placement needs a real country).
   country?: string;
   countryCode?: string;
 }
 
 export interface PlaceOrderParams {
+  /** Which cart group this submit covers — the items must all belong to it. */
+  group: OrderGroup;
   items: IItemCart[];
-  shipping: ShippingInfo;
   paymentMethod: CheckoutPaymentMethod;
-  /** Saved-address id for the local order (omitted -> order service uses the default). */
+  /** Saved-address id for the order (omitted -> order service uses the default). */
   addressId?: number;
   couponId?: number;
   userCouponId?: number;
   message?: string;
+  /**
+   * ISO destination country — required for the CJ group (persisted on the order and
+   * used for CJ placement at pay time); optional and harmless on local.
+   */
+  countryCode?: string;
 }
 
 export interface PlacedOrder {
+  group: OrderGroup;
   orderId: number;
   orderSn?: string;
   actualPrice?: number;
   paid?: boolean;
   paymentMethod?: CheckoutPaymentMethod;
-  /** Set when CJ Dropshipping lines were placed (pass-through; no local order row). */
-  cjOrderNum?: string;
 }
 
 export interface PayOrderParams {
@@ -70,6 +79,17 @@ export interface PayOrderParams {
   paymentMethod: CheckoutPaymentMethod;
   /** CARD path: the client-confirmed Stripe PaymentIntent id (stubbed for now). */
   paymentIntentId?: string;
+  /**
+   * Which lastOrders slot this order belongs to; defaults to 'local' (the
+   * standalone /pay screen doesn't know the order's source).
+   */
+  group?: OrderGroup;
+}
+
+/** Orders created by the current checkout, keyed by cart group. */
+export interface LastOrders {
+  local?: PlacedOrder;
+  cj?: PlacedOrder;
 }
 
 /** Shape of the OrderOperationDtoResponse fields the SPA reads. */
@@ -80,6 +100,14 @@ interface OrderOperationResponse {
   actualPrice?: number;
   message?: string;
 }
+
+/**
+ * /actions/pay places the CJ order inside the payment transaction for source='cj'
+ * orders (3-10s typical, occasionally slower). Override the 5s global axios timeout
+ * so a slow CJ placement isn't aborted client-side mid-transaction. Applied to
+ * every pay — a local pay finishing fast is unaffected.
+ */
+const PAY_TIMEOUT_MS = 45000;
 
 /**
  * Numeric customer id from the JWT `sub` claim (the customer edge issues sub = userId).
@@ -98,99 +126,64 @@ const customerUserId = (): number | null => {
   }
 };
 
-const isCjItem = (it: IItemCart): boolean =>
-  it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
-
 /**
- * Step 1 — create the order(s). Local lines create a (not-yet-paid) order via
- * /order/submit; CJ lines place a real CJ dropship order. A stock/validation failure
- * creates no local order.
+ * Step 1 — create the order for ONE cart group. Mirrors the group's lines into the
+ * server cart, then submits. A stock/validation failure creates no order. Checkout
+ * dispatches this once per non-empty group, sequentially — the groups share the one
+ * server cart and each mirror starts by wiping it.
  */
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
-  async ({ items, shipping, paymentMethod, addressId, couponId, userCouponId, message }, thunkApi) => {
+  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode }, thunkApi) => {
     const userId = customerUserId();
     if (userId == null) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
     }
     try {
-      const localItems = items.filter(it => !isCjItem(it));
-      const cjItems = items.filter(isCjItem);
-
-      let placed: PlacedOrder = { orderId: 0, paid: false, paymentMethod };
-
-      // 1) Local lines: mirror the client cart into the server cart, then submit.
-      if (localItems.length) {
-        await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`, { params: { userId } });
-        for (const it of localItems) {
-          const goodsId = Number(it.goodsId);
-          if (!Number.isFinite(goodsId)) continue;
-          // eslint-disable-next-line no-await-in-loop
-          await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
-            userId,
-            goodsId,
-            productId: it.productId,
-            number: it.number,
-            specifications: it.specifications,
-            goodsSn: it.goodsSn,
-            goodsName: it.goodsName,
-            price: it.price,
-            picUrl: it.picUrl,
-          });
-        }
-        // LitemallPlaceOrderCommand — buyer bound from the gateway X-User-Id header.
-        const submitBody: Record<string, unknown> = {
-          cartId: 0,
-          couponId: couponId ?? 0,
-          userCouponId: userCouponId ?? 0,
-          message: message ?? '',
-          grouponRulesId: 0,
-          grouponLinkId: 0,
-        };
-        if (addressId != null) submitBody.addressId = addressId; // else order service uses the default
-        const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, submitBody);
-        const data = response.data as OrderOperationResponse;
-        if (data.success === false || data.orderId == null) {
-          return thunkApi.rejectWithValue({ errno: 1, errmsg: data.message ?? 'Order placement failed', data: null });
-        }
-        placed = { ...placed, orderId: data.orderId, orderSn: data.orderSn, actualPrice: data.actualPrice };
+      await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`, { params: { userId } });
+      let mirrored = 0;
+      for (const it of items) {
+        const goodsId = Number(it.goodsId);
+        if (!Number.isFinite(goodsId)) continue;
+        // eslint-disable-next-line no-await-in-loop
+        await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
+          userId,
+          goodsId,
+          productId: it.productId,
+          number: it.number,
+          specifications: it.specifications,
+          goodsSn: it.goodsSn,
+          goodsName: it.goodsName,
+          price: it.price,
+          picUrl: it.picUrl,
+        });
+        mirrored += 1;
       }
-
-      // 2) CJ lines: pass-through to the CJ dropship order endpoint (real CJ order).
-      if (cjItems.length) {
-        const lines = cjItems
-          .filter(it => it.productId != null)
-          .map(it => ({ productId: it.productId, quantity: it.number ?? 1 }));
-        if (!lines.length) {
-          return thunkApi.rejectWithValue({ errno: 400, errmsg: 'CJ item is missing a product variant — reopen the product and pick a variant.', data: null });
-        }
-        const cjBody = {
-          orderNumber: `CJ-${userId}-${Date.now()}`,
-          customerName: shipping.name,
-          phone: shipping.mobile,
-          countryCode: shipping.countryCode ?? '',
-          country: shipping.country ?? '',
-          province: shipping.region,
-          city: shipping.kommune || shipping.region,
-          address: [shipping.address, shipping.addressTwo].filter(Boolean).join(', '),
-          zip: shipping.zip,
-          remark: '',
-          lines,
-        };
-        try {
-          const cjResp = await baseAxios.post(`${BASE_URL_CONTEXT}/order/cj/orders`, cjBody);
-          placed = { ...placed, cjOrderNum: cjResp.data?.cjOrderNum ?? cjResp.data?.cjOrderId };
-        } catch (cjErr) {
-          const prefix = localItems.length ? 'Your local order was placed, but the CJ order failed: ' : 'CJ order failed: ';
-          return thunkApi.rejectWithValue({
-            errno: (cjErr as { response?: { status?: number } }).response?.status ?? 502,
-            errmsg: prefix + messageFromError(cjErr, 'CJ order failed'),
-            data: null,
-          });
-        }
+      if (mirrored === 0) {
+        // e.g. stale cj_<pid> lines from an old session cart — never submit an empty cart.
+        return thunkApi.rejectWithValue({
+          errno: 400,
+          errmsg: 'These items can no longer be ordered — remove them and re-add from the product page.',
+          data: null,
+        });
       }
-
-      return placed;
+      // LitemallPlaceOrderCommand — buyer bound from the gateway X-User-Id header.
+      const submitBody: Record<string, unknown> = {
+        cartId: 0,
+        couponId: couponId ?? 0,
+        userCouponId: userCouponId ?? 0,
+        message: message ?? '',
+        grouponRulesId: 0,
+        grouponLinkId: 0,
+      };
+      if (addressId != null) submitBody.addressId = addressId; // else order service uses the default
+      if (countryCode) submitBody.countryCode = countryCode; // CJ placement needs it at pay time
+      const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, submitBody);
+      const data = response.data as OrderOperationResponse;
+      if (data.success === false || data.orderId == null) {
+        return thunkApi.rejectWithValue({ errno: 1, errmsg: data.message ?? 'Order placement failed', data: null });
+      }
+      return { group, orderId: data.orderId, orderSn: data.orderSn, actualPrice: data.actualPrice, paid: false, paymentMethod };
     } catch (error) {
       return thunkApi.rejectWithValue({
         errno: (error as { response?: { status?: number } }).response?.status ?? 500,
@@ -202,13 +195,14 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
 );
 
 /**
- * Step 2 — pay a placed LOCAL order. WALLET debits server-side (insufficient balance ->
+ * Step 2 — pay a placed order. WALLET debits server-side (insufficient balance ->
  * 402, order left unpaid); CARD carries a Stripe PaymentIntent id (stubbed until real
- * Stripe Elements land). On success the order is PAID.
+ * Stripe Elements land). On success the order is PAID; for a source='cj' order the
+ * pay also placed it at CJ (a CJ rejection rolled the payment back and rejects here).
  */
 export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectValue: ApiResult<null> }>(
   'order/pay',
-  async ({ orderId, paymentMethod, paymentIntentId }, thunkApi) => {
+  async ({ orderId, paymentMethod, paymentIntentId, group }, thunkApi) => {
     try {
       const payload: { paymentMethod: string; paymentIntentId?: string } = {
         paymentMethod: toBackendPaymentMethod(paymentMethod),
@@ -218,20 +212,29 @@ export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectVa
         // confirmed PaymentIntent id. Replace with a real client-confirmed intent later.
         payload.paymentIntentId = paymentIntentId ?? `pi_stub_${orderId}`;
       }
-      const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/${orderId}/actions/pay`, payload);
+      const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/${orderId}/actions/pay`, payload, { timeout: PAY_TIMEOUT_MS });
       const body = response.data as OrderOperationResponse;
       if (body.success === false) {
         return thunkApi.rejectWithValue({ errno: 1, errmsg: body.message ?? 'Payment failed', data: null });
       }
-      return { orderId, orderSn: body.orderSn, actualPrice: body.actualPrice, paid: true, paymentMethod };
+      return { group: group ?? 'local', orderId, orderSn: body.orderSn, actualPrice: body.actualPrice, paid: true, paymentMethod };
     } catch (error) {
-      // 402 Payment Required — e.g. insufficient wallet balance; order left unpaid.
-      return thunkApi.rejectWithValue({ errno: 402, errmsg: messageFromError(error, 'Payment failed'), data: null });
+      // 402 Payment Required (insufficient wallet) / pay-failed envelope (e.g. "CJ
+      // fulfillment could not be placed: ...") — order left unpaid either way.
+      const status = (error as { response?: { status?: number } }).response?.status;
+      const timedOut = (error as { code?: string }).code === 'ECONNABORTED';
+      return thunkApi.rejectWithValue({
+        errno: status ?? (timedOut ? 504 : 500),
+        errmsg: timedOut
+          ? 'Payment is taking longer than expected. Check My Orders before retrying — the order may already be paid.'
+          : messageFromError(error, 'Payment failed'),
+        data: null,
+      });
     }
   }
 );
 
-interface OrderState extends BaseState<{ lastOrder: PlacedOrder | null }> {
+interface OrderState extends BaseState<{ lastOrders: LastOrders }> {
   /** Which step is in flight, so the UI can label "Placing…" vs "Paying…". */
   phase: 'idle' | 'placing' | 'paying';
 }
@@ -240,7 +243,7 @@ const initialState: OrderState = {
   loading: 'idle',
   errorMessage: null,
   errorNumber: null,
-  data: { lastOrder: null },
+  data: { lastOrders: {} },
   phase: 'idle',
 };
 
@@ -253,7 +256,7 @@ const orderSlice = createSlice({
       state.errorMessage = null;
       state.errorNumber = null;
       state.phase = 'idle';
-      state.data.lastOrder = null;
+      state.data.lastOrders = {};
     },
   },
   extraReducers: builder => {
@@ -266,7 +269,7 @@ const orderSlice = createSlice({
       .addCase(placeOrder.fulfilled, (state, action) => {
         state.loading = 'idle';
         state.phase = 'idle';
-        state.data.lastOrder = action.payload;
+        state.data.lastOrders[action.payload.group] = action.payload;
       })
       .addCase(placeOrder.rejected, (state, action) => {
         state.loading = 'failed';
@@ -282,7 +285,8 @@ const orderSlice = createSlice({
       .addCase(payOrder.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         state.phase = 'idle';
-        state.data.lastOrder = { ...(state.data.lastOrder ?? {}), ...action.payload };
+        const group = action.payload.group;
+        state.data.lastOrders[group] = { ...(state.data.lastOrders[group] ?? {}), ...action.payload };
       })
       .addCase(payOrder.rejected, (state, action) => {
         state.loading = 'failed';

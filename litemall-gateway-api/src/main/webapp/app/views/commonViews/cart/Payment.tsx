@@ -18,7 +18,9 @@ const Payment: React.FC = () => {
   const dispatch = useAppDispatch();
 
   const { loading, errorMessage } = useAppSelector(state => state.order);
-  const lastOrder = useAppSelector(state => state.order.data.lastOrder);
+  // Match the route's orderId across the checkout's placed orders (local or CJ).
+  const { local, cj } = useAppSelector(state => state.order.data.lastOrders);
+  const lastOrder = [local, cj].find(o => o?.orderId === Number(orderId)) ?? null;
 
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
 

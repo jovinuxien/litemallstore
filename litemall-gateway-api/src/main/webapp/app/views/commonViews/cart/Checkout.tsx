@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
-import { CheckoutPaymentMethod, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
+import { CheckoutPaymentMethod, OrderGroup, PlacedOrder, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
 import { IAddress, ICoupon, isMissingEndpoint, userApi } from 'app/shared/api';
 import {
   Cell,
@@ -79,9 +79,10 @@ const shippingToAddress = (s: ShippingInfo): IAddress => ({
  * Customer checkout — a SINGLE order-confirm screen modelled on litemall-vue's
  * `order/checkout`: an address cell, a coupon cell, the goods line-cards, a money
  * summary, an order note, the payment-method choice, and a sticky bottom submit
- * bar. Local lines run the two-step place->pay flow (`POST /srv/order/submit` then
- * `/srv/order/{id}/actions/pay`); CJ Dropshipping lines are placed via the CJ
- * endpoint by orderSlice — those need a destination country + phone.
+ * bar. Local and CJ Dropshipping lines both run the two-step place->pay flow
+ * (`POST /srv/order/submit` then `/srv/order/{id}/actions/pay`), one order per cart
+ * group — the order service rejects mixed carts. CJ lines additionally need a
+ * destination country + phone; paying a CJ order also places it at CJ server-side.
  */
 const CheckoutView: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -95,8 +96,9 @@ const CheckoutView: React.FC = () => {
   const [message, setMessage] = useState('');
   // CJ destination country, kept separate so picking a saved address doesn't clear it.
   const [country, setCountry] = useState<{ name: string; code: string }>({ name: '', code: '' });
-  // Order id once placed — retained so a payment retry pays the SAME order.
-  const [placedOrderId, setPlacedOrderId] = useState<number | null>(null);
+  // Orders created by submit, keyed by cart group — retained so a payment retry
+  // pays the SAME order(s) and never re-submits an already-placed group.
+  const [placed, setPlaced] = useState<{ local?: PlacedOrder; cj?: PlacedOrder }>({});
   const [addrError, setAddrError] = useState<string | null>(null);
 
   // Address book (graceful when /srv/address isn't reachable).
@@ -107,7 +109,7 @@ const CheckoutView: React.FC = () => {
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
   const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null);
 
-  // CJ lines ship via the CJ dropship endpoint, which requires country + phone.
+  // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
 
   useEffect(() => {
@@ -176,7 +178,7 @@ const CheckoutView: React.FC = () => {
   const couponCellValue =
     couponDiscount > 0 ? `−$${couponDiscount.toFixed(2)}` : coupons.length > 0 ? `${coupons.length} available` : 'None available';
 
-  // Place (once) then pay, so a payment retry never creates a second order.
+  // Place each cart group (once) then pay, so a retry never creates a second order.
   const handlePlaceOrder = async () => {
     setAddrError(null);
 
@@ -199,33 +201,55 @@ const CheckoutView: React.FC = () => {
       }
     }
 
-    // 2. Place the order(s) (only if not already placed). Pass items so orderSlice
-    //    can split CJ vs local; shipping carries the CJ destination country/phone.
-    const shippingForOrder: ShippingInfo = { ...shipping, country: country.name, countryCode: country.code };
-    let orderId = placedOrderId;
-    if (orderId == null) {
-      const placed = await dispatch(
-        placeOrder({ items: cartList, shipping: shippingForOrder, addressId, userCouponId: selectedCouponId ?? undefined, message, paymentMethod })
+    // 2. Submit one order per cart group (local first — the order service rejects
+    //    carts mixing CJ and local goods). Groups run SEQUENTIALLY: they share the
+    //    one server cart and each mirror starts by wiping it. A group that already
+    //    has an order (payment retry) is skipped, so a retry never re-submits.
+    const groups: Array<{ group: OrderGroup; items: typeof cartList }> = [
+      { group: 'local' as const, items: cartList.filter(it => !isCjItem(it)) },
+      { group: 'cj' as const, items: cartList.filter(isCjItem) },
+    ].filter(g => g.items.length > 0);
+
+    const next = { ...placed };
+    for (const { group, items } of groups) {
+      if (next[group]) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const res = await dispatch(
+        placeOrder({
+          group,
+          items,
+          addressId,
+          message,
+          paymentMethod,
+          // A coupon redeems once — it rides the first submitted order only.
+          userCouponId: group === groups[0].group ? selectedCouponId ?? undefined : undefined,
+          // CJ placement (at pay time) needs the destination country.
+          countryCode: group === 'cj' ? country.code : undefined,
+        })
       );
-      if (!placeOrder.fulfilled.match(placed)) return; // stock/validation/CJ error shown from order state
-      orderId = placed.payload.orderId;
-      // CJ-only checkout has no local order to pay — go straight to confirmation.
-      if (!orderId) {
-        dispatch(clearCart());
-        navigate('/order-confirmation/0');
-        return;
+      if (!placeOrder.fulfilled.match(res)) {
+        setPlaced(next); // keep what was placed so a retry skips those groups
+        return; // stock/validation error shown from order state
       }
-      setPlacedOrderId(orderId);
+      next[group] = res.payload;
+      setPlaced({ ...next });
     }
 
-    // 3. Pay the placed local order (WALLET debit / CARD stub).
-    const paid = await dispatch(payOrder({ orderId, paymentMethod }));
-    if (payOrder.fulfilled.match(paid)) {
-      dispatch(clearCart());
-      navigate(`/order-confirmation/${orderId}`);
+    // 3. Pay each placed, still-unpaid order (WALLET debit / CARD stub). Paying a CJ
+    //    order also places it at CJ — orderSlice stretches that request's timeout.
+    for (const group of ['local', 'cj'] as const) {
+      const ord = next[group];
+      if (!ord || ord.paid) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const res = await dispatch(payOrder({ orderId: ord.orderId, paymentMethod, group }));
+      if (!payOrder.fulfilled.match(res)) return; // error shown from order state; retry pays only unpaid orders
+      next[group] = { ...ord, paid: true };
+      setPlaced({ ...next });
     }
-    // On payment failure the error is shown from order state; placedOrderId is
-    // retained so the submit bar retries payment on the same order.
+
+    // 4. Everything paid — clear the cart and confirm (local order id leads).
+    dispatch(clearCart());
+    navigate(`/order-confirmation/${(next.local ?? next.cj)!.orderId}`);
   };
 
   // Empty-cart guard.
@@ -247,6 +271,10 @@ const CheckoutView: React.FC = () => {
   }
 
   const submitting = orderLoading === 'pending';
+  const placedList = [placed.local, placed.cj].filter((o): o is PlacedOrder => !!o);
+  const anyPlaced = placedList.length > 0;
+  const paidOrder = placedList.find(o => o.paid);
+  const unpaidOrders = placedList.filter(o => !o.paid);
 
   return (
     <Page>
@@ -459,9 +487,16 @@ const CheckoutView: React.FC = () => {
         </CellGroup>
 
         {/* Errors */}
-        {placedOrderId != null && (orderError || addrError) && (
+        {anyPlaced && (orderError || addrError) && (
           <Alert variant='info'>
-            Your order <strong>#{placedOrderId}</strong> was placed but payment did not complete. Use “Retry payment” to charge it again.
+            {paidOrder && unpaidOrders.length > 0 ? (
+              <>
+                Order <strong>#{paidOrder.orderId}</strong> is paid, but payment for <strong>#{unpaidOrders[0].orderId}</strong> did not
+                complete. “Retry payment” charges only the unpaid order.
+              </>
+            ) : (
+              <>Your order was placed but payment did not complete. “Retry payment” will not create a new order.</>
+            )}
           </Alert>
         )}
         {addrError && <Alert variant='danger'>{addrError}</Alert>}
@@ -473,9 +508,11 @@ const CheckoutView: React.FC = () => {
         buttonText={
           submitting
             ? phase === 'paying'
-              ? 'Processing payment…'
+              ? hasCjItems
+                ? 'Processing payment… (dropship orders can take up to 30 seconds)'
+                : 'Processing payment…'
               : 'Placing order…'
-            : placedOrderId != null
+            : anyPlaced
               ? 'Retry payment'
               : 'Place order'
         }
