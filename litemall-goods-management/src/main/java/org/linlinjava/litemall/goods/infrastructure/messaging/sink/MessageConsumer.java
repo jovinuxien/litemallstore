@@ -39,8 +39,10 @@ public class MessageConsumer {
         switch (event.getAction()) {
             case UPSERT -> {
                 LitemallGoods goods = goodsService.findById(event.getGoodsId());
-                if (goods == null) {
-                    LOGGER.warn("UPSERT for missing goods id={}, falling back to DELETE", event.getGoodsId());
+                // Index invariant: only on-sale goods live in litemall_index (reindexAll
+                // filters the same way), so a missing or off-sale goods leaves the index.
+                if (goods == null || !Boolean.TRUE.equals(goods.getIsOnSale())) {
+                    LOGGER.info("UPSERT for missing/off-sale goods id={}, removing from index", event.getGoodsId());
                     productIndexer.delete(String.valueOf(event.getGoodsId()));
                     return;
                 }

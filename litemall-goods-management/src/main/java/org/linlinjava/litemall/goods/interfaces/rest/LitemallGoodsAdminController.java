@@ -1,11 +1,7 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 
-import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
-import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsGoodsDocumentMapper;
-import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsIndexerClient;
-import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsProductDocument;
-import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallGoodsServiceApi;
+import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,28 +9,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("srv/admin")
 public class LitemallGoodsAdminController {
 
-    private static final int REINDEX_PAGE_SIZE = 200;
+    private final SearchReindexService searchReindexService;
 
-    private final LitemallGoodsServiceApi goodsServiceApi;
-    private final OcsIndexerClient indexerClient;
-    private final OcsGoodsDocumentMapper mapper;
-
-    public LitemallGoodsAdminController(LitemallGoodsServiceApi goodsServiceApi,
-                                        OcsIndexerClient indexerClient,
-                                        OcsGoodsDocumentMapper mapper) {
-        this.goodsServiceApi = goodsServiceApi;
-        this.indexerClient = indexerClient;
-        this.mapper = mapper;
+    public LitemallGoodsAdminController(SearchReindexService searchReindexService) {
+        this.searchReindexService = searchReindexService;
     }
 
     @GetMapping("/goods/ping")
@@ -47,32 +32,14 @@ public class LitemallGoodsAdminController {
     }
 
     /**
-     * Full reindex of every goods record into OCS. Streams in pages of
-     * {@value #REINDEX_PAGE_SIZE} via {@code getGoodsBySelective(null, ...)}
-     * and pushes each page through the indexer ACL. Replaces the legacy
-     * single-brand-on-startup {@code ProductIndexingCommandLineRunner}.
+     * Full reindex of the on-sale catalog into OCS. Delegates to the same
+     * {@link SearchReindexService} as {@code POST /srv/private/admin/search/reindex}
+     * (session-based full replace, verified against ocs-indexer-service) so a single
+     * reindex implementation exists; this legacy route is kept for compatibility.
      */
     @PostMapping("/goods/reindex")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
     public Map<String, Object> fullReindex() {
-        int page = 1;
-        int total = 0;
-        while (true) {
-            List<LitemallGoodsAggregate> batch = goodsServiceApi.getGoodsBySelective(
-                    null, null, null, null, null, page, REINDEX_PAGE_SIZE, null);
-            if (batch == null || batch.isEmpty()) {
-                break;
-            }
-            List<OcsProductDocument> docs = batch.stream()
-                    .map(mapper::toDocument)
-                    .collect(Collectors.toCollection(ArrayList::new));
-            indexerClient.importBatch(docs);
-            total += docs.size();
-            if (batch.size() < REINDEX_PAGE_SIZE) {
-                break;
-            }
-            page++;
-        }
-        return Map.of("indexed", total);
+        return Map.of("indexed", searchReindexService.reindexAll());
     }
 }
