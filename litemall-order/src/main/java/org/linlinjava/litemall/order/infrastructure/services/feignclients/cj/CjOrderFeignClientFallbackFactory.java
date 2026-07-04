@@ -22,12 +22,26 @@ public class CjOrderFeignClientFallbackFactory implements FallbackFactory<CjOrde
     @Override
     public CjOrderFeignClient create(Throwable cause) {
         log.error("cj-dropship-order circuit fallback engaged: {}", cause.toString());
-        return (accessToken, request) -> {
-            CjCreateOrderResponse response = new CjCreateOrderResponse();
-            response.setCode(SERVICE_UNAVAILABLE_CODE);
-            response.setResult(false);
-            response.setMessage("CJ create-order unavailable: " + cause.getMessage());
-            return response;
+        return new CjOrderFeignClient() {
+            @Override
+            public CjCreateOrderResponse createOrder(String accessToken, CjCreateOrderRequest request) {
+                CjCreateOrderResponse response = new CjCreateOrderResponse();
+                response.setCode(SERVICE_UNAVAILABLE_CODE);
+                response.setResult(false);
+                response.setMessage("CJ create-order unavailable: " + cause.getMessage());
+                return response;
+            }
+
+            @Override
+            public org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateResponse freightCalculate(
+                    String accessToken,
+                    org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateRequest request) {
+                var response = new org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateResponse();
+                response.setCode(SERVICE_UNAVAILABLE_CODE);
+                response.setResult(false);
+                response.setMessage("CJ freightCalculate unavailable: " + cause.getMessage());
+                return response;
+            }
         };
     }
 }
