@@ -97,6 +97,7 @@ class CjFulfillmentServiceTest {
         CjOrderPlacement sent = placement.getValue();
         assertEquals("20260704654321", sent.getOrderNumber()); // order_sn = CJ idempotency key
         assertEquals("NO", sent.getCountryCode());
+        assertEquals("Norway", sent.getCountry()); // CJ 1600300 rejects an empty shippingCountry
         assertEquals("Oslo", sent.getProvince());
         assertEquals("Frogner Storgata 1", sent.getAddress());
         assertEquals("0155", sent.getZip());
