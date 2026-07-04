@@ -38,17 +38,20 @@ public class CjCatalogRefreshTask {
     private final CjDetailEnrichmentService detailEnrichmentService;
     private final CjProductPromotionService promotionService;
     private final SearchReindexService reindexService;
+    private final CategoryImageBackfillService categoryImageBackfill;
     private final CJDropshippingConfig config;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
                                 CjDetailEnrichmentService detailEnrichmentService,
                                 CjProductPromotionService promotionService,
                                 SearchReindexService reindexService,
+                                CategoryImageBackfillService categoryImageBackfill,
                                 CJDropshippingConfig config) {
         this.snapshotSyncService = snapshotSyncService;
         this.detailEnrichmentService = detailEnrichmentService;
         this.promotionService = promotionService;
         this.reindexService = reindexService;
+        this.categoryImageBackfill = categoryImageBackfill;
         this.config = config;
     }
 
@@ -114,6 +117,10 @@ public class CjCatalogRefreshTask {
             // 3) Atomically swap the OCS index from the DB: promoted/refreshed goods appear and the
             //    just-soft-deleted ones drop out in one full replace.
             int indexed = reindexService.reindexAll();
+
+            // 4) Newly-landed goods may have filled previously-empty subtrees — give their
+            //    categories a representative image (blank-only, idempotent).
+            categoryImageBackfill.backfillAll();
 
             LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed (snapshot); "
                             + "promoted {} (failed {}), reconciled {} stale native goods; reindexed {} docs",
