@@ -708,3 +708,64 @@ No gateway-api change required for shape compatibility.
 instantiates every provider), `--spring.cjdropship.refresh-on-startup=false` (else a paced CJ list
 refresh fires ~25 min after boot and runs its own reindex — this is what produced the two extra
 index generations during today's session).
+
+---
+
+## §18 — Full-path re-verification against the live stack (2026-07-05)
+
+Executed from the `fix/goods-management` worktree (branch even with master, HEAD `bb5d0f20a`)
+against the running compose stack; goods-management on :8082 from the MAIN checkout, classes
+built 2026-07-04 14:04 (post-`cbf3c7ffb`), JVM started 23:46.
+
+**Stack (step 1).** es :9200 cluster `yellow` (single node — normal), indexer :8535 `{"status":"UP"}`,
+searcher :8534 `UP`, suggest :8081 answers on `/suggest-api` (no actuator — expected), kibana :5601,
+rabbit :5672 all up. Machine token: `client_credentials` `gateway-admin` @ authserver :8089.
+
+**Full reindex (step 2).**
+```
+POST /srv/private/admin/search/reindex  (Bearer machine-jwt + X-User-Roles: ROLE_ADMIN)
+-> {"errno":0,"data":{"indexed":938},"errmsg":"success"}
+SELECT COUNT(*) FROM litemall_goods WHERE is_on_sale=1 AND deleted=0 -> 938
+litemall_index/_count -> 938 ; alias flipped ocs-45 -> ocs-46-litemall_index-en (full replace, new gen)
+```
+Nine-field spot checks: `1009009` (local) — `price:2019.0` vs `discount_price:1999.0`
+(= DB counter/retail), `brand:"MUJI Manufacturer"` (= litemall_brand 1001000 NAME),
+`category_names:["home","quilt pillow"]` + `category_ids:["1005000","1008008"]` root→leaf
+(= litemall_category pid chain), title/description/image_url set, `product_id` rides as `_id`.
+`10000516` (CJ, source=`cj`) — real 3-level chain `["Toys, Kids & Babies","Toys & Hobbies",
+"Electronic Pets"]` / `["1036364","1036365","1036366"]` root→leaf; `discount_price` absent BY
+DESIGN (CJ counter==retail); `brand` absent (brand_id=0).
+
+**Search + suggest (step 3).** Contract is `page`/`size` (the §2 `offset`/`limit` shape is the
+OLD master contract, superseded by the faceted-search work):
+```
+GET /srv/search?q=silk&page=1&size=5 -> data{total:62, totalPages:13, page:1, limit:5,
+    goodsList:[{id,name,brief,picUrl,retailPrice,counterPrice,brand,categoryNames,source}...],
+    filters[price/category_ids/category_names/variant_price/source], sortOptions, queryStrategy}
+page=2 -> disjoint ids (paging real); sort=price -> [9.22, 9.5, 9.79, 9.94, 10.66] ascending
+GET /srv/search/suggest?q=quilt -> {"errno":0,"data":["quilt pillow", ...]} (phrases, live)
+```
+No SQL fallback on the path (`SearchService` → `OcsSearchClient` only).
+
+**Incremental (step 4).** Create → update → delete one goods (`goods_sn VERIFY-INC-20260705`,
+id `10000821`) via `POST /srv/private/admin/goods/{create,update,delete}`; alias stayed on
+`ocs-46` throughout (NO reindex):
+- create → doc `10000821` visible in `ocs-46` ≤8 s, `_count` 938→939, brand/category resolved;
+- update (name) → `title:"...UPDATED"` refreshed in place ≤8 s. Note: posted `retailPrice:88`
+  but DB kept `99.00` — AdminGoodsService recomputes retail from product rows (litemall-standard),
+  index mirrors DB faithfully → NOT a defect;
+- delete → `found:false`, `_count` back to 938. Proves `GoodsIndexEvent` → Rabbit
+  `MessageConsumer` → `upsert/delete` end-to-end (after-commit publish).
+
+**Customer surface (step 5).** `/srv/goods/list` item keys == `/srv/search` item keys
+(`brand,brief,categoryNames,counterPrice,id,name,picUrl,retailPrice,source`) — search output is
+drop-in for the SQL listing. Gateway/SPA wiring unchanged (already live per gateway-api worktree).
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean
+(the bare `compile` fails ONLY in the `webapp` profile's `npm run build`, exit 127 = npm not on
+the plugin's PATH — pre-existing env issue, not Java). Hardcoded-host grep over `src/main/java`:
+only the boot banner, javadoc, and `redis.server.*` defaults — no OCS hosts/ports. Guarded tests
+vs live stack: `OcsSearchRoundTripVerificationTest` (2) + `OcsIncrementalIndexVerificationTest` (1)
+→ `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0` (temp pom tweak per §6, reverted).
+
+**Verdict: every task step green at runtime; no code defect found, no code change needed.**
