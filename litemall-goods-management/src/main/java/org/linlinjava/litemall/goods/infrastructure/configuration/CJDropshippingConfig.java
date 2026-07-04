@@ -124,6 +124,13 @@ public class CJDropshippingConfig {
         private String categoryId;
         /** Max products to index from this target. */
         private int limit = 200;
+        /**
+         * When &gt; 0, every leaf category this target resolves to gets its OWN budget of this many
+         * products (a broad L1 target then fills ALL its leaves instead of the first leaf consuming
+         * the whole {@link #limit}); {@link #limit} &gt; 0 acts only as an optional overall cap.
+         * 0 keeps the legacy shared-budget behavior.
+         */
+        private int perLeafLimit = 0;
     }
 
     @Data

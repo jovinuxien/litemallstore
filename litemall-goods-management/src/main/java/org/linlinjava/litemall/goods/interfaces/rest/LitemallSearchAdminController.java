@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.search.CategoryImageBackfillService;
 import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentService;
 import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.CjSnapshotSyncService;
@@ -31,15 +32,18 @@ public class LitemallSearchAdminController {
     private final CjSnapshotSyncService cjSnapshotSyncService;
     private final CjDetailEnrichmentService cjDetailEnrichmentService;
     private final CjProductPromotionService cjProductPromotionService;
+    private final CategoryImageBackfillService categoryImageBackfill;
 
     public LitemallSearchAdminController(SearchReindexService reindexService,
                                          CjSnapshotSyncService cjSnapshotSyncService,
                                          CjDetailEnrichmentService cjDetailEnrichmentService,
-                                         CjProductPromotionService cjProductPromotionService) {
+                                         CjProductPromotionService cjProductPromotionService,
+                                         CategoryImageBackfillService categoryImageBackfill) {
         this.reindexService = reindexService;
         this.cjSnapshotSyncService = cjSnapshotSyncService;
         this.cjDetailEnrichmentService = cjDetailEnrichmentService;
         this.cjProductPromotionService = cjProductPromotionService;
+        this.categoryImageBackfill = categoryImageBackfill;
     }
 
     /**
@@ -136,7 +140,9 @@ public class LitemallSearchAdminController {
         CjSnapshotSyncService.SyncResult sync = cjSnapshotSyncService.syncAll(targets);
         CjProductPromotionService.PromoteResult promote = cjProductPromotionService.promoteBatch(Integer.MAX_VALUE);
         int indexed = reindexService.reindexAll();
+        int categoryImages = categoryImageBackfill.backfillAll();
         return ResponseUtil.ok(Map.of(
+                "categoryImages", categoryImages,
                 "fetchedNew", sync.inserted(),
                 "fetchedUpdated", sync.updated(),
                 "removed", sync.removedPids().size(),
@@ -148,8 +154,10 @@ public class LitemallSearchAdminController {
     /** Request body for {@code POST /cj-fetch}: the categories to ingest and how many products from each. */
     public record CjFetchRequest(List<Target> targets) {
         /** One chosen category. Provide {@code category} (CJ category name, any level) OR {@code categoryId}
-         *  (CJ leaf UUID, wins when set); {@code limit} caps products fetched from it (default 200). */
-        public record Target(String category, String categoryId, Integer limit) {
+         *  (CJ leaf UUID, wins when set); {@code limit} caps products fetched from it (default 200).
+         *  {@code perLeafLimit} &gt; 0 gives EVERY leaf the target resolves to its own budget (fills all
+         *  leaves of a broad category); {@code limit} then only caps the overall haul (absent = uncapped). */
+        public record Target(String category, String categoryId, Integer limit, Integer perLeafLimit) {
         }
 
         List<CJDropshippingConfig.CatalogTarget> toCatalogTargets() {
@@ -161,7 +169,10 @@ public class LitemallSearchAdminController {
                 CJDropshippingConfig.CatalogTarget ct = new CJDropshippingConfig.CatalogTarget();
                 ct.setCategory(t.category());
                 ct.setCategoryId(t.categoryId());
-                ct.setLimit(t.limit() != null && t.limit() > 0 ? t.limit() : 200);
+                boolean perLeaf = t.perLeafLimit() != null && t.perLeafLimit() > 0;
+                ct.setPerLeafLimit(perLeaf ? t.perLeafLimit() : 0);
+                // With per-leaf budgets an absent limit means "no overall cap", NOT the legacy 200.
+                ct.setLimit(t.limit() != null && t.limit() > 0 ? t.limit() : (perLeaf ? 0 : 200));
                 out.add(ct);
             }
             return out;
