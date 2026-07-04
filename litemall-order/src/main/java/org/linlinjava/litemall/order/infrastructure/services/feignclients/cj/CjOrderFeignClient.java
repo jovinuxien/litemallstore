@@ -3,6 +3,8 @@ package org.linlinjava.litemall.order.infrastructure.services.feignclients.cj;
 import org.linlinjava.litemall.order.infrastructure.configuration.FeignConfig;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjCreateOrderRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjCreateOrderResponse;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateRequest;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,4 +23,13 @@ public interface CjOrderFeignClient {
     @PostMapping("/shopping/order/createOrder")
     CjCreateOrderResponse createOrder(@RequestHeader("CJ-Access-Token") String accessToken,
                                       @RequestBody CjCreateOrderRequest request);
+
+    /**
+     * Logistics lines CJ actually offers for a product/destination combination. createOrder
+     * rejects any {@code logisticName} not in this list (code 1605001), so placement resolves
+     * the line here first.
+     */
+    @PostMapping("/logistic/freightCalculate")
+    CjFreightCalculateResponse freightCalculate(@RequestHeader("CJ-Access-Token") String accessToken,
+                                                @RequestBody CjFreightCalculateRequest request);
 }
