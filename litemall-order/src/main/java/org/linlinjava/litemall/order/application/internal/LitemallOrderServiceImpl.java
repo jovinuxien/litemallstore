@@ -81,6 +81,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // change so the customer/admin timeline never loses a hop.
     @Autowired
     private LitemallOrderStatusHistoryRepository statusHistoryRepository;
+    // Tags the order 'local' | 'cj' from its cart lines (rejects a mixed cart) so the
+    // pay step knows whether to replay the order to CJ createOrder.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
@@ -172,6 +176,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     "Cannot place an order: there are no checked items in the cart for user " + cmdUserId.getId());
         }
 
+        // Fulfillment source for the whole order ('local' | 'cj'), from the goods rows.
+        // Throws on a mixed cart — the orchestrator pre-checks this outside the
+        // transaction so a mixed submit surfaces as a clean 422, not a rollback-only 500.
+        String orderSource = orderSourceResolver.resolve(cartList);
+
         // Validate the productStock through the goods ACL (price/stock authoritative read)
         this.orderDomainService.validateProductStock(cartList, goodsFacade);
 
@@ -245,6 +254,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         orderAggregate.setMessage(command.getMessage());
         String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
         orderAggregate.setAddress(detailedAddress);
+        // CJ-fulfillment linkage (V27): keep the structured-address key + checkout
+        // country so the pay step can replay a source='cj' order to CJ createOrder.
+        orderAggregate.setAddressId(addressAggregate.getAddressId());
+        orderAggregate.setCountryCode(command.getCountryCode());
+        orderAggregate.setSource(orderSource);
         orderAggregate.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
         orderAggregate.setFreightPrice(new LitemallMoney(freightPrice));
         orderAggregate.setCouponPrice(new LitemallMoney(couponPrice));

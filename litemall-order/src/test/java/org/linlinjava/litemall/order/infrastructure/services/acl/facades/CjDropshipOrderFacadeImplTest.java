@@ -49,7 +49,7 @@ class CjDropshipOrderFacadeImplTest {
     };
 
     private CjDropshipOrderFacadeImpl facade() {
-        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub);
+        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary");
     }
 
     private static CjOrderPlacement placement() {

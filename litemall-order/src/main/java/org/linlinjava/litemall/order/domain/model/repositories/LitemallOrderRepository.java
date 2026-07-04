@@ -85,4 +85,11 @@ public interface LitemallOrderRepository {
     int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, java.time.LocalDateTime refundTime);
 
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
+
+    /**
+     * Record the CJ identifiers returned by a successful CJ createOrder on a
+     * {@code source='cj'} order (see V27). Called inside the payment transaction
+     * right after the placement, so a rollback also discards them.
+     */
+    int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum);
 }

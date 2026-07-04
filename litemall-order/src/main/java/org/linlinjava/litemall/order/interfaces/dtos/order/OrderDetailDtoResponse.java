@@ -33,12 +33,18 @@ public class OrderDetailDtoResponse {
     private final BigDecimal couponPrice;
     private final BigDecimal actualPrice;
     private final List<OrderGoodsDtoResponse> orderGoods;
+    // Fulfillment origin ('local' | 'cj') + CJ references once placed, so the SPA can
+    // badge dropship orders and show/track the CJ order.
+    private final String source;
+    private final String cjOrderId;
+    private final String cjOrderNum;
 
     public OrderDetailDtoResponse(Integer id, String orderSn, LocalDateTime addTime, String consignee,
                                   String mobile, String address, String orderStatusText,
                                   OrderHandleOptionDtoResponse handleOption, BigDecimal goodsPrice,
                                   BigDecimal freightPrice, BigDecimal couponPrice, BigDecimal actualPrice,
-                                  List<OrderGoodsDtoResponse> orderGoods) {
+                                  List<OrderGoodsDtoResponse> orderGoods,
+                                  String source, String cjOrderId, String cjOrderNum) {
         this.id = id;
         this.orderSn = orderSn;
         this.addTime = addTime;
@@ -52,6 +58,9 @@ public class OrderDetailDtoResponse {
         this.couponPrice = couponPrice;
         this.actualPrice = actualPrice;
         this.orderGoods = orderGoods;
+        this.source = source;
+        this.cjOrderId = cjOrderId;
+        this.cjOrderNum = cjOrderNum;
     }
 
     public static OrderDetailDtoResponse fromDomain(LitemallOrderAggregate o,
@@ -70,6 +79,9 @@ public class OrderDetailDtoResponse {
                 o.getCouponPrice() == null ? null : o.getCouponPrice().getAmount(),
                 o.getActualPrice() == null ? null : o.getActualPrice().getAmount(),
                 goods == null ? List.of()
-                        : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()));
+                        : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()),
+                o.getSource(),
+                o.getCjOrderId(),
+                o.getCjOrderNum());
     }
 }

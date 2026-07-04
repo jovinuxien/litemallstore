@@ -342,6 +342,16 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setId(orderId.getId());
+        patch.setCjOrderId(cjOrderId);
+        patch.setCjOrderNum(cjOrderNum);
+        patch.setUpdateTime(LocalDateTime.now());
+        return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());
@@ -434,9 +444,12 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setUpdateTime(orderAggregate.getUpdateTime());
         dataModel.setDeleted(orderAggregate.getDeleted());
 
-
-
-        //Other fields should be completed
+        dataModel.setAddressId(orderAggregate.getAddressId() == null
+                ? null : orderAggregate.getAddressId().getId());
+        dataModel.setCountryCode(orderAggregate.getCountryCode());
+        dataModel.setSource(orderAggregate.getSource());
+        dataModel.setCjOrderId(orderAggregate.getCjOrderId());
+        dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
 
         return dataModel;
     }
@@ -461,7 +474,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
         domainModel.setConsignee(record.getConsignee());
         domainModel.setMobile(record.getMobile());
-        domainModel.setAddress(addressAggregate.getName());
+        // The flattened shipping address comes from the ROW — reading it off the
+        // fresh (empty) LitemallAddressAggregate above left it null on every load.
+        domainModel.setAddress(record.getAddress());
         domainModel.setMessage(record.getMessage());
 
         domainModel.setGoodsPrice(new LitemallMoney(record.getGoodsPrice()));
@@ -490,7 +505,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setUpdateTime(record.getUpdateTime());
         domainModel.setDeleted(record.getDeleted());
 
-        // Orther fields
+        domainModel.setAddressId(record.getAddressId() == null
+                ? null : new LitemallAddressId(record.getAddressId()));
+        domainModel.setCountryCode(record.getCountryCode());
+        domainModel.setSource(record.getSource());
+        domainModel.setCjOrderId(record.getCjOrderId());
+        domainModel.setCjOrderNum(record.getCjOrderNum());
+
         return  domainModel;
     }
 }
