@@ -11,6 +11,7 @@ import org.linlinjava.litemall.order.domain.events.order.LitemallOrderPaidEvent;
 import org.linlinjava.litemall.order.domain.events.order.LitemallOrderRefundRequestedEvent;
 import org.linlinjava.litemall.order.domain.events.order.LitemallOrderRefundedEvent;
 import org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallAddressId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
@@ -26,6 +27,11 @@ import java.util.List;
 @Getter
 @Setter
 public class LitemallOrderAggregate {
+
+    /** {@code source} value for an order fulfilled by CJ Dropshipping after payment. */
+    public static final String SOURCE_CJ = "cj";
+    /** {@code source} value for a natively-fulfilled order (column default). */
+    public static final String SOURCE_LOCAL = "local";
 
     private LitemallOrderId orderId;
     private LitemallUserId userId;
@@ -66,6 +72,21 @@ public class LitemallOrderAggregate {
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
     private Boolean deleted;
+
+    // CJ-fulfillment linkage (V27). addressId/countryCode are captured at submit so the
+    // pay-time CJ placement can rebuild the STRUCTURED shipping address (the flattened
+    // address string above cannot be split back into province/city/zip); cjOrderId/Num
+    // are CJ's identifiers once createOrder accepts (order_sn is the idempotency key).
+    private LitemallAddressId addressId;
+    private String countryCode;
+    private String source;
+    private String cjOrderId;
+    private String cjOrderNum;
+
+    /** True when this order is fulfilled through CJ Dropshipping after payment. */
+    public boolean isCjFulfilled() {
+        return SOURCE_CJ.equals(this.source);
+    }
 
     private List<LitemallDomainEvent> domainEvents = new ArrayList<>();
 

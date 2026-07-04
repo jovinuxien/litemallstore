@@ -26,10 +26,15 @@ public class OrderListItemDtoResponse {
     private final OrderHandleOptionDtoResponse handleOption;
     private final Short aftersaleStatus;
     private final List<OrderGoodsDtoResponse> goodsList;
+    // Fulfillment origin ('local' | 'cj') + the CJ order number once placed, so the
+    // SPA can badge dropship orders and show the CJ reference.
+    private final String source;
+    private final String cjOrderNum;
 
     public OrderListItemDtoResponse(Integer id, String orderSn, BigDecimal actualPrice,
                                     String orderStatusText, OrderHandleOptionDtoResponse handleOption,
-                                    Short aftersaleStatus, List<OrderGoodsDtoResponse> goodsList) {
+                                    Short aftersaleStatus, List<OrderGoodsDtoResponse> goodsList,
+                                    String source, String cjOrderNum) {
         this.id = id;
         this.orderSn = orderSn;
         this.actualPrice = actualPrice;
@@ -37,6 +42,8 @@ public class OrderListItemDtoResponse {
         this.handleOption = handleOption;
         this.aftersaleStatus = aftersaleStatus;
         this.goodsList = goodsList;
+        this.source = source;
+        this.cjOrderNum = cjOrderNum;
     }
 
     public static OrderListItemDtoResponse fromDomain(LitemallOrderAggregate o,
@@ -49,6 +56,8 @@ public class OrderListItemDtoResponse {
                 OrderHandleOptionDtoResponse.fromDomain(LitemallOrderHandleOption.forStatus(o.getOrderStatus())),
                 o.getAfterSaleStatus() == null ? null : o.getAfterSaleStatus().getCode(),
                 goods == null ? List.of()
-                        : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()));
+                        : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()),
+                o.getSource(),
+                o.getCjOrderNum());
     }
 }

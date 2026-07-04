@@ -106,7 +106,8 @@ public class LitemallOrderRestController {
                 command.getUserCouponId(),
                 command.getMessage(),
                 command.getGrouponRulesId(),
-                command.getGrouponLinkId());
+                command.getGrouponLinkId(),
+                command.getCountryCode());
         LitemallOrderOperationResult result = orderOrchestrationService.createOrder(authoritativeCommand);
         return buildResponse(result);
     }
@@ -154,6 +155,13 @@ public class LitemallOrderRestController {
             // order). Surface a clean payment-failed envelope rather than a raw 500.
             return buildResponse(
                     LitemallOrderOperationResult.payFailed(orderIdVo, e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException e) {
+            // CJ refused the pay-first fulfillment placement: the transaction rolled
+            // back (debit undone, order still unpaid). Same clean envelope as above,
+            // carrying CJ's message so the customer/support can act on it.
+            return buildResponse(
+                    LitemallOrderOperationResult.payFailed(orderIdVo,
+                            "CJ fulfillment could not be placed: " + e.getMessage()));
         }
     }
 

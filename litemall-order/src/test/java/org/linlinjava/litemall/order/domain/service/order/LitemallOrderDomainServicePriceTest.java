@@ -27,14 +27,17 @@ class LitemallOrderDomainServicePriceTest {
         LitemallGoodsFacade facade = mock(LitemallGoodsFacade.class);
 
         LitemallCartAggregate cart = new LitemallCartAggregate();
+        cart.setGoodsId(new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId(7));
         cart.setProductId(new LitemallGoodsProductId(42));
         cart.setNumber(2);
         cart.setPrice(new LitemallMoney(new BigDecimal("5.00"))); // stale / tampered cart price
 
         LitemallGoodsProductAggregate product = new LitemallGoodsProductAggregate();
+        product.setGoodsProductId(new LitemallGoodsProductId(42));
         product.setNumber(10);
         product.setPrice(new LitemallMoney(new BigDecimal("12.50"))); // authoritative price
-        when(facade.getGoodsProduct(any())).thenReturn(product);
+        // The facade reads variants per goods; the domain service picks the cart line's one.
+        when(facade.getProductsByGoods(any())).thenReturn(List.of(product));
 
         new LitemallOrderDomainService().validateProductStock(List.of(cart), facade);
 
