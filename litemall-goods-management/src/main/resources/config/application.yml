@@ -72,9 +72,11 @@ spring:
       raw-ttl-seconds: 21600   # 6h
     # Nightly cron (sec min hour dom mon dow) for the CJ catalog indexing job. 03:00 daily.
     refresh-cron: "0 0 3 * * *"
-    # Seconds the job blocks between consecutive CJ /product/list calls (matches the CJ quota), so a
-    # multi-category plan stays rate-limited even though one run issues several requests.
-    fetch-pace-seconds: 300
+    # Seconds the job blocks between consecutive CJ /product/list calls, so a multi-category plan
+    # stays rate-limited even though one run issues several requests. CJ's product/list contract
+    # allows 1 req/s; 3s is a conservative cruise pace that still sweeps all ~540 mirrored leaves
+    # in under 30 min (Redis-staged pages are reused without any live call).
+    fetch-pace-seconds: 3
     # CJ /product/list page size (CJ caps at ~200).
     page-size: 200
     # Run a one-shot CJ refresh shortly after startup (besides the nightly cron) so a fresh
@@ -84,38 +86,38 @@ spring:
     # Category fetch plan: which CJ categories to index and how many products from each.
     # `category` = a CJ category name (any level), resolved to leaf category ids via getCategory;
     # or set `category-id` to a CJ leaf UUID directly. `limit` caps products indexed per target.
-    # Cost note: ~ceil(limit/page-size) paced calls per target (e.g. 200 ≈ 1 call ≈ fetch-pace-seconds).
+    # `per-leaf-limit` > 0 gives EVERY resolved leaf its own budget (fills all subcategories of a
+    # broad target); `limit` then only caps the overall haul. Cost note: per-leaf mode issues ~1
+    # paced call per leaf; legacy mode ~ceil(limit/page-size) calls per target.
+    # NIGHTLY-PRUNE INVARIANT: the nightly cron runs THIS plan with stale-prune — every category
+    # the storefront should keep must stay covered here, or its products age out at 03:00.
     catalog-targets:
+      # legacy deep targets — keep their flagship leaves richer than the light fill
       - { category: "Toys, Kids & Babies", limit: 200 }   # baby
       - { category: "Women's Clothing",    limit: 300 }   # women
       - { category: "Consumer Electronics", limit: 200 }  # electronics
+      # light fill: every leaf of every CJ L1 tree gets its own ~10-product budget
+      - { category: "Women's Clothing",           per-leaf-limit: 10 }
+      - { category: "Toys, Kids & Babies",        per-leaf-limit: 10 }
+      - { category: "Consumer Electronics",       per-leaf-limit: 10 }
+      - { category: "Pet Supplies",               per-leaf-limit: 10 }
+      - { category: "Men's Clothing",             per-leaf-limit: 10 }
+      - { category: "Home, Garden & Furniture",   per-leaf-limit: 10 }
+      - { category: "Health, Beauty & Hair",      per-leaf-limit: 10 }
+      - { category: "Sports & Outdoors",          per-leaf-limit: 10 }
+      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 10 }
+      - { category: "Jewelry & Watches",          per-leaf-limit: 10 }
+      - { category: "Phones & Accessories",       per-leaf-limit: 10 }
+      - { category: "Computer & Office",          per-leaf-limit: 10 }
+      - { category: "Bags & Shoes",               per-leaf-limit: 10 }
+      - { category: "Home Improvement",           per-leaf-limit: 10 }
     # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
     # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
-    # the CJ category path, so both full "A / B / C" paths and bare leaf names resolve into the ONE
-    # shared local category facet. Unmapped → virtual "Imported" bucket.
-    category-mapping:
-      # CJ top-level segments (full paths)
-      - "Women's Clothing=1010000"        # clothing
-      - "Men's Clothing=1010000"
-      - "Health & Beauty=1013001"         # care
-      - "Home & Garden=1005000"           # home
-      - "Pet Products=1005000"            # pet under home
-      - "Toys, Kids & Babies=1011000"     # baby
-      - "Consumer Electronics=1008000"    # digital under Accessories
-      - "Sports & Outdoors=1012000"       # groceries (outdoor)
-      - "Kitchen=1005001"                 # chef
-      - "Food=1005002"                    # diet
-      # CJ leaf categories (records often carry a single leaf, no path)
-      - "Suits & Sets=1010000"            # clothing
-      - "Pants & Capris=1010000"
-      - "Blazers=1010000"
-      - "Basic Jacket=1010000"
-      - "Hoodies & Sweatshirts=1010000"
-      - "Bras=1010000"
-      - "Shoulder Bags=1008000"           # Accessories
-      - "Totes=1008000"
-      - "Stuffed & Plush Animals=1011000" # baby (Toy)
-      - "Home Office Storage=1012000"     # groceries (Storage)
+    # the CJ category path — and checked BEFORE the mirrored-tree resolution, so a matching entry
+    # DIVERTS products away from their real CJ subcategory into a native bucket. RETIRED (empty)
+    # now that the full CJ tree is mirrored into litemall_category and the storefront browses the
+    # real root→leaf chains; re-add entries only to deliberately pin a CJ path onto a native id.
+    category-mapping: []
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
 #    username: root
