@@ -12,8 +12,12 @@ spring:
   # Tolerate applied-but-missing migrations so startup proceeds; NEVER `flyway repair` the
   # shared DB. (litemall-db's application-db.yml declares this too, but it is not taking
   # effect for this service's config wiring, so it is set explicitly here.)
+  # *:future must be listed too: setting this property REPLACES Flyway 9's default
+  # ("*:future"), so a sibling migration numbered ABOVE this module's max (e.g. V26
+  # widen_cj_category_id from goods-management, while order tops out at V25) would
+  # otherwise fail validate as a "future" migration the moment that service boots.
   flyway:
-    ignore-migration-patterns: "*:missing"
+    ignore-migration-patterns: "*:missing,*:future"
   messages:
     encoding: UTF-8
   servlet:
