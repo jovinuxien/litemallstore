@@ -17,6 +17,9 @@ public class LitemallPlaceOrderCommand {
     private final String message;
     private final Integer grouponRulesId;
     private final Integer grouponLinkId;
+    // OPTIONAL: ISO destination country picked at checkout. The address book stores
+    // no country, but a CJ-fulfilled order needs one for createOrder at pay time.
+    private final String countryCode;
 
     // Immutable command with final fields => no default ctor for Jackson to use.
     // Bind the @RequestBody through this constructor so /srv/order/submit can
@@ -29,7 +32,8 @@ public class LitemallPlaceOrderCommand {
                                      @JsonProperty("userCouponId") Integer userCouponId,
                                      @JsonProperty("message") String message,
                                      @JsonProperty("grouponRulesId") Integer grouponRulesId,
-                                     @JsonProperty("grouponLinkId") Integer grouponLinkId) {
+                                     @JsonProperty("grouponLinkId") Integer grouponLinkId,
+                                     @JsonProperty("countryCode") String countryCode) {
         this.userId = userId;
         this.cartId = cartId;
         this.addressId = addressId;
@@ -38,6 +42,7 @@ public class LitemallPlaceOrderCommand {
         this.message = message;
         this.grouponRulesId = grouponRulesId;
         this.grouponLinkId = grouponLinkId;
+        this.countryCode = countryCode;
     }
 
 }

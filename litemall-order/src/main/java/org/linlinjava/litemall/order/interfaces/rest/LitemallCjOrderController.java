@@ -18,11 +18,17 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Internal callable contract for placing a CJ Dropshipping order. This is the order-side surface
- * the handoff named; the (future) checkout-routing will instead call {@link CjDropshipOrderFacade}
- * directly for {@code cj_}-sourced lines. A CJ failure surfaces as HTTP 502 with the CJ message
- * (no half-placed order).
+ * Internal callable contract for placing a CJ Dropshipping order. A CJ failure surfaces as
+ * HTTP 502 with the CJ message (no half-placed order).
+ *
+ * @deprecated Superseded by the pay-first flow: CJ items now go through the normal
+ * {@code /srv/order/submit} (order tagged {@code source='cj'}) and are replayed to CJ
+ * createOrder when {@code /actions/pay} succeeds (see {@code CjFulfillmentService}), so
+ * they appear in My Orders and are paid before placement. This direct endpoint bypasses
+ * payment AND persists nothing locally; it stays only until the customer SPA switches to
+ * submit→pay for CJ items (gateway-api follow-up), then it is deleted.
  */
+@Deprecated
 @RestController
 @RequestMapping("/srv/order/cj")
 public class LitemallCjOrderController {

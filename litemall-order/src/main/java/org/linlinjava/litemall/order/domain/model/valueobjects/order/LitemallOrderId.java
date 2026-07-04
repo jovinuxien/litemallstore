@@ -16,4 +16,26 @@ public class LitemallOrderId {
         }
         this.id = id;
     }
+
+    // Value-object identity: two LitemallOrderIds are the same order id.
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        return id.equals(((LitemallOrderId) o).id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "LitemallOrderId(" + id + ")";
+    }
 }

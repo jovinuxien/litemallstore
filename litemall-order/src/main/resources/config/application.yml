@@ -58,6 +58,11 @@ spring:
       # CJ logistics line (also required by createOrder). A widely-available default;
       # the proper per-route value comes from CJ's freightCalculate API (follow-up).
       logistic-name: "CJPacket Ordinary"
+      # Fallback DESTINATION country for pay-first CJ fulfillment when the order row
+      # carries no country_code (the checkout country picker sends one per order;
+      # the address book has no country column). Empty = fail the CJ placement with
+      # a clear message instead of guessing the market. Set per deployment.
+      ship-to-country-code: ""
       auth:
         cj-email: "bimeni89@gmail.com"
         cj-api-key: "9520bc6b70fe45019688c5ae62be331b"

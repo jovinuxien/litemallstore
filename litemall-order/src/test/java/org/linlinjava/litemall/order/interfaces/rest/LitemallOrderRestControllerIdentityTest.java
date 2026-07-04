@@ -33,7 +33,7 @@ class LitemallOrderRestControllerIdentityTest {
         LitemallOrderRestController controller = new LitemallOrderRestController(orchestrator);
 
         // Body claims userId=1 (spoofed); authenticated header says 99.
-        LitemallPlaceOrderCommand body = new LitemallPlaceOrderCommand(1, 10, 20, 0, -1, "msg", 0, 0);
+        LitemallPlaceOrderCommand body = new LitemallPlaceOrderCommand(1, 10, 20, 0, -1, "msg", 0, 0, null);
 
         controller.createOrder(99, body);
 

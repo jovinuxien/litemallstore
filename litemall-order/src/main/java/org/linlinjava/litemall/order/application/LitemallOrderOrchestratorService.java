@@ -75,6 +75,17 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     LitemallDomainEventPublisher domainEventPublisher;
 
+    // Pay-first CJ fulfillment: a source='cj' order is replayed to CJ createOrder
+    // right after it turns PAID, inside the same transaction (CJ rejection rolls
+    // back the wallet debit + PAID status together).
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
+
+    // Tags/validates the order's fulfillment source from the cart before placement
+    // (mixed CJ+local carts are a clean client error, pre-checked outside placeOrder).
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
+
     // Wallet vertical (absorbed from litemall-wallet-service). Used to debit the
     // user's wallet when PaymentMethod.WALLET is selected — mirrors how groupon
     // flows through grouponServiceLayer.
@@ -140,6 +151,14 @@ public class LitemallOrderOrchestratorService {
                 || checkedItems.stream().allMatch(java.util.Objects::isNull)) {
             return LitemallOrderOperationResult.submitFailed(
                     "Your cart is empty — add at least one item before placing an order.");
+        }
+        // Same pre-check rationale as the empty-cart guard above: a mixed CJ+local
+        // cart must fail as a clean 422 from OUTSIDE the transactional placeOrder
+        // (which re-resolves the source when tagging the order).
+        try {
+            orderSourceResolver.resolve(checkedItems);
+        } catch (LitemallOrderServiceException e) {
+            return LitemallOrderOperationResult.submitFailed(e.getMessage());
         }
         try {
             LitemallOrderSubmitResult submitResult = orderServiceImpl.placeOrder(command);
@@ -221,6 +240,16 @@ public class LitemallOrderOrchestratorService {
             // the tender ("WALLET" or "<METHOD>:<reference>") so a later refund can
             // be routed back to the channel that paid (see settleRefundToTender).
             orderServiceImpl.markOrderPaid(orderId, tenderPayId(paymentCommand));
+
+            // Pay-first CJ fulfillment: replay a source='cj' order to CJ createOrder
+            // now that the money is captured, BEFORE any post-payment notification or
+            // event goes out. A CJ rejection throws LitemallCjOrderException, rolling
+            // back the debit + PAID status in this same transaction (the REST layer
+            // surfaces it as a clean payment failure; order_sn is CJ's idempotency
+            // key, so a retried pay never double-places).
+            if (order.isCjFulfilled()) {
+                cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
+            }
 
             // Handle post-payment logic
             handlePostPayment(orderId, paymentCommand);
