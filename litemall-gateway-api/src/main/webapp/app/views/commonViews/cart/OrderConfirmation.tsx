@@ -6,37 +6,43 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
- * Post-placement confirmation. Reads the last placed order from the order slice
- * (set by placeOrder/payOrder.fulfilled); falls back to the :id route param so a
- * direct visit / refresh still shows the order reference. A CJ-only checkout has
- * no local order row (orderId 0) — the CJ reference is shown instead.
+ * Post-placement confirmation. Reads the checkout's placed orders from the order
+ * slice (up to one local + one CJ order, set by placeOrder/payOrder.fulfilled);
+ * falls back to the :id route param so a direct visit / refresh still shows the
+ * order reference. The CJ fulfilment number is not returned by pay — it lives on
+ * the order's detail page in My Orders.
  */
 const OrderConfirmation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const lastOrder = useAppSelector(state => state.order.data.lastOrder);
+  const { local, cj } = useAppSelector(state => state.order.data.lastOrders);
 
-  const orderId = lastOrder?.orderId ?? (id ? Number(id) : undefined);
-  const hasLocal = orderId != null && orderId > 0;
+  const orders = [local, cj].filter((o): o is NonNullable<typeof o> => !!o);
+  const routeId = id ? Number(id) : undefined;
+  const totalCharged = orders.reduce((sum, o) => sum + (o.actualPrice != null ? priceNum(o.actualPrice) : 0), 0);
+  const paymentMethod = orders.find(o => o.paymentMethod)?.paymentMethod;
 
   const sub = (
     <>
-      {hasLocal && (
+      {orders.map(o => (
+        <p className='mb-1' key={o.orderId}>
+          Your {o.group === 'cj' ? 'dropship ' : ''}order reference is <strong>#{o.orderId}</strong>
+          {o.orderSn ? ` (${o.orderSn})` : ''}.
+        </p>
+      ))}
+      {orders.length === 0 && routeId != null && routeId > 0 && (
         <p className='mb-1'>
-          Your order reference is <strong>#{orderId}</strong>
-          {lastOrder?.orderSn ? ` (${lastOrder.orderSn})` : ''}.
+          Your order reference is <strong>#{routeId}</strong>.
         </p>
       )}
-      {lastOrder?.cjOrderNum && (
+      {cj && (
+        <p className='mb-1 text-muted small'>The CJ fulfilment number appears on the order’s detail page in My Orders.</p>
+      )}
+      {totalCharged > 0 && (
         <p className='mb-1'>
-          Your CJ Dropshipping order: <strong>{lastOrder.cjOrderNum}</strong>.
+          Total charged: <span className='lm-amount'>${totalCharged.toFixed(2)}</span>
         </p>
       )}
-      {lastOrder?.actualPrice != null && (
-        <p className='mb-1'>
-          Total charged: <span className='lm-amount'>${priceNum(lastOrder.actualPrice).toFixed(2)}</span>
-        </p>
-      )}
-      {lastOrder?.paymentMethod && <p className='mb-0'>Paid via {lastOrder.paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
+      {paymentMethod && <p className='mb-0'>Paid via {paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
     </>
   );
 

@@ -56,8 +56,11 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/order/**,/srv/cart/**,/srv/address/**
+        # Wallet self-service also lives on the order service — the standalone
+        # litemall-wallet-service was absorbed into litemall-order (its
+        # LitemallWalletRestController is mounted at /srv/wallet there).
         - id: customer-wallet
-          uri: lb://wallet-service-app
+          uri: lb://order-service-app
           predicates:
             - Path=/srv/wallet/**
 
