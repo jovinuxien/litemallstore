@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { isMissingEndpoint, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
+import DisputePanel from './DisputePanel';
 import './order.scss';
 
 /**
@@ -134,6 +135,9 @@ const OrderDetailView: React.FC = () => {
           {order.cjOrderNum && <Cell title='CJ order no.' value={order.cjOrderNum} />}
           {order.orderStatusText && <Cell title='Status' value={order.orderStatusText} />}
         </CellGroup>
+
+        {/* Dropship problems & disputes (CJ orders only, once paid = placed at CJ) */}
+        {order.source === 'cj' && order.cjOrderId != null && orderId != null && <DisputePanel orderId={orderId} />}
 
         {/* Actions */}
         {opt && (opt.pay || opt.cancel || opt.confirm || opt.refund || opt.delete) && (

@@ -1,4 +1,4 @@
-import { IOrderDetail, IOrderListItem } from 'app/shared/model/order/order.model';
+import { IDispute, IDisputeContext, IOrderDetail, IOrderListItem } from 'app/shared/model/order/order.model';
 
 import { baseAxios, SRV, unwrap } from './http';
 
@@ -34,4 +34,25 @@ export const orderApi = {
   refund: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/refund`, {})),
   remove: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/delete`, {})),
   prepay: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/prepay`, { orderId })),
+
+  // CJ dispute endpoints ("report a problem" on a dropship order). The order service
+  // proxies CJ's dispute API with ~1s pacing between CJ calls, so these are SLOW
+  // (2-6s typical) — each carries its own generous timeout like /actions/pay.
+  disputeContext: (orderId: number | string) =>
+    unwrap<IDisputeContext>(baseAxios.get(`${SRV}/order/${orderId}/disputes/context`, { timeout: 30000 })),
+  disputeList: (orderId: number | string) =>
+    unwrap<IDispute[]>(baseAxios.get(`${SRV}/order/${orderId}/disputes`, { timeout: 30000 })),
+  disputeOpen: (
+    orderId: number | string,
+    body: {
+      reasonId: number;
+      reasonName?: string;
+      expectType: 'REFUND' | 'REISSUE';
+      message: string;
+      imageUrls?: string[];
+      lines: Array<{ lineItemId: string; quantity: number }>;
+    }
+  ) => unwrap<IDispute>(baseAxios.post(`${SRV}/order/${orderId}/disputes`, body, { timeout: 30000 })),
+  disputeCancel: (orderId: number | string, disputeId: number) =>
+    unwrap<void>(baseAxios.post(`${SRV}/order/${orderId}/disputes/${disputeId}/cancel`, {}, { timeout: 30000 })),
 };

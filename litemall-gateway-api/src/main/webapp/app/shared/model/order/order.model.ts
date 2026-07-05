@@ -54,3 +54,35 @@ export interface IOrderDetail {
   cjOrderId?: string;
   cjOrderNum?: string;
 }
+
+/** One CJ dispute as `/srv/order/{id}/disputes` returns it. */
+export interface IDispute {
+  id?: number;
+  businessDisputeId?: string;
+  cjDisputeId?: string;
+  reasonName?: string;
+  expectType?: 'REFUND' | 'REISSUE';
+  message?: string;
+  status?: string;
+  resolution?: 'REFUND' | 'REISSUE' | 'REJECTED';
+  refundAmountUsd?: number;
+  resendOrderCode?: string;
+  cancelled?: boolean;
+  open?: boolean;
+  addTime?: string;
+}
+
+/** "Report a problem" form data from `/srv/order/{id}/disputes/context`. */
+export interface IDisputeContext {
+  lines: Array<{
+    lineItemId: string;
+    productName?: string;
+    imageUrl?: string;
+    unitPriceUsd?: number;
+    maxQuantity: number;
+  }>;
+  reasons: Array<{ id: number; name: string }>;
+  maxAmountUsd?: number;
+  refundAllowed: boolean;
+  reissueAllowed: boolean;
+}
