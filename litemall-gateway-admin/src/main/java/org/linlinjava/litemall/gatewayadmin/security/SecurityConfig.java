@@ -81,6 +81,10 @@ public class SecurityConfig {
                         .pathMatchers("/srv/order/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
                         .pathMatchers("/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
                         .pathMatchers("/srv/private/**").authenticated()
+                        // Wallet ops (balance/debit/recharge/extract) are
+                        // identity-sensitive: require a valid JWT so
+                        // IdentityForwardingFilter injects X-User-* downstream.
+                        .pathMatchers("/srv/wallet/**").authenticated()
                         // SPA client-side routes / remaining static assets.
                         .anyExchange().permitAll())
                 .build();

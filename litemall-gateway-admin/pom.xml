@@ -515,20 +515,11 @@
 									<goal>npm</goal>
 								</goals>
 							</execution>
-							<execution>
-								<id>webapp build dev</id>
-								<goals>
-									<goal>npm</goal>
-								</goals>
-								<phase>generate-resources</phase>
-								<configuration>
-									<arguments>run webapp:config</arguments>
-									<environmentVariables>
-										<APP_VERSION>${project.version}</APP_VERSION>
-									</environmentVariables>
-									<npmInheritsProxyConfigFromMaven>false</npmInheritsProxyConfigFromMaven>
-								</configuration>
-							</execution>
+							<!-- No "webapp build dev" execution here: it ran
+							     `npm run webapp:config` (= `webpack serve`, a
+							     blocking dev server) inside generate-resources,
+							     which hangs or fails every `mvn compile`. Start
+							     the dev server manually via npm instead. -->
 						</executions>
 					</plugin>
 				</plugins>

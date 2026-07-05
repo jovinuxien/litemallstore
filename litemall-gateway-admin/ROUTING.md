@@ -8,14 +8,28 @@ is expected; coordinate via this contract, not by reading each other's code.
 
 ## Path → service map
 
-| Path predicate       | Target (eureka service-id)        | Auth (SecurityConfig)        |
-|----------------------|-----------------------------------|------------------------------|
-| `/admin/**`          | `lb://litemall-admin-api`          | `ROLE_ADMIN`                 |
-| `/srv/order/**`      | `lb://litemall-order`             | per `/srv/...` rules below   |
-| `/srv/wallet/**`     | `lb://litemall-wallet-service`    | per `/srv/...` rules below   |
-| `/srv/loyalty/**`    | `lb://litemall-loyalty-service`   | per `/srv/...` rules below   |
-| `/srv/promotion/**`  | `lb://litemall-promotion-service` | per `/srv/...` rules below   |
-| `/srv/**` (catch-all)| `lb://litemall-goods-management`  | per `/srv/...` rules below   |
+| Path predicate                | Target (eureka service-id)       | Auth (SecurityConfig)      |
+|-------------------------------|----------------------------------|----------------------------|
+| `/srv/order/**`, `/srv/cart/**` | `lb://order-service-app`       | per `/srv/...` rules below |
+| `/srv/wallet/**`              | `lb://order-service-app` ¹       | authenticated              |
+| `/srv/loyalty/**`             | `lb://loyalty-service-app`       | per `/srv/...` rules below |
+| `/srv/promotion/**`           | `lb://promotion-service-app`     | per `/srv/...` rules below |
+| `/srv/private/admin/order/**` | `lb://order-service-app`         | `ROLE_ADMIN`               |
+| `/srv/**` (catch-all)         | `lb://litemall-goods-management` | per `/srv/...` rules below |
+| `/` (default profile)         | `forward:/index.html`            | public                     |
+
+¹ The wallet vertical was absorbed into `litemall-order`
+(`litemall-wallet-service` is deleted from the reactor); order-service serves
+`/srv/wallet/**` via its `LitemallWalletRestController`.
+
+**`litemall-admin-api` is deliberately NOT routed.** The admin SPA's whole
+surface is served by goods-management (`/srv/private/admin/{brand,category,
+keyword,issue,comment,goods}/**`) and order-service (`/srv/private/admin/
+order/**`, `/srv/order/admin/**`) — verified live; the earlier
+`/admin/** → admin-api` route was removed as bogus in `debcbfb6f`. admin-api
+also sets no `spring.application.name`, so an `lb://` route cannot resolve it
+through eureka. Do not re-add it without both fixing that and identifying a
+path only admin-api can serve.
 
 Routes are matched **in declaration order**; the specific `/srv/<svc>/**`
 routes are declared **before** the `/srv/**` goods catch-all (see
@@ -24,8 +38,7 @@ routes are declared **before** the `/srv/**` goods catch-all (see
 ## Rules downstream services MUST follow
 
 1. **Stable eureka `spring.application.name`** exactly as in the table:
-   `litemall-admin-api`, `litemall-order`, `litemall-wallet-service`,
-   `litemall-loyalty-service`, `litemall-promotion-service`,
+   `order-service-app`, `loyalty-service-app`, `promotion-service-app`,
    `litemall-goods-management`. Changing a service id breaks its route.
 2. **No `StripPrefix`.** The gateway forwards the **full path** unchanged. A
    service owns its `/srv/<svc>/**` namespace and must map its controllers
@@ -44,21 +57,26 @@ routes are declared **before** the `/srv/**` goods catch-all (see
 4. **Auth surface** (enforced at the edge by `SecurityConfig`):
    - public: `/auth/**`, `/srv/authenticate/**`, `/srv/catalog/**`,
      `/srv/cjAuth/**`, the SPA shell/assets, `/actuator/health/**`.
-   - `ROLE_ADMIN`: `/admin/**`, `/srv/private/admin/**`.
-   - authenticated: `/srv/private/**`.
+   - `ROLE_ADMIN`: `/admin/**`, `/srv/private/admin/**`, `/srv/order/admin/**`.
+   - authenticated: `/srv/private/**`, `/srv/wallet/**`.
    A service exposing a new admin-only endpoint should place it under
    `/srv/<svc>/private/...` or `/srv/private/...` and rely on the edge gate
    (and its own `litemall-svcsecurity` check), not invent a new public path.
 
 ## Frontend serving (profile-split)
 
-- **`dev`**: the gateway proxies `/**` → `http://localhost:9000` (webpack dev
-  server). Route `frontend-dev` in application.yml.
-- **default / prod**: no `/**` gateway route. The built SPA
-  (`classpath:/static`, via frontend-maven-plugin) is served by WebFlux static
-  handling, and `SpaWebFilter` (`@Profile("!dev")`) rewrites HTML5 client
-  routes to `/index.html`. `SpaWebFilter` explicitly excludes the backend
-  prefixes above so it never shadows a gateway route.
+- **`dev`**: the gateway proxies the SPA paths
+  (`/`, `/index.html`, `/static/**`, `/assets/**`, `/app/**`,
+  `/sockjs-node/**`) → `http://localhost:9000` (webpack dev server). Route
+  `frontend` in the dev profile block of application.yml.
+- **default / prod**: route `frontend` forwards `/` → `forward:/index.html`
+  (root only — a `/**` + `forward:` catch-all recurses through the WebFlux
+  dispatcher and overflows the Reactor stack when the SPA isn't on the
+  classpath). The built SPA (`classpath:/static`, via frontend-maven-plugin)
+  is served by WebFlux static handling, and `SpaWebFilter`
+  (`@Profile("!dev")`) rewrites HTML5 client routes to `/index.html`.
+  `SpaWebFilter` explicitly excludes the backend prefixes above so it never
+  shadows a gateway route.
 
 ## What this module must NOT do
 
@@ -72,19 +90,25 @@ routes are declared **before** the `/srv/**` goods catch-all (see
 These are backend gaps the admin SPA now depends on. They are intentionally NOT
 implemented here (out of scope); track them in the named worktrees.
 
-- **`order` worktree — implement `GET /srv/order/admin/stat`.** The admin
-  dashboard (`Dashboard.tsx` → `adminStateSlice.fetchOrderStats`) calls this as
-  an authenticated admin. Expected payload: per-day rows
-  `{ day, orders, customers, amount, pcr? }` (array, or `{ rows: [...] }`), in
-  the litemall `{errno,errmsg,data}` envelope. Until it exists the dashboard
-  degrades gracefully (empty state + "stats unavailable" banner; no mock data).
-  The edge already gates `/srv/order/admin/**` to ROLE_ADMIN (`SecurityConfig`)
-  and the `/srv/order/**` → `lb://litemall-order` route exists, so only the
+- **`order` worktree — implement `GET /srv/order/admin/stat`.** STILL OPEN as
+  of 2026-07-05: `litemall-order` serves `/srv/private/admin/order/{list,
+  detail,{orderId}/ship,{orderId}/refund}` (`LitemallAdminOrderController`)
+  but no stats endpoint. The admin dashboard (`Dashboard.tsx` →
+  `adminStateSlice.fetchOrderStats`) calls this as an authenticated admin.
+  Expected payload: per-day rows `{ day, orders, customers, amount, pcr? }`
+  (array, or `{ rows: [...] }`), in the litemall `{errno,errmsg,data}`
+  envelope. Until it exists the dashboard degrades gracefully (empty state +
+  "stats unavailable" banner; no mock data). The edge already gates
+  `/srv/order/admin/**` to ROLE_ADMIN (`SecurityConfig`) and the
+  `/srv/order/**` → `lb://order-service-app` route exists, so only the
   service endpoint is missing.
 
-- **`goods-management` worktree — confirm the admin goods JSON on
-  `/srv/private/admin/goods`.** The admin list/detail (`adminGoodsApi` +
-  `AdminGoodsList.tsx` / `GoodsDetail.tsx`) expects:
+- **RESOLVED — `goods-management` admin goods JSON on
+  `/srv/private/admin/goods`.** `AdminGoodsController` now serves the admin
+  catalog surface and the SPA was verified against it live (merged
+  `faaa177f8`). Original expectation kept for reference — the admin
+  list/detail (`adminGoodsApi` + `AdminGoodsList.tsx` / `GoodsDetail.tsx`)
+  expects:
   - `GET /srv/private/admin/goods/list?page&limit&sort&order` →
     `data: { total, pages, limit, page, list: IGood[] }`, each `IGood` carrying
     `status`, `salesQuantity`, `picUrl`, `retailPrice`, plus a summed-SKU
