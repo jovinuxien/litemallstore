@@ -88,7 +88,7 @@ class CjFulfillmentServiceTest {
                 .thenReturn(bookAddress());
         when(lineResolver.resolveVid(1043)).thenReturn("vid-abc");
         when(cjOrderFacade.placeOrder(any()))
-                .thenReturn(new CjOrderResult("cj-id-1", "cj-num-1", "CREATED"));
+                .thenReturn(new CjOrderResult("cj-id-1", "cj-num-1", "CREATED", "CJPacket Ordinary"));
 
         service("").placeForPaidOrder(order, List.of(line(1043, (short) 2)));
 
@@ -105,7 +105,7 @@ class CjFulfillmentServiceTest {
         assertEquals("vid-abc", sent.getLines().get(0).getVid());
         assertEquals(2, sent.getLines().get(0).getQuantity());
 
-        verify(orderRepository).recordCjPlacement(order.getOrderId(), "cj-id-1", "cj-num-1");
+        verify(orderRepository).recordCjPlacement(order.getOrderId(), "cj-id-1", "cj-num-1", "CJPacket Ordinary");
     }
 
     @Test
@@ -118,7 +118,7 @@ class CjFulfillmentServiceTest {
                 () -> service("").placeForPaidOrder(order, List.of(line(1043, (short) 1))));
 
         verify(cjOrderFacade, never()).placeOrder(any());
-        verify(orderRepository, never()).recordCjPlacement(any(), any(), any());
+        verify(orderRepository, never()).recordCjPlacement(any(), any(), any(), any());
     }
 
     @Test
@@ -128,7 +128,7 @@ class CjFulfillmentServiceTest {
                 .thenReturn(bookAddress());
         when(lineResolver.resolveVid(1043)).thenReturn("vid-abc");
         when(cjOrderFacade.placeOrder(any()))
-                .thenReturn(new CjOrderResult("cj-id-2", "cj-num-2", "CREATED"));
+                .thenReturn(new CjOrderResult("cj-id-2", "cj-num-2", "CREATED", "CJPacket Ordinary"));
 
         service("SE").placeForPaidOrder(order, List.of(line(1043, (short) 1)));
 
@@ -156,7 +156,7 @@ class CjFulfillmentServiceTest {
         when(addressRepository.findDefaultAddress(order.getUserId())).thenReturn(bookAddress());
         when(lineResolver.resolveVid(1043)).thenReturn("vid-abc");
         when(cjOrderFacade.placeOrder(any()))
-                .thenReturn(new CjOrderResult("cj-id-3", "cj-num-3", "CREATED"));
+                .thenReturn(new CjOrderResult("cj-id-3", "cj-num-3", "CREATED", "CJPacket Ordinary"));
 
         service("").placeForPaidOrder(order, List.of(line(1043, (short) 1)));
 

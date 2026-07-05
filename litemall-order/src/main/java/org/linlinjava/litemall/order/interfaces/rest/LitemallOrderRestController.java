@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.order.interfaces.rest;
 
+import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
+import org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService;
 import org.linlinjava.litemall.order.application.util.exception.wallet.LitemallInsufficientBalanceException;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.LitemallOrderCancelCommand;
@@ -10,6 +12,9 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjLogisticsOption;
+import org.linlinjava.litemall.order.interfaces.dtos.order.FreightQuoteDtoResponse;
+import org.linlinjava.litemall.order.interfaces.dtos.order.FreightQuoteRequest;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderDetailDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListDtoResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.order.OrderListItemDtoResponse;
@@ -29,9 +34,44 @@ import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponse
 public class LitemallOrderRestController {
 
     private final LitemallOrderOrchestratorService orderOrchestrationService;
+    private final CjFreightQuoteService cjFreightQuoteService;
 
-    public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService) {
+    public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService,
+                                       CjFreightQuoteService cjFreightQuoteService) {
         this.orderOrchestrationService = orderOrchestrationService;
+        this.cjFreightQuoteService = cjFreightQuoteService;
+    }
+
+    /**
+     * Checkout freight/logistics quote. {@code freightPrice} mirrors the exact rule submit
+     * charges (free at/above {@code litemall_express_freight_min}, else the flat
+     * {@code litemall_express_freight_value}); the CJ block is an informational carrier +
+     * delivery-time estimate for CJ cart groups. CJ problems degrade to {@code cj:null} +
+     * {@code cjNote} — this endpoint never fails a checkout.
+     */
+    @PostMapping("/freight-quote")
+    public ApiResponse<FreightQuoteDtoResponse> freightQuote(@RequestBody FreightQuoteRequest request) {
+        java.math.BigDecimal subtotal = request.getSubtotal() != null ? request.getSubtotal() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal freightPrice = subtotal.compareTo(SystemConfig.getFreightLimit()) < 0
+                ? SystemConfig.getFreight() : java.math.BigDecimal.ZERO;
+
+        FreightQuoteDtoResponse.CjInfo cjInfo = null;
+        String cjNote = null;
+        boolean cjRequested = request.getCountryCode() != null && !request.getCountryCode().isBlank()
+                && request.getCjItems() != null && !request.getCjItems().isEmpty();
+        if (cjRequested) {
+            CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(),
+                    request.getCjItems().stream()
+                            .map(i -> new CjFreightQuoteService.QuoteItem(i.getProductId(), i.getQuantity()))
+                            .collect(Collectors.toList()));
+            if (option != null) {
+                cjInfo = new FreightQuoteDtoResponse.CjInfo(option.getLogisticName(), option.getLogisticAging());
+            } else {
+                cjNote = "Logistics estimate unavailable right now";
+            }
+        }
+        return ApiResponse.ok(new FreightQuoteDtoResponse(
+                freightPrice, SystemConfig.getFreightLimit(), cjInfo, cjNote));
     }
 
     /**

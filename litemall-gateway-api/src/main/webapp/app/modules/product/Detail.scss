@@ -339,11 +339,13 @@
   &__tabpanel {
     padding: 22px;
   }
-  &__detailhtml {
-    img {
-      max-width: 100%;
-      height: auto;
-    }
+  &__detailimg {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    height: auto;
+    margin: 0 auto 1rem;
+    border-radius: 8px;
   }
   &__spectable {
     width: 100%;
@@ -453,6 +455,7 @@
   &__review { padding: 12px 0; border-bottom: 1px solid var(--lm-border); }
   &__reviewhead { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
   &__reviewer { font-weight: 600; }
+  &__reviewdate { font-size: 0.82rem; }
   &__reviewbody { margin: 0; color: var(--lm-text); }
   &__reviewpics {
     display: flex;

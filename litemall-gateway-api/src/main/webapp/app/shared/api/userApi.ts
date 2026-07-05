@@ -38,15 +38,22 @@ export interface ICoupon {
   endTime?: string;
 }
 
-export interface IComment {
-  id?: number;
-  content?: string;
-  adminContent?: string;
-  star?: number;
+export interface ICommentUserInfo {
   nickName?: string;
-  avatar?: string;
+  avatarUrl?: string;
+}
+
+/**
+ * One product review as /srv/comment/list returns it: local rows serialise addTime as a
+ * LocalDateTime number[] tuple; CJ-proxied reviews carry an ISO string.
+ */
+export interface IComment {
+  content?: string;
+  adminContent?: string | null;
+  star?: number;
+  userInfo?: ICommentUserInfo;
   picList?: string[];
-  addTime?: string;
+  addTime?: string | number[];
 }
 
 export interface PageParams {
@@ -88,9 +95,13 @@ export const userApi = {
   // TODO(/srv follow-up: user) — feedback.
   feedbackSubmit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/feedback/submit`, body)),
 
-  // TODO(/srv follow-up: goods-management) — product comments/reviews.
+  // Product comments/reviews — LIVE on goods-management (/srv/comment/*, public).
+  // valueId is a numeric goods id or the cj_<pid> doc id; CJ-sourced goods are served
+  // their CJ reviews transparently. showType 0 = all (1 = with-picture, local only).
   commentCount: (valueId: number | string, type = 0) =>
     unwrap<{ allCount: number; hasPicCount: number }>(baseAxios.get(`${SRV}/comment/count`, { params: { valueId, type } })),
   commentList: (valueId: number | string, type = 0, params: PageParams = {}) =>
-    unwrap<{ data: IComment[]; count: number }>(baseAxios.get(`${SRV}/comment/list`, { params: { valueId, type, ...params } })),
+    unwrap<{ list: IComment[]; total: number }>(
+      baseAxios.get(`${SRV}/comment/list`, { params: { valueId, type, showType: 0, ...params } })
+    ),
 };

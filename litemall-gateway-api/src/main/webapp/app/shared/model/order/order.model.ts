@@ -53,6 +53,19 @@ export interface IOrderDetail {
   source?: string; // 'local' | 'cj' — 'cj' rows are dropship orders
   cjOrderId?: string;
   cjOrderNum?: string;
+  /** Logistics line the order ships with (the CJ line chosen at placement). */
+  shipChannel?: string;
+}
+
+/**
+ * Checkout freight/logistics quote (POST /srv/order/freight-quote). freightPrice is what
+ * submit will actually charge; `cj` is an informational carrier + delivery estimate.
+ */
+export interface IFreightQuote {
+  freightPrice?: number;
+  freeShippingThreshold?: number;
+  cj?: { logisticName?: string; logisticAging?: string } | null;
+  cjNote?: string | null;
 }
 
 /** One CJ dispute as `/srv/order/{id}/disputes` returns it. */

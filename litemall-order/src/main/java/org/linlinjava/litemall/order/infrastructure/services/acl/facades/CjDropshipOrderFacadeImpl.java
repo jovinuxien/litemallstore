@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
 
 import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjLogisticsOption;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderResult;
 import org.linlinjava.litemall.order.infrastructure.services.cj.CjTokenService;
@@ -51,15 +52,18 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
         }
 
         CjCreateOrderResponse response;
+        String placedLogistic = logisticName;
         try {
             String token = cjTokenService.getValidToken();
             List<CjOrderProduct> products = toProducts(placement);
             // createOrder only accepts a logisticName that freightCalculate offers for this
             // product/destination combination (else code 1605001) — resolve it live, falling
             // back to the configured default only when the freight call itself fails.
-            String logistic = resolveLogisticName(token, placement, products);
+            CjLogisticsOption option = resolveLogisticOption(token, placement.getCountryCode(), products);
+            String logistic = option != null ? option.getLogisticName() : logisticName;
             CjCreateOrderRequest request = toRequest(placement, products, logistic);
             response = cjOrderFeignClient.createOrder(token, request);
+            placedLogistic = logistic;
         } catch (RuntimeException e) {
             // Transport/auth errors AND CJ business rejections (the FeignErrorDecoder turns a CJ
             // error body into an exception) surface here. Unwrap to the root cause so the real CJ
@@ -92,9 +96,9 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             // rather than failing the customer; our merchant orderNumber remains the idempotency key.
             log.warn("CJ create-order accepted orderNumber={} but returned no parseable data object; "
                     + "proceeding without CJ order id", placement.getOrderNumber());
-            return new CjOrderResult(null, null, null);
+            return new CjOrderResult(null, null, null, placedLogistic);
         }
-        return new CjOrderResult(data.getOrderId(), data.getOrderNum(), data.getOrderStatus());
+        return new CjOrderResult(data.getOrderId(), data.getOrderNum(), data.getOrderStatus(), placedLogistic);
     }
 
     private List<CjOrderProduct> toProducts(CjOrderPlacement p) {
@@ -103,18 +107,35 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public CjLogisticsOption quoteLogistics(String endCountryCode, List<CjOrderPlacement.Line> lines) {
+        if (endCountryCode == null || endCountryCode.isBlank() || lines == null || lines.isEmpty()) {
+            return null;
+        }
+        try {
+            String token = cjTokenService.getValidToken();
+            List<CjOrderProduct> products = lines.stream()
+                    .map(l -> new CjOrderProduct(l.getVid(), l.getQuantity()))
+                    .collect(Collectors.toList());
+            return resolveLogisticOption(token, endCountryCode, products);
+        } catch (RuntimeException e) {
+            log.warn("CJ logistics quote failed for {}->{}: {}", fromCountryCode, endCountryCode, e.getMessage());
+            return null;
+        }
+    }
+
     /**
      * Pick the logistics line for this shipment from CJ freightCalculate: the configured
      * default when CJ offers it, else the cheapest offered line. Any freight-call failure
-     * (outage, breaker open, empty offer list) falls back to the configured default and
-     * lets createOrder be the arbiter.
+     * (outage, breaker open, empty offer list) yields {@code null} — placement falls back to
+     * the configured default name and lets createOrder be the arbiter.
      */
-    private String resolveLogisticName(String token, CjOrderPlacement p, List<CjOrderProduct> products) {
+    private CjLogisticsOption resolveLogisticOption(String token, String endCountryCode, List<CjOrderProduct> products) {
         try {
             CjFreightCalculateResponse freight = cjOrderFeignClient.freightCalculate(token,
                     CjFreightCalculateRequest.builder()
                             .startCountryCode(fromCountryCode)
-                            .endCountryCode(p.getCountryCode())
+                            .endCountryCode(endCountryCode)
                             .products(products)
                             .build());
             List<CjFreightCalculateResponse.Option> options =
@@ -122,7 +143,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                             ? freight.getData() : List.of();
             for (CjFreightCalculateResponse.Option option : options) {
                 if (logisticName.equalsIgnoreCase(option.getLogisticName())) {
-                    return option.getLogisticName();
+                    return toOption(option);
                 }
             }
             java.util.Optional<CjFreightCalculateResponse.Option> cheapest = options.stream()
@@ -132,26 +153,30 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                                     ? new java.math.BigDecimal(Long.MAX_VALUE) : o.getLogisticPrice()));
             if (cheapest.isPresent()) {
                 log.info("CJ freightCalculate for {}->{}: using '{}' ({} {})", fromCountryCode,
-                        p.getCountryCode(), cheapest.get().getLogisticName(),
+                        endCountryCode, cheapest.get().getLogisticName(),
                         cheapest.get().getLogisticPrice(), cheapest.get().getLogisticAging());
-                return cheapest.get().getLogisticName();
+                return toOption(cheapest.get());
             }
             log.warn("CJ freightCalculate offered no logistics for {}->{} ({}); using configured default '{}'",
-                    fromCountryCode, p.getCountryCode(),
+                    fromCountryCode, endCountryCode,
                     freight == null ? "null response" : freight.getMessage(), logisticName);
         } catch (RuntimeException e) {
             log.warn("CJ freightCalculate failed for {}->{}; using configured default '{}': {}",
-                    fromCountryCode, p.getCountryCode(), logisticName, e.getMessage());
+                    fromCountryCode, endCountryCode, logisticName, e.getMessage());
         } finally {
-            // CJ's API is rate-limited (~1 QPS account-wide); pace the follow-up createOrder
-            // so the freight call doesn't earn it a 429.
+            // CJ's API is rate-limited (~1 QPS account-wide); pace the follow-up call
+            // (createOrder, or the next quote) so the freight call doesn't earn it a 429.
             try {
                 Thread.sleep(1100);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             }
         }
-        return logisticName;
+        return null;
+    }
+
+    private static CjLogisticsOption toOption(CjFreightCalculateResponse.Option o) {
+        return new CjLogisticsOption(o.getLogisticName(), o.getLogisticPrice(), o.getLogisticAging());
     }
 
     private CjCreateOrderRequest toRequest(CjOrderPlacement p, List<CjOrderProduct> products, String logistic) {

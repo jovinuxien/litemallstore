@@ -38,13 +38,15 @@ public class OrderDetailDtoResponse {
     private final String source;
     private final String cjOrderId;
     private final String cjOrderNum;
+    /** Logistics line the order ships with (CJ line at placement / admin ship channel). */
+    private final String shipChannel;
 
     public OrderDetailDtoResponse(Integer id, String orderSn, LocalDateTime addTime, String consignee,
                                   String mobile, String address, String orderStatusText,
                                   OrderHandleOptionDtoResponse handleOption, BigDecimal goodsPrice,
                                   BigDecimal freightPrice, BigDecimal couponPrice, BigDecimal actualPrice,
                                   List<OrderGoodsDtoResponse> orderGoods,
-                                  String source, String cjOrderId, String cjOrderNum) {
+                                  String source, String cjOrderId, String cjOrderNum, String shipChannel) {
         this.id = id;
         this.orderSn = orderSn;
         this.addTime = addTime;
@@ -61,6 +63,7 @@ public class OrderDetailDtoResponse {
         this.source = source;
         this.cjOrderId = cjOrderId;
         this.cjOrderNum = cjOrderNum;
+        this.shipChannel = shipChannel;
     }
 
     public static OrderDetailDtoResponse fromDomain(LitemallOrderAggregate o,
@@ -82,6 +85,7 @@ public class OrderDetailDtoResponse {
                         : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()),
                 o.getSource(),
                 o.getCjOrderId(),
-                o.getCjOrderNum());
+                o.getCjOrderNum(),
+                o.getShipChannel());
     }
 }

@@ -102,10 +102,11 @@ public class CjFulfillmentService {
                 .build();
 
         CjOrderResult result = cjOrderFacade.placeOrder(placement);
-        orderRepository.recordCjPlacement(order.getOrderId(), result.getCjOrderId(), result.getCjOrderNum());
-        log.info("CJ fulfillment placed for order {} (sn {}): cjOrderId={}, cjOrderNum={}",
+        orderRepository.recordCjPlacement(order.getOrderId(), result.getCjOrderId(), result.getCjOrderNum(),
+                result.getLogisticName());
+        log.info("CJ fulfillment placed for order {} (sn {}): cjOrderId={}, cjOrderNum={}, logistic={}",
                 order.getOrderId().getId(), order.getOrderSn(),
-                result.getCjOrderId(), result.getCjOrderNum());
+                result.getCjOrderId(), result.getCjOrderNum(), result.getLogisticName());
         return result;
     }
 
