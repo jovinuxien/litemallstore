@@ -2,7 +2,10 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { ProductStatus } from 'app/shared/model/enumerations/product-status.model';
 import { IGood } from 'app/shared/model/product/product.model';
 import { setLimit, setPage, setSort } from 'app/shared/reducers/private/catalogMgn/adminGoodsSlice';
-import { useGetAdminGoodsListQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { useDeleteGoodsMutation, useGetAdminGoodsListQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import GoodsImportDialog from 'app/views/adminViews/adminModule/Goods/GoodsImportDialog';
+import { exportGoods, ExportFormat } from 'app/views/adminViews/adminModule/Goods/goodsExport';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -65,7 +68,7 @@ const Legend: React.FC = () => (
   </div>
 );
 
-const GoodsRow: React.FC<{ good: IGood }> = ({ good }) => {
+const GoodsRow: React.FC<{ good: IGood; onDelete: (good: IGood) => void; deleting: boolean }> = ({ good, onDelete, deleting }) => {
   const stock = good.stock;
   const isLowStock = typeof stock === 'number' && stock < LOW_STOCK_THRESHOLD;
   const sold = good.salesQuantity ?? 0;
@@ -99,10 +102,16 @@ const GoodsRow: React.FC<{ good: IGood }> = ({ good }) => {
       <td>
         <StatusTag status={good.status} />
       </td>
-      <td className='text-end'>
-        <Link to={`/admin/goods/${good.id}`} className='btn btn-sm btn-outline-primary'>
+      <td className='text-end' style={{ whiteSpace: 'nowrap' }}>
+        <Link to={`/admin/goods/${good.id}`} className='btn btn-sm btn-outline-primary me-1'>
           Detail
         </Link>
+        <Link to={`/admin/goods/${good.id}/edit`} className='btn btn-sm btn-outline-secondary me-1'>
+          Edit
+        </Link>
+        <button className='btn btn-sm btn-outline-danger' disabled={deleting} onClick={() => onDelete(good)}>
+          Delete
+        </button>
       </td>
     </tr>
   );
@@ -113,6 +122,11 @@ const AdminGoodsList: React.FC = () => {
   const { page, limit, sort, order } = useAppSelector(state => state.adminGoods);
 
   const { data, isLoading, isFetching, isError, error } = useGetAdminGoodsListQuery({ page, limit, sort, order });
+  const [deleteGoods, { isLoading: deleting }] = useDeleteGoodsMutation();
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [showImport, setShowImport] = React.useState(false);
+  const [exporting, setExporting] = React.useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
 
   const list = data?.list ?? [];
   const total = data?.total ?? 0;
@@ -121,6 +135,26 @@ const AdminGoodsList: React.FC = () => {
   const errStatus = (error as { status?: number | string })?.status;
   const prevDisabled = page <= 1 || isFetching;
   const nextDisabled = (pages > 0 && page >= pages) || list.length < limit || isFetching;
+
+  const onDelete = async (good: IGood) => {
+    if (!window.confirm(`Delete goods "${good.name ?? good.id}"? This also removes its SKUs.`)) return;
+    setActionError(null);
+    const res = await deleteGoods({ id: good.id as number });
+    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
+    if (msg) setActionError(msg);
+  };
+
+  const onExport = async (format: ExportFormat) => {
+    setActionError(null);
+    setExporting(true);
+    try {
+      await exportGoods(format);
+    } catch (e) {
+      setActionError(`Export failed: ${(e as Error).message ?? e}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className='app-container'>
@@ -161,12 +195,47 @@ const AdminGoodsList: React.FC = () => {
             </option>
           ))}
         </select>
+        <Link className='btn btn-success filter-item' to='/admin/goods/create'>
+          + New goods
+        </Link>
+        <button className='btn btn-outline-success filter-item' type='button' onClick={() => setShowImport(true)}>
+          Bulk add / Import
+        </button>
+        <div className='btn-group filter-item' style={{ position: 'relative' }}>
+          <button
+            className='btn btn-outline-secondary dropdown-toggle'
+            type='button'
+            disabled={exporting}
+            onClick={() => setExportMenuOpen(open => !open)}
+          >
+            {exporting ? 'Exporting…' : 'Export'}
+          </button>
+          {/* controlled dropdown — bootstrap's JS bundle is not loaded in this app */}
+          <ul className={`dropdown-menu${exportMenuOpen ? ' show' : ''}`} style={{ top: '100%', left: 0 }}>
+            {(['xlsx', 'csv', 'json'] as ExportFormat[]).map(format => (
+              <li key={format}>
+                <button
+                  className='dropdown-item'
+                  type='button'
+                  onClick={() => {
+                    setExportMenuOpen(false);
+                    onExport(format);
+                  }}
+                >
+                  {format.toUpperCase()}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
         {isFetching && <span className='spinner-border spinner-border-sm text-primary filter-item' role='status' />}
       </div>
 
       <Legend />
 
       {isError && <div className='alert alert-danger'>Failed to load goods{errStatus ? ` (${errStatus})` : ''}.</div>}
+      {actionError && <div className='alert alert-danger'>{actionError}</div>}
+      {showImport && <GoodsImportDialog onClose={() => setShowImport(false)} />}
 
       <table className='el-table'>
         <thead>
@@ -194,7 +263,7 @@ const AdminGoodsList: React.FC = () => {
               </td>
             </tr>
           ) : (
-            list.map(good => <GoodsRow key={good.id} good={good} />)
+            list.map(good => <GoodsRow key={good.id} good={good} onDelete={onDelete} deleting={deleting} />)
           )}
         </tbody>
       </table>

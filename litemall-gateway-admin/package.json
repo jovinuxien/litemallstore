@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "description": "Admin SPA + reactive Spring Cloud Gateway edge for the litemall admin console.",
   "dependencies": {
-    "@litemall/shared": "0.1.0",
     "@fortawesome/fontawesome-svg-core": "^6.6.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/react-fontawesome": "^3.1.1",
+    "@litemall/shared": "0.1.0",
     "@reduxjs/toolkit": "^2.2.7",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.1",
@@ -36,7 +36,8 @@
     "react-toastify": "^10.0.5",
     "react-transition-group": "^4.4.5",
     "reactstrap": "^9.2.2",
-    "redux": "^5.0.1"
+    "redux": "^5.0.1",
+    "xlsx": "^0.18.5"
   },
   "scripts": {
     "test": "web-test-runner src/**/*.test.js --node-resolve",

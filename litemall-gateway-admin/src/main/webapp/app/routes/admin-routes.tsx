@@ -1,6 +1,10 @@
 import AdminGoodsList from 'app/views/adminViews/adminModule/Goods/AdminGoodsList';
 import GoodsDetail from 'app/views/adminViews/adminModule/Goods/GoodsDetail/GoodsDetail';
+import GoodsForm from 'app/views/adminViews/adminModule/Goods/GoodsForm';
 import Dashboard from 'app/views/adminViews/adminModule/Dashboard/Dashboard';
+import StatPage from 'app/views/adminViews/adminModule/Stat/StatPage';
+import UserList from 'app/views/adminViews/adminModule/User/UserList';
+import AddressList from 'app/views/adminViews/adminModule/User/AddressList';
 import BrandList from 'app/views/adminViews/adminModule/Brand/BrandList';
 import BrandForm from 'app/views/adminViews/adminModule/Brand/BrandForm';
 import CategoryList from 'app/views/adminViews/adminModule/Category/CategoryList';
@@ -39,7 +43,15 @@ export const AdminRoutes = () => (
       <Route path='dashboard' element={<Dashboard />} />
       <Route path='goods' element={<AdminGoodsList />} />
       <Route path='goods/comment' element={<CommentList />} />
+      {/* static 'create' wins over the ':id' detail route in v6 ranking */}
+      <Route path='goods/create' element={<GoodsForm />} />
+      <Route path='goods/:id/edit' element={<GoodsForm />} />
       <Route path='goods/:id' element={<GoodsDetail />} />
+      <Route path='user/user' element={<UserList />} />
+      <Route path='user/address' element={<AddressList />} />
+      <Route path='stat/user' element={<StatPage kind='user' />} />
+      <Route path='stat/order' element={<StatPage kind='order' />} />
+      <Route path='stat/goods' element={<StatPage kind='goods' />} />
       <Route path='mall/brand' element={<BrandList />} />
       <Route path='mall/brand/create' element={<BrandForm />} />
       <Route path='mall/brand/:id' element={<BrandForm />} />

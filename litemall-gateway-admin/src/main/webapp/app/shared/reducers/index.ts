@@ -11,6 +11,8 @@ import adminState from './private/catalogMgn/adminStateSlice';
 import adminUi from './private/adminUiSlice';
 import { adminGoodsApi } from './private/services/admingoodsrv/adminGoodsApi';
 import { adminCatalogApi } from './private/services/adminCatalogApi';
+import { adminStatApi } from './private/services/adminStatApi';
+import { adminUsersApi } from './private/services/adminUsersApi';
 
 /* jhipster-needle-add-reducer-import - JHipster will add reducer here */
 
@@ -22,6 +24,8 @@ const rootReducer: ReducersMapObject = {
   adminUi,
   [adminGoodsApi.reducerPath]: adminGoodsApi.reducer,
   [adminCatalogApi.reducerPath]: adminCatalogApi.reducer,
+  [adminStatApi.reducerPath]: adminStatApi.reducer,
+  [adminUsersApi.reducerPath]: adminUsersApi.reducer,
   home,
   product,
   category,
