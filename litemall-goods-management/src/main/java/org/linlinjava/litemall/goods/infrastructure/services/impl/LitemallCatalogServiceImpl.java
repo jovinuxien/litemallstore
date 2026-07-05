@@ -27,7 +27,9 @@ public class LitemallCatalogServiceImpl implements LitemallCatalogService {
 
     @Override
     public List<LitemallCategoryAggregate> getFirstLevelCategories() {
-        return categoryRepository.queryL1(0, 10) ;
+        // 100 = "all of them": the taxonomy holds ~24 L1 roots (native + mirrored CJ trees); the
+        // old page size of 10 silently cut off every CJ L1, hiding them from /srv/catalog/all.
+        return categoryRepository.queryL1(0, 100);
     }
 
 
