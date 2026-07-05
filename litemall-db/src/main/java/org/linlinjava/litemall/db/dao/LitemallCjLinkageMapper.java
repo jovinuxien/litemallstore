@@ -31,6 +31,13 @@ public interface LitemallCjLinkageMapper {
     /** id of the native goods row already promoted from this CJ product, or null. */
     Integer findGoodsIdByCjPid(@Param("cjPid") String cjPid);
 
+    /**
+     * Like {@link #findGoodsIdByCjPid} but INCLUDING soft-deleted rows — the promote path must
+     * resurrect a goods row pruned by a concurrent/earlier full sync instead of colliding with
+     * the {@code uk_goods_source_cjpid} unique key on a blind insert.
+     */
+    Integer findAnyGoodsIdByCjPid(@Param("cjPid") String cjPid);
+
     /** {id, cjPid} of every live CJ-sourced goods row — used to reconcile vanished products. */
     List<LitemallGoods> findCjGoodsRefs();
 

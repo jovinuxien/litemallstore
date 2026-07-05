@@ -33,6 +33,13 @@
     limit 1
   </select>
 
+  <!-- uk_goods_source_cjpid guarantees at most one row per (source, cj_pid), deleted or not -->
+  <select id="findAnyGoodsIdByCjPid" resultType="java.lang.Integer">
+    select id from litemall_goods
+    where source = 'cj' and cj_pid = #{cjPid}
+    limit 1
+  </select>
+
   <select id="findCjGoodsRefs" resultType="org.linlinjava.litemall.db.domain.LitemallGoods">
     select id, cj_pid
     from litemall_goods
