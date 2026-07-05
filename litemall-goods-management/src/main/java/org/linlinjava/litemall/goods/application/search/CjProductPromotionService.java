@@ -165,10 +165,14 @@ public class CjProductPromotionService {
         Integer brandId = resolveBrandId(aggregate.getBrand());
         goods.setBrandId(brandId != null ? brandId : 0);
 
-        Integer existingId = linkageMapper.findGoodsIdByCjPid(goods.getCjPid());
+        // Match INCLUDING soft-deleted rows: a full sync's stale-prune (or an off-sale edit) may
+        // have soft-deleted this pid, and uk_goods_source_cjpid makes a blind re-insert collide —
+        // the row must be resurrected in place instead.
+        Integer existingId = linkageMapper.findAnyGoodsIdByCjPid(goods.getCjPid());
         if (existingId != null) {
             goods.setId(existingId);
             goods.setAddTime(null); // preserve the original creation time on update
+            goods.setDeleted(false); // resurrect if the row was soft-deleted
             goodsMapper.updateByPrimaryKeySelective(goods);
         } else {
             goodsMapper.insertSelective(goods); // selectKey stamps goods.id
