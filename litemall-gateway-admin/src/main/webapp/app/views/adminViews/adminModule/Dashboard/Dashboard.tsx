@@ -1,6 +1,6 @@
 import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
+import { fetchDashboardTotals, fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
 import * as React from 'react';
 import { Line } from 'react-chartjs-2';
 
@@ -34,10 +34,11 @@ const StatTile: React.FC<{ value: React.ReactNode; label: string; color: string 
 
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { rows, totals, loading, unavailable, errorMessage } = useAppSelector(state => state.adminState);
+  const { rows, totals, dashboard, loading, unavailable, errorMessage } = useAppSelector(state => state.adminState);
 
   React.useEffect(() => {
     dispatch(fetchOrderStats());
+    dispatch(fetchDashboardTotals());
   }, [dispatch]);
 
   const labels = rows.map(r => r.day);
@@ -64,19 +65,26 @@ const Dashboard: React.FC = () => {
       {unavailable && (
         <div className='alert alert-warning'>
           {errorMessage || 'Order statistics are not available yet.'}{' '}
-          <span className='text-muted small'>(Pending the order service&apos;s /srv/order/admin/stat endpoint.)</span>
+          <span className='text-muted small'>(GET /srv/private/admin/stat/order did not answer — is goods-management up?)</span>
         </div>
       )}
       {!unavailable && errorMessage && <div className='alert alert-danger'>{errorMessage}</div>}
 
       <div className='row mb-3'>
-        <div className='col-sm-4'>
-          <StatTile value={totals.orders} label='Total orders' color={PRIMARY} />
+        <div className='col-sm-3'>
+          <StatTile value={dashboard?.orderTotal ?? totals.orders} label='Total orders' color={PRIMARY} />
         </div>
-        <div className='col-sm-4'>
-          <StatTile value={totals.customers} label='Customers' color='#E6A23C' />
+        <div className='col-sm-3'>
+          <StatTile value={dashboard?.userTotal ?? totals.customers} label='Customers' color='#E6A23C' />
         </div>
-        <div className='col-sm-4'>
+        <div className='col-sm-3'>
+          <StatTile
+            value={dashboard?.goodsTotal ?? '—'}
+            label={dashboard ? `Goods (${dashboard.productTotal} SKUs)` : 'Goods'}
+            color='#909399'
+          />
+        </div>
+        <div className='col-sm-3'>
           <StatTile value={`¥${totals.amount.toFixed(2)}`} label='Revenue' color={SUCCESS} />
         </div>
       </div>
