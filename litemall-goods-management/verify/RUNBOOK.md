@@ -769,3 +769,55 @@ vs live stack: `OcsSearchRoundTripVerificationTest` (2) + `OcsIncrementalIndexVe
 → `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0` (temp pom tweak per §6, reverted).
 
 **Verdict: every task step green at runtime; no code defect found, no code change needed.**
+
+---
+
+## §19 — Per-leaf CJ catalog fill + derived category images + count-ranked catalog (2026-07-05)
+
+**Task.** Every CJ L1 tree had goods in only its FIRST leaf (target `limit` = shared budget), 11/14
+trees empty; CJ categories imageless; SPA needed a home sidebar tree + /search browse tree.
+
+**Backend changes** (merged to master: `e0f875f01` per-leaf fill + images + ranking; catalog-all L1
+page-size fix; `promote resurrection fix`):
+- `CatalogTarget.perLeafLimit` / `CjFetchRequest.Target.perLeafLimit`: each resolved leaf gets its
+  own budget; `limit` becomes an optional overall cap (absent = uncapped in per-leaf mode).
+- `application.yml`: `fetch-pace-seconds` 300→3; `catalog-targets` = 3 legacy deep targets + 14
+  `per-leaf-limit: 10` L1 targets (NIGHTLY-PRUNE INVARIANT documented); `category-mapping` RETIRED
+  (it diverted mirrored leaves to native buckets ahead of tree resolution).
+- `CategoryImageBackfillService`: blank `icon_url`/`pic_url` filled depth-first from a
+  representative on-sale goods image; runs after every promote cycle; never overwrites curated art.
+- `GET /srv/catalog/all`: L1 page size 10→100 (the old cap HID every CJ tree), `categoryList`
+  ordered by subtree on-sale count (PageHelper total, 5-min memo), new `goodsCounts` map.
+- **Resurrection fix** (`LitemallCjLinkageMapper.findAnyGoodsIdByCjPid` + `promoteOne` sets
+  `deleted=false`): a full sync's stale-prune soft-deletes goods; the old `deleted=0`-only lookup
+  made re-promotes collide with `uk_goods_source_cjpid` (`DuplicateKeyException`, 255 stuck rows).
+
+**Fill run** (14 × `POST /srv/private/admin/search/cj-fetch {"targets":[{"category":"<L1>",
+"perLeafLimit":10}]}` — targeted runs are ADDITIVE/prune-free). Ran on a private
+`--server.port=8092` boot (no eureka registration, devtools off, `refresh-on-startup=false`)
+after concurrent-session interference twice killed the :8082 JVM mid-run — and the :8082
+instance's own startup refresh (full sync + prune) raced the fill and soft-deleted 2,255
+just-landed goods, which is exactly what surfaced the resurrection bug. Final converged state:
+
+```
+on_sale 5275 == litemall_index/_count 5275 ; cj_on_sale 5037 ; unpromoted 0 ; promoteFailed 0
+CJ leaves with goods: 443/540 (97 leaves return nothing from CJ /product/list — upstream sparse)
+per-L1: Women's 731, Toys 550, Electronics 537, Autos 390, Sports 382, Jewelry 353, Computer 310,
+        Phones 305, Bags&Shoes 300, HomeImprovement 280, Pets 269, Men's 220, HomeGarden 210, Health 200
+images: every populated L1/L2 has pic_url+icon_url (only the empty legacy "Imported" L1 blank)
+search: q=pumps → 20 hits w/ real 3-level chains; /srv/search/category/1036342 (Pumps) → 10 hits,
+        breadcrumb Bags & Shoes → Women's Shoes → Pumps; suggest live after harvest
+guarded tests: 3 run, 0 fail (1 skip = documented suggest cold-harvest window right after reindex)
+```
+
+**SPA** (fix/gateway-api `0380695cb`, merged `5f2aae6cb`): Home hero menu → top-10 count-ordered
+L1s w/ images + mobile "All categories" toggle (hover flyout kept); /search rail → new
+`CatalogTreeNav` (expandable L1→L2, links `/category/:id`) above the query-scoped category facet.
+
+**Follow-ups (not done here):**
+- Legacy empty "Imported" bucket (cats 1036007–1036011, all verified 0 goods/0 children) still
+  shadows 4 mirrored leaf names for NAME-based resolution (UUID path unaffected). Soft-delete the
+  five categories, then the last blank L1 disappears too. (Blocked by permissions this session.)
+- 97 CJ leaves upstream-empty; re-check occasionally or hide zero-count leaves in the SPA.
+- Concurrent-session hygiene: only ONE goods-management instance should run a startup/cron full
+  sync at a time — a second instance's prune races any in-flight targeted fill.
