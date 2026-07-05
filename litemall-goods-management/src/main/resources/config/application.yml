@@ -50,6 +50,8 @@ spring:
         product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product/query"
         # CJ "Query Inventory By Variant" — per-variant warehouse stock by ?vid=<uuid>.
         stock-query-url: "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
+        # CJ "Product Comments" — per-product customer reviews by ?pid=<uuid> (paged).
+        comments-url: "https://developers.cjdropshipping.com/api2.0/v1/product/productComments"
       # ORDER PLACEMENT is implemented in litemall-order (the order worktree), NOT here.
       # The create-order URL belongs with that ACL; left here only as a documented pointer:
       # order:

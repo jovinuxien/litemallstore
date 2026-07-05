@@ -167,6 +167,8 @@ public class CJDropshippingConfig {
         private String productDetailUrl;
         /** CJ {@code product/stock/queryByVid} endpoint — per-variant warehouse inventory. */
         private String stockQueryUrl;
+        /** CJ {@code product/productComments} endpoint — per-product customer reviews. */
+        private String commentsUrl;
     }
 
     // Helper method for easy access to commonly used properties
@@ -199,6 +201,10 @@ public class CJDropshippingConfig {
 
     public String getStockQueryUrl(){
        return api != null && api.getProduct()!= null ? api.getProduct().getStockQueryUrl() : null;
+    }
+
+    public String getProductCommentsUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getCommentsUrl() : null;
     }
 
 }

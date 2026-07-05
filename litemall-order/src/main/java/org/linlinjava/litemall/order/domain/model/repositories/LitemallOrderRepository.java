@@ -88,8 +88,9 @@ public interface LitemallOrderRepository {
 
     /**
      * Record the CJ identifiers returned by a successful CJ createOrder on a
-     * {@code source='cj'} order (see V27). Called inside the payment transaction
+     * {@code source='cj'} order (see V27), plus the logistics line it was placed with
+     * (persisted as {@code ship_channel}). Called inside the payment transaction
      * right after the placement, so a rollback also discards them.
      */
-    int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum);
+    int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel);
 }

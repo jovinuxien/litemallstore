@@ -132,6 +132,7 @@ const OrderDetailView: React.FC = () => {
           {order.addTime && <Cell title='Order time' value={order.addTime} />}
           <Cell title='Order no.' value={order.orderSn ?? order.id} />
           {order.source === 'cj' && <Cell title='Fulfilment' value={<span className='badge bg-lm-primary'>Dropship</span>} />}
+          {order.shipChannel && <Cell title='Ships via' value={order.shipChannel} />}
           {order.cjOrderNum && <Cell title='CJ order no.' value={order.cjOrderNum} />}
           {order.orderStatusText && <Cell title='Status' value={order.orderStatusText} />}
         </CellGroup>
