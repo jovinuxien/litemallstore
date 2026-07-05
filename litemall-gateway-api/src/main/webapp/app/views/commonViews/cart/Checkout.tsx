@@ -5,7 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { CheckoutPaymentMethod, OrderGroup, PlacedOrder, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
-import { IAddress, ICoupon, isMissingEndpoint, userApi } from 'app/shared/api';
+import { IAddress, ICoupon, isMissingEndpoint, orderApi, userApi } from 'app/shared/api';
+import { IFreightQuote } from 'app/shared/model/order/order.model';
 import {
   Cell,
   CellGroup,
@@ -112,6 +113,58 @@ const CheckoutView: React.FC = () => {
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
 
+  // Freight/logistics quote per cart group (submit creates one order per group, each
+  // charged its own freight). The CJ quote additionally carries the informational
+  // carrier + delivery estimate once a destination country is picked.
+  const [quotes, setQuotes] = useState<{ local?: IFreightQuote | null; cj?: IFreightQuote | null }>({});
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const cartSignature = useMemo(
+    () => cartList.map(it => `${it.goodsId}:${it.productId ?? ''}:${it.number ?? 0}:${it.price ?? 0}`).join('|'),
+    [cartList]
+  );
+
+  useEffect(() => {
+    if (cartList.length === 0) {
+      setQuotes({});
+      return undefined;
+    }
+    let cancelled = false;
+    setQuoteLoading(true);
+    // Debounced: qty steppers / country switches re-render often, and the CJ quote is a
+    // (server-cached) upstream call.
+    const timer = setTimeout(async () => {
+      const localItems = cartList.filter(it => !isCjItem(it));
+      const cjItems = cartList.filter(isCjItem);
+      const subtotalOf = (items: typeof cartList) => items.reduce((s, it) => s + (it.price ?? 0) * (it.number ?? 0), 0);
+      const next: { local?: IFreightQuote | null; cj?: IFreightQuote | null } = {};
+      if (localItems.length > 0) {
+        next.local = await orderApi.freightQuote({ subtotal: subtotalOf(localItems) }).catch(() => null);
+      }
+      if (cjItems.length > 0) {
+        next.cj = await orderApi
+          .freightQuote({
+            countryCode: country.code || undefined,
+            subtotal: subtotalOf(cjItems),
+            cjItems: cjItems.filter(it => it.productId != null).map(it => ({ productId: it.productId, quantity: it.number ?? 1 })),
+          })
+          .catch(() => null);
+      }
+      if (!cancelled) {
+        setQuotes(next);
+        setQuoteLoading(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSignature, country.code]);
+
+  // Quote failure / endpoint missing → fee 0 (today's behavior); the server still charges
+  // its rule at submit, so this is display-best-effort, never a checkout blocker.
+  const shippingFee = (quotes.local?.freightPrice ?? 0) + (quotes.cj?.freightPrice ?? 0);
+
   useEffect(() => {
     dispatch(fetchCart());
     dispatch(resetOrderState());
@@ -148,7 +201,7 @@ const CheckoutView: React.FC = () => {
     if ((selectedCoupon.min ?? 0) > cartTotalAmount) return 0;
     return Math.min(selectedCoupon.discount ?? 0, cartTotalAmount);
   }, [selectedCoupon, cartTotalAmount]);
-  const grandTotal = Math.max(0, cartTotalAmount - couponDiscount);
+  const grandTotal = Math.max(0, cartTotalAmount - couponDiscount + shippingFee);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -375,6 +428,22 @@ const CheckoutView: React.FC = () => {
                   </option>
                 ))}
               </Form.Select>
+              {/* Informational logistics line for the CJ group (carrier + delivery estimate). */}
+              {country.code && (
+                <div className='mt-2 small'>
+                  {quoteLoading ? (
+                    <span className='text-muted'>Checking logistics…</span>
+                  ) : quotes.cj?.cj?.logisticName ? (
+                    <span>
+                      <i className='bi bi-truck me-1' />
+                      Ships via <strong>{quotes.cj.cj.logisticName}</strong>
+                      {quotes.cj.cj.logisticAging ? <> · estimated delivery {quotes.cj.cj.logisticAging} days</> : null}
+                    </span>
+                  ) : quotes.cj?.cjNote ? (
+                    <span className='text-muted'>{quotes.cj.cjNote}</span>
+                  ) : null}
+                </div>
+              )}
               {!usingNewAddress && (
                 <div className='mt-2'>
                   <Form.Label>Phone *</Form.Label>
@@ -441,7 +510,22 @@ const CheckoutView: React.FC = () => {
           <OrderSummary
             rows={[
               { label: 'Goods total', value: `$${cartTotalAmount.toFixed(2)}` },
-              { label: 'Shipping', value: 'Free', variant: 'muted' },
+              {
+                label: 'Shipping',
+                value: quoteLoading ? '…' : shippingFee > 0 ? `$${shippingFee.toFixed(2)}` : 'Free',
+                variant: 'muted' as const,
+              },
+              ...(shippingFee > 0 && (quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold ?? 0) > 0
+                ? [
+                    {
+                      label: 'Free shipping',
+                      value: `on orders over $${Number(
+                        quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold
+                      ).toFixed(2)}`,
+                      variant: 'muted' as const,
+                    },
+                  ]
+                : []),
               ...(couponDiscount > 0 ? [{ label: 'Coupon', value: `−$${couponDiscount.toFixed(2)}`, variant: 'success' as const }] : []),
               { label: 'Total', value: `$${grandTotal.toFixed(2)}`, variant: 'total' },
             ]}

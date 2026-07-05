@@ -50,6 +50,20 @@ public class LitemallCommentService {
         return (int) commentMapper.countByExample(example);
     }
 
+    /**
+     * All (value_id, star) pairs for a batch of targets in ONE query — used to aggregate per-goods
+     * rating stats for listing pages. Only the two needed columns are fetched.
+     */
+    public List<LitemallComment> queryByValueIds(Byte type, List<Integer> valueIds) {
+        if (valueIds == null || valueIds.isEmpty()) {
+            return List.of();
+        }
+        LitemallCommentExample example = new LitemallCommentExample();
+        example.or().andTypeEqualTo(type).andValueIdIn(valueIds).andDeletedEqualTo(false);
+        return commentMapper.selectByExampleSelective(example,
+                LitemallComment.Column.valueId, LitemallComment.Column.star);
+    }
+
     public int save(LitemallComment comment) {
         comment.setAddTime(LocalDateTime.now());
         comment.setUpdateTime(LocalDateTime.now());

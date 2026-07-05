@@ -32,6 +32,8 @@ export interface IGood {
   isNew?: boolean | null;
   isHot?: boolean | null;
   star?: number | null;
+  /** Number of customer reviews behind the star average (listing enrichment). */
+  reviewCount?: number | null;
   itemSize?: Size | null;
   salesQuantity?: number | null;
   status?: ProductStatus | null;

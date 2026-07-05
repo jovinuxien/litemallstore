@@ -342,11 +342,14 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum) {
+    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel) {
         LitemallOrder patch = new LitemallOrder();
         patch.setId(orderId.getId());
         patch.setCjOrderId(cjOrderId);
         patch.setCjOrderNum(cjOrderNum);
+        if (StringUtils.hasText(shipChannel)) {
+            patch.setShipChannel(shipChannel); // the CJ logistics line; never touches freight_price
+        }
         patch.setUpdateTime(LocalDateTime.now());
         return litemallOrderMapper.updateByPrimaryKeySelective(patch);
     }

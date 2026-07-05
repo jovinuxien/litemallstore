@@ -4,9 +4,10 @@ import { IComment, userApi, isMissingEndpoint } from 'app/shared/api';
 
 /**
  * Product reviews/comments, mirroring litemall-vue's comment list on the detail
- * page (`/srv/comment/list`/`count`, type 0 = goods). Shows a count header, a
- * star rating per review, and the body. Hidden entirely until the endpoint is
- * live (follow-up: goods-management).
+ * page (`/srv/comment/list`, type 0 = goods; live on goods-management). Shows a
+ * count header with the page's average stars, then each review with its rating,
+ * reviewer, date and body. Local goods read litemall_comment; CJ goods are served
+ * their CJ reviews through the same endpoint. Hidden only if the endpoint 404s.
  */
 interface Props {
   goodsId?: number | string;
@@ -20,6 +21,15 @@ const Stars: React.FC<{ n: number }> = ({ n }) => (
   </span>
 );
 
+/** addTime arrives as a LocalDateTime tuple ([y,m,d,...], local rows) or an ISO string (CJ). */
+const fmtDate = (addTime?: string | number[]): string => {
+  if (Array.isArray(addTime) && addTime.length >= 3) {
+    const [y, m, d] = addTime;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return typeof addTime === 'string' ? addTime.slice(0, 10) : '';
+};
+
 const Reviews: React.FC<Props> = ({ goodsId }) => {
   const [comments, setComments] = useState<IComment[]>([]);
   const [count, setCount] = useState(0);
@@ -32,8 +42,8 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
       .commentList(goodsId, 0, { page: 1, limit: 5 })
       .then(res => {
         if (cancelled) return;
-        setComments(res?.data ?? []);
-        setCount(res?.count ?? (res?.data?.length ?? 0));
+        setComments(res?.list ?? []);
+        setCount(res?.total ?? (res?.list?.length ?? 0));
       })
       .catch(e => {
         if (cancelled) return;
@@ -46,24 +56,31 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
 
   if (!available) return null;
 
+  const avgStar = comments.length > 0 ? comments.reduce((s, c) => s + (c.star ?? 0), 0) / comments.length : 0;
+
   return (
     <section className='lm-pdp__reviews'>
-      <h3 className='lm-pdp__reviewstitle'>Customer reviews {count > 0 && <span>({count})</span>}</h3>
+      <h3 className='lm-pdp__reviewstitle'>
+        Customer reviews {count > 0 && <span>({count})</span>}
+        {comments.length > 0 && <Stars n={Math.round(avgStar)} />}
+      </h3>
       {comments.length === 0 ? (
         <p className='text-muted'>No reviews yet. Be the first to review this product.</p>
       ) : (
         <ul className='lm-pdp__reviewlist'>
           {comments.map((c, i) => (
-            <li key={c.id ?? i} className='lm-pdp__review'>
+            <li key={i} className='lm-pdp__review'>
               <div className='lm-pdp__reviewhead'>
-                <span className='lm-pdp__reviewer'>{c.nickName ?? 'Anonymous'}</span>
+                <span className='lm-pdp__reviewer'>{c.userInfo?.nickName || 'Anonymous'}</span>
                 <Stars n={c.star ?? 5} />
+                {fmtDate(c.addTime) && <span className='lm-pdp__reviewdate text-muted'>{fmtDate(c.addTime)}</span>}
               </div>
               <p className='lm-pdp__reviewbody'>{c.content}</p>
               {c.picList && c.picList.length > 0 && (
                 <div className='lm-pdp__reviewpics'>
                   {c.picList.map(p => (
-                    <img key={p} src={p} alt='' />
+                    // Seed data carries dead image hosts — hide broken review images.
+                    <img key={p} src={p} alt='' onError={e => (e.currentTarget.style.display = 'none')} />
                   ))}
                 </div>
               )}

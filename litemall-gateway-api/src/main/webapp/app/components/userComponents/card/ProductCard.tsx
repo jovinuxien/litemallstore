@@ -122,6 +122,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
             <span className="lm-card__rating">
               <span className="lm-card__star">★</span>
               {rating.toFixed(1)}
+              {Number(p.reviewCount) > 0 && <span className="lm-card__rcount">({Number(p.reviewCount)})</span>}
             </span>
           )}
           {sold > 0 && <span className="lm-card__sold">{fmtSold(sold)} sold</span>}

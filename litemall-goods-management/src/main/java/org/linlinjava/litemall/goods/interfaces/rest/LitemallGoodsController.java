@@ -12,6 +12,7 @@ import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.db.service.LitemallAdService;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCouponService;
+import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
@@ -53,6 +54,9 @@ public class LitemallGoodsController {
     private CjGoodsDetailService cjGoodsDetailService;
     @Autowired
     private SearchService searchService;
+    // Batched per-goods review stats (star avg + count) decorating the listing surfaces.
+    @Autowired
+    private CommentStatsService commentStatsService;
 
     // Home-page marketing data sourced from litemall-db (mirrors the monolith's
     // WxHomeController): banners (ads), channels (channel categories), coupons.
@@ -199,7 +203,7 @@ public class LitemallGoodsController {
         PageInfo<LitemallGoodsAggregate> pagedList = PageInfo.of(goodsList);
 
         Map<String, Object> entity = new HashMap<>();
-        entity.put("list", goodsList);
+        entity.put("list", commentStatsService.withStats(goodsList));
         entity.put("total", pagedList.getTotal());
         entity.put("page", pagedList.getPageNum());
         entity.put("limit", pagedList.getPageSize());
@@ -243,8 +247,7 @@ public class LitemallGoodsController {
 
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("currentCategory", currentCategory);
-        data.put("goodsCategory", goodsByCategory);
-        System.out.println("the data are: " + data);
+        data.put("goodsCategory", commentStatsService.withStats(goodsByCategory));
         return ResponseUtil.ok(data);
     }
 
@@ -275,7 +278,7 @@ public class LitemallGoodsController {
         // Find six related products
         int related = 6;
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsByCategoryId(cid, 0, related);
-        return ResponseUtil.okList(goodsList);
+        return ResponseUtil.okList(commentStatsService.withStats(goodsList));
     }
 
 
