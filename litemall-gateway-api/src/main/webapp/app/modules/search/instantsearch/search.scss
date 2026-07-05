@@ -366,6 +366,41 @@
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
+
+  // Browse-tree additions (CatalogTreeNav on /search): expandable L1 rows with L2 sublists.
+  &__node { margin: 0; }
+  &__row {
+    display: flex;
+    align-items: center;
+
+    .lm-cattree__link { flex: 1; }
+  }
+  &__toggle {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    border-radius: var(--lm-radius);
+    color: var(--lm-muted);
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover {
+      background: var(--lm-primary-soft);
+      color: var(--lm-primary-dark);
+    }
+  }
+  &__sublist {
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0 0 0 14px;
+    border-left: 1px solid var(--lm-border);
+  }
+  &__link--sub {
+    font-size: 13px;
+    color: var(--lm-muted);
+  }
   &__leaf {
     color: var(--lm-muted);
     font-size: 13px;
