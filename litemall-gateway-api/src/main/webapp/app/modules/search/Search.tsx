@@ -22,6 +22,7 @@ import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
 
 import CategoryTree from './instantsearch/CategoryTree';
+import CatalogTreeNav from './instantsearch/CatalogTreeNav';
 import ProductHit from './instantsearch/ProductHit';
 import { litemallSearchClient, PRIMARY_INDEX, sortIndex } from './instantsearch/litemallSearchClient';
 import { searchRouting } from './instantsearch/searchRouting';
@@ -186,15 +187,21 @@ const SearchView: React.FC = () => {
               // to the selected id alone once a category filter is active.
               <CategoryTree categoryId={params.id} />
             ) : (
-              <section className="lm-isearch__facet">
-                <h3>Category</h3>
-                <RefinementList
-                  attribute="category_ids"
-                  limit={8}
-                  showMore
-                  transformItems={items => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label }))}
-                />
-              </section>
+              <>
+                {/* Browse tree: top categories (server-ordered by goods count) expanding to
+                    their subcategories; navigates to /category/:id. The flat facet below stays
+                    for query-scoped multi-select filtering and ?category_ids= deep links. */}
+                <CatalogTreeNav />
+                <section className="lm-isearch__facet">
+                  <h3>Filter by category</h3>
+                  <RefinementList
+                    attribute="category_ids"
+                    limit={8}
+                    showMore
+                    transformItems={items => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label }))}
+                  />
+                </section>
+              </>
             )}
 
             <section className="lm-isearch__facet">

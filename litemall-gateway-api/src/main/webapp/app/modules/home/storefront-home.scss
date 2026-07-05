@@ -234,6 +234,31 @@
     }
   }
 
+  // Mobile-only "All categories" toggle; the tree itself is always open on desktop.
+  .lm-hero__menu-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    color: var(--lm-text);
+    font-weight: 600;
+    cursor: pointer;
+
+    .lm-hero__menu-toggle-caret {
+      margin-left: auto;
+      color: var(--lm-muted);
+    }
+
+    @media (min-width: 992px) {
+      display: none;
+    }
+  }
+
   .lm-hero__menu {
     display: none;
     position: relative; // anchor for the flyout; keep the banner column below it
@@ -242,6 +267,10 @@
     border: 1px solid var(--lm-border);
     border-radius: var(--lm-radius);
     padding: 8px 0;
+
+    &.is-open {
+      display: block; // opened via the mobile toggle
+    }
 
     @media (min-width: 992px) {
       display: block;

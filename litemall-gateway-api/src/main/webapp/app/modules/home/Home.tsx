@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Carousel } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
@@ -38,6 +38,8 @@ const HomeView: React.FC = () => {
   const entities = useAppSelector(state => state.home.homeData);
   const { list } = useAppSelector(state => state.product.data);
   const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
+  // Mobile: the category tree collapses behind an "All categories" toggle; desktop keeps it open.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     dispatch(getHomeData());
@@ -97,8 +99,18 @@ const HomeView: React.FC = () => {
 
         {/* Hero: category menu + banner carousel + welcome aside */}
         <div className="lm-hero">
-          <aside className="lm-hero__menu">
-            {menuCategories.slice(0, 12).map(category => {
+          <button
+            type="button"
+            className="lm-hero__menu-toggle"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(open => !open)}
+          >
+            <span className="lm-hero__menu-toggle-icon">☰</span> All categories
+            <span className="lm-hero__menu-toggle-caret">{menuOpen ? '▴' : '▾'}</span>
+          </button>
+          <aside className={`lm-hero__menu${menuOpen ? ' is-open' : ''}`}>
+            {/* categoryList arrives most-promising-first (server orders by on-sale goods count) */}
+            {menuCategories.slice(0, 10).map(category => {
               const cid = catId(category);
               // Subcategories keyed by string id (JSON object keys are strings).
               const subs = (subTree[String(cid)] ?? subTree[cid as any] ?? []) as any[];
