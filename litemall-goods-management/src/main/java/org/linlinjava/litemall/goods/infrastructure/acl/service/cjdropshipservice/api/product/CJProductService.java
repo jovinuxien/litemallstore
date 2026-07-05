@@ -4,6 +4,9 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheRepository;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductInventoryClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductReviewClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewData;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryDataResponse;
@@ -30,6 +33,8 @@ public class CJProductService {
     private CJProductClient productClient;
     @Autowired
     private CJProductInventoryClient inventoryClient;
+    @Autowired
+    private CJProductReviewClient reviewClient;
     @Autowired
     private CJDropshippingConfig config;
     // Durable staging buffer for raw CJ payloads (replaces the old per-instance in-memory caches:
@@ -204,5 +209,49 @@ public class CJProductService {
             }
         }
         return List.of();
+    }
+
+    /**
+     * Fetch one page of a CJ product's customer reviews by raw UUID {@code pid}, memoized in the
+     * Redis staging buffer (raw TTL, so a product page reload never re-hits the CJ quota). Returns
+     * {@code null} on any failure so the caller can degrade to an empty review list — a CJ outage
+     * must never break the product page.
+     */
+    public CJProductReviewData getProductComments(String pid, int pageNum, int pageSize) {
+        if (pid == null || pid.isBlank()) {
+            return null;
+        }
+        String key = CjRawCacheRepository.reviewsKey(pid, pageNum, pageSize);
+        Optional<CJProductReviewDataResponse> cached = rawCache.get(key, CJProductReviewDataResponse.class);
+        if (cached.isPresent()) {
+            return cached.get().getData();
+        }
+        // Same hard 1-request/second global CJ QPS as inventory: back off and retry once on a 429.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            rateLimiter.acquire();
+            try {
+                CJProductReviewDataResponse response = reviewClient.getProductComments(pid, pageNum, pageSize);
+                if (response != null && response.getData() != null) {
+                    rawCache.put(key, response);
+                    return response.getData();
+                }
+                return null;
+            } catch (RuntimeException ex) {
+                boolean rateLimited = ex.getMessage() != null
+                        && (ex.getMessage().contains("429") || ex.getMessage().contains("Too Many Requests"));
+                if (rateLimited && attempt == 0) {
+                    try {
+                        Thread.sleep(1200);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    continue;
+                }
+                logger.warn("CJ product comments fetch failed for pid {}: {}", pid, ex.getMessage());
+                break;
+            }
+        }
+        return null;
     }
 }

@@ -1,4 +1,4 @@
-import { IOrderDetail, IOrderListItem } from 'app/shared/model/order/order.model';
+import { IFreightQuote, IOrderDetail, IOrderListItem } from 'app/shared/model/order/order.model';
 
 import { baseAxios, SRV, unwrap } from './http';
 
@@ -17,6 +17,12 @@ export interface OrderListParams {
 export const orderApi = {
   /** POST /srv/order/submit — place an order. */
   submit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/order/submit`, body)),
+  /**
+   * POST /srv/order/freight-quote — the freight submit will charge for a cart group's
+   * subtotal, plus (CJ carts) the informational logistics line/delivery estimate.
+   */
+  freightQuote: (body: { countryCode?: string; subtotal: number; cjItems?: { productId?: number; quantity?: number }[] }) =>
+    unwrap<IFreightQuote>(baseAxios.post(`${SRV}/order/freight-quote`, body)),
   /**
    * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
    * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment

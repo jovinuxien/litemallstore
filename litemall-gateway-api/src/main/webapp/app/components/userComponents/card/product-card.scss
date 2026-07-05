@@ -167,6 +167,11 @@
     color: var(--lm-star);
   }
 
+  &__rcount {
+    margin-left: 2px;
+    color: var(--lm-muted);
+  }
+
   &__sold {
     white-space: nowrap;
   }

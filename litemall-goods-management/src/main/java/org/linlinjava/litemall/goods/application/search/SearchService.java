@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.goods.application.search;
 
+import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSearchClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSearchResult;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestClient;
@@ -25,10 +26,13 @@ public class SearchService {
 
     private final OcsSearchClient searchClient;
     private final OcsSuggestClient suggestClient;
+    private final CommentStatsService commentStatsService;
 
-    public SearchService(OcsSearchClient searchClient, OcsSuggestClient suggestClient) {
+    public SearchService(OcsSearchClient searchClient, OcsSuggestClient suggestClient,
+                         CommentStatsService commentStatsService) {
         this.searchClient = searchClient;
         this.suggestClient = suggestClient;
+        this.commentStatsService = commentStatsService;
     }
 
     public Map<String, Object> search(String query, int page, int size, String sort, Map<String, String> filters) {
@@ -63,6 +67,8 @@ public class SearchService {
                 }
             }
         }
+        // Batch-decorate the page's local hits with review stats (star avg + count); cj_ ids skipped.
+        commentStatsService.decorate(items);
         Map<String, Object> response = new HashMap<>();
         response.put("totalPages", computeTotalPages(total, size));
         response.put("total", total);

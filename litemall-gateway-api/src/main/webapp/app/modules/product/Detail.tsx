@@ -94,6 +94,23 @@ const ProductDetailView: React.FC = () => {
     return Array.from(new Set(imgs));
   }, [goods]);
 
+  // Description = the first TWO images out of the goods.detail HTML blob, text dropped
+  // (the raw supplier HTML — CJ especially — is a wall of duplicated text and imagery).
+  // Also removes the dangerouslySetInnerHTML raw-HTML injection.
+  const detailImages = useMemo(() => {
+    if (!goods?.detail) return [] as string[];
+    try {
+      const doc = new DOMParser().parseFromString(goods.detail, 'text/html');
+      return Array.from(doc.querySelectorAll('img'))
+        .map(img => img.getAttribute('src') ?? img.getAttribute('data-src') ?? '')
+        .filter(Boolean)
+        .filter((src, i, arr) => arr.indexOf(src) === i)
+        .slice(0, 2);
+    } catch {
+      return [] as string[];
+    }
+  }, [goods?.detail]);
+
   useEffect(() => {
     setActiveImage(goods?.picUrl ?? '');
   }, [goods?.picUrl]);
@@ -291,8 +308,19 @@ const ProductDetailView: React.FC = () => {
 
         {tab === 'description' && (
           <div className='lm-pdp__tabpanel'>
-            {goods.detail ? (
-              <div className='lm-pdp__detailhtml' dangerouslySetInnerHTML={{ __html: goods.detail }} />
+            {detailImages.length > 0 ? (
+              detailImages.map(src => (
+                <img
+                  key={src}
+                  className='lm-pdp__detailimg'
+                  src={src}
+                  alt={goods.goodsName ?? 'Product'}
+                  loading='lazy'
+                  onError={e => (e.currentTarget.style.display = 'none')}
+                />
+              ))
+            ) : goods.brief ? (
+              <p>{goods.brief}</p>
             ) : (
               <p className='text-muted'>No description provided.</p>
             )}
