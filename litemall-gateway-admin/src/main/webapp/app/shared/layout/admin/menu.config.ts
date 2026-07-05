@@ -44,8 +44,8 @@ export const ADMIN_MENU: MenuGroup[] = [
     title: 'User',
     icon: IconUsers,
     children: [
-      { path: '/admin/user/user', title: 'Users' },
-      { path: '/admin/user/address', title: 'Addresses' },
+      { path: '/admin/user/user', title: 'Users', wired: true },
+      { path: '/admin/user/address', title: 'Addresses', wired: true },
       { path: '/admin/user/collect', title: 'Collections' },
       { path: '/admin/user/footprint', title: 'Footprints' },
       { path: '/admin/user/history', title: 'Search history' },
@@ -74,7 +74,8 @@ export const ADMIN_MENU: MenuGroup[] = [
     children: [
       { path: '/admin/goods', title: 'Goods list', wired: true },
       { path: '/admin/goods/:id', title: 'Goods detail', wired: true, hidden: true },
-      { path: '/admin/goods/create', title: 'Add goods' },
+      { path: '/admin/goods/:id/edit', title: 'Edit goods', wired: true, hidden: true },
+      { path: '/admin/goods/create', title: 'Add goods', wired: true },
       { path: '/admin/goods/comment', title: 'Comments', wired: true },
     ],
   },
@@ -118,9 +119,9 @@ export const ADMIN_MENU: MenuGroup[] = [
     title: 'Statistics',
     icon: IconTrendingUp,
     children: [
-      { path: '/admin/stat/user', title: 'User stats' },
-      { path: '/admin/stat/order', title: 'Order stats' },
-      { path: '/admin/stat/goods', title: 'Goods stats' },
+      { path: '/admin/stat/user', title: 'User stats', wired: true },
+      { path: '/admin/stat/order', title: 'Order stats', wired: true },
+      { path: '/admin/stat/goods', title: 'Goods stats', wired: true },
     ],
   },
 ];
@@ -133,7 +134,9 @@ export const titleForPath = (pathname: string): string | undefined => {
   // exact match first
   const exact = ALL_LEAVES.find(l => l.path === pathname);
   if (exact) return exact.title;
-  // dynamic match for /admin/goods/:id style leaves
+  // dynamic goods leaves: create/edit forms before the ':id' detail fallback
+  if (pathname === '/admin/goods/create') return 'Add goods';
+  if (/^\/admin\/goods\/[^/]+\/edit$/.test(pathname)) return 'Edit goods';
   if (/^\/admin\/goods\/[^/]+$/.test(pathname)) return 'Goods detail';
   // order detail: /admin/mall/order/:id
   if (/^\/admin\/mall\/order\/[^/]+$/.test(pathname)) return 'Order detail';

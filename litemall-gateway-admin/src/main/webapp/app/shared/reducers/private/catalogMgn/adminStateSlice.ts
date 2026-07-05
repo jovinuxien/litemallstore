@@ -1,18 +1,15 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-// Order statistics for the admin dashboard, sourced from the Order module
-// through the gateway as an authenticated admin (Bearer admin JWT, relayed
-// downstream by MachineTokenRelayFilter; the edge gates '/srv/order/admin/**'
-// to ROLE_ADMIN). No mock data and no stat computation here — the numbers come
-// from the order service.
-//
-// Dependency: the endpoint `GET /srv/order/admin/stat` is owned by the `order`
-// worktree and may not exist yet. Until it lands we degrade gracefully: a 404 /
-// unavailable response sets `unavailable` and the dashboard shows an empty state
-// with a banner (see ROUTING.md follow-up).
+// Dashboard statistics, sourced from goods-management (which hosts the ported
+// litemall-db StatService/dashboard endpoints) through the gateway as an
+// authenticated admin (Bearer admin JWT; MachineTokenRelayFilter adds the
+// machine token downstream, the edge gates '/srv/private/admin/**' to
+// ROLE_ADMIN). No mock data and no stat computation here — the numbers come
+// from the backend. Both fetches degrade gracefully to an "unavailable" banner.
 
-const ORDER_STATS_URL = '/srv/order/admin/stat';
+const ORDER_STATS_URL = '/srv/private/admin/stat/order';
+const DASHBOARD_URL = '/srv/private/admin/dashboard';
 
 export interface RowOrder {
   day: string;
@@ -27,9 +24,17 @@ export interface OrderStatsResult {
   totals: { orders: number; customers: number; amount: number };
 }
 
+export interface DashboardTotals {
+  userTotal: number;
+  goodsTotal: number;
+  productTotal: number;
+  orderTotal: number;
+}
+
 interface OrderStatsState {
   rows: RowOrder[];
   totals: { orders: number; customers: number; amount: number };
+  dashboard: DashboardTotals | null;
   loading: boolean;
   unavailable: boolean;
   errorMessage: string | null;
@@ -86,9 +91,32 @@ export const fetchOrderStats = createAsyncThunk<OrderStatsResult, void, { reject
   }
 );
 
+export const fetchDashboardTotals = createAsyncThunk<DashboardTotals, void, { rejectValue: { message: string } }>(
+  'adminState/fetchDashboardTotals',
+  async (_, thunkApi) => {
+    try {
+      const response = await axios.get(DASHBOARD_URL);
+      const body = response.data;
+      if (body && typeof body.errno === 'number' && body.errno !== 0) {
+        return thunkApi.rejectWithValue({ message: body.errmsg || 'Dashboard totals are not available.' });
+      }
+      const d = body?.data ?? {};
+      return {
+        userTotal: numeric(d.userTotal),
+        goodsTotal: numeric(d.goodsTotal),
+        productTotal: numeric(d.productTotal),
+        orderTotal: numeric(d.orderTotal),
+      };
+    } catch (error) {
+      return thunkApi.rejectWithValue({ message: 'Dashboard totals are not available.' });
+    }
+  }
+);
+
 const initialState: OrderStatsState = {
   rows: [],
   totals: { orders: 0, customers: 0, amount: 0 },
+  dashboard: null,
   loading: false,
   unavailable: false,
   errorMessage: null,
@@ -116,6 +144,12 @@ const adminStateSlice = createSlice({
         state.totals = { orders: 0, customers: 0, amount: 0 };
         state.unavailable = action.payload?.unavailable ?? true;
         state.errorMessage = action.payload?.message || action.error.message || 'Failed to load order statistics.';
+      })
+      .addCase(fetchDashboardTotals.fulfilled, (state, action) => {
+        state.dashboard = action.payload;
+      })
+      .addCase(fetchDashboardTotals.rejected, state => {
+        state.dashboard = null;
       });
   },
 });

@@ -45,6 +45,31 @@ interface ApiEnvelope<T> {
   data: T;
 }
 
+// The write payload of the backend AdminGoodsController: the goods row plus its
+// per-SKU products, specifications and attributes (GoodsAllinone).
+export interface GoodsAllinone {
+  goods: Record<string, unknown>;
+  products: Record<string, unknown>[];
+  specifications: Record<string, unknown>[];
+  attributes: Record<string, unknown>[];
+}
+
+export interface BatchCreateResult {
+  created: number;
+  failed: { index: number; name?: string; error: string }[];
+}
+
+export interface PickOption {
+  value: number;
+  label: string;
+  children?: PickOption[];
+}
+
+export interface CatAndBrand {
+  categoryList: PickOption[];
+  brandList: PickOption[];
+}
+
 export const adminGoodsApi = createApi({
   reducerPath: 'adminGoodsApi',
   baseQuery: fetchBaseQuery({
@@ -75,7 +100,35 @@ export const adminGoodsApi = createApi({
       }),
       transformResponse: (response: ApiEnvelope<AdminGoodsDetail>) => response?.data,
     }),
+    getCatAndBrand: builder.query<CatAndBrand, void>({
+      query: () => ({ url: '/catAndBrand' }),
+      transformResponse: (response: ApiEnvelope<CatAndBrand>) => response?.data ?? { categoryList: [], brandList: [] },
+    }),
+    createGoods: builder.mutation<ApiEnvelope<unknown>, GoodsAllinone>({
+      query: body => ({ url: '/create', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    updateGoods: builder.mutation<ApiEnvelope<unknown>, GoodsAllinone>({
+      query: body => ({ url: '/update', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    deleteGoods: builder.mutation<ApiEnvelope<unknown>, { id: number }>({
+      query: body => ({ url: '/delete', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    batchCreateGoods: builder.mutation<ApiEnvelope<BatchCreateResult>, GoodsAllinone[]>({
+      query: body => ({ url: '/batch-create', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
   }),
 });
 
-export const { useGetAdminGoodsListQuery, useGetAdminGoodsDetailQuery } = adminGoodsApi;
+export const {
+  useGetAdminGoodsListQuery,
+  useGetAdminGoodsDetailQuery,
+  useGetCatAndBrandQuery,
+  useCreateGoodsMutation,
+  useUpdateGoodsMutation,
+  useDeleteGoodsMutation,
+  useBatchCreateGoodsMutation,
+} = adminGoodsApi;
