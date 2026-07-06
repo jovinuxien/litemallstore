@@ -821,3 +821,129 @@ L1s w/ images + mobile "All categories" toggle (hover flyout kept); /search rail
 - 97 CJ leaves upstream-empty; re-check occasionally or hide zero-count leaves in the SPA.
 - Concurrent-session hygiene: only ONE goods-management instance should run a startup/cron full
   sync at a time — a second instance's prune races any in-flight targeted fill.
+
+---
+
+## §20 — Cold-start re-proof of the full OCS path + §19 follow-up closure (2026-07-06)
+
+**Starting state.** The ENTIRE runtime stack was down and every OCS container had been *removed*
+(`docker ps -a` showed only a dead `litemall-redis-verify`); only host MySQL :3306 was alive. The
+`docker-compose_ocs_esdata` volume survived, so `litemall_index` came back with the containers
+(alias `ocs-79`, 3,708 docs). The shared DB had also moved since §19: a full-sync prune had
+soft-deleted ~1,567 CJ goods (on-sale 5,275 → 3,708; leaves-with-goods 443 → 286).
+
+**Stack (step 1).** Recreated from THIS worktree's `docker-compose/`:
+`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d elasticsearch indexer
+searcher suggest kibana rabbitmq redis` (keycloak skipped — locked no-Keycloak architecture).
+es :9200 `yellow` (single node), indexer :8535 `UP` (+ `application-custom.yml` mount carrying the
+nine-field `litemall_index` config verified inside the container), searcher :8534 `UP`, suggest
+:8081, kibana :5601, rabbit :5672/15672, redis PONG. authserver :8089 (jar) + goods-management
+:8082 (main-checkout exec jar, Jul-5 build incl. the §19 resurrection fix) booted standalone.
+Machine token: `client_credentials` `gateway-admin` @ :8089.
+
+> **BOOT GOTCHA found & fixed (the one real break this session).** First boot used
+> `--spring.profiles.active=verify` ONLY — §16's recipe says `…,verify` and the `…` matters: it is
+> the module default `dev,db,core,admin,wx`. Without the `db` profile, litemall-db's
+> `application-db.yml` (`pagehelper.reasonable: true`) never loads, and every repository call site
+> that passes **page 0** to `PageHelper.startPage(pageNum, size)` (e.g.
+> `LitemallCatalogRepositoryImpl.queryL1(0,100)`) silently returns an EMPTY page — PageHelper skips
+> the row select when startRow==endRow==0. Symptoms observed live: `/srv/catalog/first-categories`
+> → `l1CatList: []` and `/srv/catalog/all` → `errno 502`
+> (`IndexOutOfBoundsException` at `LitemallCatalogController.queryAll` `l1CatList.get(0)`).
+> Fixes shipped here: (1) `verify/application-verify.yml` now carries the `pagehelper` block so a
+> verify-only boot is self-sufficient; (2) `LitemallCatalogController.queryAll` guards the empty
+> catalog (`isEmpty() ? null : get(0)` — the code's own `null != currentCategory` check downstream
+> always intended that) so an empty catalog returns an empty payload instead of 502. Search/reindex/
+> incremental were unaffected (their callers pass real page numbers). Canonical boot restated:
+> `--spring.profiles.active=dev,db,core,admin,wx,verify` + §16/§17 flags.
+
+**Full reindex (step 2).**
+```
+POST /srv/private/admin/search/reindex (Bearer machine-jwt + X-User-Roles: ROLE_ADMIN)
+-> {"errno":0,"data":{"indexed":3708},"errmsg":"success"}
+SELECT COUNT(*) WHERE is_on_sale=1 AND deleted=0 -> 3708 ; _count -> 3708 ; alias ocs-79 -> ocs-80
+```
+Nine-field spot checks: `1009009` (local) — `price:2019.0`/`discount_price:1999.0`,
+`brand:"MUJI Manufacturer"`, `category_names:["home","quilt pillow"]` +
+`category_ids:["1005000","1008008"]` root→leaf, title/description/image_url set, `product_id`
+as `_id`. `10000000` (CJ) — 3-level chain `["Consumer Electronics","Accessories & Parts",
+"Digital Cables"]` / `["1036453","1036454","1036455"]`, `discount_price`/`brand` absent BY DESIGN,
+CJ attribute facets (`Material`, `Weight`) riding along.
+
+**Search + suggest (step 3).**
+```
+GET /srv/search?q=silk&page=1&size=5 -> total 99, totalPages 20, item keys
+    {id,name,brief,picUrl,retailPrice,counterPrice,brand,categoryNames,source},
+    filters [price, category_ids, category_names, variant_price, source]
+page=2 -> disjoint ids ; sort=price -> [8.64, 9.22, 9.5, 9.79, 9.94] ascending
+GET /srv/search/suggest?q=quilt -> phrases (live ~20s after reindex — harvest window)
+```
+
+**Incremental (step 4).** `goods_sn VERIFY-INC-20260706` → id `10006816` via
+`/srv/private/admin/goods/{create,update,delete}`; alias stayed `ocs-80` throughout:
+create → doc visible ≤2 s (brand/category resolved, price 222.0 / discount_price 199.0);
+update → `title "... UPDATED"` in place ≤4 s; delete → `found:false` ≤2 s, `_count` back to 3708
+(the momentary 3709 right after delete is ES near-real-time refresh lag, settles <5 s).
+
+**Customer surface (step 5).** `/srv/goods/list` item keys == `/srv/search` item keys
+(`brand,brief,categoryNames,counterPrice,id,name,picUrl,retailPrice,source`), `source:"ocs"`.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean;
+guarded tests vs live stack `OcsSearchRoundTripVerificationTest` (2) +
+`OcsIncrementalIndexVerificationTest` (1) → `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
+(temp pom tweak per §6, reverted); hardcoded-host grep over `src/main/java` clean.
+
+**Follow-up A — "Imported" bucket RETIRED.** Re-verified cats 1036007–1036011 all 0 goods
+(L1 `Imported` + empty L2s `Digital Cables`/`Scarves & Wraps`/`Electronic Pets`/`Men's Sleep &
+Lounge`), then soft-deleted all five via the existing `POST /srv/private/admin/category/delete`
+(children first). After: `/srv/catalog/all` → 23 L1s, count-ranked, NO `Imported`, every L1 carries
+`picUrl`; each of the 4 previously-shadowed names now resolves to exactly ONE live category — the
+mirrored CJ leaf (1036455, 1036014, 1036366, 1036282). NAME-based CJ resolution is unambiguous.
+
+**Follow-up B — the 97 upstream-empty leaves are now 0: 540/540 leaves populated.** Re-ran the 14
+per-leaf targets (`POST /srv/private/admin/search/cj-fetch {"targets":[{"category":"<L1>",
+"perLeafLimit":10}]}`, additive/prune-free), which also had to RECOVER from a live reproduction of
+the §19 interference scenario:
+
+> **Concurrent-session interference, round 2 (23:22).** Another session booted the full platform
+> from the MAIN checkout mid-fill — including a second goods-management on **:18082** with default
+> config, whose one-shot startup CJ refresh (full sync + STALE-PRUNE) fired ~25 min after its boot,
+> exactly per the §17 note. Because the in-flight targeted fill held CJ's 1-QPS budget, the
+> refresh's own list fetches 429'd en masse, its "seen" set collapsed, and its global stale-prune
+> soft-deleted 1,020 `litemall_cj_product` rows (+ their goods mirrors) — including whole
+> just-filled trees. The targeted path itself is provably prune-free (`pruneStale=false`, every run
+> logged `0 soft-deleted stale`); the deletes were `softDeleteByPids` from the OTHER instance's
+> full sync. Recovery: re-ran the 5 damaged targets after the refresh settled — the §19
+> resurrection fix re-promoted everything (0 promoteFailed throughout). The §19 hygiene rule
+> stands, now with the mechanism spelled out: a starved full sync prunes what a concurrent fill
+> just landed. Consider `refresh-on-startup=false` as the default posture on dev boxes.
+
+> **Reindex paging bug found & FIXED (the second real break).** After the final fill,
+> `reindex → {"indexed":6246}` but `_count` stuck at 6229 — 17 docs short on every fresh
+> generation, no indexer/ES errors, last batch "46 of 46 converted". Root cause:
+> `SearchReindexService.reindexAll` paged `querySelective(..., "add_time", "desc")` — add_time is
+> NON-UNIQUE (bulk promotes stamp hundreds of rows in the same second), MySQL tie order is
+> arbitrary per query, so page boundaries read 17 tied rows twice and skipped 17 others (the
+> missing block was exactly the newest ids 10007141–10007157). Fix: page by the unique PK
+> (`"id","asc"`); order is irrelevant for a full replace. Verified live on the worktree exec jar
+> (:8092, same stack): `{"indexed":6246}` → `_count` **6246** on `ocs-102`, all 17 ids `found:true`.
+> NOTE: the main-checkout :8082 jar predates this fix — rebuild/restart from main after the merge
+> (do NOT overwrite main's target jar while another session's instance runs from it).
+
+**Final converged state (2026-07-07 00:2x):**
+```
+on_sale 6246 == litemall_index/_count 6246 (post-fix, ocs-102) ; cj_on_sale 6008 ; unpromoted 0
+CJ leaves with goods: 540/540 — the §19 "97 upstream-empty" set is GONE (CJ now returns products
+  for every mirrored leaf; targeted fills are idempotent to re-run)
+per-L1: Women's 730, Pets 664, Toys 550, Electronics 537, Men's 420, HomeGarden 399, Health 390,
+        Autos 390, Sports 382, Jewelry 348, Computer 311, Phones 306, Bags&Shoes 301, HomeImpr 280
+search: q=pumps → 24 hits ; /srv/search/category/1036342 (Pumps) → 10 hits,
+        breadcrumb Bags & Shoes → Women's Shoes → Pumps ; /srv/catalog/all → 23 L1s count-ranked,
+        every L1 with picUrl, no Imported bucket
+```
+
+**Follow-ups (not done here):**
+- Rebuild + restart the main-checkout goods-management (:8082/:18082) once this merge lands so the
+  reindex paging fix serves live (coordinate the jar swap with any session running from main).
+- SPA zero-count leaf hiding is moot while 540/540 are populated; `goodsCounts` on `/srv/catalog/all`
+  already carries the data if it recurs (gateway-api concern).

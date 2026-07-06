@@ -102,8 +102,9 @@ public class LitemallCatalogController {
             allList.put(Integer.valueOf(category.getCategoryId().getId()), sub);
         }
 
-        // Current first-level category directory
-        LitemallCategoryAggregate currentCategory = l1CatList.get(0);
+        // Current first-level category directory (null when the catalog is empty —
+        // the null-check below already handles it; get(0) on an empty list 502'd).
+        LitemallCategoryAggregate currentCategory = l1CatList.isEmpty() ? null : l1CatList.get(0);
 
         /**
          * The second-level classification directory corresponding4
