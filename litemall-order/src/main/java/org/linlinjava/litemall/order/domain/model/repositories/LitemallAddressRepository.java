@@ -13,6 +13,13 @@ public interface LitemallAddressRepository {
 List<LitemallAddressAggregate> getListAddressesByUserId(LitemallUserId userId);
 LitemallAddressAggregate findAddress(LitemallUserId userId, LitemallAddressId example);
 
+/**
+ * The user's default shipping address, or {@code null} if they have none. Used as the
+ * fallback when a place-order command carries no explicit addressId (the customer SPA has
+ * no address picker yet — see the /srv/address follow-up).
+ */
+LitemallAddressAggregate findDefaultAddress(LitemallUserId userId);
+
 
 int insertAddress(LitemallAddressAggregate address);
 

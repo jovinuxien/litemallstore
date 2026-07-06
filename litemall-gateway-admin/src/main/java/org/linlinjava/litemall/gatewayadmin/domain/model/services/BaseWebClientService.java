@@ -1,7 +1,7 @@
 package org.linlinjava.litemall.gatewayadmin.domain.model.services;
 
 import com.aliyun.oss.ServiceException;
-import org.linlinjava.litemall.gatewayadmin.domain.valueobjects.user.ApiResponse;
+import org.linlinjava.litemall.gatewayadmin.web.ApiResponse;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;

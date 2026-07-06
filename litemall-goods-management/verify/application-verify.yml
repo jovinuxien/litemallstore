@@ -1,0 +1,45 @@
+# VERIFICATION ONLY — external config for the standalone GM-4 run.
+# Loaded via: --spring.config.additional-location=file:./litemall-goods-management/verify/
+# Activated with the `verify` profile. Points goods-management at local MySQL +
+# the docker OCS stack, and switches off Eureka/cloud-config so it boots alone.
+spring:
+  datasource:
+    url: "jdbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&zeroDateTimeBehavior=convertToNull"
+    username: root
+    password: Calliste_1006
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+litemall:
+  search:
+    indexer-url: http://localhost:8535
+    search-url: http://localhost:8534
+    suggest-url: http://localhost:8081
+    index-name: litemall_index
+    locale: en
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+# The repositories pass page 0 to PageHelper.startPage(pageNum, size); only
+# `reasonable: true` (normally supplied by litemall-db's `db` profile) corrects
+# that to page 1. Keep it here so a boot that activates `verify` without the
+# default profile set doesn't get empty pages from every page-0 call site
+# (symptom: /srv/catalog/all -> errno 502, /srv/catalog/first-categories -> []).
+pagehelper:
+  helperDialect: mysql
+  reasonable: true
+  supportMethodsArguments: true
+  params: count=countSql

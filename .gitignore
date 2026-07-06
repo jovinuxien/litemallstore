@@ -61,6 +61,11 @@ gen_code
 **/*.min.js
 **/*.bundle.js
 
+# npm workspace artifacts (Phase 5 FE workspace) — never commit deps/lockfile
+node_modules/
+**/node_modules/
+package-lock.json
+
 ### Git Submodules ###
 # Ignore nested .git directories (except root)
 **/.git/
@@ -77,3 +82,4 @@ gen_code
 **/*.avi
 
 
+node_modules

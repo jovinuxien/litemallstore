@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Duration;
 
@@ -68,6 +69,56 @@ public class CJProductClient extends CJRequestUtils {
             return makeGetRequest(productUrl, CJProductDataResponse.class, accessToken, "Failed to fetch product list");
         } catch (Exception e) {
             throw new RuntimeException("Product fetch failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetch a single page of CJ products filtered by a CJ category id (the leaf/3rd-level UUID
+     * products are tagged with). {@code categoryId} blank → no category filter (all categories).
+     * Pacing/quota is the caller's responsibility (see {@code CJProductService}).
+     */
+    public CJProductDataResponse getProductList(String categoryId, int pageNum, int pageSize) {
+        try {
+            String accessToken = cjTokenService.getValidToken();
+            String productUrl = config.getProductListUrl();
+
+            // Validate URL
+            if (!productUrl.matches("^https?://.*")) {
+                throw new IllegalArgumentException("Product URL must be absolute (include http:// or https://)");
+            }
+            UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(productUrl)
+                    .queryParam("pageNum", pageNum)
+                    .queryParam("pageSize", pageSize);
+            if (categoryId != null && !categoryId.isBlank()) {
+                builder.queryParam("categoryId", categoryId.trim());
+            }
+            String url = builder.build().toUriString();
+            return makeGetRequest(url, CJProductDataResponse.class, accessToken, "Failed to fetch product list");
+        } catch (Exception e) {
+            throw new RuntimeException("Product fetch failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fetch a single CJ product's full detail by its UUID {@code pid} (CJ "Query Product").
+     * Hits {@code spring.cjdropship.api.product.product-detail-url} with {@code ?pid=}; the
+     * pid is a UUID String (never an int). Pacing/caching is the caller's responsibility
+     * (see {@code CJProductService#getProductDetail}).
+     */
+    public CJProductDetailResponse getProductDetail(String pid) {
+        try {
+            String accessToken = cjTokenService.getValidToken();
+            String detailUrl = config.getProductDetailUrl();
+
+            if (detailUrl == null || !detailUrl.matches("^https?://.*")) {
+                throw new IllegalArgumentException("Product detail URL must be absolute (include http:// or https://)");
+            }
+            String url = UriComponentsBuilder.fromUriString(detailUrl)
+                    .queryParam("pid", pid)
+                    .build().toUriString();
+            return makeGetRequest(url, CJProductDetailResponse.class, accessToken, "Failed to fetch product detail");
+        } catch (Exception e) {
+            throw new RuntimeException("Product detail fetch failed: " + e.getMessage(), e);
         }
     }
 

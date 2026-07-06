@@ -3,6 +3,10 @@ import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
 import { loadingBarMiddleware } from 'react-redux-loading-bar';
 
 import sharedReducers from 'app/shared/reducers';
+import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { adminCatalogApi } from 'app/shared/reducers/private/services/adminCatalogApi';
+import { adminStatApi } from 'app/shared/reducers/private/services/adminStatApi';
+import { adminUsersApi } from 'app/shared/reducers/private/services/adminUsersApi';
 //import errorMiddleware from './error-middleware';
 //import loggerMiddleware from './logger-middleware';
 //import notificationMiddleware from './notification-middleware';
@@ -16,7 +20,7 @@ const store = configureStore({
         ignoredActionPaths: ['payload.config', 'payload.request', 'payload.headers', 'error', 'meta.arg'],
       },
       //}).concat(errorMiddleware, notificationMiddleware, loadingBarMiddleware(), loggerMiddleware),
-    }).concat(loadingBarMiddleware()),
+    }).concat(loadingBarMiddleware(), adminGoodsApi.middleware, adminCatalogApi.middleware, adminStatApi.middleware, adminUsersApi.middleware),
 });
 
 // Allow lazy loading of reducers https://github.com/reduxjs/redux/blob/master/docs/usage/CodeSplitting.md

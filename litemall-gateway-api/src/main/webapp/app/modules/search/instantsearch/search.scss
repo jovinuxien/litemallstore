@@ -1,0 +1,409 @@
+// InstantSearch-powered canonical search page (/search). Styles the react-instantsearch
+// `.ais-*` widget classes onto the Teal & Coral theme (tokens are the :root
+// variables declared in product-card.scss), so the InstantSearch experience
+// matches the rest of the storefront. No InstantSearch default CSS is imported —
+// everything below is theme-local.
+
+.lm-isearch {
+  background: var(--lm-bg);
+  color: var(--lm-text);
+  font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  min-height: 70vh;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 18px 14px 32px;
+
+  &__bar {
+    margin-bottom: 16px;
+  }
+
+  &__body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+
+    @media (min-width: 992px) {
+      grid-template-columns: 248px 1fr;
+    }
+  }
+
+  // ── Search box ────────────────────────────────────────────────────────────
+  .ais-SearchBox-form {
+    position: relative;
+    display: flex;
+  }
+  .ais-SearchBox-input {
+    width: 100%;
+    padding: 12px 40px 12px 16px;
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    font-size: 15px;
+    background: var(--lm-surface);
+
+    &:focus {
+      outline: none;
+      border-color: var(--lm-primary);
+      box-shadow: 0 0 0 3px var(--lm-primary-soft);
+    }
+  }
+  .ais-SearchBox-submit,
+  .ais-SearchBox-reset {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    fill: var(--lm-muted);
+    padding: 6px;
+  }
+  .ais-SearchBox-submit {
+    right: 8px;
+  }
+  .ais-SearchBox-reset {
+    right: 34px;
+  }
+
+  // ── Filter rail ───────────────────────────────────────────────────────────
+  &__rail {
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 14px 16px;
+    align-self: start;
+  }
+  &__rail-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0;
+    }
+  }
+  &__facet {
+    border-top: 1px solid var(--lm-border);
+    padding: 12px 0;
+
+    h3 {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: var(--lm-muted);
+      margin: 0 0 8px;
+    }
+  }
+
+  // RefinementList — checkbox list with counts.
+  .ais-RefinementList-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .ais-RefinementList-item {
+    margin: 4px 0;
+  }
+  .ais-RefinementList-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .ais-RefinementList-count {
+    margin-left: auto;
+    background: var(--lm-primary-soft);
+    color: var(--lm-primary-dark);
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 1px 7px;
+  }
+  .ais-RefinementList-showMore,
+  .ais-ClearRefinements-button,
+  .ais-RangeInput-submit {
+    border: 1px solid var(--lm-primary);
+    background: transparent;
+    color: var(--lm-primary);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--lm-primary);
+      color: #fff;
+    }
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+  .ais-RefinementList-showMore {
+    margin-top: 8px;
+  }
+  .ais-SearchBox-input.ais-RefinementList-searchBox,
+  .ais-RefinementList-searchBox input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--lm-border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  // RangeInput — min / max price.
+  .ais-RangeInput-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ais-RangeInput-input {
+    width: 100%;
+    padding: 7px 8px;
+    border: 1px solid var(--lm-border);
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  // ── Results column ────────────────────────────────────────────────────────
+  &__results-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+
+    .ais-Stats-text {
+      color: var(--lm-muted);
+      font-size: 14px;
+    }
+  }
+  &__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--lm-muted);
+
+    .ais-SortBy-select {
+      border: 1px solid var(--lm-border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 14px;
+      background: var(--lm-surface);
+    }
+  }
+
+  // CurrentRefinements — active-filter chips.
+  .ais-CurrentRefinements-list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 0;
+  }
+  .ais-CurrentRefinements-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--lm-primary-soft);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 13px;
+  }
+  .ais-CurrentRefinements-label {
+    font-weight: 600;
+    color: var(--lm-primary-dark);
+  }
+  .ais-CurrentRefinements-category {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ais-CurrentRefinements-delete {
+    border: 0;
+    background: transparent;
+    color: var(--lm-primary-dark);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  // Hits grid — reuses the storefront ProductCard inside each item.
+  &__grid.ais-Hits-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(2, 1fr);
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .ais-Hits-item {
+    padding: 0;
+    box-shadow: none;
+    border: 0;
+  }
+
+  // Pagination.
+  .ais-Pagination-list {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 20px 0 0;
+    padding: 0;
+    justify-content: center;
+  }
+  .ais-Pagination-link {
+    display: inline-block;
+    min-width: 36px;
+    text-align: center;
+    padding: 7px 10px;
+    border: 1px solid var(--lm-border);
+    border-radius: 8px;
+    color: var(--lm-text);
+    text-decoration: none;
+    font-size: 14px;
+
+    &:hover {
+      border-color: var(--lm-primary);
+      color: var(--lm-primary);
+    }
+  }
+  .ais-Pagination-item--selected .ais-Pagination-link {
+    background: var(--lm-primary);
+    border-color: var(--lm-primary);
+    color: #fff;
+  }
+  .ais-Pagination-item--disabled .ais-Pagination-link {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  &__foot {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 14px;
+    display: flex;
+    justify-content: space-between;
+
+    a {
+      color: var(--lm-primary);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+  }
+}
+
+// ── Category tree (left rail on /category/:id) ────────────────────────────────
+// Breadcrumb + subcategory list with per-child counts, replacing the flat
+// category facet on a category route. Themed with the same tokens as the facets.
+.lm-cattree {
+  &__crumbs {
+    font-size: 12px;
+    color: var(--lm-muted);
+    margin: 0 0 10px;
+    line-height: 1.6;
+
+    a {
+      color: var(--lm-primary);
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+  }
+  &__sep {
+    margin: 0 5px;
+    color: var(--lm-muted);
+  }
+  &__current {
+    color: var(--lm-text);
+    font-weight: 700;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li { margin: 0; }
+
+    a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 4px;
+      border-radius: var(--lm-radius);
+      color: var(--lm-text);
+      text-decoration: none;
+      font-size: 14px;
+
+      &:hover {
+        background: var(--lm-primary-soft);
+        color: var(--lm-primary-dark);
+      }
+    }
+  }
+  &__count {
+    color: var(--lm-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Browse-tree additions (CatalogTreeNav on /search): expandable L1 rows with L2 sublists.
+  &__node { margin: 0; }
+  &__row {
+    display: flex;
+    align-items: center;
+
+    .lm-cattree__link { flex: 1; }
+  }
+  &__toggle {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    border-radius: var(--lm-radius);
+    color: var(--lm-muted);
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover {
+      background: var(--lm-primary-soft);
+      color: var(--lm-primary-dark);
+    }
+  }
+  &__sublist {
+    list-style: none;
+    margin: 0 0 4px;
+    padding: 0 0 0 14px;
+    border-left: 1px solid var(--lm-border);
+  }
+  &__link--sub {
+    font-size: 13px;
+    color: var(--lm-muted);
+  }
+  &__leaf {
+    color: var(--lm-muted);
+    font-size: 13px;
+    margin: 0;
+  }
+}

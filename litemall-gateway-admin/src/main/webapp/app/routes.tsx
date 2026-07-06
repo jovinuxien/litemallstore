@@ -11,6 +11,7 @@ import { EntitiesRoutes } from './routes/entities-routes';
 import PrivateRoute from './shared/auth/private-route';
 import ErrorBoundaryRoutes from './shared/error/error-boundary-routes';
 import { CategoryData } from './shared/model/category/category.models';
+import SignInView from './views/commonViews/account/SignIn';
 
 interface AppRoutesProps {
   categoryListHome?: CategoryData[];
@@ -35,21 +36,21 @@ const AppRoutes: React.FC<AppRoutesProps> = ({ categoryListHome, homeData }) => 
   //}, [dispatch, homeData]);
   }, [dispatch]);
 
-  // Check if homeData exists and has content
-  if(!homeData || Object.keys(homeData).length === 0){
-    return <div>Loading...</div>;  // Return loading message until homeData is available
-  }
+  // Only the customer home view depends on backend home-data; gate just that
+  // route, not the whole router, so the admin console and the sign-in page stay
+  // reachable even before/without the customer catalog backend.
+  const homeReady = homeData && Object.keys(homeData).length > 0;
 
   return (
     <div className='view-routes'>
       <ErrorBoundaryRoutes>
-        <Route index 
+        <Route index
           element={
-            <HomeView entities={homeData} 
-            categoryListHome={categoryListHome}/>
-          } 
+            homeReady ? <HomeView entities={homeData} categoryListHome={categoryListHome} /> : <div>Loading...</div>
+          }
         />
 
+        <Route path='account/signin' element={<SignInView />} />
         <Route path='logout' element={<Logout />} />
         <Route
           path='admin/*'

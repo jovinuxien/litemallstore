@@ -46,7 +46,80 @@ spring:
         category-list-_url: "https://developers.cjdropshipping.com/api2.0/v1/product/getCategory"
       product:
         list-url: "https://developers.cjdropshipping.com/api2.0/v1/product/list"
-        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product"
+        # CJ "Query Product" — single-product detail by ?pid=<uuid>. Profile/config-server overridable.
+        product-detail-url: "https://developers.cjdropshipping.com/api2.0/v1/product/query"
+        # CJ "Query Inventory By Variant" — per-variant warehouse stock by ?vid=<uuid>.
+        stock-query-url: "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
+        # CJ "Product Comments" — per-product customer reviews by ?pid=<uuid> (paged).
+        comments-url: "https://developers.cjdropshipping.com/api2.0/v1/product/productComments"
+      # ORDER PLACEMENT is implemented in litemall-order (the order worktree), NOT here.
+      # The create-order URL belongs with that ACL; left here only as a documented pointer:
+      # order:
+      #   create-url: "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrder"
+    # --- CJ → OCS indexing ---
+    enabled: true
+    # Retail = CJ wholesale sellPrice (USD) × usd-to-cny × margin, indexed in the local CNY basis
+    # (NOT raw wholesale cost). Tune per business; profile-overridable.
+    pricing:
+      margin: 2.0
+      usd-to-cny: 7.2
+    # Stock assumed for a CJ SKU until real inventory is fetched (keeps in-stock scoring from burying CJ).
+    default-stock: 100
+    # Recorded CJ product-list response, used only when the live CJ API is unreachable.
+    sample-path: "sample-cj-products.json"
+    # Redis staging buffer for raw CJ /product/list payloads (fetch → Redis → DB → OCS). The fetch
+    # lands raw responses here (survives restart, avoids re-hitting the 1-req/300s CJ API); the
+    # snapshot sync reads them back to normalize + persist into litemall_cj_product.
+    redis:
+      raw-ttl-seconds: 21600   # 6h
+    # Nightly cron (sec min hour dom mon dow) for the CJ catalog indexing job. 03:00 daily.
+    refresh-cron: "0 0 3 * * *"
+    # Seconds the job blocks between consecutive CJ /product/list calls, so a multi-category plan
+    # stays rate-limited even though one run issues several requests. CJ's product/list contract
+    # allows 1 req/s; 3s is a conservative cruise pace that still sweeps all ~540 mirrored leaves
+    # in under 30 min (Redis-staged pages are reused without any live call).
+    fetch-pace-seconds: 3
+    # CJ /product/list page size (CJ caps at ~200).
+    page-size: 200
+    # Run a one-shot CJ refresh shortly after startup (besides the nightly cron) so a fresh
+    # deploy/restart repopulates the CJ catalog without waiting for 03:00 or an authed reindex.
+    refresh-on-startup: true
+    refresh-startup-delay-ms: 600000   # 10 min after the app is ready
+    # Category fetch plan: which CJ categories to index and how many products from each.
+    # `category` = a CJ category name (any level), resolved to leaf category ids via getCategory;
+    # or set `category-id` to a CJ leaf UUID directly. `limit` caps products indexed per target.
+    # `per-leaf-limit` > 0 gives EVERY resolved leaf its own budget (fills all subcategories of a
+    # broad target); `limit` then only caps the overall haul. Cost note: per-leaf mode issues ~1
+    # paced call per leaf; legacy mode ~ceil(limit/page-size) calls per target.
+    # NIGHTLY-PRUNE INVARIANT: the nightly cron runs THIS plan with stale-prune — every category
+    # the storefront should keep must stay covered here, or its products age out at 03:00.
+    catalog-targets:
+      # legacy deep targets — keep their flagship leaves richer than the light fill
+      - { category: "Toys, Kids & Babies", limit: 200 }   # baby
+      - { category: "Women's Clothing",    limit: 300 }   # women
+      - { category: "Consumer Electronics", limit: 200 }  # electronics
+      # light fill: every leaf of every CJ L1 tree gets its own ~10-product budget
+      - { category: "Women's Clothing",           per-leaf-limit: 10 }
+      - { category: "Toys, Kids & Babies",        per-leaf-limit: 10 }
+      - { category: "Consumer Electronics",       per-leaf-limit: 10 }
+      - { category: "Pet Supplies",               per-leaf-limit: 10 }
+      - { category: "Men's Clothing",             per-leaf-limit: 10 }
+      - { category: "Home, Garden & Furniture",   per-leaf-limit: 10 }
+      - { category: "Health, Beauty & Hair",      per-leaf-limit: 10 }
+      - { category: "Sports & Outdoors",          per-leaf-limit: 10 }
+      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 10 }
+      - { category: "Jewelry & Watches",          per-leaf-limit: 10 }
+      - { category: "Phones & Accessories",       per-leaf-limit: 10 }
+      - { category: "Computer & Office",          per-leaf-limit: 10 }
+      - { category: "Bags & Shoes",               per-leaf-limit: 10 }
+      - { category: "Home Improvement",           per-leaf-limit: 10 }
+    # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
+    # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
+    # the CJ category path — and checked BEFORE the mirrored-tree resolution, so a matching entry
+    # DIVERTS products away from their real CJ subcategory into a native bucket. RETIRED (empty)
+    # now that the full CJ tree is mirrored into litemall_category and the storefront browses the
+    # real root→leaf chains; re-add entries only to deliberately pin a CJ path onto a native id.
+    category-mapping: []
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
 #    username: root
@@ -66,10 +139,45 @@ litemall:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS
     # (replaces Keycloak). Dev default; config-server overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+    # Anonymous customer surface (litemall-wx-api parity): these /srv/** reads are
+    # reachable with NO token so gateway-api can serve visitors. svcsecurity is
+    # deny-by-default (publicPaths permitAll → adminPaths ROLE_ADMIN → else
+    # authenticated), so the full customer set must be listed here explicitly.
+    # /srv/private/admin/** stays ROLE_ADMIN (NOT listed).
+    public-paths:
+      - /actuator/health/**
+      - /srv/authenticate/**
+      - /srv/catalog/**
+      - /srv/search/**
+      - /srv/cjAuth/**
+      - /srv/goods/**
+      - /srv/brand/**
+      - /srv/issue/**
+      - /srv/comment/**
+      - /srv/topic/**
+      - /srv/home/**
   goods:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
     stock-low-threshold: 5
+  # Storefront "about" metadata served anonymously at /srv/home/about (wx-api /home/about parity).
+  # Config-driven (no litemall_system dependency); override per-env via config-server.
+  mall:
+    name: litemall
+    address: ""
+    phone: ""
+    qq: ""
+    longitude: ""
+    latitude: ""
+  # Object storage for the admin image/file uploads (/srv/private/admin/storage). Local disk by
+  # default so the core StorageService bean resolves standalone; config-server / a cloud profile
+  # can override active=aliyun|tencent|qiniu. 'address' is the public URL prefix for served files
+  # (wire through the admin gateway as a follow-up).
+  storage:
+    active: local
+    local:
+      storage-path: /tmp/litemall/storage
+      address: http://localhost:8082/srv/private/admin/storage/fetch
   # OCS (Open Commerce Search) endpoints. Local-dev defaults below; for the
   # container profile (docker-compose), override to docker service names —
   # http://indexer:8535, http://searcher:8534, http://suggest:8081.

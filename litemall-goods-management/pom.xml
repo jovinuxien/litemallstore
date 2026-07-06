@@ -78,6 +78,13 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-loadbalancer</artifactId>
 		</dependency>
+		<!-- Service discovery: register with Eureka so the gateways can route to
+		     this module via lb://litemall-goods-management (the eureka.* config in
+		     application.yml is inert without this client on the classpath). -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
 		<!-- Messaging: this module commits to plain Spring AMQP (Rabbit) via
 		     RabbitTemplate / @RabbitListener (see RabbitMqConfig). Spring Cloud
 		     Stream and its Kafka binder have been removed; if a future
@@ -114,36 +121,15 @@
 			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
 
-		<!--<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-security</artifactId>
-		</dependency>-->
-
 		<!-- Security section -->
-		<!-- Phase 4: shared machine-JWT resource-server auto-config -->
+		<!-- Phase 4: shared machine-JWT resource-server auto-config.
+		     litemall-svcsecurity transitively provides the resource-server stack
+		     (spring-security-oauth2-resource-server, -oauth2-jose, -config, -web →
+		     -core), so this module does not redeclare them. -->
 		<dependency>
 			<groupId>org.linlinjava</groupId>
 			<artifactId>litemall-svcsecurity</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-oauth2-resource-server</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-oauth2-jose</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-config</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.security</groupId>
-			<artifactId>spring-security-core</artifactId>
 		</dependency>
 
 

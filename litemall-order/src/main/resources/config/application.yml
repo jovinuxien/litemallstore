@@ -6,12 +6,70 @@ spring:
   profiles:
     #active: db, db1, core, elastic, admin, wx
     active: dev, db, core, elastic, admin, wx
+  # The shared dev DB carries migrations from sibling services that are NOT on this
+  # module's classpath (e.g. V21 cj_product_detail_columns, owned by goods-management).
+  # Flyway's validate would otherwise abort on "applied migration not resolved locally: 21".
+  # Tolerate applied-but-missing migrations so startup proceeds; NEVER `flyway repair` the
+  # shared DB. (litemall-db's application-db.yml declares this too, but it is not taking
+  # effect for this service's config wiring, so it is set explicitly here.)
+  # *:future must be listed too: setting this property REPLACES Flyway 9's default
+  # ("*:future"), so a sibling migration numbered ABOVE this module's max (e.g. V26
+  # widen_cj_category_id from goods-management, while order tops out at V25) would
+  # otherwise fail validate as a "future" migration the moment that service boots.
+  flyway:
+    ignore-migration-patterns: "*:missing,*:future"
   messages:
     encoding: UTF-8
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  cloud:
+    stream:
+      default:
+        contentType: application/json
+      bindings:
+        orderCreated-out-0:
+          destination: litemall.order.created.v1
+        orderPaymentSucceeded-out-0:
+          destination: litemall.order.payment-succeeded.v1
+        grouponParticipated-out-0:
+          destination: litemall.groupon.participated.v1
+      kafka:
+        binder:
+          brokers: ${litemall.kafka.brokers:localhost:9092}
+          # Fail FAST when the broker is unreachable so a down Kafka never hangs customer
+          # checkout. The order is the system of record; event delivery is best-effort
+          # (after-commit) — a publish that can't reach the broker is logged, not awaited 60s.
+          health-timeout: 2
+          required-acks: 1
+          producer-properties:
+            max.block.ms: 1500          # cap metadata/buffer wait (default 60000) — the key anti-hang
+            request.timeout.ms: 1500
+            delivery.timeout.ms: 2000    # must be >= request.timeout.ms
+            retries: 0
+            acks: 1
+
+  # CJ Dropshipping create-order ACL. Order owns its OWN CJ auth (token) to place
+  # CJ-sourced lines via the CJ API. Host is config-driven (no hardcoded host in Java);
+  # the API paths live on the Feign clients. See docs/adr-cj-order-placement.md.
+  cjdropship:
+    api:
+      base-url: "https://developers.cjdropshipping.com/api2.0/v1"
+      # CJ ship-from warehouse country (required by createOrder, code 1600300 if empty).
+      # Default to China (most CJ stock); override per-deployment via litemall-config.
+      from-country-code: "CN"
+      # CJ logistics line (also required by createOrder). A widely-available default;
+      # the proper per-route value comes from CJ's freightCalculate API (follow-up).
+      logistic-name: "CJPacket Ordinary"
+      # Fallback DESTINATION country for pay-first CJ fulfillment when the order row
+      # carries no country_code (the checkout country picker sends one per order;
+      # the address book has no country column). Empty = fail the CJ placement with
+      # a clear message instead of guessing the market. Set per deployment.
+      ship-to-country-code: ""
+      auth:
+        cj-email: "bimeni89@gmail.com"
+        cj-api-key: "9520bc6b70fe45019688c5ae62be331b"
 
 
 litemall:
@@ -21,33 +79,8 @@ litemall:
     # overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
   order:
-    # LitemallOrderUnpaidSweeper cadence. Defaults: every 60s after a 30s
-    # initial delay. Override via the litemall-config repo per environment.
-    unpaid-sweep-interval-ms: 60000
-    unpaid-sweep-initial-delay-ms: 30000
-
-# Spring Cloud Stream + Kafka binder. The Kafka forwarder
-# (LitemallKafkaDomainEventForwarder) routes each AFTER_COMMIT domain event
-# to a versioned topic via StreamBridge. Broker coords are local-dev
-# defaults; the litemall-config repo should override for non-dev profiles.
-spring.cloud.stream:
-  default:
-    contentType: application/json
-  bindings:
-    orderCreated-out-0:
-      destination: litemall.order.created.v1
-    orderPaymentSucceeded-out-0:
-      destination: litemall.order.payment-succeeded.v1
-    orderCancelled-out-0:
-      destination: litemall.order.cancelled.v1
-    grouponParticipated-out-0:
-      destination: litemall.groupon.participated.v1
-    couponUsed-out-0:
-      destination: litemall.coupon.used.v1
-  kafka:
-    binder:
-      brokers: localhost:9092
-      auto-create-topics: true
+    # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
+    unpaid-sweep-ms: 60000
 
 server:
   port: 8085
@@ -58,7 +91,49 @@ server:
 
 goods:
   service:
-    url: http://localhost:8083
+    url: http://localhost:8082
+
+# Goods-service client resilience: connect/read timeouts + circuit breaker with
+# fallback (GoodsServiceFeignClientFallbackFactory). A goods-management outage
+# fails order placement cleanly instead of hanging — see docs/adr-goods-acquisition.md.
+feign:
+  circuitbreaker:
+    enabled: true
+  client:
+    config:
+      goods-service:
+        connectTimeout: 2000
+        readTimeout: 3000
+        loggerLevel: basic
+      # CJ Dropshipping is an external API — allow longer timeouts than the internal goods service.
+      cj-dropship-auth:
+        connectTimeout: 3000
+        readTimeout: 6000
+        loggerLevel: basic
+      cj-dropship-order:
+        connectTimeout: 3000
+        readTimeout: 8000
+        loggerLevel: basic
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      goods-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+      cj-dropship-order:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
+  timelimiter:
+    instances:
+      goods-service:
+        timeoutDuration: 4s
+      cj-dropship-order:
+        timeoutDuration: 9s
 
 logging:
   level:

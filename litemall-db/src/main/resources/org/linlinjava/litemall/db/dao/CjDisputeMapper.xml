@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_cj_dispute (CJ dispute projection, V28).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.CjDisputeMapper">
+
+  <sql id="columns">
+    id, order_id, user_id, cj_order_id, business_dispute_id, cj_dispute_id,
+    reason_id, reason_name, expect_type, message, image_urls,
+    status, finally_deal, refund_amount, resend_order_code, cancelled,
+    add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjDispute"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_cj_dispute
+      (order_id, user_id, cj_order_id, business_dispute_id, cj_dispute_id,
+       reason_id, reason_name, expect_type, message, image_urls,
+       status, finally_deal, refund_amount, resend_order_code, cancelled,
+       add_time, update_time, deleted)
+    values
+      (#{orderId}, #{userId}, #{cjOrderId}, #{businessDisputeId}, #{cjDisputeId},
+       #{reasonId}, #{reasonName}, #{expectType}, #{message}, #{imageUrls},
+       #{status}, #{finallyDeal}, #{refundAmount}, #{resendOrderCode}, #{cancelled},
+       #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectByOrderId" resultType="org.linlinjava.litemall.db.domain.LitemallCjDispute">
+    select <include refid="columns" />
+    from litemall_cj_dispute
+    where order_id = #{orderId} and deleted = 0
+    order by id desc
+  </select>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallCjDispute">
+    select <include refid="columns" />
+    from litemall_cj_dispute
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectOpenByOrderId" resultType="org.linlinjava.litemall.db.domain.LitemallCjDispute">
+    select <include refid="columns" />
+    from litemall_cj_dispute
+    where order_id = #{orderId} and deleted = 0 and cancelled = 0 and finally_deal is null
+    order by id desc
+  </select>
+
+  <select id="selectByUserId" resultType="org.linlinjava.litemall.db.domain.LitemallCjDispute">
+    select <include refid="columns" />
+    from litemall_cj_dispute
+    where user_id = #{userId} and deleted = 0
+    order by id desc
+  </select>
+
+  <update id="updateCjProjection" parameterType="org.linlinjava.litemall.db.domain.LitemallCjDispute">
+    update litemall_cj_dispute
+    <set>
+      <if test="cjDisputeId != null">cj_dispute_id = #{cjDisputeId},</if>
+      <if test="status != null">status = #{status},</if>
+      <if test="finallyDeal != null">finally_deal = #{finallyDeal},</if>
+      <if test="refundAmount != null">refund_amount = #{refundAmount},</if>
+      <if test="resendOrderCode != null">resend_order_code = #{resendOrderCode},</if>
+      update_time = #{updateTime},
+    </set>
+    where id = #{id}
+  </update>
+
+  <update id="markCancelled">
+    update litemall_cj_dispute set cancelled = 1, update_time = now()
+    where id = #{id} and cancelled = 0
+  </update>
+
+</mapper>

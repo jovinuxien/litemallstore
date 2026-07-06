@@ -2,7 +2,9 @@ package org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.p
 
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.LenientDoubleDeserializer;
 
 @Data
 public class CJProductVariantData {
@@ -52,7 +54,8 @@ public class CJProductVariantData {
     private Double variantWeight; // Variant weight
 
     @JsonProperty("variantSellPrice")
-    private Double variantSellPrice; // Variant sell price
+    @JsonDeserialize(using = LenientDoubleDeserializer.class)
+    private Double variantSellPrice; // Variant sell price (CJ may send a "low-high" range string)
 
     @JsonProperty("createTime")
     private String createTime; // Creation time (if applicable)

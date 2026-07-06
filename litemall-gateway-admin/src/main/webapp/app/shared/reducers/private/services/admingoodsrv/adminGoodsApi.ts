@@ -1,61 +1,134 @@
-import { IBrandData } from 'app/shared/model/brand.model';
-import { CategoryData } from 'app/shared/model/category/category.models';
-import { IGood } from 'app/shared/model/product/product.model';
-import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-interface AdminGoodsResult {
-  total: number | null;
-  pages: number | null;
-  limit: number | null;
-  page: number | null;
+import { IGood, IGoodsDetail, ProductList, SpecificationList } from 'app/shared/model/product/product.model';
+import { getAdminToken } from 'app/shared/reducers/admin-auth';
+
+// RTK Query API for admin goods, served through the gateway under
+// '/srv/private/admin/goods' as an authenticated admin. The admin JWT is
+// attached as a Bearer token (prepareHeaders); the edge enforces ROLE_ADMIN on
+// '/srv/private/admin/**' and relays a trusted identity downstream. No legacy
+// admin-token header, no hardcoded host.
+//
+// NOTE: the exact JSON the goods-management service returns for these admin
+// endpoints is owned by the `goods-management` worktree. This client codes the
+// agreed shape (list rows as IGood incl. status/salesQuantity/brand/
+// categoryNames; detail as goods + specs + per-SKU products incl. stock); any
+// divergence is a goods-management follow-up (see ROUTING.md).
+
+export interface AdminGoodsListResponse {
+  total: number;
+  pages: number;
+  limit: number;
+  page: number;
   list: IGood[];
 }
 
-interface AdminGoodsCatAndBrandResult {
-  catList: CategoryData[];
-  brandList: IBrandData[];
+export interface AdminGoodsListParams {
+  page: number;
+  limit: number;
+  sort: string;
+  order: 'asc' | 'desc';
 }
 
-const axiosBaseQuery =
-  ({ baseUrl }: { baseUrl: string } = { baseUrl: '' }) =>
-  async ({ url, method, data, params }: AxiosRequestConfig) => {
-    try {
-      const adminToken = sessionStorage.getItem('adminToken');
-      const headers = adminToken ? { 'X-Litemall-Admin-Token': adminToken } : {};
-      const result = await axios({
-        url: baseUrl + url,
-        method,
-        data,
-        params,
-        headers,
-      });
-      return { data: result.data };
-    } catch (axiosError) {
-      const err = axiosError as AxiosError;
-      return {
-        error: {
-          status: err.response?.status,
-          data: err.response?.data || err.message,
-        },
-      };
-    }
-  };
+export interface AdminGoodsDetail {
+  goods: IGoodsDetail;
+  specificationList: SpecificationList[];
+  products: ProductList[];
+  categoryNames?: string[];
+  brand?: string;
+}
 
-/* export const adminGoodsApi = createApi({
+// The litemall envelope: { errno, errmsg, data }.
+interface ApiEnvelope<T> {
+  errno: number;
+  errmsg: string;
+  data: T;
+}
+
+// The write payload of the backend AdminGoodsController: the goods row plus its
+// per-SKU products, specifications and attributes (GoodsAllinone).
+export interface GoodsAllinone {
+  goods: Record<string, unknown>;
+  products: Record<string, unknown>[];
+  specifications: Record<string, unknown>[];
+  attributes: Record<string, unknown>[];
+}
+
+export interface BatchCreateResult {
+  created: number;
+  failed: { index: number; name?: string; error: string }[];
+}
+
+export interface PickOption {
+  value: number;
+  label: string;
+  children?: PickOption[];
+}
+
+export interface CatAndBrand {
+  categoryList: PickOption[];
+  brandList: PickOption[];
+}
+
+export const adminGoodsApi = createApi({
   reducerPath: 'adminGoodsApi',
-  baseQuery: axiosBaseQuery({ baseUrl: ADMIN_URL_CONTEXT }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: '/srv/private/admin/goods',
+    prepareHeaders: headers => {
+      const token = getAdminToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      return headers;
+    },
+  }),
+  tagTypes: ['Goods'],
   endpoints: builder => ({
-    getAdminGoodsList: builder.query<ApiResult<AdminGoodsResult>, { limit: number; page: number; sort: string; order: 'desc' | 'asc' }>({
-      query: params => ({
-        url: '/goods/list',
-        method: 'GET',
-        params,
+    getAdminGoodsList: builder.query<AdminGoodsListResponse, AdminGoodsListParams>({
+      query: ({ page, limit, sort, order }) => ({
+        url: '/list',
+        params: { page, limit, sort, order },
       }),
+      transformResponse: (response: ApiEnvelope<AdminGoodsListResponse>) =>
+        response?.data ?? { total: 0, pages: 0, limit: 0, page: 1, list: [] },
+      providesTags: ['Goods'],
     }),
-    getAdminGoodsCatAndBrand: builder.query<ApiResult<AdminGoodsCatAndBrandResult>, void>({
-      query: () => ({ url: '/goods/catAndBrand', method: 'GET' }),
+    getAdminGoodsDetail: builder.query<AdminGoodsDetail, number | string>({
+      query: id => ({
+        url: '/detail',
+        params: { id },
+      }),
+      transformResponse: (response: ApiEnvelope<AdminGoodsDetail>) => response?.data,
+    }),
+    getCatAndBrand: builder.query<CatAndBrand, void>({
+      query: () => ({ url: '/catAndBrand' }),
+      transformResponse: (response: ApiEnvelope<CatAndBrand>) => response?.data ?? { categoryList: [], brandList: [] },
+    }),
+    createGoods: builder.mutation<ApiEnvelope<unknown>, GoodsAllinone>({
+      query: body => ({ url: '/create', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    updateGoods: builder.mutation<ApiEnvelope<unknown>, GoodsAllinone>({
+      query: body => ({ url: '/update', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    deleteGoods: builder.mutation<ApiEnvelope<unknown>, { id: number }>({
+      query: body => ({ url: '/delete', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
+    }),
+    batchCreateGoods: builder.mutation<ApiEnvelope<BatchCreateResult>, GoodsAllinone[]>({
+      query: body => ({ url: '/batch-create', method: 'POST', body }),
+      invalidatesTags: ['Goods'],
     }),
   }),
-}); */
+});
 
-//export const { useGetAdminGoodsListQuery, useGetAdminGoodsCatAndBrandQuery } = adminGoodsApi;
+export const {
+  useGetAdminGoodsListQuery,
+  useGetAdminGoodsDetailQuery,
+  useGetCatAndBrandQuery,
+  useCreateGoodsMutation,
+  useUpdateGoodsMutation,
+  useDeleteGoodsMutation,
+  useBatchCreateGoodsMutation,
+} = adminGoodsApi;

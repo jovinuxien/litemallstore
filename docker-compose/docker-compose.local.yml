@@ -15,4 +15,7 @@ services:
       - "spring_profiles_active=preset,custom"
     volumes:
       - ./application.search-service.yml:/app/resources/application-custom.yml:ro
+      # Item 3 (synonyms): curated Querqy common-rules consumed by QuerqyQueryExpander
+      # (common_rules_url in application.search-service.yml).
+      - ./querqy-rules.txt:/app/resources/querqy-rules.txt:ro
 

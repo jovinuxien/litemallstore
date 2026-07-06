@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Restored from a72b54f83 (dropped by the litemall-db trim in b840e72ed —
+     the interface survived without its XML, so statUser/statOrder/statGoods
+     threw "Invalid bound statement" at runtime). statOrder is adapted from
+     upstream: it counted only order_status in (401,402), which hides every
+     order that hasn't been confirmed yet; the dashboard wants all placed
+     orders, with revenue restricted to paid-or-later (>= 201). -->
+<mapper namespace="org.linlinjava.litemall.db.dao.StatMapper">
+    <select id="statUser" resultType="map">
+        select
+        substr(add_time,1,10) as day,
+        count(distinct id) as users
+        from litemall_user
+        where deleted = 0
+        group by substr(add_time,1,10)
+        order by day
+    </select>
+    <select id="statOrder" resultType="map">
+        select
+        substr(add_time,1,10) as day,
+        count(id) as orders,
+        count(distinct user_id) as customers,
+        sum(case when order_status &gt;= 201 then actual_price else 0 end) as amount,
+        round(sum(case when order_status &gt;= 201 then actual_price else 0 end)/count(distinct user_id),2) as pcr
+        from litemall_order
+        where deleted = 0
+        group by substr(add_time,1,10)
+        order by day
+    </select>
+    <select id="statGoods" resultType="map">
+        select
+        substr(add_time,1,10) as day,
+        count(distinct order_id) as orders,
+        sum(number) as products,
+        sum(number*price) as amount
+        from litemall_order_goods
+        where deleted = 0
+        group by substr(add_time,1,10)
+        order by day
+    </select>
+</mapper>

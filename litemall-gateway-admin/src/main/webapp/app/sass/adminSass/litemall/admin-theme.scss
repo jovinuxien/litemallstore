@@ -1,0 +1,8 @@
+// Entry for the litemall-admin (vue-element-admin) theme. Imported once by
+// AdminLayout.tsx (alongside bootstrap's CSS, which AdminLayout imports as JS).
+// Self-contained: pulls in the ported palette, the shell layout, and the
+// page-level Element patterns.
+
+@import 'variables';
+@import 'layout';
+@import 'page';

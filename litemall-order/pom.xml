@@ -96,9 +96,6 @@
 			<artifactId>spring-cloud-stream</artifactId>
 		</dependency>
 
-		<!-- Kafka binder for Spring Cloud Stream. The Kafka forwarder
-		     (LitemallKafkaDomainEventForwarder) sends versioned domain-event
-		     topics via StreamBridge. Version managed by the Spring Cloud BOM. -->
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-stream-binder-kafka</artifactId>
@@ -120,6 +117,14 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
+		</dependency>
+
+		<!-- Circuit breaker + fallback for the goods-service Feign client
+		     (enables feign.circuitbreaker so GoodsServiceFeignClient's
+		     fallbackFactory engages on timeout/outage). -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
 		</dependency>
 
 

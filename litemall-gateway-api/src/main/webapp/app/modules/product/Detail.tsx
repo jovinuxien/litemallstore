@@ -1,253 +1,369 @@
-import React, { lazy, useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
-import './Detail.scss';
 
-import 'react-toastify/dist/ReactToastify.css';
-
-import { faShoppingCart, faStar } from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
-import RenderFormGroupField from 'app/helpers/renderFormGroupField';
-import { IItemCart } from 'app/shared/model/cart/cart.models';
-import { CardFeaturedProductData } from 'app/shared/model/product/product.model';
 import { addItem } from 'app/shared/reducers/cartSlice';
-import { Button, Col, Container, Row, Tab, Tabs } from 'react-bootstrap';
-import { ToastContainer } from 'react-toastify';
-import ProductDetailDetail from './productDetailComponent/ProductDetailDetail';
-import ProductDetailIssue from './productDetailComponent/ProductDetailIssue';
-import ProductGallery from './productDetailComponent/ProductGallery/ProductGallery';
-import ProductHighlights from './productDetailComponent/ProductHighlights';
-import ProductInfo from './productDetailComponent/ProductInfo';
-import ProductOptions from './productDetailComponent/ProductOptions/ProductOptions';
-import ProductPricing from './productDetailComponent/ProductPricing';
+import { goodId, priceNum } from 'app/components/userComponents/card/ProductCard';
+import ProductCard from 'app/components/userComponents/card/ProductCard';
+import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
-const CardFeaturedProduct = lazy(() => import('../../components/userComponents/card/CardFeaturedProduct'));
-const CardServices = lazy(() => import('../../components/userComponents/card/CardServices'));
-const DetailsDetail = lazy(() => import('../../components/userComponents/others/DetailsDetail'));
-const RatingsReviews = lazy(() => import('../../components/userComponents/others/RatingsReviews'));
-const QuestionAnswer = lazy(() => import('../../components/userComponents/others/QuestionAnswer'));
-const ShippingReturns = lazy(() => import('../../components/userComponents/others/ShippingReturns'));
-const SizeChart = lazy(() => import('../../components/userComponents/others/SizeChart'));
+import CollectButton from './productDetailComponent/CollectButton';
+import CouponStrip from './productDetailComponent/CouponStrip';
+import Reviews from './productDetailComponent/Reviews';
+import './Detail.scss';
 
-interface Tab {
-  id: string;
-  label: string;
-  content: React.ReactNode;
-}
+const fmt = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ProductDetailView = () => {
-  const { productId } = useParams<{ productId: string }>();
+const productId = (p: DetailProduct): number | undefined => {
+  const raw = p.goodsProductId;
+  const idStr = typeof raw === 'object' ? raw?.id : raw;
+  const n = Number(idStr);
+  return Number.isFinite(n) ? n : undefined;
+};
 
+const sameSpecs = (a: string[] = [], b: string[] = []): boolean => a.length === b.length && a.every((v, i) => v === b[i]);
+
+/**
+ * Amazon-style product detail page (Teal & Coral theme). Renders the full
+ * goods-management `/srv/goods/detail` payload: gallery, variant selectors
+ * resolved against the SKU list, a sticky buy box, and tabbed
+ * Description / Specifications sections plus a related-products row.
+ */
+const ProductDetailView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
 
-  const [activeTab, setActiveTab] = useState<string>('details');
-  const [quantity, setQuantity] = useState<number>(1);
-  const [error, setError] = useState<null>(null);
-  const [showFloatingCart, setShowFloatingCart] = useState(false);
+  const { data, loading, errorMessage } = useAppSelector(state => state.productDetail);
+  const related = useAppSelector(state => state.related.data.list);
+  const { goods, products, specifications, attributes } = data;
 
-  const detail = useAppSelector(state => state.productDetail.data);
-  const relatedGoods = useAppSelector(state => state.relatedGoods.data);
-  const { isAuthenticated } = useAppSelector(state => state.auth.data);
-  const { cartList, cartTotal } = useAppSelector(state => state.cart.data);
+  const [quantity, setQuantity] = useState(1);
+  const [activeImage, setActiveImage] = useState<string>('');
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<'description' | 'specs'>('description');
 
-  const tabs: Tab[] = [
-    { id: 'details', label: 'Details', content: <DetailsDetail /> },
-    { id: 'randr', label: 'Ratings & Reviews', content: Array.from({ length: 5 }, (_, key) => <RatingsReviews key={key} />) },
-    { id: 'faq', label: 'Questions & Answers', content: Array.from({ length: 5 }, (_, key) => <QuestionAnswer key={key} />) },
-    { id: 'shipping', label: 'Shipping & Returns', content: <ShippingReturns /> },
-    { id: 'size', label: 'Size Chart', content: <SizeChart /> },
-  ];
-  if (detail) {
-    const cardFeaturedProductData: CardFeaturedProductData = {
-      name: detail.info.name,
-      link: '/product/' + productId,
-      star: 3,
-      price: detail.info.retailPrice,
-      retailPrice: 200,
-    };
+  useEffect(() => {
+    if (id) {
+      // Pass the route id through verbatim — it may be a CJ id ("cj_<pid>"),
+      // not a number. Coercing with Number() turned those into NaN and fired
+      // /srv/goods/detail?id=NaN. The id is the OCS/document key the backend
+      // keys on, string or numeric.
+      dispatch(getProductDetail(id));
+      dispatch(getRelatedGoods(id));
+      setQuantity(1);
+    }
+  }, [dispatch, id]);
+
+  // Option groups: preserve backend order, collect distinct values per group.
+  const specGroups = useMemo(() => {
+    const groups: { name: string; values: { value: string; picUrl?: string }[] }[] = [];
+    (specifications ?? []).forEach(s => {
+      let g = groups.find(x => x.name === s.specifications);
+      if (!g) {
+        g = { name: s.specifications, values: [] };
+        groups.push(g);
+      }
+      if (!g.values.some(v => v.value === s.value)) g.values.push({ value: s.value, picUrl: s.picUrl });
+    });
+    return groups;
+  }, [specifications]);
+
+  // Default the variant selection to the first value of every group.
+  useEffect(() => {
+    if (specGroups.length) {
+      const init: Record<string, string> = {};
+      specGroups.forEach(g => {
+        if (g.values[0]) init[g.name] = g.values[0].value;
+      });
+      setSelected(init);
+    }
+  }, [specGroups]);
+
+  // The SKU whose spec tuple matches the current selection (ordered by group).
+  const selectedSku = useMemo<DetailProduct | undefined>(() => {
+    if (!products?.length) return undefined;
+    const wanted = specGroups.map(g => selected[g.name]);
+    return products.find(p => sameSpecs(p.specifications, wanted)) ?? products[0];
+  }, [products, specGroups, selected]);
+
+  const gallery = useMemo(() => {
+    const imgs = [goods?.picUrl, ...(goods?.gallery ?? [])].filter((x): x is string => !!x);
+    return Array.from(new Set(imgs));
+  }, [goods]);
+
+  // Description = the first TWO images out of the goods.detail HTML blob, text dropped
+  // (the raw supplier HTML — CJ especially — is a wall of duplicated text and imagery).
+  // Also removes the dangerouslySetInnerHTML raw-HTML injection.
+  const detailImages = useMemo(() => {
+    if (!goods?.detail) return [] as string[];
+    try {
+      const doc = new DOMParser().parseFromString(goods.detail, 'text/html');
+      return Array.from(doc.querySelectorAll('img'))
+        .map(img => img.getAttribute('src') ?? img.getAttribute('data-src') ?? '')
+        .filter(Boolean)
+        .filter((src, i, arr) => arr.indexOf(src) === i)
+        .slice(0, 2);
+    } catch {
+      return [] as string[];
+    }
+  }, [goods?.detail]);
+
+  useEffect(() => {
+    setActiveImage(goods?.picUrl ?? '');
+  }, [goods?.picUrl]);
+
+  if (loading === 'pending') {
+    return (
+      <div className='lm-pdp__center'>
+        <Spinner animation='border' />
+      </div>
+    );
   }
 
-  const toggleFloatingCart = () => {
-    setShowFloatingCart(!showFloatingCart);
+  if (!goods || goodId(goods) == null) {
+    return <div className='lm-pdp__center lm-pdp__notfound'>{errorMessage ?? 'Product not found.'}</div>;
+  }
+
+  const gid = goodId(goods);
+  const skuPrice = selectedSku ? priceNum(selectedSku.price) : 0;
+  const retail = skuPrice || priceNum(goods.retailPrice);
+  const counter = priceNum(goods.counterPrice);
+  const hasDiscount = counter > retail && retail > 0;
+  const discountPct = hasDiscount ? Math.round(((counter - retail) / counter) * 100) : 0;
+  const stock = selectedSku?.number ?? products.reduce((s, p) => s + (p.number ?? 0), 0);
+  const inStock = stock > 0;
+
+  const pickVariant = (name: string, value: string, picUrl?: string) => {
+    setSelected(prev => ({ ...prev, [name]: value }));
+    if (picUrl) setActiveImage(picUrl);
   };
 
+  // CJ Dropshipping lines now live in the native catalog (source 'cj'); the legacy DB-served
+  // detail page still tags them 'cj_dropshipping'. Either marks the line CJ so checkout routes it
+  // to the dropship endpoint — by its native productId, off which the order service recovers the
+  // real CJ vid (no cj_<pid> id, no vid-as-productId hack).
+  const isCj = goods.source === 'cj' || goods.source === 'cj_dropshipping';
+
+  const buildCartItem = () => ({
+    id: productId(selectedSku ?? ({} as DetailProduct)) ?? gid,
+    goodsId: String(gid),
+    goodsName: goods.goodsName ?? '',
+    productId: productId(selectedSku ?? ({} as DetailProduct)),
+    price: retail,
+    number: quantity,
+    picUrl: activeImage || goods.picUrl,
+    specifications: specGroups.map(g => selected[g.name]).filter(Boolean),
+    checked: true,
+    source: isCj ? goods.source : undefined,
+  });
+
   const handleAddToCart = () => {
-    // Implementation
-    const cartItem: IItemCart = {
-      id: parseInt(productId),
-      goodsId: productId,
-      goodsName: detail?.info?.brief,
-      number: quantity,
-      picUrl: detail?.info?.gallery[0],
-    };
-
-    const existingCartItem = cartList.find(item => item.goodsId === productId);
-    console.log(
-      'existingCartItem: ',
-      existingCartItem
-      //cartList.forEach(item => console.log(item))
-    );
-    console.log('total', cartList.length);
-
-    if (existingCartItem) {
-      const updateCartItem = {
-        ...existingCartItem,
-        number: existingCartItem.number + quantity,
-      };
-      dispatch(addItem(updateCartItem));
-    } else {
-      dispatch(addItem(cartItem));
-    }
-
-    setShowFloatingCart(true);
-    /* setTimeout(() => {
-      setShowFloatingCart(false);
-    }, 5000); */
+    if (!inStock) return;
+    dispatch(addItem(buildCartItem()));
+    navigate('/cart');
   };
 
   const handleBuyNow = () => {
-    // Implementation
-  };
-
-  const handleSubmit = e => {
-    e.preventDefault();
-  };
-
-  useEffect(() => {
-    if (productId) {
-      dispatch(getProductDetail(parseInt(productId)));
-      dispatch(getRelatedGoods(parseInt(productId)));
-    }
-    console.log('The detail good', detail);
-
-    console.log('The detail good', detail?.attribute);
-
-    //window.scrollTo(0, 0);
-  }, [productId, dispatch]);
-
-  const scrollToGallery = () => {
-    const gallery = document.getElementById('product-gallery');
-    if (gallery) {
-      gallery.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (!inStock) return;
+    dispatch(addItem(buildCartItem()));
+    navigate('/checkout');
   };
 
   return (
-    <div className={`main-content ${showFloatingCart ? 'sidebar-open' : ''}`}>
-      <Container fluid className='product-detail'>
-        <Row>
-          <Col lg={9}>
-            <Row>
-              <Col lg={5} md={6}>
-                <ProductGallery gallery={detail?.info?.gallery} name={detail?.info?.name} htmlContent={detail?.info.detail} />
-              </Col>
-              <Col lg={7} md={6}>
-                <div className='product-header'>
-                  <span className='product-brand'>Brand: {detail?.info?.brandId}</span>
-                  <h1 className='product-title'>{detail?.info?.name}</h1>
-                  <div className='product-rating'>
-                    <span className='stars'>
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                      <FontAwesomeIcon icon={faStar} />
-                    </span>
-                    <span className='reviews-count'>4.8 (1000 reviews)</span>
-                  </div>
-                </div>
-
-                <ProductPricing retailPrice={detail?.info?.retailPrice} counterPrice={detail?.info?.counterPrice} />
-
-                <div className='product-options'>
-                  <ProductOptions data={detail?.attribute} />
-                </div>
-
-                <form className='mt-3' onSubmit={handleSubmit}>
-                  <RenderFormGroupField
-                    input={{
-                      name: 'quantity',
-                      type: 'number',
-                      placeholder: 'Quantity',
-                      className: 'form-control',
-                      value: quantity,
-                      onChange: e => setQuantity(parseInt(e.target.value)),
-                      min: '1',
-                    }}
-                    label='Quantity'
-                    Icon={() => <FontAwesomeIcon icon={faShoppingCart} />}
-                    meta={{
-                      touched: false,
-                      error: '',
-                      warning: '',
-                    }}
-                  />
-                </form>
-
-                <div className='product-actions'>
-                  <Button className='btn-buy-now' onClick={handleBuyNow}>
-                    Buy Now
-                  </Button>
-                  <Button className='btn-add-to-cart' onClick={handleAddToCart}>
-                    <FontAwesomeIcon icon={faShoppingCart} className='me-2' />
-                    Add to Cart
-                  </Button>
-                </div>
-              </Col>
-            </Row>
-
-            <div className='product-description mt-5'>
-              <h3>Product Description</h3>
-              <Tabs defaultActiveKey='description' id='product-tabs' className='mb-3'>
-                <Tab eventKey='description' title='Description'>
-                  <ProductInfo info={detail?.info} />
-                </Tab>
-                <Tab eventKey='specifications' title='Specifications'>
-                  <ProductHighlights />
-                </Tab>
-                <Tab eventKey='reviews' title='Customer Reviews'>
-                  <ProductDetailIssue data={detail?.issue} />
-                </Tab>
-                <Tab eventKey='details' title='Product Detail'>
-                  <ProductDetailDetail detail={detail.info?.detail} />
-                </Tab>
-              </Tabs>
+    <div className='lm-pdp'>
+      <div className='lm-pdp__top'>
+        {/* Gallery */}
+        <section className='lm-pdp__gallery'>
+          <div className='lm-pdp__stage'>
+            <img src={activeImage} alt={goods.goodsName} />
+            {hasDiscount && <span className='lm-pdp__badge'>-{discountPct}%</span>}
+          </div>
+          {gallery.length > 1 && (
+            <div className='lm-pdp__thumbs'>
+              {gallery.map(img => (
+                <button
+                  key={img}
+                  type='button'
+                  className={`lm-pdp__thumb${img === activeImage ? ' is-active' : ''}`}
+                  onMouseEnter={() => setActiveImage(img)}
+                  onClick={() => setActiveImage(img)}
+                >
+                  <img src={img} alt='' />
+                </button>
+              ))}
             </div>
+          )}
+        </section>
 
-            <Row className='mt-5'>
-              <Col>
-                <CardFeaturedProduct data={relatedGoods} onProductClick={scrollToGallery} />
-              </Col>
-            </Row>
-          </Col>
+        {/* Title / price / variants */}
+        <section className='lm-pdp__info'>
+          <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
+          {goods.brief && <p className='lm-pdp__brief'>{goods.brief}</p>}
 
-          {/* <Col lg={2}>
-            <SideCartSummary />
-          </Col> */}
-          {/* <Col lg={3}>
-            {isAuthenticated ? (
-              <SideCartSummary />
+          <div className='lm-pdp__pricebox'>
+            <span className='lm-pdp__price'>
+              US&nbsp;${fmt(retail)}
+            </span>
+            {hasDiscount && <span className='lm-pdp__orig'>US&nbsp;${fmt(counter)}</span>}
+            {hasDiscount && <span className='lm-pdp__save'>You save {discountPct}%</span>}
+            {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
+          </div>
+
+          {/* Receivable coupons (litemall-vue coupon row); hidden until live. */}
+          <CouponStrip />
+
+          {specGroups.map(g => (
+            <div key={g.name} className='lm-pdp__optgroup'>
+              <div className='lm-pdp__optlabel'>
+                {g.name}: <strong>{selected[g.name]}</strong>
+              </div>
+              <div className='lm-pdp__opts'>
+                {g.values.map(v => (
+                  <button
+                    key={v.value}
+                    type='button'
+                    className={`lm-pdp__opt${selected[g.name] === v.value ? ' is-active' : ''}`}
+                    onClick={() => pickVariant(g.name, v.value, v.picUrl)}
+                  >
+                    {v.picUrl && <img src={v.picUrl} alt='' />}
+                    {v.value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {attributes && attributes.length > 0 && (
+            <ul className='lm-pdp__highlights'>
+              {attributes.slice(0, 4).map((a, i) => (
+                <li key={`${a.attributeName}-${i}`}>
+                  <span>{a.attributeName}</span>
+                  <strong>{a.attributeValue}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Buy box */}
+        <aside className='lm-pdp__buybox'>
+          <div className='lm-pdp__buyprice'>US&nbsp;${fmt(retail)}</div>
+          <div className={`lm-pdp__stock${inStock ? ' in' : ' out'}`}>
+            {inStock ? `In stock${selectedSku ? ` · ${stock} available` : ''}` : 'Out of stock'}
+          </div>
+
+          <div className='lm-pdp__qty'>
+            <span>Qty</span>
+            <button type='button' onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={quantity <= 1}>
+              −
+            </button>
+            <input
+              type='number'
+              min={1}
+              max={inStock ? stock : 1}
+              value={quantity}
+              onChange={e => setQuantity(Math.max(1, Math.min(inStock ? stock : 1, parseInt(e.target.value, 10) || 1)))}
+            />
+            <button type='button' onClick={() => setQuantity(q => Math.min(inStock ? stock : 1, q + 1))} disabled={quantity >= stock}>
+              +
+            </button>
+          </div>
+
+          <button type='button' className='lm-pdp__addcart' disabled={!inStock} onClick={handleAddToCart}>
+            <i className='bi bi-cart-plus me-1' /> Add to cart
+          </button>
+          <button type='button' className='lm-pdp__buynow' disabled={!inStock} onClick={handleBuyNow}>
+            Buy now
+          </button>
+
+          <CollectButton goodsId={gid} />
+
+          <ul className='lm-pdp__assurance'>
+            <li>
+              <i className='bi bi-truck' /> Fast dispatch
+            </li>
+            <li>
+              <i className='bi bi-arrow-counterclockwise' /> 7-day returns
+            </li>
+            <li>
+              <i className='bi bi-shield-check' /> Buyer protection
+            </li>
+          </ul>
+        </aside>
+      </div>
+
+      {/* Tabs: description + full spec sheet */}
+      <div className='lm-pdp__tabs'>
+        <div className='lm-pdp__tabbar'>
+          <button type='button' className={tab === 'description' ? 'is-active' : ''} onClick={() => setTab('description')}>
+            Description
+          </button>
+          <button type='button' className={tab === 'specs' ? 'is-active' : ''} onClick={() => setTab('specs')}>
+            Specifications {attributes?.length ? `(${attributes.length})` : ''}
+          </button>
+        </div>
+
+        {tab === 'description' && (
+          <div className='lm-pdp__tabpanel'>
+            {detailImages.length > 0 ? (
+              detailImages.map(src => (
+                <img
+                  key={src}
+                  className='lm-pdp__detailimg'
+                  src={src}
+                  alt={goods.goodsName ?? 'Product'}
+                  loading='lazy'
+                  onError={e => (e.currentTarget.style.display = 'none')}
+                />
+              ))
+            ) : goods.brief ? (
+              <p>{goods.brief}</p>
             ) : (
-              <Card>
-                <Card.Body>
-                  <Button className='btn-buy-now mb-2' onClick={handleBuyNow}>
-                    Buy Now
-                  </Button>
-                  <Button className='btn-add-to-cart' onClick={handleAddToCart}>
-                    <FontAwesomeIcon icon={faShoppingCart} className='me-2' />
-                    Add to Cart
-                  </Button>
-                </Card.Body>
-              </Card>
+              <p className='text-muted'>No description provided.</p>
             )}
-          </Col> */}
-        </Row>
-        {/*         {showFloatingCart && <FloatingCartSidebar isOpen={showFloatingCart} onClose={toggleFloatingCart} />}
-         */}{' '}
-        <ToastContainer />
-      </Container>
+          </div>
+        )}
+
+        {tab === 'specs' && (
+          <div className='lm-pdp__tabpanel'>
+            {attributes && attributes.length > 0 ? (
+              <table className='lm-pdp__spectable'>
+                <tbody>
+                  {attributes.map((a, i) => (
+                    <tr key={`${a.attributeName}-${i}`}>
+                      <th>{a.attributeName}</th>
+                      <td>{a.attributeValue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className='text-muted'>No specifications listed for this product.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Customer reviews (litemall-vue comment list); hidden until live. */}
+      <Reviews goodsId={gid} />
+
+      {/* Related products */}
+      {related && related.length > 0 && (
+        <section className='lm-pdp__related'>
+          <h3 className='lm-pdp__relatedtitle'>You may also like</h3>
+          <div className='lm-pdp__relatedgrid'>
+            {related
+              .filter(r => goodId(r) !== gid)
+              .slice(0, 6)
+              .map(r => (
+                <ProductCard key={goodId(r)} product={r} />
+              ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };
