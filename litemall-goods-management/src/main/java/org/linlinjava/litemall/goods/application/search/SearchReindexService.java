@@ -51,8 +51,12 @@ public class SearchReindexService {
         List<ProductDocument> documents = new ArrayList<>();
         int page = 1;
         while (true) {
+            // Page by the unique PK: paging on add_time alone is unstable — bulk CJ promotes stamp
+            // hundreds of rows with the same second, ties land on arbitrary pages per query, and
+            // rows get read twice / skipped across page boundaries (observed live: 6246 read,
+            // 6229 unique docs — 17 tied rows lost). Order is irrelevant for a full replace.
             List<LitemallGoods> batch = goodsService.querySelective(
-                    null, null, null, page, PAGE_SIZE, "add_time", "desc");
+                    null, null, null, page, PAGE_SIZE, "id", "asc");
             if (batch == null || batch.isEmpty()) {
                 break;
             }

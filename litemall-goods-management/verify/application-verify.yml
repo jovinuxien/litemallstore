@@ -32,3 +32,14 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
+
+# The repositories pass page 0 to PageHelper.startPage(pageNum, size); only
+# `reasonable: true` (normally supplied by litemall-db's `db` profile) corrects
+# that to page 1. Keep it here so a boot that activates `verify` without the
+# default profile set doesn't get empty pages from every page-0 call site
+# (symptom: /srv/catalog/all -> errno 502, /srv/catalog/first-categories -> []).
+pagehelper:
+  helperDialect: mysql
+  reasonable: true
+  supportMethodsArguments: true
+  params: count=countSql
