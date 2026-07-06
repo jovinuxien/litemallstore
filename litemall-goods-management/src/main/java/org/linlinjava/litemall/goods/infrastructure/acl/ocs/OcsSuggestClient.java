@@ -1,53 +1,53 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.ocs;
 
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * ACL adapter to the OCS suggest REST service (port 8081 by default).
- *
- * <p><b>API contract — runtime verification needed.</b> Assumed
- * {@code GET {suggest-url}/suggest/{index-name}?q={prefix}} returning a JSON
- * array of suggestion strings.
+ * OCS suggest-service REST adapter. The suggest service exposes
+ * {@code GET /suggest-api/v1/<index>/suggest?userQuery=<term>} and returns a
+ * list of suggestion entries.
  */
 @Component
 public class OcsSuggestClient {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(OcsSuggestClient.class);
+    private static final ParameterizedTypeReference<List<OcsSuggestion>> SUGGEST_TYPE =
+            new ParameterizedTypeReference<>() {
+            };
 
-    // See OcsIndexerClient — owned per-client to avoid bean conflict with the
-    // shared core RestTemplate.
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final LitemallSearchProperties properties;
 
-    public OcsSuggestClient(LitemallSearchProperties properties) {
+    public OcsSuggestClient(LitemallSearchProperties properties, RestTemplateBuilder builder) {
         this.properties = properties;
+        this.restTemplate = builder
+                .rootUri(properties.getSuggestUrl())
+                .setConnectTimeout(Duration.ofSeconds(3))
+                .setReadTimeout(Duration.ofSeconds(5))
+                .build();
     }
 
-    /**
-     * TODO: verify exact path + query-parameter names against OCS OpenAPI
-     * doc at runtime.
-     */
-    @SuppressWarnings("unchecked")
-    public List<String> suggest(String prefix) {
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getSuggestUrl())
-                .pathSegment("suggest", properties.getIndexName())
-                .queryParam("q", prefix)
-                .toUriString();
-        try {
-            return restTemplate.getForObject(url, List.class);
-        } catch (RestClientException e) {
-            LOGGER.warn("OCS suggest failed for prefix={} ({}): {}", prefix, url, e.getMessage());
+    public List<OcsSuggestion> suggest(String userQuery) {
+        if (userQuery == null || userQuery.isBlank()) {
             return Collections.emptyList();
         }
+        // Pass a String URL template (not a pre-built java.net.URI): RestTemplate's
+        // configured rootUri (the suggest host) is applied only to String templates,
+        // and it expands + encodes the {index}/{q} variables for us. Building a URI
+        // here would yield a host-less path and fail with "Target host is not specified".
+        List<OcsSuggestion> body = restTemplate
+                .exchange("/suggest-api/v1/{index}/suggest?userQuery={q}",
+                        HttpMethod.GET, null, SUGGEST_TYPE,
+                        properties.getIndexName(), userQuery)
+                .getBody();
+        return body == null ? Collections.emptyList() : body;
     }
 }

@@ -1,8 +1,8 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
 import { IGood } from 'app/shared/model/product/product.model';
-import axios from 'axios';
 
 interface RelatedGoodsApiResult
   extends ApiResult<{
@@ -13,12 +13,12 @@ interface RelatedGoodsApiResult
     list: IGood[];
   }> {}
 
-export const getRelatedGoods = createAsyncThunk<RelatedGoodsApiResult['data'], number, { rejectValue: ApiResult<null> }>(
+export const getRelatedGoods = createAsyncThunk<RelatedGoodsApiResult['data'], string, { rejectValue: ApiResult<null> }>(
   'goods/related',
-  async (goodsId: number, thunkApi) => {
+  async (goodsId: string, thunkApi) => {
     try {
       const relatedGoodsUrl = BASE_URL_CONTEXT + '/goods/related?id=' + goodsId;
-      const response = await axios.get(relatedGoodsUrl);
+      const response = await baseAxios.get(relatedGoodsUrl);
       if (response.data.errno !== 0) {
         return thunkApi.rejectWithValue({
           errno: response.data.errno,
@@ -26,7 +26,6 @@ export const getRelatedGoods = createAsyncThunk<RelatedGoodsApiResult['data'], n
           data: null,
         });
       }
-      console.log('Data from getRelatedGoods', response.data.data);
       return response.data.data;
     } catch (error) {
       return thunkApi.rejectWithValue({

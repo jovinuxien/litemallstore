@@ -105,9 +105,14 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public AuthorizationServerSettings authorizationServerSettings(JwtProperties jwt) {
+    public AuthorizationServerSettings authorizationServerSettings() {
+        // Spring Authorization Server requires the issuer to be a valid absolute
+        // URL (it backs the /.well-known, /oauth2/token, /oauth2/jwks metadata).
+        // litemall.jwt.issuer ("litemall-authserver") is only the JWT `iss` *claim*
+        // name and is NOT a URL, so we must not pass it here. Omitting issuer() lets
+        // the server derive it per-request; resource servers (litemall-svcsecurity)
+        // validate via jwkSetUri only and do not check the `iss` claim.
         return AuthorizationServerSettings.builder()
-                .issuer(jwt.getIssuer())
                 .build();
     }
 }

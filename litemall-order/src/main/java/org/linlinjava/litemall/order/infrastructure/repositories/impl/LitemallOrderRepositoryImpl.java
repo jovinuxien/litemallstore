@@ -36,7 +36,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
 
     @Override
     public Optional<LitemallOrderAggregate> findById(LitemallOrderId orderId) {
-        return Optional.of(convertToDomainModel(litemallOrderMapper.selectByPrimaryKey(orderId.getId())));
+        LitemallOrder record = litemallOrderMapper.selectByPrimaryKey(orderId.getId());
+        return record == null ? Optional.empty() : Optional.of(convertToDomainModel(record));
     }
 
 
@@ -59,6 +60,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
        litemallOrder.setUpdateTime(LocalDateTime.now());
 
        litemallOrderMapper.insertSelective(litemallOrder);
+       // Propagate the DB-generated primary key back onto the aggregate; placeOrder
+       // re-loads the order and attaches order-goods by this id (was left at 0).
+       order.setOrderId(new LitemallOrderId(litemallOrder.getId()));
     }
 
     @Override
@@ -100,6 +104,47 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         PageHelper.startPage(page, limit);
         return litemallOrderMapper.selectByExample(example).stream()
                 .map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
+    public int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        LitemallOrderExample.Criteria criteria = example.or();
+        criteria.andUserIdEqualTo(userId.getId());
+        if (orderStatus != null) {
+            criteria.andOrderStatusIn(orderStatus);
+        }
+        criteria.andDeletedEqualTo(false);
+        return (int) litemallOrderMapper.countByExample(example);
+    }
+
+    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        LitemallOrderExample.Criteria criteria = example.or();
+        if (!StringUtils.isEmpty(orderSn)) {
+            criteria.andOrderSnEqualTo(orderSn);
+        }
+        if (orderStatus != null && !orderStatus.isEmpty()) {
+            criteria.andOrderStatusIn(orderStatus);
+        }
+        criteria.andDeletedEqualTo(false);
+        return example;
+    }
+
+    @Override
+    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order) {
+        LitemallOrderExample example = adminExample(orderSn, orderStatus);
+        // sortColumn is whitelisted by the caller; order normalised here.
+        String dir = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
+        example.setOrderByClause(sortColumn + " " + dir);
+        PageHelper.startPage(page, limit);
+        return litemallOrderMapper.selectByExample(example).stream()
+                .map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
+    public long adminCount(String orderSn, List<Short> orderStatus) {
+        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus));
     }
 
     @Override
@@ -196,6 +241,120 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int markPaidIfCreated(LitemallOrderId orderId, String payId) {
+        LocalDateTime now = LocalDateTime.now();
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
+        patch.setPayTime(now);
+        patch.setUpdateTime(now);
+        if (payId != null && !payId.isBlank()) {
+            patch.setPayId(payId);
+        }
+
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode());
+
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
+    /**
+     * Shared helper for the guarded transitions: apply {@code patch} only to a row of
+     * {@code orderId} currently in one of {@code fromStatuses}. Returns rows updated
+     * (1 = applied, 0 = the order had already moved on / a race lost).
+     */
+    private int conditionalTransition(LitemallOrderId orderId, LitemallOrder patch,
+                                      LitemallOrderStatus... fromStatuses) {
+        patch.setUpdateTime(LocalDateTime.now());
+        List<Short> from = Arrays.stream(fromStatuses)
+                .map(LitemallOrderStatus::getCode).collect(Collectors.toList());
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusIn(from);
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
+    @Override
+    public int markCanceledIfCreated(LitemallOrderId orderId) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.CANCELED.getCode());
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.CREATED);
+    }
+
+    @Override
+    public int markSystemCanceledIfCreated(LitemallOrderId orderId) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED.getCode());
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.CREATED);
+    }
+
+    @Override
+    public int markShippedIfPaid(LitemallOrderId orderId, String shipChannel, String shipSn, LocalDateTime shipTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.SHIPPED.getCode());
+        patch.setShipChannel(shipChannel);
+        patch.setShipSn(shipSn);
+        patch.setShipTime(shipTime == null ? LocalDateTime.now() : shipTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.PAID);
+    }
+
+    @Override
+    public int markDeliveredIfShipped(LitemallOrderId orderId, LocalDateTime confirmTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.DELIVERED.getCode());
+        patch.setConfirmTime(confirmTime == null ? LocalDateTime.now() : confirmTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markAutoDeliveredIfShipped(LitemallOrderId orderId, LocalDateTime confirmTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.AUTO_DELIVERED.getCode());
+        patch.setConfirmTime(confirmTime == null ? LocalDateTime.now() : confirmTime);
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markRefundRequestedIfPayable(LitemallOrderId orderId, String refundContent) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.REFUND_REQUEST.getCode());
+        if (refundContent != null) {
+            patch.setRefundContent(refundContent);
+        }
+        return conditionalTransition(orderId, patch,
+                LitemallOrderStatus.PAID, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
+    public int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, LocalDateTime refundTime) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(LitemallOrderStatus.REFUNDED.getCode());
+        if (refundAmount != null) {
+            patch.setRefundAmount(refundAmount);
+        }
+        patch.setRefundTime(refundTime == null ? LocalDateTime.now() : refundTime);
+        patch.setEndTime(LocalDateTime.now());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.REFUND_REQUEST);
+    }
+
+    @Override
+    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setId(orderId.getId());
+        patch.setCjOrderId(cjOrderId);
+        patch.setCjOrderNum(cjOrderNum);
+        if (StringUtils.hasText(shipChannel)) {
+            patch.setShipChannel(shipChannel); // the CJ logistics line; never touches freight_price
+        }
+        patch.setUpdateTime(LocalDateTime.now());
+        return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());
@@ -288,9 +447,12 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setUpdateTime(orderAggregate.getUpdateTime());
         dataModel.setDeleted(orderAggregate.getDeleted());
 
-
-
-        //Other fields should be completed
+        dataModel.setAddressId(orderAggregate.getAddressId() == null
+                ? null : orderAggregate.getAddressId().getId());
+        dataModel.setCountryCode(orderAggregate.getCountryCode());
+        dataModel.setSource(orderAggregate.getSource());
+        dataModel.setCjOrderId(orderAggregate.getCjOrderId());
+        dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
 
         return dataModel;
     }
@@ -307,13 +469,17 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setOrderId(new LitemallOrderId(record.getId()));
         domainModel.setUserId(new LitemallUserId(record.getUserId()));
         domainModel.setOrderSn(record.getOrderSn());
-        domainModel.setOrderStatus(LitemallOrderStatus.valueOf(record.getOrderStatus().toString()));
-        domainModel.setAfterSaleStatus(LitemallAfterSaleStatus.valueOf(record.getAftersaleStatus().toString()));
+        // Map by numeric code, not enum NAME — the column stores the code (e.g. 101),
+        // so valueOf("101") would throw "No enum constant ...101".
+        domainModel.setOrderStatus(LitemallOrderStatus.fromCode(record.getOrderStatus()));
+        domainModel.setAfterSaleStatus(LitemallAfterSaleStatus.fromStatusCode(record.getAftersaleStatus()));
 
 
         domainModel.setConsignee(record.getConsignee());
         domainModel.setMobile(record.getMobile());
-        domainModel.setAddress(addressAggregate.getName());
+        // The flattened shipping address comes from the ROW — reading it off the
+        // fresh (empty) LitemallAddressAggregate above left it null on every load.
+        domainModel.setAddress(record.getAddress());
         domainModel.setMessage(record.getMessage());
 
         domainModel.setGoodsPrice(new LitemallMoney(record.getGoodsPrice()));
@@ -342,7 +508,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setUpdateTime(record.getUpdateTime());
         domainModel.setDeleted(record.getDeleted());
 
-        // Orther fields
+        domainModel.setAddressId(record.getAddressId() == null
+                ? null : new LitemallAddressId(record.getAddressId()));
+        domainModel.setCountryCode(record.getCountryCode());
+        domainModel.setSource(record.getSource());
+        domainModel.setCjOrderId(record.getCjOrderId());
+        domainModel.setCjOrderNum(record.getCjOrderNum());
+
         return  domainModel;
     }
 }

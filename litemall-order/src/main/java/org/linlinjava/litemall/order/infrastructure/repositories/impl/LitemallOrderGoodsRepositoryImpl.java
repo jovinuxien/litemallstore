@@ -84,7 +84,7 @@ public class LitemallOrderGoodsRepositoryImpl implements LitemallOrderGoodsRepos
         if(orderGoodsAggregate.getOrderGoodsId() != null){
             dataModel.setId(orderGoodsAggregate.getOrderGoodsId());
         }
-        dataModel.setOrderId(orderGoodsAggregate.getGoodsId().getId());
+        dataModel.setOrderId(orderGoodsAggregate.getOrderId().getId());// was wrongly set from goodsId
         dataModel.setGoodsId(orderGoodsAggregate.getGoodsId().getId());
         dataModel.setProductId(orderGoodsAggregate.getProductId().getId());
 
@@ -94,7 +94,8 @@ public class LitemallOrderGoodsRepositoryImpl implements LitemallOrderGoodsRepos
         dataModel.setNumber(orderGoodsAggregate.getNumber());
         dataModel.setPrice(orderGoodsAggregate.getPrice().getAmount());
         dataModel.setPicUrl(orderGoodsAggregate.getPicUrl());
-        dataModel.setComment(Integer.valueOf(orderGoodsAggregate.getComment()));
+        dataModel.setComment(orderGoodsAggregate.getComment() == null ? 0 : Integer.valueOf(orderGoodsAggregate.getComment()));
+        dataModel.setSpecifications(orderGoodsAggregate.getSpecifications());// was never mapped → NOT NULL violation
 
         dataModel.setAddTime(orderGoodsAggregate.getAddTime());
         dataModel.setUpdateTime(orderGoodsAggregate.getUpdateTime());
@@ -114,10 +115,14 @@ public class LitemallOrderGoodsRepositoryImpl implements LitemallOrderGoodsRepos
 
         LitemallOrderGoodsAggregate domainModel = new LitemallOrderGoodsAggregate();
 
-        // Relationship mappings
-        domainModel.setOrderId(new LitemallOrderId(record.getId()));
-        domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
-        domainModel.setProductId(new LitemallGoodsProductId(record.getId()));
+        // Relationship mappings — each id from ITS OWN column. These were all read
+        // from the row PK (record.getId()), so every order-goods load carried the
+        // row id as orderId/goodsId/productId; anything keying on them (CJ vid
+        // resolution, stock restore on cancel) hit the wrong product.
+        domainModel.setOrderGoodsId(record.getId());
+        domainModel.setOrderId(new LitemallOrderId(record.getOrderId()));
+        domainModel.setGoodsId(new LitemallGoodsId(record.getGoodsId()));
+        domainModel.setProductId(new LitemallGoodsProductId(record.getProductId()));
 
 
         domainModel.setGoodsSn(record.getGoodsSn());

@@ -47,6 +47,10 @@ module.exports = async () =>
             },
           ],
         },
+        {
+          test: /\.svg$/,
+          use: ['@svgr/webpack'],
+        },
       ],
     },
     optimization: {

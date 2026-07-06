@@ -75,8 +75,16 @@ public class SecurityConfig {
                                 "/srv/cjAuth/**").permitAll()
                         // Admin-only surfaces.
                         .pathMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                        // Order-module admin surface (e.g. order statistics for the
+                        // admin dashboard). Gated to ADMIN so the validated identity
+                        // is relayed downstream; the order service owns the logic.
+                        .pathMatchers("/srv/order/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
                         .pathMatchers("/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
                         .pathMatchers("/srv/private/**").authenticated()
+                        // Wallet ops (balance/debit/recharge/extract) are
+                        // identity-sensitive: require a valid JWT so
+                        // IdentityForwardingFilter injects X-User-* downstream.
+                        .pathMatchers("/srv/wallet/**").authenticated()
                         // SPA client-side routes / remaining static assets.
                         .anyExchange().permitAll())
                 .build();

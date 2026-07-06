@@ -1,0 +1,55 @@
+# Querqy common-rules — curated synonym dictionary for litemall_index.
+#
+# WHY: OCS does not expose an index-time synonym token-filter (the indexer
+# index-settings only carry replica-count/refresh-interval; custom analyzers are
+# not config-reachable). Synonyms are therefore applied at QUERY time by the
+# search-service's QuerqyQueryExpander (wired in application.search-service.yml).
+# This file is mounted into the searcher container at /app/resources/querqy-rules.txt
+# (docker-compose.local.yml). Edits take effect on a searcher restart — no reindex.
+#
+# SYNTAX (Querqy SimpleCommonRules):
+#   <input terms> =>
+#       SYNONYM: <expansion>
+# The left side matches the user's query terms; SYNONYM adds the right side as an
+# additional (OR'd) match clause, so a query for the source term also retrieves
+# products described with the target term.
+#
+# CURATION NOTE: this catalog is a NetEase-Yanxuan clone (home textiles, luggage,
+# kitchenware) — it has NO shoes/phones, so the CLAUDE.md illustrative pairs
+# (sneakers⇒running shoes, phone⇒mobile) are not demonstrable here. The pairs below
+# are tuned to terms that exist in THIS catalog: the source term alone returns ~0 or
+# junk, and the synonym bridges it to real products. Verified counts are in
+# verify/RUNBOOK.md. Keep this list small and curated; expand as the catalog grows.
+
+# luggage / cases — "suitcase" returns 0; the catalog calls them "trolley case" / "luggage"
+suitcase =>
+	SYNONYM: trolley case
+	SYNONYM: luggage
+
+baggage =>
+	SYNONYM: luggage
+	SYNONYM: trolley case
+
+# bedding — "comforter"/"duvet" map to the catalog's "quilt"
+comforter =>
+	SYNONYM: quilt
+
+duvet =>
+	SYNONYM: quilt
+
+# seating — "couch" returns mostly junk; the catalog calls them "sofa"
+couch =>
+	SYNONYM: sofa
+
+# textiles — common shopper vocabulary that maps onto catalog terms
+cushion =>
+	SYNONYM: pillow
+
+throw =>
+	SYNONYM: blanket
+
+# generic e-commerce pairs that also resolve in this catalog
+mobile =>
+	SYNONYM: phone
+sneakers =>
+	SYNONYM: running shoes

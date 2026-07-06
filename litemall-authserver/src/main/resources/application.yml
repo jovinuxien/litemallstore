@@ -1,6 +1,19 @@
 server:
   port: 8089
 
+# This server holds no persistent state — registered clients are in-memory and
+# the signing key is PEM/ephemeral. It depends on litemall-db only for the
+# shared JwtProperties/RsaKeys types, which transitively drags in Druid + JDBC +
+# Flyway. Disable those datastore auto-configurations so the app starts without
+# a database (otherwise: "Failed to determine a suitable driver class").
+spring:
+  autoconfigure:
+    exclude:
+      - com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceAutoConfigure
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
 # Machine-token realm. Distinct issuer from the customer/admin EDGE realms:
 # this signs service-to-service client_credentials tokens only. RS256; the
 # public key is published at /oauth2/jwks for the resource servers.

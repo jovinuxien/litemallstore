@@ -1,56 +1,59 @@
 package org.linlinjava.litemall.goods.infrastructure.acl.ocs;
 
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Collections;
+import java.time.Duration;
 import java.util.Map;
 
 /**
- * ACL adapter to the OCS searcher REST service (port 8534 by default).
- * Returns the raw response map; mapping to the goods-list DTO happens
- * outside this adapter.
+ * OCS search-service REST adapter. The OCS search service exposes
+ * {@code GET /search-api/v1/search/<index>?q=<query>&offset=&limit=&sort=&<facetField>=<value>}
+ * (and the suggest service is wrapped separately by {@link OcsSuggestClient}). The response
+ * is the OCS {@code SearchResult} JSON; callers map it to their own DTO.
  *
- * <p><b>API contract — runtime verification needed.</b> Assumed
- * {@code GET {search-url}/search/{index-name}?q={query}&offset={offset}&limit={limit}}.
+ * <p>Filter and sort syntax verified against the live searcher: term filter {@code brand=<value>}
+ * (multi-select = comma-joined in ONE param, OR semantics), interval filter {@code price=<min>,<max>},
+ * category filter {@code category_ids=<id>}/{@code category_names=<name>}; sort {@code sort=<field>}
+ * ascending, {@code sort=-<field>} descending. Filter keys are whitelisted by the caller.
  */
 @Component
 public class OcsSearchClient {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(OcsSearchClient.class);
-
-    // See OcsIndexerClient — owned per-client to avoid bean conflict with the
-    // shared core RestTemplate.
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
     private final LitemallSearchProperties properties;
 
-    public OcsSearchClient(LitemallSearchProperties properties) {
+    public OcsSearchClient(LitemallSearchProperties properties, RestTemplateBuilder builder) {
         this.properties = properties;
+        this.restTemplate = builder
+                .rootUri(properties.getSearchUrl())
+                .setConnectTimeout(Duration.ofSeconds(3))
+                .setReadTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
-    /**
-     * TODO: verify exact path + query-parameter names against OCS OpenAPI
-     * doc at runtime.
-     */
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> search(String query, int offset, int limit) {
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getSearchUrl())
-                .pathSegment("search", properties.getIndexName())
-                .queryParam("q", query)
+    public OcsSearchResult search(String query, int offset, int size, String sort, Map<String, String> filters) {
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromPath("/search-api/v1/search/{index}")
+                .queryParam("q", query == null ? "" : query)
                 .queryParam("offset", offset)
-                .queryParam("limit", limit)
-                .toUriString();
-        try {
-            return restTemplate.getForObject(url, Map.class);
-        } catch (RestClientException e) {
-            LOGGER.warn("OCS search failed for q={} ({}): {}", query, url, e.getMessage());
-            return Collections.emptyMap();
+                .queryParam("limit", size);
+        if (sort != null && !sort.isBlank()) {
+            builder.queryParam("sort", sort);
         }
+        if (filters != null) {
+            for (Map.Entry<String, String> filter : filters.entrySet()) {
+                if (filter.getValue() != null && !filter.getValue().isBlank()) {
+                    builder.queryParam(filter.getKey(), filter.getValue());
+                }
+            }
+        }
+        // Keep a String template so the RestTemplate's rootUri (the search host) is applied and the
+        // template+values are encoded; passing a pre-built URI would bypass rootUri (see OcsSuggestClient).
+        String uri = builder.build().toUriString();
+        return restTemplate.getForObject(uri, OcsSearchResult.class, properties.getIndexName());
     }
 }

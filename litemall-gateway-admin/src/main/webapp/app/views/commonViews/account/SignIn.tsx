@@ -1,29 +1,23 @@
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'app/sass/adminSass/litemall/admin-theme.scss';
+
 import React, { lazy } from 'react';
-import { Link } from 'react-router-dom';
 const SignInForm = lazy(() => import('../../../components/userComponents/account/SignInForm'));
 
-const SignInView: React.FC = () => {
-  const onSubmit = async values => {
-    alert(JSON.stringify(values));
-  };
-  return (
-    <div className='container my-3'>
-      <div className='row border'>
-        <div className='col-md-6 bg-light bg-gradient p-3 d-none d-md-block'>
-          <Link to='/'>
-            <img src='../../images/banner/Dell.webp' alt='...' className='img-fluid' />
-          </Link>
-          <Link to='/'>
-            <img src='../../images/banner/Laptops.webp' alt='...' className='img-fluid' />
-          </Link>
-        </div>
-        <div className='col-md-6 p-3'>
-          <h4 className='text-center'>Sign In</h4>
-          <SignInForm />
-        </div>
-      </div>
+// Admin sign-in, styled to the upstream litemall-admin login: a centered card on
+// the dark menu-color backdrop. The form (SignInForm) dispatches `loginAdmin`
+// against the edge `/auth/login` and, on success, routes to `/admin` — auth flow
+// unchanged.
+const SignInView: React.FC = () => (
+  <div className='lm-login'>
+    <div className='lm-login-card'>
+      <h4 className='lm-login-title'>litemall admin</h4>
+      <div className='lm-login-sub'>Sign in to the management console</div>
+      <React.Suspense fallback={<div className='text-center text-muted'>Loading…</div>}>
+        <SignInForm />
+      </React.Suspense>
     </div>
-  );
-};
+  </div>
+);
 
 export default SignInView;

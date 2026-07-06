@@ -36,6 +36,14 @@ export interface IGood {
   salesQuantity?: number | null;
   status?: ProductStatus | null;
   length?: number | null;
+
+  // Admin-list extras surfaced by goods-management (/srv/private/admin/goods).
+  // Optional: exact shape is owned by the goods-management worktree.
+  brand?: string | null;
+  categoryNames?: string[] | null;
+  // Summed SKU stock for the row's low-stock marker, when the list endpoint
+  // provides it (otherwise derived from the detail's ProductList).
+  stock?: number | null;
 }
 
 export const defaultValue: Readonly<IGood> = {

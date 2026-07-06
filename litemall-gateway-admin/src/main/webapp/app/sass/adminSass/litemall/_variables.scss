@@ -1,0 +1,38 @@
+// litemall-admin (vue-element-admin) theme palette, ported verbatim from the
+// upstream src/styles/variables.scss + element-variables so the React admin
+// reproduces the original look. Single source of truth for the shell + theme.
+
+// base color
+$lm-blue:       #324157;
+$lm-light-blue: #3A71A8;
+$lm-red:        #C03639;
+$lm-pink:       #E65D6E;
+$lm-green:      #30B08F;
+$lm-tiffany:    #4AB7BD;
+$lm-yellow:     #FEC171;
+
+// Element primary / status (used for buttons, tags, links)
+$lm-primary: #409EFF;
+$lm-success: #67C23A;
+$lm-warning: #E6A23C;
+$lm-danger:  #F56C6C;
+$lm-info:    #909399;
+
+// sidebar (dark) — exact upstream values
+$lm-menu-text:            #bfcbd9;
+$lm-menu-active-text:     #409EFF;
+$lm-sub-menu-active-text: #f4f4f5;
+$lm-menu-bg:              #304156;
+$lm-menu-hover:           #263445;
+$lm-sub-menu-bg:          #1f2d3d;
+$lm-sub-menu-hover:       #001528;
+
+// dimensions
+$lm-sidebar-width:           210px;
+$lm-sidebar-collapsed-width: 54px;
+$lm-navbar-height:           50px;
+$lm-tags-view-height:        34px;
+
+// content surface
+$lm-content-bg: #f0f2f5;
+$lm-border:     #dfe6ec;

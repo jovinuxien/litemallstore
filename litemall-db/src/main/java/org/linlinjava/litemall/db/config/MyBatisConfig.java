@@ -25,6 +25,15 @@ public class MyBatisConfig{
         // Add location for your XML mapper files if needed
         factoryBean.setMapperLocations(new PathMatchingResourcePatternResolver()
                 .getResources("classpath:org/linlinjava/litemall/db/dao/*.xml"));
+        // This custom factory bean makes mybatis-spring-boot-autoconfigure back off, so the
+        // `mybatis.configuration.map-underscore-to-camel-case: true` declared in application-db.yml
+        // is NEVER applied. Set it on the Configuration explicitly so hand-written resultType
+        // mappers (e.g. LitemallCjProductMapper) bind snake_case columns like image_url -> imageUrl
+        // and discount_price -> discountPrice. Generated mappers use explicit <resultMap>s and are
+        // unaffected either way.
+        org.apache.ibatis.session.Configuration configuration = new org.apache.ibatis.session.Configuration();
+        configuration.setMapUnderscoreToCamelCase(true);
+        factoryBean.setConfiguration(configuration);
         return factoryBean;
     }
 

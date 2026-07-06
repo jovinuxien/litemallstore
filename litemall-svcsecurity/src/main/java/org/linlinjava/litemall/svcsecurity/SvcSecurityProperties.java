@@ -22,6 +22,9 @@ public class SvcSecurityProperties {
             "/actuator/health/**",
             "/srv/authenticate/**",
             "/srv/catalog/**",
+            "/srv/goods/**",
+            "/srv/search/**",
+            "/srv/suggest/**",
             "/srv/cjAuth/**");
 
     /** Paths requiring the forwarded end-user to be an admin (ROLE_ADMIN). */

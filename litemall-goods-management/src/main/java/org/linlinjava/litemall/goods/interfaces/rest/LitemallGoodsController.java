@@ -9,7 +9,13 @@ import org.linlinjava.litemall.core.util.ApiResponse;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
+import org.linlinjava.litemall.db.service.LitemallAdService;
+import org.linlinjava.litemall.db.service.LitemallCategoryService;
+import org.linlinjava.litemall.db.service.LitemallCouponService;
+import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
+import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
+import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.ReduceStockRequest;
@@ -44,7 +50,23 @@ public class LitemallGoodsController {
     private LitemallCatalogService categoryServiceApi;
     @Autowired
     private LitemallGoodsManagementService goodsManagementService;
-    
+    @Autowired
+    private CjGoodsDetailService cjGoodsDetailService;
+    @Autowired
+    private SearchService searchService;
+    // Batched per-goods review stats (star avg + count) decorating the listing surfaces.
+    @Autowired
+    private CommentStatsService commentStatsService;
+
+    // Home-page marketing data sourced from litemall-db (mirrors the monolith's
+    // WxHomeController): banners (ads), channels (channel categories), coupons.
+    @Autowired
+    private LitemallAdService adService;
+    @Autowired
+    private LitemallCategoryService categoryService;
+    @Autowired
+    private LitemallCouponService couponService;
+
     @Autowired
     private MessageProducer messageProducer;
 
@@ -60,21 +82,16 @@ public class LitemallGoodsController {
     @GetMapping("/index")
     public Object index(){
 
-        /*Callable<List> bannerListCallable = () -> adService.queryIndex();
+        Callable<List> bannerListCallable = () -> adService.queryIndex();
 
         Callable<List> channelListCallable = () -> categoryService.queryChannel();
 
-        Callable<List> couponListCallable;
-        if(userId == null){
-            couponListCallable = () -> couponService.queryList(0, 3);
-        } else {
-            couponListCallable = () -> couponService.queryAvailableList(userId,0, 3);
-        }*/
+        // Public home payload: top coupons available to claim (no logged-in user here).
+        Callable<List> couponListCallable = () -> couponService.queryList(0, 3);
 
+        Callable<List> newGoodsListCallable = () -> goodsManagementService.goodsByNew(0, SystemConfig.getNewLimit());
 
-        Callable<List> newGoodsListCallable = () -> goodsManagementService.goodsByHot(0, SystemConfig.getNewLimit());
-
-        Callable<List> hotGoodsListCallable = () -> goodsManagementService.goodsByNew(0, SystemConfig.getHotLimit());
+        Callable<List> hotGoodsListCallable = () -> goodsManagementService.goodsByHot(0, SystemConfig.getHotLimit());
 
         //Callable<List> brandListCallable = () -> brandService.query(0, SystemConfig.getBrandLimit());
 
@@ -84,9 +101,9 @@ public class LitemallGoodsController {
         //Callable<List> grouponListCallable = () -> grouponService.queryList(0, 5);
 
         //Callable<List> floorGoodsListCallable = this::getCategoryList;
-        //FutureTask<List> bannerTask = new FutureTask<>(bannerListCallable);
-        //FutureTask<List> channelTask = new FutureTask<>(channelListCallable);
-        //FutureTask<List> couponListTask = new FutureTask<>(couponListCallable);
+        FutureTask<List> bannerTask = new FutureTask<>(bannerListCallable);
+        FutureTask<List> channelTask = new FutureTask<>(channelListCallable);
+        FutureTask<List> couponListTask = new FutureTask<>(couponListCallable);
         FutureTask<List> newGoodsListTask = new FutureTask<>(newGoodsListCallable);
         FutureTask<List> hotGoodsListTask = new FutureTask<>(hotGoodsListCallable);
         //FutureTask<List> brandListTask = new FutureTask<>(brandListCallable);
@@ -94,9 +111,9 @@ public class LitemallGoodsController {
         //FutureTask<List> grouponListTask = new FutureTask<>(grouponListCallable);
         //FutureTask<List> floorGoodsListTask = new FutureTask<>(floorGoodsListCallable);
 
-        /*executorService.submit(bannerTask);
+        executorService.submit(bannerTask);
         executorService.submit(channelTask);
-        executorService.submit(couponListTask);*/
+        executorService.submit(couponListTask);
         executorService.submit(newGoodsListTask);
         executorService.submit(hotGoodsListTask);
         /*executorService.submit(brandListTask);
@@ -106,9 +123,9 @@ public class LitemallGoodsController {
 
         Map<String, Object> entity = new HashMap<>();
         try {
-           /* entity.put("banner", bannerTask.get());
+            entity.put("banner", bannerTask.get());
             entity.put("channel", channelTask.get());
-            entity.put("couponList", couponListTask.get());*/
+            entity.put("couponList", couponListTask.get());
             entity.put("newGoodsList", newGoodsListTask.get());
             entity.put("hotGoodsList", hotGoodsListTask.get());
             /*entity.put("brandList", brandListTask.get());
@@ -151,29 +168,70 @@ public class LitemallGoodsController {
             @Sort(accepts = {"add_time", "retail_price", "name"}) @RequestParam(defaultValue = "add_time") String sort,
             @Order @RequestParam(defaultValue = "desc") String order
     ) {
+        // Customer browse routes through the unified OCS index so the listing spans BOTH local and CJ
+        // products and carries the same facets/aggregations as /srv/search. brandId / isNew / isHot are
+        // local-only signals with no indexed field, so a request constrained by them (or an OCS outage)
+        // falls back to the local-DB path below.
+        boolean ocsServable = brandId == null && !Boolean.TRUE.equals(isNew) && !Boolean.TRUE.equals(isHot);
+        if (ocsServable) {
+            try {
+                Map<String, String> filters = new HashMap<>();
+                if (categoryId != null) {
+                    filters.put("category_ids", String.valueOf(categoryId));
+                }
+                Map<String, Object> result = searchService.search(keyword, page, limit, ocsSort(sort, order), filters);
+
+                Map<String, Object> entity = new HashMap<>();
+                entity.put("list", result.get("goodsList"));   // legacy key; unified local+CJ hit list
+                entity.put("total", result.get("total"));
+                entity.put("page", result.get("page"));
+                entity.put("limit", result.get("limit"));
+                entity.put("pages", result.get("totalPages"));
+                entity.put("filters", result.get("filters"));  // OCS facets/aggregations (new)
+                entity.put("filterCategoryList", null);
+                entity.put("source", "ocs");
+                return ResponseUtil.ok(entity);
+            } catch (RuntimeException ex) {
+                // OCS unavailable — degrade to the local-DB listing rather than failing the page.
+            }
+        }
+
         LitemallCategoryId catId = categoryId != null ? new LitemallCategoryId(categoryId) : null;
         LitemallManufacturerId manufacturerId = brandId != null ? new LitemallManufacturerId(brandId) : null;
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsBySelective(catId, manufacturerId, keyword, isHot, isNew, page, limit, sort);
 
-        List<Integer> goodsCatsId = goodsServiceApi.getCatIds(brandId, keyword, isHot, isNew);
-        List<LitemallCategoryAggregate> catList = null;
-
-        /*if(goodsCatsId!= null &&! goodsCatsId.isEmpty()){
-            catList = categoryServiceApi.getSecondLevelCategories(goodsCatsId);
-        }*/
-
-        //System.out.println("the goodsList are: " + goodsList.stream().map(LitemallGoodsAggregate::getDetail).toList());
         PageInfo<LitemallGoodsAggregate> pagedList = PageInfo.of(goodsList);
 
         Map<String, Object> entity = new HashMap<>();
-        entity.put("list", goodsList);
+        entity.put("list", commentStatsService.withStats(goodsList));
         entity.put("total", pagedList.getTotal());
         entity.put("page", pagedList.getPageNum());
         entity.put("limit", pagedList.getPageSize());
         entity.put("pages", pagedList.getPages());
-        entity.put("filterCategoryList", catList);
+        entity.put("filterCategoryList", null);
+        entity.put("source", "db");
 
         return ResponseUtil.ok(entity);
+    }
+
+    /**
+     * Map the local browse {@code sort}/{@code order} onto the OCS sort syntax ({@code field} asc,
+     * {@code -field} desc). Only fields that exist in {@code litemall_index} are mappable; {@code add_time}
+     * has no indexed counterpart, so it yields {@code null} (OCS default relevance ordering).
+     */
+    private String ocsSort(String sort, String order) {
+        if (sort == null) {
+            return null;
+        }
+        String field = switch (sort) {
+            case "retail_price" -> "price";
+            case "name" -> "title";
+            default -> null; // add_time and anything else → default OCS ordering
+        };
+        if (field == null) {
+            return null;
+        }
+        return "desc".equalsIgnoreCase(order) ? "-" + field : field;
     }
 
     @GetMapping("by-category")
@@ -189,8 +247,7 @@ public class LitemallGoodsController {
 
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("currentCategory", currentCategory);
-        data.put("goodsCategory", goodsByCategory);
-        System.out.println("the data are: " + data);
+        data.put("goodsCategory", commentStatsService.withStats(goodsByCategory));
         return ResponseUtil.ok(data);
     }
 
@@ -201,8 +258,15 @@ public class LitemallGoodsController {
      * @return Recommended products on product details page
      */
     @GetMapping("related")
-    public Object related(@NotNull Integer id) {
-        LitemallGoodsId goodsId = new LitemallGoodsId(id);
+    public Object related(@NotBlank String id) {
+        // CJ Dropshipping products carry a cj_<uuid> id and are OCS-only (no
+        // litemall_goods row, no local category), so the category-based
+        // recommendation can't run for them. Return an empty related list
+        // instead of 400ing on the non-numeric id (mirrors /detail's cj branch).
+        if (CjGoodsDetailService.isCjId(id)) {
+            return ResponseUtil.okList(java.util.Collections.emptyList());
+        }
+        LitemallGoodsId goodsId = new LitemallGoodsId(Integer.valueOf(id.trim()));
         LitemallGoodsAggregate goods = goodsServiceApi.getGoodsById(goodsId);
         if (goods == null) {
             return ResponseUtil.badArgumentValue();
@@ -214,13 +278,19 @@ public class LitemallGoodsController {
         // Find six related products
         int related = 6;
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsByCategoryId(cid, 0, related);
-        return ResponseUtil.okList(goodsList);
+        return ResponseUtil.okList(commentStatsService.withStats(goodsList));
     }
 
 
     @GetMapping("/detail")
-    public Object privateGoodsDetails(@NotNull Integer id) {
-        LitemallGoodsId goodsId = new LitemallGoodsId(id);
+    public Object privateGoodsDetails(@NotBlank String id) {
+        // CJ Dropshipping products carry a cj_<uuid> id (not numeric) and live in OCS only — they
+        // have no litemall_goods row, so the DB aggregation can't serve them. Route those to the
+        // live CJ detail fetch; everything else is a local numeric goods id.
+        if (CjGoodsDetailService.isCjId(id)) {
+            return cjGoodsDetailService.detail(id);
+        }
+        LitemallGoodsId goodsId = new LitemallGoodsId(Integer.valueOf(id.trim()));
         return goodsManagementService.goodsDetail(goodsId, executorService, HANDLER, WORK_QUEUE);
     }
 
@@ -254,6 +324,12 @@ public class LitemallGoodsController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
+
+    /** Total on-sale goods count (litemall-wx-api {@code /wx/goods/count} parity); anonymous. */
+    @GetMapping("/count")
+    public Object count() {
+        return ResponseUtil.ok(goodsServiceApi.getGoodsOnSale());
+    }
 
     @GetMapping("/goodsdetail")
     public Object getGoodsDetail(@NotNull Integer id) {

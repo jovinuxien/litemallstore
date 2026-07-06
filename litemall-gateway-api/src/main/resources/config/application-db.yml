@@ -1,0 +1,16 @@
+# gateway-api override for the shared `db` profile.
+#
+# litemall-db's application-db.yml (profile `db`, on the classpath root) enables
+# Flyway. Because that file is profile-specific, it overrides the base
+# application.yml's `spring.flyway.enabled: false`, so the reactive customer edge
+# would run DB migrations on boot and die on any cross-branch checksum drift
+# (e.g. the promotion V17 / CJ V19 collision).
+#
+# This file sits in the app's classpath:/config/ location (higher precedence than
+# the dependency jar's classpath:/application-db.yml) and re-asserts the gateway
+# stance: the edge owns NO migrations — the DDD services / db module do. The Druid
+# datasource + MyBatis from litemall-db still load (needed for db.auth); only
+# Flyway is turned off here.
+spring:
+  flyway:
+    enabled: false

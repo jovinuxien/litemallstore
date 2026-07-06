@@ -38,6 +38,8 @@ public class LitemallGoodsAggregate {
     private LocalDateTime updateTime;
     private boolean deleted;
     private String detail;
+    /** Catalog origin: 'local' or 'cj' (CJ Dropshipping). Lets the storefront flag a line as CJ at checkout. */
+    private String source;
 
 
 

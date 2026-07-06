@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Optional;
 
-@SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.db", "org.linlinjava.litemall.core"})
+@SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.order", "org.linlinjava.litemall.db", "org.linlinjava.litemall.core"})
 //@MapperScan("org.linlinjava.litemall.db.dao")
 @EnableFeignClients
 @EnableScheduling

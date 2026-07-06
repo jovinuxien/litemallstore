@@ -50,15 +50,8 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
     @Override
     public List<LitemallCartAggregate> findByUserId(LitemallUserId userId) {
         LitemallCartExample example = new LitemallCartExample();
-        example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        example.or().andIdEqualTo(userId.getId()).andDeletedEqualTo(false);
         return cartMapper.selectByExample(example).stream().map(this::convertToDomainModel).toList();
-    }
-
-    @Override
-    public int update(LitemallCartAggregate cart) {
-        LitemallCart record = convertToDataModel(cart);
-        record.setUpdateTime(LocalDateTime.now());
-        return cartMapper.updateByPrimaryKeySelective(record);
     }
 
     @Override
@@ -104,19 +97,55 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
         return convertToDomainModel(cartMapper.selectOneByExample(example));
     }
 
+    @Override
+    public List<LitemallCartAggregate> findAllActiveByUserId(LitemallUserId userId) {
+        LitemallCartExample example = new LitemallCartExample();
+        example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        return cartMapper.selectByExample(example).stream().map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
+    public LitemallCartAggregate findActiveById(LitemallCartId id) {
+        LitemallCartExample example = new LitemallCartExample();
+        example.or().andIdEqualTo(id.getId()).andDeletedEqualTo(false);
+        return convertToDomainModel(cartMapper.selectOneByExample(example));
+    }
+
+    @Override
+    public void update(LitemallCartAggregate cart) {
+        LitemallCart record = convertToDataModel(cart);
+        record.setUpdateTime(LocalDateTime.now());
+        cartMapper.updateByPrimaryKeySelective(record);
+    }
+
+    @Override
+    public void clearAllByUserId(LitemallUserId userId) {
+        LitemallCartExample example = new LitemallCartExample();
+        example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
+        LitemallCart cart = new LitemallCart();
+        cart.setDeleted(true);
+        cart.setUpdateTime(LocalDateTime.now());
+        cartMapper.updateByExampleSelective(cart, example);
+    }
+
     /**
      *    --------- Block of utility methods -----------------
      */
     public LitemallCart convertToDataModel(LitemallCartAggregate cartAggregate) {
         LitemallCart dataModel = new LitemallCart();
 
-        if(cartAggregate.getCartId().getId() != null){
+        // A freshly-built cart line (legacy /srv/cart/add, /cart/items) has no cartId
+        // yet — leave the PK unset so insertSelective auto-increments. Only carry an
+        // explicit id through on update. (Previously this NPE'd on every brand-new line.)
+        if(cartAggregate.getCartId() != null && cartAggregate.getCartId().getId() != null){
             dataModel.setId(cartAggregate.getCartId().getId());
         }
         dataModel.setUserId(cartAggregate.getUserId().getId());
         dataModel.setProductId(cartAggregate.getProductId().getId());
         dataModel.setGoodsId(cartAggregate.getGoodsId().getId());
 
+        dataModel.setGoodsSn(cartAggregate.getGoodsSn());
+        dataModel.setGoodsName(cartAggregate.getGoodsName());
         dataModel.setPrice(cartAggregate.getPrice().getAmount());
         dataModel.setNumber(cartAggregate.getNumber().shortValue());
         dataModel.setSpecifications(cartAggregate.getSpecifications());
@@ -141,9 +170,9 @@ public class LitemallCartRepositoryImpl implements LitemallCartRepository {
 
         // Relationship mappings
         domainModel.setCartId(new LitemallCartId(record.getId()));
-        domainModel.setUserId(new LitemallUserId(record.getId()));
-        domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
-        domainModel.setProductId(new LitemallGoodsProductId(record.getId()));
+        domainModel.setUserId(new LitemallUserId(record.getUserId()));
+        domainModel.setGoodsId(new LitemallGoodsId(record.getGoodsId()));
+        domainModel.setProductId(new LitemallGoodsProductId(record.getProductId()));
 
 
         domainModel.setGoodsSn(record.getGoodsSn());
