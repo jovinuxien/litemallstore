@@ -44,12 +44,14 @@ public class LitemallAddressServiceLayer {
      * at most one address is ever the default. Returns the persisted id (the SPA
      * passes it straight to {@code /srv/order/submit}).
      *
-     * @throws IllegalArgumentException if updating an address the user does not own
+     * @throws IllegalArgumentException if a required field is blank, the postal
+     *         code is too long, or an update targets an address the user does not own
      */
     @Transactional
     public Integer save(LitemallUserId userId, LitemallAddressAggregate address) {
         // Authoritative owner is the header user, never anything in the payload.
         address.setUserId(userId);
+        normalize(address);
 
         if (Boolean.TRUE.equals(address.getIsDefault())) {
             addressRepository.resetDefaultAddress(userId);
@@ -67,6 +69,50 @@ public class LitemallAddressServiceLayer {
 
         addressRepository.insertAddress(address);
         return address.getAddressId() != null ? address.getAddressId().getId() : null;
+    }
+
+    /**
+     * Reject unusable payloads with a message the customer can act on, and fill
+     * the columns litemall_address declares NOT NULL without a default
+     * (province/city/county) the way the storefront form intends: the region is
+     * mandatory, the kommune/county is optional and falls back to the region /
+     * empty string. Without this, a missing county surfaced as a raw errno-502
+     * "System internal error" at checkout.
+     */
+    private void normalize(LitemallAddressAggregate address) {
+        if (isBlank(address.getName())) {
+            throw new IllegalArgumentException("Recipient name is required");
+        }
+        if (isBlank(address.getProvince())) {
+            throw new IllegalArgumentException("Region is required");
+        }
+        if (isBlank(address.getAddressDetail())) {
+            throw new IllegalArgumentException("Street address is required");
+        }
+        address.setName(address.getName().trim());
+        address.setProvince(address.getProvince().trim());
+        address.setAddressDetail(address.getAddressDetail().trim());
+        address.setCity(isBlank(address.getCity()) ? address.getProvince() : address.getCity().trim());
+        address.setCounty(isBlank(address.getCounty()) ? "" : address.getCounty().trim());
+        address.setTel(address.getTel() == null ? "" : address.getTel().trim());
+        if (address.getPostalCode() != null) {
+            String postalCode = address.getPostalCode().trim();
+            if (postalCode.length() > 20) {
+                throw new IllegalArgumentException("Postal code is too long (max 20 characters)");
+            }
+            address.setPostalCode(postalCode);
+        }
+        if (address.getAreaCode() != null) {
+            String areaCode = address.getAreaCode().trim();
+            if (areaCode.length() > 20) {
+                throw new IllegalArgumentException("Area code is too long (max 20 characters)");
+            }
+            address.setAreaCode(areaCode);
+        }
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     /**
