@@ -20,7 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
  * arrays, snake/camel field names). Every call carries a machine token added by
  * {@link FeignConfig#goodsMachineTokenInterceptor}.
  */
-@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class)
+@FeignClient(name = "goods-service", url = "${goods.service.url}", configuration = FeignConfig.class,
+        fallbackFactory = GoodsServiceFeignClientFallbackFactory.class)
 public interface GoodsServiceFeignClient {
 
     /** GET /srv/goods/goodsdetail?id={goodsId} → the goods aggregate (raw JSON). */

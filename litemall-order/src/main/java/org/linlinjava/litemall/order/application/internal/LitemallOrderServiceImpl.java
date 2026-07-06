@@ -615,7 +615,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         AggregatesValidationContext context = loadAggregatesValidationContext(cartList);
 
         if (!context.isValidForValidation()) {
-            throw new RuntimeException("Failed to load required product data for validation");
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "failed to load required product data for stock validation");
         }
 
         // STEP 2: Validate stock for all items
@@ -719,7 +720,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if (!outOfStockItems.isEmpty()) {
             String errorMessage = "Insufficient stock for products:\n" +
                     String.join("\n", outOfStockItems);
-            throw new RuntimeException(errorMessage);
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException(errorMessage);
         }
     }
 
@@ -744,7 +745,21 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 .toList();
 
         if (!failedReductions.isEmpty()) {
-            throw new RuntimeException("Stock reduction failed/unconfirmed for product IDs: " + failedReductions);
+            // Any product that DID confirm is now an orphaned remote decrement: the
+            // compensating restore is a known no-op (goods-management has no restore
+            // endpoint — see docs/handoff-goods-management-defects.md Defect 3), so
+            // record the exact ledger for ops reconciliation before aborting.
+            Map<Integer, Integer> confirmedReductions = productQuantities.entrySet().stream()
+                    .filter(e -> Boolean.TRUE.equals(reduceResults.get(e.getKey())))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (!confirmedReductions.isEmpty()) {
+                log.error("Partial stock reservation: products {} were decremented in "
+                        + "goods-management but the placement is aborting (failed: {}). "
+                        + "Compensation is a no-op — reconcile manually (productId -> qty): {}",
+                        confirmedReductions.keySet(), failedReductions, confirmedReductions);
+            }
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "stock reservation unconfirmed for product IDs " + failedReductions);
         }
 
         // The remote reserve has now committed in goods-management. If THIS local

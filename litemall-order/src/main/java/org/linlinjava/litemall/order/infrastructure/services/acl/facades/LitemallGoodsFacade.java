@@ -40,6 +40,12 @@ public interface LitemallGoodsFacade {
      * Reserve/reduce stock for the given product ids → requested quantities, issued
      * as one {@code /srv/goods/stock/reduce} call per product. Returns a per-product
      * success map. Empty input → empty map.
+     *
+     * <p><strong>NOT atomic across products:</strong> with no remote batch reduce, a
+     * mid-loop failure leaves earlier products decremented (and {@link #restoreStock}
+     * cannot undo them) — the caller must treat any {@code false}/missing entry as a
+     * failed reservation, abort the placement, and log the confirmed entries for
+     * reconciliation (see docs/adr-goods-acquisition.md, "Actual reserve guarantee").
      */
     Map<Integer, Boolean> reduceStock(Map<Integer, Integer> productQuantities);
 
