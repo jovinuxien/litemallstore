@@ -62,7 +62,7 @@ public class LitemallPromotionRestController {
     @PostMapping("/seckill/{seckillId}/join")
     public ResponseEntity<PromotionOperationDtoResponse> joinSeckill(
             @PathVariable Integer seckillId,
-            @RequestHeader Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody LitemallJoinSeckillCommand command) {
 
         command.setSeckillId(new LitemallSeckillId(seckillId));
@@ -97,7 +97,7 @@ public class LitemallPromotionRestController {
     @PostMapping("/bargain/{bargainId}/start")
     public ResponseEntity<PromotionOperationDtoResponse> startBargain(
             @PathVariable Integer bargainId,
-            @RequestHeader Integer userId) {
+            @RequestHeader("X-User-Id") Integer userId) {
 
         LitemallCreateBargainSessionCommand command = new LitemallCreateBargainSessionCommand(
                 new LitemallUserId(userId),
@@ -108,10 +108,12 @@ public class LitemallPromotionRestController {
         return buildResponse(result);
     }
 
+    // The helper's identity is the caller's own forwarded identity — a helper
+    // can only ever help as themself.
     @PostMapping("/bargain/session/{bargainUserId}/help")
     public ResponseEntity<PromotionOperationDtoResponse> helpBargain(
             @PathVariable Integer bargainUserId,
-            @RequestHeader Integer helperId) {
+            @RequestHeader("X-User-Id") Integer helperId) {
 
         LitemallBargainUserId bargainUserIdVO = new LitemallBargainUserId(bargainUserId);
 
