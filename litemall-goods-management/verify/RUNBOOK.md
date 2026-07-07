@@ -947,3 +947,56 @@ search: q=pumps → 24 hits ; /srv/search/category/1036342 (Pumps) → 10 hits,
   reindex paging fix serves live (coordinate the jar swap with any session running from main).
 - SPA zero-count leaf hiding is moot while 540/540 are populated; `goodsCounts` on `/srv/catalog/all`
   already carries the data if it recurs (gateway-api concern).
+
+---
+
+## §21 — Engagement verticals: collect / footprint / feedback / comment-post (2026-07-07)
+
+New Wave-2 task (CLAUDE.md): the customer SPA already calls `/srv/collect/**`, `/srv/footprint/**`,
+`/srv/feedback/**`, `/srv/comment/post` behind an `isMissingEndpoint` guard; the backends did not
+exist. Built them over the legacy tables (`litemall_collect`/`footprint`/`feedback`/`comment`) — no
+new migrations. Identity is the gateway-injected `X-User-Id` on every customer endpoint (cart-IDOR
+rule); a numeric goods id OR `cj_<pid>` reference is accepted and resolved to the promoted native
+goods row via `LitemallCjLinkageMapper.findGoodsIdByCjPid` (new `EngagementGoodsResolver`).
+
+**New code.** `application/engagement/{EngagementGoodsResolver,CollectService,FootprintService,
+FeedbackService}`, `application/comment/CommentPostService`, controllers
+`interfaces/rest/{LitemallCollectController,LitemallFootprintController,LitemallFeedbackController}`
++ `POST /post` on the existing `LitemallCommentController`, admin `interfaces/rest/admin/
+AdminEngagementController` (`/srv/private/admin/{collect,footprint,feedback}/list`). Added
+`UserContext.getUserIdAsInt()`. Purchase check for reviews: v1 trusts the authenticated user
+(no order facade in goods-management — order-worktree follow-up); documented in
+`docs/handoff-engagement-endpoints.md`.
+
+**Verified LIVE** — worktree exec jar on `:8093` (`dummy storage` + `refresh-on-startup=false`,
+profile `dev,db,core,admin,wx,verify`), shared MySQL + OCS stack, as `user123` (id 1):
+```
+unauth (no X-User-Id) GET /srv/collect/list           -> {errno:501,"Please log in"}
+collect add 1009009 -> collected:true ; add cj_04A66F1D... -> resolved valueId 10000516, collected:true
+collect list        -> 2 rows goods-enriched {id,type,valueId,name,brief,picUrl,retailPrice}, total 2
+collect toggle 1009009 -> collected:false ; list -> total 1 (only 10000516)  [toggle semantics]
+footprint record 1009009 + cj_04A66F1D... + 1009009-again -> list total 2  [same-day dedupe holds]
+footprint delete id 3 (mine) -> ok ; delete id 3 again -> 402
+feedback submit {content,type,mobile} -> ok ; missing content -> 402
+comment post 1009009 star5 -> {id:1015} ; post cj_04A66F1D... star4 -> {id:1016} ; star9 -> 402
+GET /srv/comment/list valueId=1009009  -> total 31, my star-5 row on top w/ userInfo.nickName user123
+GET /srv/comment/list valueId=10000516 -> total 1, my CJ review (local rows take precedence over CJ proxy)
+admin feedback/list -> total 1 (the submitted row) ; admin collect/footprint/list -> counts + userId filter
+```
+**Owner scoping proven.** `X-User-Id:2` → `GET /srv/collect/list` total 0 (user1's rows hidden);
+`POST /srv/footprint/delete {id:4}` (user1's row) as user2 → 402 (`findById(userId,id)` returns null).
+
+**Shape parity.** Cross-checked every path/body/param/response field against the SPA call sites
+(`userApi.ts`) and the gateway-api handoff spec — zero drift (`docs/handoff-engagement-endpoints.md`).
+
+**Security posture.** `/srv/{collect,footprint,feedback}/**` are authenticated (NOT added to
+`svcsecurity.public-paths`). `/srv/comment/**` stays public for anonymous review *reads*; `/post`
+enforces its own `X-User-Id` login check (no id → 501), and the edge strips client `X-User-*` so a
+spoofed header can't attribute a review.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean.
+Test-data left in the shared dev DB is benign (user123's own favorites/footprint/feedback + two
+real reviews on 1009009 / 10000516).
+
+**Follow-up (not done here):** `order` worktree — expose a "user U purchased goods G" query so a
+later revision can set a real `hasPurchased` on posted reviews (v1 leaves it false/untracked).
