@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
 import ProductCard from 'app/components/userComponents/card/ProductCard';
-import { catalogApi, isMissingEndpoint } from 'app/shared/api';
+import { catalogApi } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import 'app/shared/scss/content.scss';
 
@@ -28,8 +28,8 @@ const GoodsListPage: React.FC<Props> = ({ mode }) => {
       .then((res: any) => {
         if (!cancelled) setGoods((res?.list ?? res?.goodsList ?? res ?? []) as IGood[]);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setGoods([]);
+      .catch(() => {
+        if (!cancelled) setGoods([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

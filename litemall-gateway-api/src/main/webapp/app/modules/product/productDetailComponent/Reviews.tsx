@@ -1,13 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
-import { IComment, userApi, isMissingEndpoint } from 'app/shared/api';
+import { IComment, userApi } from 'app/shared/api';
+import ReviewForm from './ReviewForm';
 
 /**
  * Product reviews/comments, mirroring litemall-vue's comment list on the detail
- * page (`/srv/comment/list`, type 0 = goods; live on goods-management). Shows a
- * count header with the page's average stars, then each review with its rating,
- * reviewer, date and body. Local goods read litemall_comment; CJ goods are served
- * their CJ reviews through the same endpoint. Hidden only if the endpoint 404s.
+ * page (`/srv/comment/list`, type 0 = goods; LIVE on goods-management — no
+ * missing-endpoint guard). Shows a count header with the page's average stars,
+ * then each review with its rating, reviewer, date and body. Local goods read
+ * litemall_comment; CJ goods are served their CJ reviews through the same
+ * endpoint. Signed-in customers get a "write a review" form feeding
+ * `POST /srv/comment/post` (guarded until goods-management ships it).
  */
 interface Props {
   goodsId?: number | string;
@@ -33,28 +36,23 @@ const fmtDate = (addTime?: string | number[]): string => {
 const Reviews: React.FC<Props> = ({ goodsId }) => {
   const [comments, setComments] = useState<IComment[]>([]);
   const [count, setCount] = useState(0);
-  const [available, setAvailable] = useState(true);
+  const [writing, setWriting] = useState(false);
+  const signedIn = !!sessionStorage.getItem('customerToken');
 
-  useEffect(() => {
+  const fetchComments = useCallback(() => {
     if (goodsId == null) return;
-    let cancelled = false;
     userApi
       .commentList(goodsId, 0, { page: 1, limit: 5 })
       .then(res => {
-        if (cancelled) return;
         setComments(res?.list ?? []);
         setCount(res?.total ?? (res?.list?.length ?? 0));
       })
-      .catch(e => {
-        if (cancelled) return;
-        if (isMissingEndpoint(e)) setAvailable(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => undefined);
   }, [goodsId]);
 
-  if (!available) return null;
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const avgStar = comments.length > 0 ? comments.reduce((s, c) => s + (c.star ?? 0), 0) / comments.length : 0;
 
@@ -63,7 +61,17 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
       <h3 className='lm-pdp__reviewstitle'>
         Customer reviews {count > 0 && <span>({count})</span>}
         {comments.length > 0 && <Stars n={Math.round(avgStar)} />}
+        {signedIn && goodsId != null && (
+          <button type='button' className='btn btn-sm btn-lm-outline ms-3 align-middle' onClick={() => setWriting(w => !w)}>
+            {writing ? 'Close' : 'Write a review'}
+          </button>
+        )}
       </h3>
+      {writing && goodsId != null && (
+        <div className='mb-3'>
+          <ReviewForm goodsId={goodsId} onSubmitted={fetchComments} />
+        </div>
+      )}
       {comments.length === 0 ? (
         <p className='text-muted'>No reviews yet. Be the first to review this product.</p>
       ) : (

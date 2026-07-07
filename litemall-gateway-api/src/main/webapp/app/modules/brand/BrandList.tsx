@@ -2,13 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { contentApi, IBrand, isMissingEndpoint } from 'app/shared/api';
+import { contentApi, IBrand } from 'app/shared/api';
 import 'app/shared/scss/content.scss';
 
 /**
  * Brand directory, modelled on litemall-vue `items/brand-list`. Sourced from
- * `/srv/brand/list` (a public endpoint being moved off /wx onto /srv in
- * goods-management). Graceful empty until live.
+ * `/srv/brand/list` (live on goods-management).
  */
 const BrandList: React.FC = () => {
   const [brands, setBrands] = useState<IBrand[]>([]);
@@ -21,8 +20,8 @@ const BrandList: React.FC = () => {
       .then(res => {
         if (!cancelled) setBrands(res?.list ?? []);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setBrands([]);
+      .catch(() => {
+        if (!cancelled) setBrands([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

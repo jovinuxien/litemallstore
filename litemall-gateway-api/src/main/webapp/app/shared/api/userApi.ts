@@ -56,6 +56,20 @@ export interface IComment {
   addTime?: string | number[];
 }
 
+/**
+ * Review-submission body for POST /srv/comment/post (mirrors the legacy
+ * litemall wx contract / LitemallComment row): type 0 = goods review,
+ * valueId = goods id (numeric or cj_<pid>), star 1..5.
+ */
+export interface ICommentPost {
+  type: number;
+  valueId: number | string;
+  star: number;
+  content: string;
+  hasPicture?: boolean;
+  picUrls?: string[];
+}
+
 export interface PageParams {
   page?: number;
   limit?: number;
@@ -80,17 +94,37 @@ export const userApi = {
   collectToggle: (type: number, valueId: number | string) =>
     unwrap(baseAxios.post(`${SRV}/collect/addordelete`, { type, valueId })),
 
-  // TODO(/srv follow-up: user) — footprint (browsing history).
+  // TODO(/srv follow-up: goods-management) — footprint (browsing history).
+  // record is fired by the PDP on view; the backend dedupes same goods/day
+  // (contract: docs/handoff-goods-management-engagement.md).
   footprintList: (params: PageParams = {}) => unwrap(baseAxios.get(`${SRV}/footprint/list`, { params })),
+  footprintRecord: (goodsId: number | string) => unwrap(baseAxios.post(`${SRV}/footprint/record`, { goodsId })),
   footprintDelete: (id: number) => unwrap(baseAxios.post(`${SRV}/footprint/delete`, { id })),
 
-  // TODO(/srv follow-up: order|promotion) — coupons.
+  // Coupons — the promotion service serves these legacy paths natively
+  // (fix/promotion interfaces/rest/legacy/LitemallCouponLegacyController;
+  // contract: litemall-promotion-service/docs/spec-gateway-routes.md), routed
+  // via the gateway customer-promotion predicate. Live once fix/promotion
+  // merges and the service runs. mylist/selectlist items carry
+  // id = userCouponId (the redeem handle) and cid = couponId.
   couponList: (params: PageParams = {}) => unwrap<{ list: ICoupon[] }>(baseAxios.get(`${SRV}/coupon/list`, { params })),
   couponMyList: (status = 0, params: PageParams = {}) =>
     unwrap<{ list: ICoupon[] }>(baseAxios.get(`${SRV}/coupon/mylist`, { params: { status, ...params } })),
-  couponSelectList: (cartId?: number, grouponRulesId?: number) =>
-    unwrap<ICoupon[]>(baseAxios.get(`${SRV}/coupon/selectlist`, { params: { cartId, grouponRulesId } })),
+  // Usable-for-this-checkout: the caller passes the cart facts directly —
+  // promotion has no cart access, so amount + numeric goods/category id CSVs
+  // replace the legacy cartId/grouponRulesId params.
+  couponSelectList: (amount: number, goodsIds: number[] = [], categoryIds: number[] = []) =>
+    unwrap<ICoupon[]>(
+      baseAxios.get(`${SRV}/coupon/selectlist`, {
+        params: {
+          amount,
+          goodsIds: goodsIds.length ? goodsIds.join(',') : undefined,
+          categoryIds: categoryIds.length ? categoryIds.join(',') : undefined,
+        },
+      })
+    ),
   couponReceive: (couponId: number) => unwrap(baseAxios.post(`${SRV}/coupon/receive`, { couponId })),
+  couponExchange: (code: string) => unwrap(baseAxios.post(`${SRV}/coupon/exchange`, { code })),
 
   // TODO(/srv follow-up: user) — feedback.
   feedbackSubmit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/feedback/submit`, body)),
@@ -104,4 +138,8 @@ export const userApi = {
     unwrap<{ list: IComment[]; total: number }>(
       baseAxios.get(`${SRV}/comment/list`, { params: { valueId, type, showType: 0, ...params } })
     ),
+  // TODO(/srv follow-up: goods-management) — post a review. Authenticated
+  // (buyer from X-User-Id); this request shape is the contract goods-management
+  // builds to (docs/handoff-goods-management-engagement.md).
+  commentPost: (body: ICommentPost) => unwrap(baseAxios.post(`${SRV}/comment/post`, body)),
 };
