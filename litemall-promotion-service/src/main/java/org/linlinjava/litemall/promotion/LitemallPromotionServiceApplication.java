@@ -7,6 +7,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.core.env.Environment;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import tech.jhipster.config.DefaultProfileUtil;
 import tech.jhipster.config.JHipsterConstants;
 
@@ -20,6 +21,7 @@ import java.util.Optional;
 @SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.db", "org.linlinjava.litemall.core",
         "org.linlinjava.litemall.promotion"})
 @EnableFeignClients
+@EnableScheduling
 public class LitemallPromotionServiceApplication {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(LitemallPromotionServiceApplication.class);

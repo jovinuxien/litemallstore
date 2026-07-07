@@ -17,4 +17,7 @@ public interface LitemallCombinationRepository {
     List<LitemallCombinationAggregate> findAll();
 
     void save(LitemallCombinationAggregate combination);
+
+    /** Logical delete (deleted flag); existing groups are left untouched. */
+    void delete(LitemallCombinationId combinationId);
 }

@@ -48,6 +48,20 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
     }
 
     @Override
+    public Optional<LitemallCouponAggregate> findByCode(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        LitemallCouponExample example = new LitemallCouponExample();
+        example.or()
+                .andDeletedEqualTo(false)
+                .andCodeEqualTo(code);
+        return couponMapper.selectByExample(example).stream()
+                .findFirst()
+                .map(this::toDomain);
+    }
+
+    @Override
     public List<LitemallCouponAggregate> findAll(int page, int limit) {
         LitemallCouponExample example = new LitemallCouponExample();
         example.or().andDeletedEqualTo(false);
@@ -74,6 +88,15 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
                 coupon.setCouponId(new LitemallCouponId(record.getId()));
             }
         }
+    }
+
+    @Override
+    public void delete(LitemallCouponId couponId) {
+        LitemallCoupon record = new LitemallCoupon();
+        record.setId(couponId.getId());
+        record.setDeleted(true);
+        record.setUpdateTime(LocalDateTime.now());
+        couponMapper.updateByPrimaryKeySelective(record);
     }
 
     private LitemallCouponAggregate toDomain(LitemallCoupon r) {

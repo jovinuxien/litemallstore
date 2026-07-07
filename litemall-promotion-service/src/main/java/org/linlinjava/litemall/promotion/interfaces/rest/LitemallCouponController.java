@@ -3,19 +3,25 @@ package org.linlinjava.litemall.promotion.interfaces.rest;
 import org.linlinjava.litemall.promotion.application.LitemallPromotionOrchestratorService;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallUserCouponAggregate;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallExchangeCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallReceiveCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallRedeemCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallReleaseCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallUserCouponStatus;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
 import org.linlinjava.litemall.promotion.interfaces.dtos.CouponDtoResponse;
+import org.linlinjava.litemall.promotion.interfaces.dtos.CouponExchangeRequest;
 import org.linlinjava.litemall.promotion.interfaces.dtos.CouponRedeemRequest;
+import org.linlinjava.litemall.promotion.interfaces.dtos.CouponReleaseRequest;
 import org.linlinjava.litemall.promotion.interfaces.dtos.PromotionOperationDtoResponse;
 import org.linlinjava.litemall.promotion.interfaces.dtos.UserCouponDtoResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,19 +59,67 @@ public class LitemallCouponController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /** My coupons, optionally filtered by status bucket (0 unused / 1 used / 2 expired). */
     @GetMapping("/my")
-    public ResponseEntity<List<UserCouponDtoResponse>> getMyCoupons(@RequestHeader Integer userId) {
+    public ResponseEntity<List<UserCouponDtoResponse>> getMyCoupons(
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestParam(required = false) Integer status) {
+        LitemallUserCouponStatus statusFilter =
+                status != null ? LitemallUserCouponStatus.fromCode(status) : null;
         List<UserCouponDtoResponse> response = orchestratorService.getCouponService()
-                .getMyUsableCoupons(new LitemallUserId(userId)).stream()
+                .getMyCoupons(new LitemallUserId(userId), statusFilter).stream()
                 .map(this::toUserCouponDto)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Usable-for-this-checkout: which of my coupons apply to a cart of
+     * {@code amount} covering {@code goodsIds}/{@code categoryIds}. The caller
+     * supplies the cart facts — promotion has no cart access.
+     */
+    @GetMapping("/usable")
+    public ResponseEntity<List<CouponDtoResponse>> getUsableForCheckout(
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestParam BigDecimal amount,
+            @RequestParam(required = false) List<Integer> goodsIds,
+            @RequestParam(required = false) List<Integer> categoryIds) {
+        List<CouponDtoResponse> response = orchestratorService.getCouponService()
+                .getUsableForCheckout(new LitemallUserId(userId), amount, goodsIds, categoryIds).stream()
+                .map(view -> toUsableCouponDto(view.getUserCoupon(), view.getCoupon()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    /** Exchange a redemption code for its coupon (dedicated exchange-by-code). */
+    @PostMapping("/exchange")
+    public ResponseEntity<PromotionOperationDtoResponse> exchangeCoupon(
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody CouponExchangeRequest request) {
+        LitemallExchangeCouponCommand command = new LitemallExchangeCouponCommand(
+                new LitemallUserId(userId), request.getCode());
+        LitemallPromotionOperationResult result = orchestratorService.exchangeCoupon(command);
+        return buildResponse(result);
+    }
+
+    /** Release a redeemed coupon after its order failed (idempotent). */
+    @PostMapping("/user/{userCouponId}/release")
+    public ResponseEntity<PromotionOperationDtoResponse> releaseCoupon(
+            @PathVariable Integer userCouponId,
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody CouponReleaseRequest request) {
+        LitemallReleaseCouponCommand command = new LitemallReleaseCouponCommand(
+                new LitemallUserCouponId(userCouponId),
+                new LitemallUserId(userId),
+                request.getOrderId());
+        LitemallPromotionOperationResult result = orchestratorService.releaseCoupon(command);
+        return buildResponse(result);
+    }
+
     @PostMapping("/{couponId}/receive")
     public ResponseEntity<PromotionOperationDtoResponse> receiveCoupon(
             @PathVariable Integer couponId,
-            @RequestHeader Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestParam(required = false) String code) {
 
         LitemallReceiveCouponCommand command = new LitemallReceiveCouponCommand(
@@ -77,7 +131,7 @@ public class LitemallCouponController {
     @PostMapping("/user/{userCouponId}/redeem")
     public ResponseEntity<PromotionOperationDtoResponse> redeemCoupon(
             @PathVariable Integer userCouponId,
-            @RequestHeader Integer userId,
+            @RequestHeader("X-User-Id") Integer userId,
             @RequestBody CouponRedeemRequest request) {
 
         LitemallRedeemCouponCommand command = new LitemallRedeemCouponCommand(
@@ -105,6 +159,16 @@ public class LitemallCouponController {
                 .startTime(c.getStartTime())
                 .endTime(c.getEndTime())
                 .build();
+    }
+
+    private CouponDtoResponse toUsableCouponDto(LitemallUserCouponAggregate held,
+                                                LitemallCouponAggregate c) {
+        CouponDtoResponse dto = toCouponDto(c);
+        dto.setUserCouponId(held.getUserCouponId() != null ? held.getUserCouponId().getId() : null);
+        // The held instance's validity window overrides the definition's.
+        dto.setStartTime(held.getStartTime());
+        dto.setEndTime(held.getEndTime());
+        return dto;
     }
 
     private UserCouponDtoResponse toUserCouponDto(LitemallUserCouponAggregate u) {

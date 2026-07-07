@@ -4,6 +4,7 @@ import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallUserCou
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallUserCouponStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +20,12 @@ public interface LitemallUserCouponRepository {
     int countByCoupon(LitemallCouponId couponId);
 
     List<LitemallUserCouponAggregate> findUsableByUser(LitemallUserId userId);
+
+    /** All coupons a user holds, optionally filtered by status (null = all). */
+    List<LitemallUserCouponAggregate> findByUser(LitemallUserId userId, LitemallUserCouponStatus status);
+
+    /** Paged issuance records of a coupon definition (admin, newest first). */
+    List<LitemallUserCouponAggregate> findByCoupon(LitemallCouponId couponId, int page, int limit);
 
     void add(LitemallUserCouponAggregate userCoupon);
 

@@ -12,9 +12,15 @@ import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCheckBarg
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCreateBargainSessionCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallHelpBargainCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallJoinSeckillCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallExchangeCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallGrantCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallIssueCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallReceiveCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallRedeemCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallReleaseCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallUpdateCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCombinationId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -203,6 +209,62 @@ public class LitemallPromotionOrchestratorService {
         }
     }
 
+    public LitemallPromotionOperationResult exchangeCoupon(LitemallExchangeCouponCommand command) {
+        try {
+            return couponService.exchangeCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponExchangeFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error exchanging coupon", e);
+            return LitemallPromotionOperationResult.couponExchangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult releaseCoupon(LitemallReleaseCouponCommand command) {
+        try {
+            return couponService.releaseCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponReleaseFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error releasing coupon", e);
+            return LitemallPromotionOperationResult.couponReleaseFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult updateCoupon(LitemallCouponId couponId,
+                                                         LitemallUpdateCouponCommand command) {
+        try {
+            return couponService.updateCoupon(couponId, command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponUpdateFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error updating coupon", e);
+            return LitemallPromotionOperationResult.couponUpdateFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult deleteCoupon(LitemallCouponId couponId) {
+        try {
+            return couponService.deleteCoupon(couponId);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponDeleteFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error deleting coupon", e);
+            return LitemallPromotionOperationResult.couponDeleteFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult grantCoupon(LitemallGrantCouponCommand command) {
+        try {
+            return couponService.grantCoupon(command);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponGrantFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error granting coupon", e);
+            return LitemallPromotionOperationResult.couponGrantFailed("System error: " + e.getMessage());
+        }
+    }
+
     // ----- Combination (group-buy) campaign-definition vertical -----
 
     public LitemallPromotionOperationResult defineCombination(
@@ -236,6 +298,51 @@ public class LitemallPromotionOrchestratorService {
         } catch (Exception e) {
             logger.error("Error expiring combination campaign", e);
             return LitemallPromotionOperationResult.combinationStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult updateCombination(LitemallCombinationId combinationId,
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallUpdateCombinationCommand command) {
+        try {
+            return combinationService.updateCombination(combinationId, command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.combinationStateChangeFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error updating combination campaign", e);
+            return LitemallPromotionOperationResult.combinationStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult deleteCombination(LitemallCombinationId combinationId) {
+        try {
+            return combinationService.deleteCombination(combinationId);
+        } catch (Exception e) {
+            logger.error("Error deleting combination campaign", e);
+            return LitemallPromotionOperationResult.combinationStateChangeFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult startGroup(
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallStartGroupCommand command) {
+        try {
+            return combinationService.startGroup(command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.groupStartFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error starting group", e);
+            return LitemallPromotionOperationResult.groupStartFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult joinGroup(
+            org.linlinjava.litemall.promotion.domain.model.commands.combination.LitemallJoinGroupCommand command) {
+        try {
+            return combinationService.joinGroup(command);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.groupJoinFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error joining group", e);
+            return LitemallPromotionOperationResult.groupJoinFailed("System error: " + e.getMessage());
         }
     }
 
