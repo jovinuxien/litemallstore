@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ApiResult, BaseState } from 'app/config/types';
-import { cartApi, isMissingEndpoint, toReject } from 'app/shared/api';
+import { cartApi, toReject } from 'app/shared/api';
 import { ICartTotalData, IItemCart } from 'app/shared/model/cart/cart.models';
 
 /**
@@ -12,8 +12,8 @@ import { ICartTotalData, IItemCart } from 'app/shared/model/cart/cart.models';
  * The cart is the single source of truth for the line items the checkout
  * submits. A guest cart is kept in sessionStorage ('cart') and merged with the
  * server cart on fetch so an anonymous customer keeps their basket after login.
- * The order-service cart endpoints may not all be live yet — a missing endpoint
- * degrades to the local cart rather than erroring (isMissingEndpoint).
+ * The order-service /srv/cart endpoints are live — server failures surface as
+ * errors rather than being silently degraded.
  */
 interface RemoteIndexCartApiResult
   extends ApiResult<{
@@ -38,10 +38,6 @@ export const fetchCart = createAsyncThunk<RemoteIndexCartApiResult, void, { reje
     const data = await cartApi.list();
     return { errno: 0, errmsg: '', data: { cartTotal: (data?.cartTotal as ICartTotalData) ?? null, cartList: data?.cartList ?? [] } };
   } catch (error) {
-    // Cart endpoint not live yet → fall back to the local cart, don't error out.
-    if (isMissingEndpoint(error)) {
-      return { errno: 0, errmsg: '', data: { cartTotal: null, cartList: [] } };
-    }
     return thunkApi.rejectWithValue(toReject(error));
   }
 });
@@ -65,7 +61,6 @@ export const updateCartItem = createAsyncThunk<IItemCart, IItemCart, { rejectVal
       const updated = (await cartApi.update(cartItem.id, cartItem)) as IItemCart | undefined;
       return updated ?? cartItem;
     } catch (err) {
-      if (isMissingEndpoint(err)) return cartItem; // local-only update
       return rejectWithValue(toReject(err));
     }
   }

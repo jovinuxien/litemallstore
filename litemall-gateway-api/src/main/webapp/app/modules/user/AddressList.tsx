@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { IAddress, isMissingEndpoint, userApi } from 'app/shared/api';
+import { IAddress, userApi } from 'app/shared/api';
 import { AddressCard, CellGroup, EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -20,8 +20,8 @@ const AddressList: React.FC = () => {
     try {
       const list = await userApi.addressList();
       setAddresses(list ?? []);
-    } catch (e) {
-      if (!isMissingEndpoint(e)) setAddresses([]);
+    } catch {
+      setAddresses([]);
     } finally {
       setLoading(false);
     }

@@ -13,14 +13,14 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 ## Owner: litemall-goods-management (`/srv/**` catch-all) — public catalog/content
 | Endpoint | Verb | Used by | Notes |
 |---|---|---|---|
-| `/srv/brand/list` | GET | `modules/brand/BrandList` | page/limit/sort/order |
-| `/srv/brand/detail?id=` | GET | `modules/brand/BrandDetail` | brand meta |
-| `/srv/topic/list` | GET | `modules/topic/TopicList` | page/limit |
-| `/srv/topic/detail?id=` | GET | `modules/topic/TopicDetail` | `{ topic, goods[] }` |
+| `/srv/brand/list` | GET | `modules/brand/BrandList` | ✅ **LANDED** — guard removed (2026-07-07) |
+| `/srv/brand/detail?id=` | GET | `modules/brand/BrandDetail` | ✅ **LANDED** |
+| `/srv/topic/list` | GET | `modules/topic/TopicList` | ✅ **LANDED** — guard removed |
+| `/srv/topic/detail?id=` | GET | `modules/topic/TopicDetail` | ✅ **LANDED** — guard removed |
 | `/srv/topic/related?id=` | GET | (reserved) | related topics |
-| `/srv/comment/count?valueId=&type=0` | GET | `modules/product/.../Reviews` | product reviews count |
-| `/srv/comment/list?valueId=&type=0` | GET | `modules/product/.../Reviews` | `{ data: IComment[], count }` |
-| `/srv/comment/post` | POST | (reserved) | submit a review |
+| `/srv/comment/count?valueId=&type=0` | GET | `modules/product/.../Reviews` | ✅ **LANDED** |
+| `/srv/comment/list?valueId=&type=0` | GET | `modules/product/.../Reviews` | ✅ **LANDED** — guard removed |
+| `/srv/comment/post` | POST | `ReviewForm` (PDP Reviews CTA + OrderDetail "Unrated") | **Wave-2 goods-management** — request shape is the contract in `docs/handoff-goods-management-engagement.md`; guarded until it ships |
 
 > `/srv/goods/list`, `/srv/goods/detail`, `/srv/goods/related`, `/srv/catalog/*`, `/srv/search`,
 > `/srv/suggest` already exist and are consumed as-is.
@@ -64,25 +64,59 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 > **Remaining follow-up (gateway-api):** real Stripe Elements card capture (publishable key +
 > `@stripe/react-stripe-js` + a client-confirmed PaymentIntent) to replace the CARD stub.
 
-## Owner: order / promotion (coupons) — routing decision needed
+## Owner: litemall-promotion-service (coupons + group-buy) — routing DECIDED (2026-07-07)
+Contract: `litemall-promotion-service/docs/spec-gateway-routes.md` (user-approved 2026-07-07,
+committed on `fix/promotion`). The SPA **keeps its legacy paths**; promotion serves them natively
+via `interfaces/rest/legacy/**`. The gateway `customer-promotion` route
+(`/srv/promotion/**,/srv/coupon/**,/srv/groupon/**` → `lb://promotion-service-app`) is **landed
+here**. Everything below stays guarded until `fix/promotion` merges and the service runs (master's
+promotion-service can't boot the coupon verticals — bean-conflict fixed only on that branch).
+
+| Endpoint | Verb | Used by | Notes |
+|---|---|---|---|
+| `/srv/coupon/list` | GET | `CouponStrip` | claimable coupons, errno envelope |
+| `/srv/coupon/mylist?status=` | GET | `modules/user/Coupons` | status 0/1/2 = SPA tab index; item `id`=userCouponId, `cid`=couponId |
+| `/srv/coupon/selectlist?amount=&goodsIds=&categoryIds=` | GET | `Checkout` usable-coupon picker | **params changed** from `cartId` — caller passes the cart facts (done 2026-07-07) |
+| `/srv/coupon/receive` | POST | `CouponStrip` | `{couponId}` |
+| `/srv/coupon/exchange` | POST | (api ready, no UI yet) | `{code}` redemption-code exchange |
+| `/srv/groupon/list` | GET | `modules/groupon/Groupon` | legacy GrouponItem shape |
+| `/srv/promotion/combination/{active,{id},{id}/start,pink/{id}/join,my,pink/{id}}` | GET/POST | `Groupon` (via `promotionApi`) | canonical surface; bare DTOs, mutations 200/400 `{success,message,…}` |
+
+> **Cross-service caveats (not gateway-api work):**
+> - **Coupon-at-submit bridge**: order-service today validates/redeems `couponId`/`userCouponId`
+>   against its OWN coupon tables; promotion's issuance lands in promotion's tables. Until the
+>   order worktree points its `LitemallCouponServiceLayer` seam at promotion's
+>   validate/redeem/release endpoints (spec: `litemall-promotion-service/docs/`
+>   `spec-coupon-checkout-contract.md`), a coupon claimed via promotion is rejected at submit.
+>   **Live-observed 2026-07-07:** submit with a promotion-issued pair (`couponId:9`,
+>   `userCouponId:3`, usable per `selectlist`) → HTTP 200 `{errno:502,"System internal error"}`;
+>   the identical submit without the coupon → 201, order created. Order-worktree follow-up: the
+>   facade per the spec, and until then a clean **422 with a coupon-naming message** instead of
+>   the generic 502 (the SPA's inline remove-coupon-and-retry affordance keys on 422/"coupon";
+>   a 502 falls back to the page-level alert).
+> - **Group-price ordering**: order submit does not yet accept the proposed `pinkId` field
+>   (`spec-groupon-priced-submit-contract.md`) — starting/joining groups works, but checkout still
+>   prices at retail until the order worktree lands it.
+
+## Owner: litemall-goods-management (engagement verticals) — Wave-2, shapes contract committed
+Request/response shapes the SPA already sends: `docs/handoff-goods-management-engagement.md`.
+All guarded (`isMissingEndpoint`) until goods-management ships them.
+
 | Endpoint | Verb | Used by |
 |---|---|---|
-| `/srv/coupon/list` | GET | `modules/product/.../CouponStrip` |
-| `/srv/coupon/mylist?status=` | GET | `modules/user/Coupons`, `Checkout` |
-| `/srv/coupon/selectlist?cartId=` | GET | (reserved, checkout) |
-| `/srv/coupon/receive` | POST | `CouponStrip` |
-| `/srv/groupon/list` | GET | `modules/groupon/Groupon` |
+| `/srv/collect/list?type=0` | GET | `modules/user/Favorites` |
+| `/srv/collect/addordelete` | POST | `Favorites`, product `CollectButton` |
+| `/srv/footprint/list` | GET | `modules/user/Footprint` |
+| `/srv/footprint/record` | POST | product `Detail` (fire-and-forget on view, added 2026-07-07) |
+| `/srv/footprint/delete` | POST | (api ready) |
+| `/srv/feedback/submit` | POST | `modules/user/Feedback` |
+| `/srv/comment/post` | POST | `ReviewForm` |
 
 ## Owner: a customer/user concern (no service yet) — routing decision needed
 | Endpoint | Verb | Used by |
 |---|---|---|
 | `/srv/user/index` | GET | `modules/user/UserCenter`, `Profile` |
 | `/srv/user/profile` | POST | `Profile` |
-| `/srv/collect/list?type=0` | GET | `modules/user/Favorites` |
-| `/srv/collect/addordelete` | POST | `Favorites`, product `CollectButton` |
-| `/srv/footprint/list` | GET | `modules/user/Footprint` |
-| `/srv/footprint/delete` | POST | (reserved) |
-| `/srv/feedback/submit` | POST | `modules/user/Feedback` |
 
 ## Discovered during the order/user redesign (2026-06-27)
 - **Customer session is not rehydrated on reload (gateway-api SPA bug).** ✅ **FIXED (2026-07-04).**
@@ -103,6 +137,25 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 - The redesigned order list/detail, coupons, and feedback views render graceful empty states until
   the `/srv/order/list|detail`, `/srv/coupon/mylist`, and `/srv/feedback/submit` endpoints land
   (order / promotion / user follow-ups already tabled above).
+
+## Wave-2 SPA wiring (2026-07-07)
+- Gateway routes added: `customer-promotion` (`/srv/promotion/**,/srv/coupon/**,/srv/groupon/**`
+  → `lb://promotion-service-app`) and the explicit `customer-engagement`
+  (`/srv/collect|footprint|feedback|comment/**` → `lb://litemall-goods-management`), both before
+  the goods catch-all. Machine-token relay + `X-User-*` identity forwarding fire on all `lb://`
+  routes (GlobalFilter/WebFilter — no per-route wiring).
+- Coupon-at-checkout wired: usable-coupon picker from `selectlist` (cart facts as params), submit
+  sends both `couponId` and `userCouponId`, a coupon-shaped 422 shows inline at the picker with
+  remove-and-retry, and the order confirmation now fetches `/srv/order/detail` to render the
+  goods/shipping/coupon/actual breakdown.
+- Groupon page: browse from legacy `/srv/groupon/list`; start/join/my-groups on the canonical
+  combination surface (guarded).
+- Review submission (`ReviewForm` → `POST /srv/comment/post`) and footprint record-on-view built
+  ahead, guarded.
+- **Guard audit**: `isMissingEndpoint` removed everywhere the endpoint is live (cart, order
+  list/detail, address book, brand, topic, goods listing, comment list). Guards remain ONLY for:
+  coupon/groupon (until `fix/promotion` merges + service runs), collect/footprint/feedback/
+  comment-post (goods-management Wave-2), `/srv/user/index|profile` (no owning service yet).
 
 ## Owner: auth edge (`/auth/**`, gateway-api `AuthController`)
 | Endpoint | Verb | Used by | Notes |

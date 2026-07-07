@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { contentApi, ITopic, isMissingEndpoint } from 'app/shared/api';
+import { contentApi, ITopic } from 'app/shared/api';
 import 'app/shared/scss/content.scss';
 
 /**
  * Topics / specials directory, modelled on litemall-vue `items/topic-list`.
- * Sourced from `/srv/topic/list`. Graceful empty until live.
+ * Sourced from `/srv/topic/list` (live on goods-management).
  */
 const TopicList: React.FC = () => {
   const [topics, setTopics] = useState<ITopic[]>([]);
@@ -20,8 +20,8 @@ const TopicList: React.FC = () => {
       .then(res => {
         if (!cancelled) setTopics(res?.list ?? []);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setTopics([]);
+      .catch(() => {
+        if (!cancelled) setTopics([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

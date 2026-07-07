@@ -4,8 +4,9 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
+import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
 import DisputePanel from './DisputePanel';
 import './order.scss';
 
@@ -21,6 +22,8 @@ const OrderDetailView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [pending, setPending] = useState(false);
+  // Which goods line has its review form open (handleOption.comment orders).
+  const [reviewingGoodsId, setReviewingGoodsId] = useState<number | string | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!id) return;
@@ -28,8 +31,8 @@ const OrderDetailView: React.FC = () => {
     try {
       const d = await orderApi.detail(id);
       setOrder(d ?? null);
-    } catch (e) {
-      if (isMissingEndpoint(e)) setMissing(true);
+    } catch {
+      setMissing(true);
     } finally {
       setLoading(false);
     }
@@ -87,18 +90,31 @@ const OrderDetailView: React.FC = () => {
     <Page>
       <PageHead title='Order detail' sub={order.orderStatusText} />
       <div className='container'>
-        {/* Goods */}
+        {/* Goods — an "Unrated" order (handleOption.comment) offers a per-item review form. */}
         <CellGroup title='Items'>
           {(order.orderGoods ?? []).map(g => (
-            <GoodsLineCard
-              key={g.id}
-              picUrl={g.picUrl}
-              name={g.goodsName}
-              to={g.goodsId ? `/product/${g.goodsId}` : undefined}
-              specs={g.specifications}
-              price={priceNum(g.price)}
-              qty={g.number}
-            />
+            <React.Fragment key={g.id}>
+              <GoodsLineCard
+                picUrl={g.picUrl}
+                name={g.goodsName}
+                to={g.goodsId ? `/product/${g.goodsId}` : undefined}
+                specs={g.specifications}
+                price={priceNum(g.price)}
+                qty={g.number}
+              />
+              {opt?.comment && g.goodsId != null && (
+                <div className='px-3 pb-3'>
+                  {reviewingGoodsId === g.goodsId ? (
+                    <ReviewForm goodsId={g.goodsId} />
+                  ) : (
+                    <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => setReviewingGoodsId(g.goodsId ?? null)}>
+                      <i className='bi bi-star me-1' />
+                      Write a review
+                    </button>
+                  )}
+                </div>
+              )}
+            </React.Fragment>
           ))}
         </CellGroup>
 
