@@ -85,6 +85,55 @@ routes are declared **before** the `/srv/**` goods catch-all (see
   (servlet-free) is allowed. See `pom.xml`.
 - Never edit other modules to paper over a gateway misconfiguration.
 
+## Build gotcha — checksum "dirty skip" can produce a jar without the SPA
+
+The `webapp` profile skips the npm/webpack build when
+`target/checksums.csv` equals `target/checksums.csv.old`
+(`eval-frontend-checksum` antrun → `skip.npm=true`). Both files are
+(re)created by every build **even when webpack never ran** — so a
+compile-only run on a fresh `target/` leaves matching checksums with **no**
+`target/classes/static/`, and every later `mvn package` silently ships a jar
+with no embedded SPA (`/` then 404s at runtime). Observed live 2026-07-06 on
+the main checkout. Remedy: `rm target/checksums.csv.old` (or `mvn clean`)
+before packaging, and sanity-check the artifact with
+`unzip -l target/litemall-gateway-admin-*.jar | grep static/index.html`.
+
+## Acceptance verification — 2026-07-06 (all green)
+
+Static checks on `fix/gateway-admin` @ `777760fef` (== master):
+`mvn -q -o -pl litemall-gateway-admin -am compile` clean;
+`mvn -q -o -pl litemall-gateway-admin dependency:tree | grep litemall-core`
+empty; exactly one `ApiResponse.java` (`web/ApiResponse.java`).
+
+Runtime: gateway jar (embedded SPA) on `:18080` (Jenkins squats `:8080`),
+default profile, against eureka `:8761`, authserver `:8089`, goods-management
+(alt port `:18082`, lb via eureka), order `:8085`, loyalty `:8087`; no
+webpack dev server running.
+
+```
+POST /auth/login (admin123)                        → 200, ROLE_ADMIN JWT
+GET /srv/private/admin/goods/list  [goods-mgmt]    → 200 {"errno":0,...,"total":3709}
+GET /srv/private/admin/order/list  [order]         → 200 {"errno":0,...,"total":36}
+GET /srv/wallet/balance            [order/wallet]  → 200 {"userId":1,"balance":0.00,...}
+GET /srv/loyalty/1/points/balance  [loyalty]       → 404 FROM THE SERVICE (servlet
+                                                     body; route+relay OK — known
+                                                     loyalty controller-mapping bug)
+GET /srv/promotion/coupon/list     [promotion]     → 503 no instance (route OK;
+                                                     promotion still fails boot:
+                                                     ConflictingBeanDefinitionException
+                                                     litemallDomainEventConfig)
+GET /srv/catalog/index (public, no token)          → 200
+GET /srv/wallet/balance (no token)                 → 401
+GET /srv/private/admin/goods/list (no token)       → 401
+GET /            (embedded SPA)                    → 200 index.html
+GET /dashboard   (SpaWebFilter rewrite)            → 200
+GET /main.05bb25fc.js (hashed bundle)              → 200
+```
+
+`MachineTokenRelayFilter` + `IdentityForwardingFilter` proven live by the
+wallet call: the JWT subject's `X-User-Id=1` reached order-service behind the
+machine token (balance scoped to user 1).
+
 ## Cross-module follow-ups (raised by the `gateway-admin` worktree)
 
 These are backend gaps the admin SPA now depends on. They are intentionally NOT
