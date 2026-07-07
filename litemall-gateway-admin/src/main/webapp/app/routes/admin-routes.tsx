@@ -16,6 +16,22 @@ import IssueForm from 'app/views/adminViews/adminModule/Issue/IssueForm';
 import CommentList from 'app/views/adminViews/adminModule/Comment/CommentList';
 import OrderList from 'app/views/adminViews/adminModule/Order/OrderList';
 import OrderDetail from 'app/views/adminViews/adminModule/Order/OrderDetail';
+import AdList from 'app/views/adminViews/adminModule/Ad/AdList';
+import AdForm from 'app/views/adminViews/adminModule/Ad/AdForm';
+import CouponList from 'app/views/adminViews/adminModule/Coupon/CouponList';
+import CouponForm from 'app/views/adminViews/adminModule/Coupon/CouponForm';
+import CouponUserList from 'app/views/adminViews/adminModule/Coupon/CouponUserList';
+import GrouponRuleList from 'app/views/adminViews/adminModule/Groupon/GrouponRuleList';
+import GrouponRuleForm from 'app/views/adminViews/adminModule/Groupon/GrouponRuleForm';
+import GrouponActivityList from 'app/views/adminViews/adminModule/Groupon/GrouponActivityList';
+import AdminAccountList from 'app/views/adminViews/adminModule/Sys/AdminAccountList';
+import AdminAccountForm from 'app/views/adminViews/adminModule/Sys/AdminAccountForm';
+import NoticeList from 'app/views/adminViews/adminModule/Sys/NoticeList';
+import NoticeForm from 'app/views/adminViews/adminModule/Sys/NoticeForm';
+import LogList from 'app/views/adminViews/adminModule/Sys/LogList';
+import RoleList from 'app/views/adminViews/adminModule/Sys/RoleList';
+import RoleForm from 'app/views/adminViews/adminModule/Sys/RoleForm';
+import StorageList from 'app/views/adminViews/adminModule/Sys/StorageList';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
 import NotAvailable from 'app/shared/layout/admin/NotAvailable';
 import { ALL_LEAVES } from 'app/shared/layout/admin/menu.config';
@@ -66,6 +82,30 @@ export const AdminRoutes = () => (
       <Route path='mall/issue/:id' element={<IssueForm />} />
       <Route path='mall/order' element={<OrderList />} />
       <Route path='mall/order/:id' element={<OrderDetail />} />
+      {/* Promotion: ads / coupons / groupon (edge-hosted admin CRUD) */}
+      <Route path='promotion/ad' element={<AdList />} />
+      <Route path='promotion/ad/create' element={<AdForm />} />
+      <Route path='promotion/ad/:id' element={<AdForm />} />
+      <Route path='promotion/coupon' element={<CouponList />} />
+      <Route path='promotion/coupon/create' element={<CouponForm />} />
+      <Route path='promotion/coupon/:id/issued' element={<CouponUserList />} />
+      <Route path='promotion/coupon/:id' element={<CouponForm />} />
+      <Route path='promotion/groupon-rule' element={<GrouponRuleList />} />
+      <Route path='promotion/groupon-rule/create' element={<GrouponRuleForm />} />
+      <Route path='promotion/groupon-rule/:id' element={<GrouponRuleForm />} />
+      <Route path='promotion/groupon-activity' element={<GrouponActivityList />} />
+      {/* System: admins / notices / logs / roles / storage */}
+      <Route path='sys/admin' element={<AdminAccountList />} />
+      <Route path='sys/admin/create' element={<AdminAccountForm />} />
+      <Route path='sys/admin/:id' element={<AdminAccountForm />} />
+      <Route path='sys/notice' element={<NoticeList />} />
+      <Route path='sys/notice/create' element={<NoticeForm />} />
+      <Route path='sys/notice/:id' element={<NoticeForm />} />
+      <Route path='sys/log' element={<LogList />} />
+      <Route path='sys/role' element={<RoleList />} />
+      <Route path='sys/role/create' element={<RoleForm />} />
+      <Route path='sys/role/:id' element={<RoleForm />} />
+      <Route path='sys/os' element={<StorageList />} />
       {placeholderLeaves.map(leaf => (
         <Route key={leaf.path} path={leaf.path.slice(ADMIN_PREFIX.length)} element={<NotAvailable />} />
       ))}
