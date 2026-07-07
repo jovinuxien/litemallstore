@@ -84,11 +84,11 @@ export const ADMIN_MENU: MenuGroup[] = [
     title: 'Promotion',
     icon: IconTag,
     children: [
-      { path: '/admin/promotion/ad', title: 'Ads' },
-      { path: '/admin/promotion/coupon', title: 'Coupons' },
+      { path: '/admin/promotion/ad', title: 'Ads', wired: true },
+      { path: '/admin/promotion/coupon', title: 'Coupons', wired: true },
       { path: '/admin/promotion/topic', title: 'Topics' },
-      { path: '/admin/promotion/groupon-rule', title: 'Groupon rules' },
-      { path: '/admin/promotion/groupon-activity', title: 'Groupon activity' },
+      { path: '/admin/promotion/groupon-rule', title: 'Groupon rules', wired: true },
+      { path: '/admin/promotion/groupon-activity', title: 'Groupon activity', wired: true },
     ],
   },
   {
@@ -96,11 +96,11 @@ export const ADMIN_MENU: MenuGroup[] = [
     title: 'System',
     icon: IconSettings,
     children: [
-      { path: '/admin/sys/admin', title: 'Admins' },
-      { path: '/admin/sys/notice', title: 'Notices' },
-      { path: '/admin/sys/log', title: 'Logs' },
-      { path: '/admin/sys/role', title: 'Roles' },
-      { path: '/admin/sys/os', title: 'Storage' },
+      { path: '/admin/sys/admin', title: 'Admins', wired: true },
+      { path: '/admin/sys/notice', title: 'Notices', wired: true },
+      { path: '/admin/sys/log', title: 'Logs', wired: true },
+      { path: '/admin/sys/role', title: 'Roles', wired: true },
+      { path: '/admin/sys/os', title: 'Storage', wired: true },
     ],
   },
   {
@@ -145,6 +145,19 @@ export const titleForPath = (pathname: string): string | undefined => {
   if (form) {
     const section = { brand: 'Brands', category: 'Categories', keyword: 'Keywords', issue: 'Issues' }[form[1]];
     return `${section} · ${form[2] === 'create' ? 'New' : 'Edit'}`;
+  }
+  // promotion create/edit forms
+  const promo = /^\/admin\/promotion\/(ad|coupon|groupon-rule)\/([^/]+)(\/issued)?$/.exec(pathname);
+  if (promo) {
+    const section = { ad: 'Ads', coupon: 'Coupons', 'groupon-rule': 'Groupon rules' }[promo[1]];
+    if (promo[3]) return `${section} · Issued`;
+    return `${section} · ${promo[2] === 'create' ? 'New' : 'Edit'}`;
+  }
+  // system create/edit forms
+  const sys = /^\/admin\/sys\/(admin|notice|role)\/([^/]+)$/.exec(pathname);
+  if (sys) {
+    const section = { admin: 'Admins', notice: 'Notices', role: 'Roles' }[sys[1]];
+    return `${section} · ${sys[2] === 'create' ? 'New' : 'Edit'}`;
   }
   return undefined;
 };

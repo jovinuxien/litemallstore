@@ -1,0 +1,127 @@
+import { IAd } from 'app/shared/model/admin/promotion-system.model';
+import { useDeleteAdMutation, useListAdsQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import * as React from 'react';
+import { Link } from 'react-router-dom';
+
+// Advertisement list (home banners) with create/edit/delete,
+// authenticated admin → /srv/private/admin/ad.
+
+const AdList: React.FC = () => {
+  const [page, setPage] = React.useState(1);
+  const [limit, setLimit] = React.useState(20);
+  const [order, setOrder] = React.useState<'asc' | 'desc'>('desc');
+  const [nameInput, setNameInput] = React.useState('');
+  const [name, setName] = React.useState('');
+
+  const { data, isLoading, isFetching, isError, error } = useListAdsQuery({ page, limit, sort: 'add_time', order, name });
+  const [deleteAd, { isLoading: deleting }] = useDeleteAdMutation();
+  const [actionError, setActionError] = React.useState<string | null>(null);
+
+  const list = data?.list ?? [];
+  const total = data?.total ?? 0;
+  const pages = data?.pages ?? 0;
+  const errStatus = (error as { status?: number | string })?.status;
+
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    setName(nameInput.trim());
+  };
+
+  const onDelete = async (ad: IAd) => {
+    if (!window.confirm(`Delete ad "${ad.name ?? ad.id}"?`)) return;
+    setActionError(null);
+    const res = await deleteAd({ id: ad.id });
+    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
+    if (msg) setActionError(msg);
+  };
+
+  return (
+    <div className='app-container'>
+      <form className='filter-container' onSubmit={onSearch}>
+        <input className='form-control filter-item' style={{ width: 200 }} placeholder='Ad name' value={nameInput} onChange={e => setNameInput(e.target.value)} />
+        <select className='form-select filter-item' style={{ width: 120 }} value={order} onChange={e => setOrder(e.target.value as 'asc' | 'desc')} aria-label='Sort direction'>
+          <option value='desc'>Newest</option>
+          <option value='asc'>Oldest</option>
+        </select>
+        <select
+          className='form-select filter-item'
+          style={{ width: 120 }}
+          value={limit}
+          onChange={e => {
+            setPage(1);
+            setLimit(Number(e.target.value));
+          }}
+          aria-label='Page size'
+        >
+          {PAGE_SIZES.map(n => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+        <button className='btn btn-primary filter-item' type='submit'>
+          Search
+        </button>
+        <Link className='btn btn-success filter-item' to='/admin/promotion/ad/create'>
+          + New ad
+        </Link>
+        {isFetching && <Spinner />}
+      </form>
+
+      {isError && <div className='alert alert-danger'>Failed to load ads{errStatus ? ` (${errStatus})` : ''}.</div>}
+      {actionError && <div className='alert alert-danger'>{actionError}</div>}
+
+      <table className='el-table'>
+        <thead>
+          <tr>
+            <th>Image</th>
+            <th>Name</th>
+            <th>Link</th>
+            <th>Status</th>
+            <th className='text-end'>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <tr>
+              <td colSpan={5} className='text-center p-5'>
+                <span className='spinner-border text-primary' role='status' />
+              </td>
+            </tr>
+          ) : list.length === 0 ? (
+            <tr>
+              <td colSpan={5} className='text-center text-muted py-5'>
+                No ads found.
+              </td>
+            </tr>
+          ) : (
+            list.map(ad => (
+              <tr key={ad.id}>
+                <td>{ad.url ? <img src={ad.url} alt={ad.name} style={{ height: 40, maxWidth: 120, objectFit: 'cover' }} /> : <span className='text-muted'>—</span>}</td>
+                <td>
+                  <Link to={`/admin/promotion/ad/${ad.id}`}>{ad.name || `#${ad.id}`}</Link>
+                </td>
+                <td className='text-muted small'>{ad.link}</td>
+                <td>{ad.enabled ? <Tag tag='success'>enabled</Tag> : <Tag tag='info'>disabled</Tag>}</td>
+                <td className='text-end'>
+                  <Link to={`/admin/promotion/ad/${ad.id}`} className='btn btn-sm btn-outline-primary me-1'>
+                    Edit
+                  </Link>
+                  <button className='btn btn-sm btn-outline-danger' disabled={deleting} onClick={() => onDelete(ad)}>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      <Pagination page={page} pages={pages} total={total} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
+    </div>
+  );
+};
+
+export default AdList;
