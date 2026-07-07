@@ -1,6 +1,32 @@
 # ADR: Combination (group-buy / 拼团) ownership split between promotion and order
 
-- **Status:** Accepted (Phase 1, 2026-06)
+- **Status:** SUPERSEDED in part (Wave 2, 2026-07-07) — see the addendum below.
+  The Phase-1 decision text is kept for history.
+- **Original status:** Accepted (Phase 1, 2026-06)
+
+## Addendum (Wave 2, 2026-07-07) — promotion now owns participation too
+
+The Wave-2 revive task requires start-group / join-group / my-groups / expiry
+sweep to be **live in the promotion service**, and the order module cannot be
+edited from this worktree. Decision (user-approved 2026-07-07):
+
+- **Promotion owns combination participation** via a new promotion-owned table
+  `litemall_combination_pink` (Flyway **V30**, crmeb `StorePink` pattern:
+  leader row `head_id = 0`, members reference the leader row id, snapshots of
+  `required_members`/`expire_time` at group start). Implemented as
+  `LitemallCombinationPinkAggregate` + repository + start/join/my/monitoring
+  endpoints and a scheduled expiry sweep
+  (`litemall.promotion.groupon.*` typed properties).
+- **Order's legacy groupon (`litemall_groupon`/`litemall_groupon_rules`) is
+  untouched.** It remains the owner of the *legacy* pink flow until order
+  migrates; the two do not share tables, so write-ownership stays single per
+  table. Order integrates with the new participation via the
+  **groupon-priced-submit contract** (`docs/spec-groupon-priced-submit-contract.md`):
+  at submit, order validates the buyer's pink and prices the line at the
+  campaign's combination price.
+- Point 3 of the original consequences ("no pink/join logic in promotion") is
+  therefore obsolete; points 1–2 are replaced by the handoff specs under
+  `docs/`.
 - **Context worktree:** `promotion` (`fix/promotion`)
 - **Related:** litemall-order groupon (`litemall-order/.../domain/service/groupon/**`,
   `domain/model/agregates/LitemallGroupon*Aggregate`), litemall-db

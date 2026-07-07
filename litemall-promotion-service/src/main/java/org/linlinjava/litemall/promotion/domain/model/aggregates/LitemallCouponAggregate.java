@@ -89,6 +89,31 @@ public class LitemallCouponAggregate {
         return this.min.isLessThanOrEqualTo(orderSubtotal);
     }
 
+    /**
+     * Whether this coupon's goods scope covers a checkout. {@code goodsValue}
+     * holds category ids for CATEGORY scope and goods ids for ARRAY scope; a
+     * scoped coupon with no ids configured matches nothing.
+     */
+    public boolean matchesGoods(List<Integer> goodsIds, List<Integer> categoryIds) {
+        if (this.goodsType == null || LitemallCouponGoodsType.ALL.equals(this.goodsType)) {
+            return true;
+        }
+        if (this.goodsValue == null || this.goodsValue.length == 0) {
+            return false;
+        }
+        List<Integer> candidates = LitemallCouponGoodsType.CATEGORY.equals(this.goodsType)
+                ? categoryIds : goodsIds;
+        if (candidates == null || candidates.isEmpty()) {
+            return false;
+        }
+        for (Integer scoped : this.goodsValue) {
+            if (scoped != null && candidates.contains(scoped)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void addDomainEvent(LitemallDomainEvent event) {
         this.domainEvents.add(event);
     }

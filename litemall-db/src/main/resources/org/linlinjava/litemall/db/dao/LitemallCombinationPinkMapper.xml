@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_combination_pink (group-buy participation, V30).
+  NOT MBG output. Relies on the global mapUnderscoreToCamelCase=true.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCombinationPinkMapper">
+
+  <sql id="columns">
+    id, combination_id, head_id, user_id, order_id, required_members,
+    expire_time, status, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallCombinationPink"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_combination_pink
+      (combination_id, head_id, user_id, order_id, required_members,
+       expire_time, status, add_time, update_time, deleted)
+    values
+      (#{combinationId}, #{headId}, #{userId}, #{orderId}, #{requiredMembers},
+       #{expireTime}, #{status}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectByPrimaryKey" resultType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    select <include refid="columns"/>
+    from litemall_combination_pink
+    where id = #{id} and deleted = 0
+  </select>
+
+  <update id="update" parameterType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    update litemall_combination_pink
+    set status = #{status}, order_id = #{orderId}, update_time = #{updateTime}
+    where id = #{id} and deleted = 0
+  </update>
+
+  <select id="selectGroup" resultType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    select <include refid="columns"/>
+    from litemall_combination_pink
+    where (id = #{headId} or head_id = #{headId}) and deleted = 0
+    order by id asc
+  </select>
+
+  <select id="countGroup" resultType="int">
+    select count(*)
+    from litemall_combination_pink
+    where (id = #{headId} or head_id = #{headId}) and deleted = 0
+  </select>
+
+  <select id="selectByUser" resultType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    select <include refid="columns"/>
+    from litemall_combination_pink
+    where user_id = #{userId} and deleted = 0
+    order by add_time desc, id desc
+  </select>
+
+  <select id="selectExpiredPendingLeaders" resultType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    select <include refid="columns"/>
+    from litemall_combination_pink
+    where head_id = 0 and status = 0 and expire_time &lt; #{now} and deleted = 0
+    order by expire_time asc
+  </select>
+
+  <select id="selectLeaders" resultType="org.linlinjava.litemall.db.domain.LitemallCombinationPink">
+    select <include refid="columns"/>
+    from litemall_combination_pink
+    where head_id = 0 and deleted = 0
+    <if test="combinationId != null">and combination_id = #{combinationId}</if>
+    <if test="status != null">and status = #{status}</if>
+    order by add_time desc, id desc
+  </select>
+
+</mapper>

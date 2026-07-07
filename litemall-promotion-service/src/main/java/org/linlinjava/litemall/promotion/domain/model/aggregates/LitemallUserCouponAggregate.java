@@ -62,6 +62,23 @@ public class LitemallUserCouponAggregate {
         this.usedTime = when;
     }
 
+    /**
+     * Release a redemption after the order it was applied to failed. Only the
+     * exact order that consumed the coupon may release it, so a replayed
+     * release for a coupon meanwhile re-spent on another order is rejected.
+     */
+    public void release(Integer orderId) {
+        if (!LitemallUserCouponStatus.USED.equals(this.status)) {
+            throw new IllegalStateException("Coupon is not redeemed.");
+        }
+        if (this.orderId == null || !this.orderId.equals(orderId)) {
+            throw new IllegalStateException("Coupon was not redeemed by this order.");
+        }
+        this.status = LitemallUserCouponStatus.USABLE;
+        this.orderId = null;
+        this.usedTime = null;
+    }
+
     public void addDomainEvent(LitemallDomainEvent event) {
         this.domainEvents.add(event);
     }

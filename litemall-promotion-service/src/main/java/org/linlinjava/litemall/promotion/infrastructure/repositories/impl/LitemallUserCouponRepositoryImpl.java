@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.promotion.infrastructure.repositories.impl;
 
+import com.github.pagehelper.PageHelper;
 import org.linlinjava.litemall.db.dao.LitemallCouponUserMapper;
 import org.linlinjava.litemall.db.domain.LitemallCouponUser;
 import org.linlinjava.litemall.db.domain.LitemallCouponUserExample;
@@ -65,6 +66,34 @@ public class LitemallUserCouponRepositoryImpl implements LitemallUserCouponRepos
     }
 
     @Override
+    public List<LitemallUserCouponAggregate> findByUser(LitemallUserId userId, LitemallUserCouponStatus status) {
+        LitemallCouponUserExample example = new LitemallCouponUserExample();
+        LitemallCouponUserExample.Criteria criteria = example.or()
+                .andDeletedEqualTo(false)
+                .andUserIdEqualTo(userId.getId());
+        if (status != null) {
+            criteria.andStatusEqualTo((short) status.getCode());
+        }
+        example.setOrderByClause("add_time DESC");
+        return couponUserMapper.selectByExample(example).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LitemallUserCouponAggregate> findByCoupon(LitemallCouponId couponId, int page, int limit) {
+        LitemallCouponUserExample example = new LitemallCouponUserExample();
+        example.or()
+                .andDeletedEqualTo(false)
+                .andCouponIdEqualTo(couponId.getId());
+        example.setOrderByClause("add_time DESC");
+        PageHelper.startPage(page, limit);
+        return couponUserMapper.selectByExample(example).stream()
+                .map(this::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void add(LitemallUserCouponAggregate userCoupon) {
         LitemallCouponUser record = toData(userCoupon);
         LocalDateTime now = LocalDateTime.now();
@@ -79,9 +108,17 @@ public class LitemallUserCouponRepositoryImpl implements LitemallUserCouponRepos
 
     @Override
     public void update(LitemallUserCouponAggregate userCoupon) {
+        // Full-row update: a release CLEARS order_id/used_time, and the
+        // selective update would silently skip those nulls.
+        LitemallCouponUser current = couponUserMapper.selectByPrimaryKey(
+                userCoupon.getUserCouponId().getId());
         LitemallCouponUser record = toData(userCoupon);
+        if (current != null) {
+            record.setAddTime(current.getAddTime());
+            record.setDeleted(current.getDeleted());
+        }
         record.setUpdateTime(LocalDateTime.now());
-        couponUserMapper.updateByPrimaryKeySelective(record);
+        couponUserMapper.updateByPrimaryKey(record);
     }
 
     private LitemallUserCouponAggregate toDomain(LitemallCouponUser r) {

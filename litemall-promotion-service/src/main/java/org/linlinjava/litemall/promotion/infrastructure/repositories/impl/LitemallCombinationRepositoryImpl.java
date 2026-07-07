@@ -61,6 +61,15 @@ public class LitemallCombinationRepositoryImpl implements LitemallCombinationRep
         }
     }
 
+    @Override
+    public void delete(LitemallCombinationId combinationId) {
+        LitemallCombination record = new LitemallCombination();
+        record.setId(combinationId.getId());
+        record.setDeleted(true);
+        record.setUpdateTime(LocalDateTime.now());
+        combinationMapper.updateByPrimaryKeySelective(record);
+    }
+
     private LitemallCombinationAggregate toDomain(LitemallCombination r) {
         return LitemallCombinationAggregate.builder()
                 .combinationId(new LitemallCombinationId(r.getId()))

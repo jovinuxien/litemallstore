@@ -17,6 +17,8 @@ import java.time.LocalDateTime;
 public class CouponDtoResponse {
 
     private Integer couponId;
+    /** The caller's held instance of this coupon; only set on usable-for-checkout views. */
+    private Integer userCouponId;
     private String name;
     private String description;
     private String tag;

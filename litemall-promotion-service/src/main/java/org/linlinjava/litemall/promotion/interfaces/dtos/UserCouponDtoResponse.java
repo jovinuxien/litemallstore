@@ -16,6 +16,8 @@ public class UserCouponDtoResponse {
 
     private Integer userCouponId;
     private Integer couponId;
+    /** Holder's user id; only populated on the admin issue-records view. */
+    private Integer userId;
     private String status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;

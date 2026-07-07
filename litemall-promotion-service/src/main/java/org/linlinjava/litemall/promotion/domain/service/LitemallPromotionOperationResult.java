@@ -9,7 +9,10 @@ public class LitemallPromotionOperationResult {
     public enum OperationType {
         JOIN_SECKILL, CREATE_BARGAIN, HELP_BARGAIN, CHECK_BARGAIN_STATUS,
         ISSUE_COUPON, RECEIVE_COUPON, REDEEM_COUPON,
+        EXCHANGE_COUPON, RELEASE_COUPON, UPDATE_COUPON, DELETE_COUPON, GRANT_COUPON,
         DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION,
+        UPDATE_COMBINATION, DELETE_COMBINATION,
+        START_GROUP, JOIN_GROUP,
         DEFINE_CAMPAIGN, ACTIVATE_CAMPAIGN, EVALUATE_CAMPAIGN
     }
 
@@ -104,6 +107,46 @@ public class LitemallPromotionOperationResult {
         return failed(OperationType.REDEEM_COUPON, "Failed to redeem coupon: " + reason);
     }
 
+    public static LitemallPromotionOperationResult couponExchanged(Map<String, Object> data) {
+        return success(OperationType.EXCHANGE_COUPON, "Coupon exchanged successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponExchangeFailed(String reason) {
+        return failed(OperationType.EXCHANGE_COUPON, "Failed to exchange coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponReleased(Map<String, Object> data) {
+        return success(OperationType.RELEASE_COUPON, "Coupon released successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponReleaseFailed(String reason) {
+        return failed(OperationType.RELEASE_COUPON, "Failed to release coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponUpdated(Map<String, Object> data) {
+        return success(OperationType.UPDATE_COUPON, "Coupon updated successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponUpdateFailed(String reason) {
+        return failed(OperationType.UPDATE_COUPON, "Failed to update coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponDeleted(Map<String, Object> data) {
+        return success(OperationType.DELETE_COUPON, "Coupon deleted successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponDeleteFailed(String reason) {
+        return failed(OperationType.DELETE_COUPON, "Failed to delete coupon: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult couponGranted(Map<String, Object> data) {
+        return success(OperationType.GRANT_COUPON, "Coupon granted successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult couponGrantFailed(String reason) {
+        return failed(OperationType.GRANT_COUPON, "Failed to grant coupon: " + reason);
+    }
+
     // Combination vertical (campaign definition)
 
     public static LitemallPromotionOperationResult combinationDefined(Map<String, Object> data) {
@@ -124,6 +167,32 @@ public class LitemallPromotionOperationResult {
 
     public static LitemallPromotionOperationResult combinationStateChangeFailed(String reason) {
         return failed(OperationType.DEFINE_COMBINATION, "Failed to change combination campaign state: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult combinationUpdated(Map<String, Object> data) {
+        return success(OperationType.UPDATE_COMBINATION, "Combination campaign updated", data);
+    }
+
+    public static LitemallPromotionOperationResult combinationDeleted(Map<String, Object> data) {
+        return success(OperationType.DELETE_COMBINATION, "Combination campaign deleted", data);
+    }
+
+    // Combination participation (group / pink)
+
+    public static LitemallPromotionOperationResult groupStarted(Map<String, Object> data) {
+        return success(OperationType.START_GROUP, "Group started successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult groupStartFailed(String reason) {
+        return failed(OperationType.START_GROUP, "Failed to start group: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult groupJoined(Map<String, Object> data) {
+        return success(OperationType.JOIN_GROUP, "Group joined successfully", data);
+    }
+
+    public static LitemallPromotionOperationResult groupJoinFailed(String reason) {
+        return failed(OperationType.JOIN_GROUP, "Failed to join group: " + reason);
     }
 
     // Campaign vertical (algorithmic targeting)

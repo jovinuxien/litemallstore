@@ -2,11 +2,17 @@ package org.linlinjava.litemall.promotion.interfaces.rest.admin;
 
 import org.linlinjava.litemall.promotion.application.LitemallPromotionOrchestratorService;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallCouponAggregate;
+import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallUserCouponAggregate;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallGrantCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallIssueCouponCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallUpdateCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
+import org.linlinjava.litemall.promotion.interfaces.dtos.CouponGrantRequest;
 import org.linlinjava.litemall.promotion.interfaces.dtos.CouponManagerDtoResponse;
 import org.linlinjava.litemall.promotion.interfaces.dtos.PromotionOperationDtoResponse;
+import org.linlinjava.litemall.promotion.interfaces.dtos.UserCouponDtoResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -58,6 +64,59 @@ public class LitemallCouponAdminController {
             @RequestBody LitemallIssueCouponCommand command) {
         LitemallPromotionOperationResult result = orchestratorService.issueCoupon(command);
         return buildResponse(result);
+    }
+
+    @PutMapping("/{couponId}")
+    public ResponseEntity<PromotionOperationDtoResponse> updateCoupon(
+            @PathVariable Integer couponId,
+            @RequestBody LitemallUpdateCouponCommand command) {
+        LitemallPromotionOperationResult result =
+                orchestratorService.updateCoupon(new LitemallCouponId(couponId), command);
+        return buildResponse(result);
+    }
+
+    @DeleteMapping("/{couponId}")
+    public ResponseEntity<PromotionOperationDtoResponse> deleteCoupon(@PathVariable Integer couponId) {
+        LitemallPromotionOperationResult result =
+                orchestratorService.deleteCoupon(new LitemallCouponId(couponId));
+        return buildResponse(result);
+    }
+
+    /** Issuance records: who holds this coupon and in what state. */
+    @GetMapping("/{couponId}/users")
+    public ResponseEntity<List<UserCouponDtoResponse>> listIssueRecords(
+            @PathVariable Integer couponId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit) {
+        List<UserCouponDtoResponse> response = orchestratorService.getCouponService()
+                .listIssueRecords(new LitemallCouponId(couponId), page, limit).stream()
+                .map(this::toIssueRecordDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
+    /** Direct-grant: push a coupon into a specific user's wallet. */
+    @PostMapping("/grant")
+    public ResponseEntity<PromotionOperationDtoResponse> grantCoupon(
+            @RequestBody CouponGrantRequest request) {
+        LitemallGrantCouponCommand command = new LitemallGrantCouponCommand(
+                new LitemallCouponId(request.getCouponId()),
+                new LitemallUserId(request.getUserId()));
+        LitemallPromotionOperationResult result = orchestratorService.grantCoupon(command);
+        return buildResponse(result);
+    }
+
+    private UserCouponDtoResponse toIssueRecordDto(LitemallUserCouponAggregate u) {
+        return UserCouponDtoResponse.builder()
+                .userCouponId(u.getUserCouponId() != null ? u.getUserCouponId().getId() : null)
+                .couponId(u.getCouponId() != null ? u.getCouponId().getId() : null)
+                .userId(u.getUserId() != null ? u.getUserId().getId() : null)
+                .status(u.getStatus() != null ? u.getStatus().getDisplayName() : null)
+                .startTime(u.getStartTime())
+                .endTime(u.getEndTime())
+                .usedTime(u.getUsedTime())
+                .orderId(u.getOrderId())
+                .build();
     }
 
     private CouponManagerDtoResponse toManagerDto(LitemallCouponAggregate c) {
