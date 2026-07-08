@@ -4,6 +4,7 @@ import org.linlinjava.litemall.db.domain.LitemallComment;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.service.LitemallCommentService;
 import org.linlinjava.litemall.goods.application.engagement.EngagementGoodsResolver;
+import org.linlinjava.litemall.goods.application.search.RankingSignalService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -29,11 +30,14 @@ public class CommentPostService {
 
     private final LitemallCommentService commentService;
     private final EngagementGoodsResolver goodsResolver;
+    private final RankingSignalService rankingSignalService;
 
     public CommentPostService(LitemallCommentService commentService,
-                              EngagementGoodsResolver goodsResolver) {
+                              EngagementGoodsResolver goodsResolver,
+                              RankingSignalService rankingSignalService) {
         this.commentService = commentService;
         this.goodsResolver = goodsResolver;
+        this.rankingSignalService = rankingSignalService;
     }
 
     /** The created comment id, or null when the request doesn't validate. */
@@ -64,6 +68,10 @@ public class CommentPostService {
         comment.setHasPicture(pics.length > 0);
         comment.setPicUrls(pics);
         commentService.save(comment);
+        // Refresh the goods' review aggregate (review_count/rating) so the new review feeds the
+        // ranking boost on the next reindex. The doc itself refreshes via the goods write-path
+        // GoodsIndexEvent; this keeps the persisted signal current for that re-index.
+        rankingSignalService.refreshLocalReviewSignal(valueId);
         return comment.getId();
     }
 }
