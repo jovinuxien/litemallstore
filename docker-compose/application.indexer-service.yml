@@ -84,6 +84,42 @@ ocs:
               - Result
               - Facet
 
+          # Ranking signals (V31), master-level numerics. Sort so the discovery rails order on
+          # them (SuperDeals = -listed_num, New Arrivals = -created_epoch); Score so the
+          # search-service scoring-configuration can field_value_factor them into relevance
+          # (price × popularity × recency × reviews, per Relevant Search ch. 7).
+          listed_num:
+            name: listed_num
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Score
+
+          review_count:
+            name: review_count
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Score
+
+          rating:
+            name: rating
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Score
+
+          created_epoch:
+            name: created_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Score
+
           # Per-SKU variant fields (litemall_goods_product). field-level: variant means OCS indexes
           # them on each variant sub-document, facets/filters across SKUs, and flattens the matched
           # SKU into the hit. variant_price mirrors the SKU price; stock drives an in-stock filter.
@@ -117,14 +153,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch)$).*$'
             usage:
               - Facet
               - Result

@@ -15,6 +15,7 @@ import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearch
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -101,6 +102,21 @@ public class LitemallProductIndexingService {
         }
         doc.setCategoryNames(categoryNames);
         doc.setCategoryIds(categoryIds);
+
+        // V31 ranking signals, read straight off the goods row (populated for CJ at promote, for
+        // local by the review aggregator). Emitted as master-level numeric fields the searcher's
+        // scoring-configuration multiplies into relevance and the discovery rails sort on. A null
+        // becomes absent in the document → OCS treats it as neutral (0/missing).
+        // Emit 0 (not absent) for a missing signal so the searcher's ln2p(2+x) factor is a uniform
+        // ~0.69 for every no-signal product (local goods legitimately carry listed_num 0) — no
+        // product is ever zeroed, and no source is structurally buried; products rise only on the
+        // signals they actually have.
+        doc.setListedNum(goods.getListedNum() != null ? goods.getListedNum() : 0);
+        doc.setReviewCount(goods.getReviewCount() != null ? goods.getReviewCount() : 0);
+        doc.setRating(goods.getRating() != null ? goods.getRating() : BigDecimal.ZERO);
+        if (goods.getAddTime() != null) {
+            doc.setCreatedEpoch(goods.getAddTime().toInstant(ZoneOffset.UTC).toEpochMilli());
+        }
 
         addCuratedAttributes(doc, goods.getId());
         addVariants(doc, goods.getId());
