@@ -15,6 +15,7 @@ import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
+import org.linlinjava.litemall.goods.application.discovery.DiscoveryService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
@@ -54,6 +55,10 @@ public class LitemallGoodsController {
     private CjGoodsDetailService cjGoodsDetailService;
     @Autowired
     private SearchService searchService;
+    // OCS-backed discovery rails (SuperDeals / New Arrivals), unified local + CJ, price·popularity·
+    // recency·reviews boosted — replaces the DB-only is_new/is_hot lists on the home payload.
+    @Autowired
+    private DiscoveryService discoveryService;
     // Batched per-goods review stats (star avg + count) decorating the listing surfaces.
     @Autowired
     private CommentStatsService commentStatsService;
@@ -89,9 +94,25 @@ public class LitemallGoodsController {
         // Public home payload: top coupons available to claim (no logged-in user here).
         Callable<List> couponListCallable = () -> couponService.queryList(0, 3);
 
-        Callable<List> newGoodsListCallable = () -> goodsManagementService.goodsByNew(0, SystemConfig.getNewLimit());
+        // New Arrivals (newest + affordable) and SuperDeals (most-listed/popular) now come from the
+        // unified OCS index — spanning local AND CJ, price·popularity·recency·reviews boosted — instead
+        // of the DB-only is_new/is_hot flags (which CJ rows never carry). Degrade to the DB lists if
+        // OCS is unavailable so the home page still renders.
+        Callable<List> newGoodsListCallable = () -> {
+            try {
+                return discoveryService.newArrivals(SystemConfig.getNewLimit());
+            } catch (RuntimeException ex) {
+                return goodsManagementService.goodsByNew(0, SystemConfig.getNewLimit());
+            }
+        };
 
-        Callable<List> hotGoodsListCallable = () -> goodsManagementService.goodsByHot(0, SystemConfig.getHotLimit());
+        Callable<List> hotGoodsListCallable = () -> {
+            try {
+                return discoveryService.superDeals(SystemConfig.getHotLimit());
+            } catch (RuntimeException ex) {
+                return goodsManagementService.goodsByHot(0, SystemConfig.getHotLimit());
+            }
+        };
 
         //Callable<List> brandListCallable = () -> brandService.query(0, SystemConfig.getBrandLimit());
 
