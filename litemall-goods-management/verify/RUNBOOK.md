@@ -1000,3 +1000,90 @@ real reviews on 1009009 / 10000516).
 
 **Follow-up (not done here):** `order` worktree — expose a "user U purchased goods G" query so a
 later revision can set a real `hasPurchased` on posted reviews (v1 leaves it false/untracked).
+
+---
+
+## §22 — Relevance boosting: price · popularity · recency · reviews for discovery (2026-07-08)
+
+New task: boost product relevance by price, popularity and reviews across BOTH local and CJ, and
+surface it as SuperDeals (popular), New Arrivals (recent+affordable) and All Products / navbar
+Products (boosted browse). Grounded in *Relevant Search* ch. 7 — signal modeling (§5.1/§7.4.2),
+sqrt/log-damped general-quality metric (§7.4.6), combine-by-multiplication (§7.4.8) — mapped onto
+OCS's existing `scoring-configuration` (which already multiplies in `stock`).
+
+**Signals + storage (V31).** `litemall_goods` gains `listed_num`/`review_count`/`rating`;
+`litemall_cj_product` gains those plus `cj_create_time`/`reviews_synced_time`. Recency rides
+`litemall_goods.add_time` (CJ rows: set to CJ createTime when present). Domain fields hand-added to
+`LitemallGoods`/`LitemallCjProduct` (+ Goods BaseResultMap/Base_Column_List read mappings); writes go
+through a dedicated `LitemallCjLinkageMapper.updateGoodsRankingSignals` (COALESCE, so a null preserves)
+rather than the generated insert/update.
+
+**Acquisition — ~0 new CJ calls.** The CJ list endpoint is V1 `/product/list`; detail is
+`/product/query`. `listedNum` + `createTime` ride the detail response the existing per-product
+enrichment (`CjDetailEnrichmentService.enrichOne`, nightly `enrich-cron`, quota-aware) already
+fetches — previously discarded, now persisted. The CJ review aggregate (`productComments` `total` =
+count, avg `score` = rating) is folded into the SAME paced loop (shares the 1-QPS limiter + Redis
+cache), so no separate sweep. Local review aggregate (`litemall_comment`) is written onto goods by
+`RankingSignalService` — incrementally on `POST /srv/comment/post` and in bulk via
+`POST /srv/private/admin/search/refresh-signals`. Promote copies the four CJ aggregates onto the
+goods row.
+
+**Indexing.** `ProductDocument` + `createProductDocument` emit `listed_num`/`review_count`/`rating`
+(0 when absent — NOT null) and `created_epoch` (add_time millis). `application.indexer-service.yml`
+adds the four as `number` with `Result,Sort,Score`, and excludes them from the dynamic-fields
+catch-all. OCS places master-level Score fields in the doc `scores` block (verified:
+`scores:{rating,review_count,listed_num,stock,created_epoch}`) + `sortData`.
+
+**Scoring (`application.search-service.yml`).** Added `field_value_factor` on `rating`,
+`review_count`, `listed_num`, all `MODIFIER: ln2p` (= ln(2+x)), multiplied alongside the existing
+`stock` (ln1p). ln2p CHOSEN over sqrt/ln1p because score-mode multiply would let those hit 0 and
+zero a product; ln2p floors every no-signal product at a UNIFORM ~0.69 (local goods legitimately
+carry listed_num 0) — no product zeroed, no source structurally buried, each rises only on the
+signals it has (rating≈1.95@5★, review_count≈4.6@100, listed_num≈3.1@20). Recency drives the New
+Arrivals rail via `-created_epoch` sort; a global recency *decay* is a follow-up (needs a decay
+function, not field_value_factor).
+
+**Discovery (`DiscoveryService`).** SuperDeals = empty browse `sort=-listed_num`; New Arrivals =
+empty browse `sort=-created_epoch` + `price=0,<affordable-max>` (config
+`litemall.discovery.affordable-max-price`, default 100). `LitemallGoodsController.index()` now sources
+`hotGoodsList`←SuperDeals and `newGoodsList`←New Arrivals (same goodsList DTO the SPA rails already
+render — no SPA change), with the DB is_new/is_hot lists as an OCS-down fallback. All Products / navbar
+Products keep `/srv/search` (default scoring = the global boost).
+
+**Verified LIVE** — worktree exec jar :8093, OCS stack (indexer+searcher recreated from THIS
+worktree's docker-compose), shared MySQL:
+```
+V31 applied (Flyway "31 - ranking signals"); refresh-signals -> {localGoodsUpdated:32}
+cj-enrich-one pid 2607070501241636200 -> cj_product{listed_num:1, review_count:15, rating:4.9}
+   -> goods 10007645{listed_num:1, review_count:15, rating:4.9}  (promote copy verified)
+reindex -> {indexed:3708}; ES _doc 10007645 scores{rating:4.9, review_count:15, listed_num:1,
+   created_epoch:1783452964000}; local 1009009 scores{review_count:31, rating:1.1, listed_num:0}
+All Products browse (q=, default scoring) -> reviewed/popular lifted to top:
+   10007645(cj,rev15) , 1181000(local,rev97), 1009009(rev31), 1006007(rev30)...  (was doc-id order)
+SuperDeals (-listed_num) -> 10007645 first, then reviewed local via score tie-break
+New Arrivals (-created_epoch, price<=100) -> newest CJ, all <=100 (78.77, 66.1, 50.69, 45.22...)
+```
+
+> **SEARCHER-RESTART GOTCHA (the one real snag).** OCS's ScoringCreator resolves a scoring field
+> against the CURRENT index field-config at searcher startup. Recreating the searcher BEFORE the
+> reindex that first writes the new fields → `WARN ScoringCreator - Field rating for scoring does not
+> exist. Will ignore scoring function`, and the boost silently no-ops (browse stays doc-id order).
+> Fix: reindex FIRST (creates the fields in the index), THEN restart the searcher so it re-reads the
+> field-config. Canonical order for a scoring-field change: edit indexer yml -> recreate indexer ->
+> reindex -> edit searcher yml -> restart searcher -> verify no "does not exist" warning.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean;
+hardcoded-host grep over src/main/java clean; V31 applies on the shared dev DB.
+
+**Follow-ups (not done here):**
+- `cj_create_time` comes back null from `/product/query` (CJ's detail `createTime` is often null).
+  Recency falls back to our `add_time` (promote/ingest time — still monotonic for "newness"). To get
+  CJ's TRUE creation date, switch the list sync to the V2 endpoint `/product/list` V2 (§1.2) which
+  returns `createAt` (ms) — a larger change, raised not done.
+- Price-value is carried implicitly (SuperDeals sorts by listed_num; browse boost has no explicit
+  price term — the book cautions against naive price boosts). A price-value tie-break / composite
+  deal_score field is a tuning follow-up.
+- Global recency decay for the All Products browse needs an OCS decay function (gauss), not
+  field_value_factor — deferred; New Arrivals already covers recency via sort.
+- Rebuild + restart the main-checkout goods-management (:8082) after merge so :8082 serves this
+  (its jar predates V31 + the new code); litemall-db jar in ~/.m2 was refreshed by this build.

@@ -79,4 +79,25 @@
     limit 1
   </select>
 
+  <!--
+    V31 ranking signals: written directly onto litemall_goods without the generated
+    insert/update (which don't carry these columns). COALESCE preserves a column when its
+    argument is null. createTime, when present, also refreshes add_time so CJ recency
+    reflects the product's true CJ creation date.
+  -->
+  <update id="updateGoodsRankingSignals">
+    update litemall_goods
+    set listed_num = coalesce(#{listedNum}, listed_num),
+        review_count = coalesce(#{reviewCount}, review_count),
+        rating = coalesce(#{rating}, rating),
+        add_time = coalesce(#{createTime}, add_time),
+        update_time = now()
+    where id = #{goodsId}
+  </update>
+
+  <select id="selectReviewedGoodsIds" resultType="java.lang.Integer">
+    select distinct value_id from litemall_comment
+    where type = 0 and deleted = 0 and value_id is not null
+  </select>
+
 </mapper>
