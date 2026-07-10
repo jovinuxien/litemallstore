@@ -97,6 +97,16 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository orderGoodsRepository;
 
+    // Aftersale/RMA vertical: admin decisions (approve → tender-parity refund,
+    // reject) live here because the orchestrator owns refund settlement.
+    @Autowired
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallAftersaleRepository aftersaleRepository;
+
+    // Aftersale hops that don't move the ORDER status (approve/reject markers) still
+    // land on the order's single timeline as same-status entries.
+    @Autowired
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository statusHistoryRepository;
+
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
                                             LitemallGrouponServiceLayer grouponService) {
@@ -686,10 +696,93 @@ public class LitemallOrderOrchestratorService {
             return LitemallOrderOperationResult.invalidStateTransition(
                     orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
         }
-        LitemallMoney refund = settleRefundToTender(order, orderId);
+        LitemallMoney refund = settleRefundToTender(order, orderId, null);
         orderServiceImpl.refundOrder(orderId, refund);
         return LitemallOrderOperationResult.refundSuccess(
                 orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+    }
+
+    /**
+     * Admin approves an aftersale application: accept it, drive the order through the
+     * existing refund transitions and settle the money to the paying tender — capped
+     * by the CUSTOMER-REQUESTED amount as well as the capture — all in ONE
+     * transaction. The aftersale row, the order's {@code after_sale_status}, the
+     * order status hops and the wallet credit land (or roll back) together.
+     */
+    public LitemallOrderOperationResult approveAftersale(Integer aftersaleId) {
+        org.linlinjava.litemall.order.domain.model.agregates.LitemallAftersaleAggregate aftersale =
+                aftersaleRepository.findById(aftersaleId).orElse(null);
+        if (aftersale == null) {
+            return LitemallOrderOperationResult.orderNotFound(new LitemallOrderId(0));
+        }
+        LitemallOrderId orderId = aftersale.getOrderId();
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        aftersale.approve(); // guarded: only an APPLIED application can be accepted
+
+        // Move the order into the refund flow (PAID/SHIPPED/DELIVERED/AUTO_DELIVERED →
+        // REFUND_REQUEST) unless a plain refund request already did.
+        if (previous != LitemallOrderStatus.REFUND_REQUEST) {
+            if (!previous.canTransitionTo(LitemallOrderStatus.REFUND_REQUEST)) {
+                return LitemallOrderOperationResult.invalidStateTransition(
+                        orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+            }
+            orderServiceImpl.requestRefund(orderId,
+                    "Aftersale " + aftersale.getAftersaleSn() + " approved: " + aftersale.getReason());
+            order = orderRepository.findById(orderId).orElseThrow();
+        }
+
+        LitemallMoney refund = settleRefundToTender(order, orderId, aftersale.getAmount());
+        orderServiceImpl.refundOrder(orderId, refund);
+
+        aftersale.markRefunded();
+        aftersaleRepository.update(aftersale);
+        orderRepository.updateAfterSaleStatus(orderId,
+                org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_REFUND.getCode());
+        statusHistoryRepository.record(new LitemallOrderStatusChange(
+                orderId, LitemallOrderStatus.REFUNDED, LitemallOrderStatus.REFUNDED,
+                "aftersale_approve",
+                "Aftersale " + aftersale.getAftersaleSn() + " approved; refunded " + refund.getAmount(),
+                "admin", LocalDateTime.now()));
+        return LitemallOrderOperationResult.refundSuccess(
+                orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+    }
+
+    /**
+     * Admin declines an aftersale application. The order keeps its status and its
+     * money — only the aftersale row and the order's {@code after_sale_status} flag
+     * move, plus a timeline marker.
+     */
+    public LitemallOrderOperationResult rejectAftersale(Integer aftersaleId, String reason) {
+        org.linlinjava.litemall.order.domain.model.agregates.LitemallAftersaleAggregate aftersale =
+                aftersaleRepository.findById(aftersaleId).orElse(null);
+        if (aftersale == null) {
+            return LitemallOrderOperationResult.orderNotFound(new LitemallOrderId(0));
+        }
+        LitemallOrderId orderId = aftersale.getOrderId();
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        aftersale.reject(); // guarded: only an APPLIED application can be declined
+        if (reason != null && !reason.isBlank()) {
+            aftersale.setComment(reason);
+        }
+        aftersaleRepository.update(aftersale);
+        orderRepository.updateAfterSaleStatus(orderId,
+                org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_REJECT.getCode());
+        statusHistoryRepository.record(new LitemallOrderStatusChange(
+                orderId, order.getOrderStatus(), order.getOrderStatus(),
+                "aftersale_reject",
+                "Aftersale " + aftersale.getAftersaleSn() + " rejected"
+                        + (reason == null || reason.isBlank() ? "" : ": " + reason),
+                "admin", LocalDateTime.now()));
+        return LitemallOrderOperationResult.refundRequestSuccess(
+                orderId, order.getOrderStatus(),
+                LitemallOrderHandleOption.forStatus(order.getOrderStatus()));
     }
 
     /**
@@ -697,12 +790,20 @@ public class LitemallOrderOrchestratorService {
      * refunded (what {@code refund_amount} must record). Never exceeds the captured
      * amount: WALLET refunds the recorded debit; an external (CARD/digital) charge is
      * reversed at the PSP seam without touching the wallet.
+     *
+     * @param requestedCap optional further cap (aftersale's customer-requested
+     *                     amount); null means "refund the full order amount"
      */
-    private LitemallMoney settleRefundToTender(LitemallOrderAggregate order, LitemallOrderId orderId) {
+    private LitemallMoney settleRefundToTender(LitemallOrderAggregate order, LitemallOrderId orderId,
+                                               LitemallMoney requestedCap) {
         LitemallMoney actual = order.getActualPrice();
         if (actual == null || actual.getAmount().signum() <= 0) {
             log.info("Refund for order {}: non-positive order amount, nothing to return", orderId.getId());
             return new LitemallMoney(java.math.BigDecimal.ZERO);
+        }
+        if (requestedCap != null && requestedCap.getAmount() != null
+                && requestedCap.getAmount().compareTo(actual.getAmount()) < 0) {
+            actual = requestedCap;
         }
 
         String orderRef = String.valueOf(orderId.getId());
