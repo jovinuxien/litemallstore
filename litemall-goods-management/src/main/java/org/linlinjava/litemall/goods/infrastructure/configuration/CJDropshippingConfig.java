@@ -145,6 +145,7 @@ public class CJDropshippingConfig {
         private Auth auth;
         private Category category;
         private Product product;
+        private Warehouse warehouse;
     }
 
 
@@ -169,6 +170,18 @@ public class CJDropshippingConfig {
         private String stockQueryUrl;
         /** CJ {@code product/productComments} endpoint — per-product customer reviews. */
         private String commentsUrl;
+        /** CJ {@code product/sourcing/create} endpoint — create a product-sourcing request. */
+        private String sourcingCreateUrl;
+        /** CJ {@code product/sourcing/query} endpoint — sourcing-request status by sourceIds. */
+        private String sourcingQueryUrl;
+        /** CJ {@code product/queryVideosByProductId} endpoint — per-product videos. */
+        private String productVideosUrl;
+    }
+
+    @Data
+    public static class Warehouse {
+        /** CJ {@code warehouse/detail} endpoint — storage info by {@code ?id=<storageId>}. */
+        private String detailUrl;
     }
 
     // Helper method for easy access to commonly used properties
@@ -205,6 +218,22 @@ public class CJDropshippingConfig {
 
     public String getProductCommentsUrl(){
        return api != null && api.getProduct()!= null ? api.getProduct().getCommentsUrl() : null;
+    }
+
+    public String getSourcingCreateUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getSourcingCreateUrl() : null;
+    }
+
+    public String getSourcingQueryUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getSourcingQueryUrl() : null;
+    }
+
+    public String getProductVideosUrl(){
+       return api != null && api.getProduct()!= null ? api.getProduct().getProductVideosUrl() : null;
+    }
+
+    public String getWarehouseDetailUrl(){
+       return api != null && api.getWarehouse()!= null ? api.getWarehouse().getDetailUrl() : null;
     }
 
 }

@@ -25,6 +25,26 @@ public abstract class CJRequestUtils {
         return makeRequest(url, HttpMethod.POST, responseType,  accessToken, errorMessage);
     }
 
+    /**
+     * POST with a JSON request body (the original {@link #makePostRequest(String, Class, String, String)}
+     * sends headers only). {@code body} is serialized with the shared {@link ObjectMapper}.
+     */
+    public <T> T makePostRequest(String url, Object body, Class<T> responseType, String accessToken, String errorMessage){
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(body);
+        } catch (Exception e) {
+            throw new RuntimeException(errorMessage + ": failed to serialize request body", e);
+        }
+        HttpEntity<String> requestEntity = new HttpEntity<>(json, createHeadersWithToken(accessToken));
+        ResponseEntity<T> response = restTemplate.exchange(url, HttpMethod.POST, requestEntity, responseType);
+        if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+            return response.getBody();
+        } else {
+            throw new RuntimeException(errorMessage + ": " + response.getStatusCode());
+        }
+    }
+
     public <T> T makePutRequest(String url,  Class<T> responseType, String accessToken, String errorMessage){
         return makeRequest(url, HttpMethod.PUT, responseType, accessToken, errorMessage);
     }
