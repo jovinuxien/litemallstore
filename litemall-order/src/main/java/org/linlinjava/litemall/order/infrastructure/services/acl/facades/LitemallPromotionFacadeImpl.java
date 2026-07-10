@@ -39,6 +39,9 @@ public class LitemallPromotionFacadeImpl implements LitemallPromotionFacade {
 
     private static final Logger log = LoggerFactory.getLogger(LitemallPromotionFacadeImpl.class);
 
+    /** Promotion's wire code for a USED holding on {@code GET /my?status=} (numeric, not the enum name). */
+    private static final String USED_STATUS_CODE = "1";
+
     private final PromotionServiceFeignClient promotionClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -128,7 +131,9 @@ public class LitemallPromotionFacadeImpl implements LitemallPromotionFacade {
     @Override
     public Optional<Integer> findRedeemedUserCouponForOrder(LitemallUserId userId, LitemallOrderId orderId) {
         try {
-            JsonNode list = promotionClient.myCoupons(userId.getId(), "USED");
+            // Promotion's status filter takes the NUMERIC code (1 = USED); a name like
+            // "USED" comes back as a 200 {errno:402} envelope, not an array.
+            JsonNode list = promotionClient.myCoupons(userId.getId(), USED_STATUS_CODE);
             if (list != null && list.isArray()) {
                 for (JsonNode c : list) {
                     if (c.path("orderId").asInt() == orderId.getId()) {

@@ -79,3 +79,18 @@ status, statusText, handleTime, addTime}` — prices as numbers, dates
 - **gateway-admin:** verify the order route covers `/srv/private/admin/aftersale/**`
   (same service, `lb://` order); build the Aftersale queue page (list + approve/reject)
   on the endpoints above — the UserList/AddressList page pattern fits the list shape.
+  The service-side svcsecurity gate needs BOTH `X-User-Id` and
+  `X-User-Roles: ROLE_ADMIN` forwarded on this prefix (verified live: machine token
+  alone → 403), same as promotion's admin surface.
+
+## Implementation gotchas (verified live 2026-07-10)
+
+- litemall-db's hand-maintained `Deleted` enums build their values with
+  `Boolean.valueOf("1")`/`("0")` — **both are `false`** — so
+  `Example.andLogicalDeleted(false)` renders `deleted <> false` and matches ONLY
+  deleted rows. The aftersale repository binds `andDeletedEqualTo(false)` instead.
+  Every other `andLogicalDeleted` caller in the codebase shares this landmine.
+- litemall-db already ships a bean named `litemallAftersaleService`
+  (`db.service.LitemallAftersaleService`); order's application service is
+  therefore `LitemallAftersaleServiceLayer` (a duplicate default bean name fails
+  boot with `ConflictingBeanDefinitionException`).
