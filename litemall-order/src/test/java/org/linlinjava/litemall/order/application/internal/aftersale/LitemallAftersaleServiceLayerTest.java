@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class LitemallAftersaleServiceTest {
+class LitemallAftersaleServiceLayerTest {
 
     private static final LitemallOrderId ORDER_ID = new LitemallOrderId(77);
     private static final LitemallUserId OWNER = new LitemallUserId(42);
@@ -53,7 +53,7 @@ class LitemallAftersaleServiceTest {
     private LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
     @InjectMocks
-    private LitemallAftersaleService service;
+    private LitemallAftersaleServiceLayer service;
 
     private LitemallOrderAggregate order;
 
@@ -74,7 +74,7 @@ class LitemallAftersaleServiceTest {
     @Test
     void apply_persistsWithSequencedSn_flagsOrder_recordsTimelineHop() {
         LitemallAftersaleAggregate created = service.apply(OWNER, ORDER_ID,
-                new LitemallAftersaleService.ApplyCommand((short) 2, "damaged",
+                new LitemallAftersaleServiceLayer.ApplyCommand((short) 2, "damaged",
                         new BigDecimal("50"), null, null));
 
         assertEquals("SN-77-A1", created.getAftersaleSn());
@@ -98,7 +98,7 @@ class LitemallAftersaleServiceTest {
 
         LitemallAftersaleException e = assertThrows(LitemallAftersaleException.class,
                 () -> service.apply(OWNER, ORDER_ID,
-                        new LitemallAftersaleService.ApplyCommand((short) 1, "second", null, null, null)));
+                        new LitemallAftersaleServiceLayer.ApplyCommand((short) 1, "second", null, null, null)));
         assertEquals(true, e.getMessage().contains("SN-77-A1"));
         verify(aftersaleRepository, never()).add(any());
     }
@@ -107,7 +107,7 @@ class LitemallAftersaleServiceTest {
     void apply_byStranger_readsAsOrderNotFound() {
         assertThrows(LitemallAftersaleException.class,
                 () -> service.apply(STRANGER, ORDER_ID,
-                        new LitemallAftersaleService.ApplyCommand((short) 1, "r", null, null, null)));
+                        new LitemallAftersaleServiceLayer.ApplyCommand((short) 1, "r", null, null, null)));
         verify(aftersaleRepository, never()).add(any());
     }
 

@@ -29,13 +29,13 @@ import java.util.List;
  * shows the full trail without a second timeline store.
  */
 @Service
-public class LitemallAftersaleService {
+public class LitemallAftersaleServiceLayer {
 
     private final LitemallAftersaleRepository aftersaleRepository;
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
-    public LitemallAftersaleService(LitemallAftersaleRepository aftersaleRepository,
+    public LitemallAftersaleServiceLayer(LitemallAftersaleRepository aftersaleRepository,
                                     LitemallOrderRepository orderRepository,
                                     LitemallOrderStatusHistoryRepository statusHistoryRepository) {
         this.aftersaleRepository = aftersaleRepository;

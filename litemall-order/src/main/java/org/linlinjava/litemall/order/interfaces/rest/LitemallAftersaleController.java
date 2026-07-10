@@ -1,6 +1,6 @@
 package org.linlinjava.litemall.order.interfaces.rest;
 
-import org.linlinjava.litemall.order.application.internal.aftersale.LitemallAftersaleService;
+import org.linlinjava.litemall.order.application.internal.aftersale.LitemallAftersaleServiceLayer;
 import org.linlinjava.litemall.order.application.util.exception.order.LitemallAftersaleException;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
@@ -31,9 +31,9 @@ public class LitemallAftersaleController {
 
     private static final int AFTERSALE_ERRNO = 730;
 
-    private final LitemallAftersaleService aftersaleService;
+    private final LitemallAftersaleServiceLayer aftersaleService;
 
-    public LitemallAftersaleController(LitemallAftersaleService aftersaleService) {
+    public LitemallAftersaleController(LitemallAftersaleServiceLayer aftersaleService) {
         this.aftersaleService = aftersaleService;
     }
 
@@ -45,7 +45,7 @@ public class LitemallAftersaleController {
         try {
             return ApiResponse.ok(AftersaleDtoResponse.fromDomain(aftersaleService.apply(
                     new LitemallUserId(userId), new LitemallOrderId(orderId),
-                    new LitemallAftersaleService.ApplyCommand(
+                    new LitemallAftersaleServiceLayer.ApplyCommand(
                             request.getType(), request.getReason(), request.getAmount(),
                             request.getPictures(), request.getComment()))));
         } catch (LitemallAftersaleException e) {
