@@ -20,7 +20,7 @@ Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp
 | `/srv/topic/related?id=` | GET | (reserved) | related topics |
 | `/srv/comment/count?valueId=&type=0` | GET | `modules/product/.../Reviews` | ✅ **LANDED** |
 | `/srv/comment/list?valueId=&type=0` | GET | `modules/product/.../Reviews` | ✅ **LANDED** — guard removed |
-| `/srv/comment/post` | POST | `ReviewForm` (PDP Reviews CTA + OrderDetail "Unrated") | **Wave-2 goods-management** — request shape is the contract in `docs/handoff-goods-management-engagement.md`; guarded until it ships |
+| `/srv/comment/post` | POST | `ReviewForm` (PDP Reviews CTA + OrderDetail "Unrated") | ✅ **LANDED** (goods-management `ab3d365e6`, 2026-07-07) — guard removed 2026-07-10 |
 
 > `/srv/goods/list`, `/srv/goods/detail`, `/srv/goods/related`, `/srv/catalog/*`, `/srv/search`,
 > `/srv/suggest` already exist and are consumed as-is.
@@ -69,8 +69,8 @@ Contract: `litemall-promotion-service/docs/spec-gateway-routes.md` (user-approve
 committed on `fix/promotion`). The SPA **keeps its legacy paths**; promotion serves them natively
 via `interfaces/rest/legacy/**`. The gateway `customer-promotion` route
 (`/srv/promotion/**,/srv/coupon/**,/srv/groupon/**` → `lb://promotion-service-app`) is **landed
-here**. Everything below stays guarded until `fix/promotion` merges and the service runs (master's
-promotion-service can't boot the coupon verticals — bean-conflict fixed only on that branch).
+here**. ✅ `fix/promotion` **merged to master** (`73f12660c`, 2026-07-07) — every endpoint below is
+live; the SPA guards were removed 2026-07-10.
 
 | Endpoint | Verb | Used by | Notes |
 |---|---|---|---|
@@ -98,9 +98,9 @@ promotion-service can't boot the coupon verticals — bean-conflict fixed only o
 >   (`spec-groupon-priced-submit-contract.md`) — starting/joining groups works, but checkout still
 >   prices at retail until the order worktree lands it.
 
-## Owner: litemall-goods-management (engagement verticals) — Wave-2, shapes contract committed
-Request/response shapes the SPA already sends: `docs/handoff-goods-management-engagement.md`.
-All guarded (`isMissingEndpoint`) until goods-management ships them.
+## Owner: litemall-goods-management (engagement verticals) — ✅ LANDED (`ab3d365e6`, 2026-07-07)
+Request/response shapes contract: `docs/handoff-goods-management-engagement.md`. All endpoints
+below are live on master; the SPA guards were removed 2026-07-10.
 
 | Endpoint | Verb | Used by |
 |---|---|---|
@@ -156,6 +156,33 @@ All guarded (`isMissingEndpoint`) until goods-management ships them.
   list/detail, address book, brand, topic, goods listing, comment list). Guards remain ONLY for:
   coupon/groupon (until `fix/promotion` merges + service runs), collect/footprint/feedback/
   comment-post (goods-management Wave-2), `/srv/user/index|profile` (no owning service yet).
+
+## Wave-2 close-out (2026-07-10)
+- Both blocking backend merges landed on master 2026-07-07: goods-management engagement verticals
+  (`ab3d365e6`) and promotion coupon/group-buy verticals (`73f12660c`). Master merged into this
+  branch; the now-stale guards were removed from: `Favorites`, `Footprint`, `Feedback`, `Coupons`,
+  `Groupon` (incl. dropping its `actionsAvailable` state), `CollectButton`, `CouponStrip`,
+  `ReviewForm`.
+- **The ONLY remaining `isMissingEndpoint` guards** are `UserCenter`/`Profile`
+  (`/srv/user/index|profile` — genuinely no owning service yet, tabled above).
+- Still blocked on the `order` worktree (acceptance bullets that cannot pass yet):
+  **coupon honored at submit** (promotion-issued coupon → order 200 `{errno:502}`; needs the
+  `LitemallCouponServiceLayer` → promotion facade per `spec-coupon-checkout-contract.md`, with a
+  clean 422 meanwhile) and **group-priced ordering** (`pinkId` submit field per
+  `spec-groupon-priced-submit-contract.md`). Aftersale REST surface also not started on order
+  (only value-object scaffolding) — the `/srv/order/**` route already covers it whenever it lands.
+- SPA-side mitigation shipped for the first bullet: `Checkout.tsx` now shows the inline
+  remove-coupon-and-retry affordance on ANY rejected submit that carried a coupon (except the
+  slice's own 400/401 pre-checks), because order's generic "System internal error" never matches
+  the old `/coupon/i` message test. The page-level alert still shows the underlying error.
+- Live e2e re-run 2026-07-10 through `:9001` → `:8090`: collect toggle/list, footprint
+  record/list + same-day dedupe, feedback submit → admin list, comment post → list, coupon
+  claim → mylist → selectlist include/exclude by amount, group-buy rule browse → start →
+  second-user join → `Success` — all PASS. Cart add/update could not be re-verified that day
+  (the shared dev `:8082` was running the goods-management worktree's in-flight build, which
+  broke order's cart-add facade validation with `errno:402`; stock numbers were being mutated
+  under live test) — plain-checkout regression stands on the 2026-07-07 verification; re-check
+  after the goods-management branch merges.
 
 ## Owner: auth edge (`/auth/**`, gateway-api `AuthController`)
 | Endpoint | Verb | Used by | Notes |

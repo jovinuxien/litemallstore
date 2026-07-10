@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { Alert, Button, Form } from 'react-bootstrap';
 
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 
 /**
  * Post-purchase review form feeding `POST /srv/comment/post` (type 0 = goods).
  * Used on the product page (Reviews CTA) and on the order-detail "Unrated"
- * flow. The backend endpoint is goods-management's Wave-2 build
- * (docs/handoff-goods-management-engagement.md) — until it ships, submitting
- * shows the standard "isn't available yet" notice instead of an error.
+ * flow.
  */
 interface Props {
   goodsId: number | string;
@@ -44,12 +42,8 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
       });
       setDone(true);
       onSubmitted?.();
-    } catch (err) {
-      setNotice(
-        isMissingEndpoint(err)
-          ? { variant: 'info', text: 'Review submission isn’t available yet.' }
-          : { variant: 'danger', text: 'Your review could not be submitted. Please try again.' }
-      );
+    } catch {
+      setNotice({ variant: 'danger', text: 'Your review could not be submitted. Please try again.' });
     } finally {
       setBusy(false);
     }
