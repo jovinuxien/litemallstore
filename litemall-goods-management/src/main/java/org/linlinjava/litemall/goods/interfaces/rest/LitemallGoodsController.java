@@ -15,6 +15,7 @@ import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
+import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsVideoService;
 import org.linlinjava.litemall.goods.application.discovery.DiscoveryService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
@@ -53,6 +54,8 @@ public class LitemallGoodsController {
     private LitemallGoodsManagementService goodsManagementService;
     @Autowired
     private CjGoodsDetailService cjGoodsDetailService;
+    @Autowired
+    private CjGoodsVideoService cjGoodsVideoService;
     @Autowired
     private SearchService searchService;
     // OCS-backed discovery rails (SuperDeals / New Arrivals), unified local + CJ, price·popularity·
@@ -315,6 +318,16 @@ public class LitemallGoodsController {
         return goodsManagementService.goodsDetail(goodsId, executorService, HANDLER, WORK_QUEUE);
     }
 
+
+    /**
+     * CJ product videos for a goods detail page (Wave 3). Separate from /detail so the
+     * {goods, products, ...} contract stays untouched and the SPA can lazy-load videos.
+     * Accepts both id forms like /detail; non-CJ goods, no videos, or CJ down → empty list.
+     */
+    @GetMapping("/videos")
+    public Object goodsVideos(@NotBlank String id) {
+        return ResponseUtil.okList(cjGoodsVideoService.videosFor(id));
+    }
 
     @GetMapping("/messages")
     //public Object sendMessage(@NotNull String message) {

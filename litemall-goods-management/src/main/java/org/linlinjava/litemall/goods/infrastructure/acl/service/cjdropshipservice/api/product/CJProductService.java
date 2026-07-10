@@ -5,6 +5,16 @@ import org.linlinjava.litemall.goods.infrastructure.acl.cache.CjRawCacheReposito
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductInventoryClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductReviewClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.product.CJProductVideoClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.sourcing.CJSourcingClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient.api.warehouse.CJWarehouseClient;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvideo.CJProductVideo;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvideo.CJProductVideoResponse;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.sourcing.CJSourcingCreateRequest;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.sourcing.CJSourcingCreateResponse;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.sourcing.CJSourcingQueryItem;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.sourcing.CJSourcingQueryResponse;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.warehouse.CJWarehouseDetailResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.cjcategory.CJCategoryDataResponse;
@@ -35,6 +45,12 @@ public class CJProductService {
     private CJProductInventoryClient inventoryClient;
     @Autowired
     private CJProductReviewClient reviewClient;
+    @Autowired
+    private CJProductVideoClient videoClient;
+    @Autowired
+    private CJSourcingClient sourcingClient;
+    @Autowired
+    private CJWarehouseClient warehouseClient;
     @Autowired
     private CJDropshippingConfig config;
     // Durable staging buffer for raw CJ payloads (replaces the old per-instance in-memory caches:
@@ -253,5 +269,110 @@ public class CJProductService {
             }
         }
         return null;
+    }
+
+    /**
+     * Fetch a CJ product's video list by raw UUID {@code pid}, memoized in the Redis staging
+     * buffer (raw TTL — a product-page reload never re-hits the CJ quota). Returns an empty list
+     * for a product with no videos AND on any failure, so the caller can render "no videos"
+     * without a CJ outage ever breaking the read path. A products-without-videos response is
+     * cached too (it's a valid answer, not a miss).
+     */
+    public List<CJProductVideo> getProductVideos(String pid) {
+        if (pid == null || pid.isBlank()) {
+            return List.of();
+        }
+        String key = CjRawCacheRepository.videosKey(pid);
+        Optional<CJProductVideoResponse> cached = rawCache.get(key, CJProductVideoResponse.class);
+        if (cached.isPresent()) {
+            return cached.get().getData() != null ? cached.get().getData() : List.of();
+        }
+        // Same hard 1-request/second global CJ QPS: back off and retry once on a 429.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            rateLimiter.acquire();
+            try {
+                CJProductVideoResponse response = videoClient.queryVideosByProductId(pid);
+                if (response != null && response.isOk()) {
+                    rawCache.put(key, response);
+                    return response.getData() != null ? response.getData() : List.of();
+                }
+                return List.of();
+            } catch (RuntimeException ex) {
+                boolean rateLimited = ex.getMessage() != null
+                        && (ex.getMessage().contains("429") || ex.getMessage().contains("Too Many Requests"));
+                if (rateLimited && attempt == 0) {
+                    try {
+                        Thread.sleep(1200);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    continue;
+                }
+                logger.warn("CJ product videos fetch failed for pid {}: {}", pid, ex.getMessage());
+                break;
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Create a product-sourcing request at CJ. NOT cached (a mutation) but still paced through
+     * the shared limiter. Failures propagate as {@link RuntimeException} so the admin surface can
+     * show a real errmsg — a silent null here would look like a lost request.
+     */
+    public CJSourcingCreateResponse createSourcing(CJSourcingCreateRequest request) {
+        rateLimiter.acquire();
+        return sourcingClient.createSourcing(request);
+    }
+
+    /**
+     * Query sourcing status for a batch of CJ sourceIds. NOT cached (the status is what's being
+     * refreshed); paced through the shared limiter. Returns an empty list on any failure — the
+     * refresh is advisory, the local projection stays authoritative for the admin list.
+     */
+    public List<CJSourcingQueryItem> querySourcing(List<String> sourceIds) {
+        if (sourceIds == null || sourceIds.isEmpty()) {
+            return List.of();
+        }
+        rateLimiter.acquire();
+        try {
+            CJSourcingQueryResponse response = sourcingClient.querySourcing(sourceIds);
+            if (response != null && response.isOk() && response.getData() != null) {
+                return response.getData();
+            }
+            return List.of();
+        } catch (RuntimeException ex) {
+            logger.warn("CJ sourcing query failed for {} sourceIds: {}", sourceIds.size(), ex.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Fetch a CJ warehouse's storage info by {@code storageId}, memoized in the Redis staging
+     * buffer (warehouses barely change; the raw TTL is plenty). Returns the full envelope so the
+     * caller can distinguish a CJ-side miss (e.g. 1608001 "Warehouse info not found") from a
+     * transport failure ({@code null}).
+     */
+    public CJWarehouseDetailResponse getWarehouseDetail(String storageId) {
+        if (storageId == null || storageId.isBlank()) {
+            return null;
+        }
+        String key = CjRawCacheRepository.warehouseKey(storageId);
+        Optional<CJWarehouseDetailResponse> cached = rawCache.get(key, CJWarehouseDetailResponse.class);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        rateLimiter.acquire();
+        try {
+            CJWarehouseDetailResponse response = warehouseClient.getWarehouseDetail(storageId);
+            if (response != null && response.isOk() && response.getData() != null) {
+                rawCache.put(key, response); // only cache hits; a CJ-side miss/outage stays retryable
+            }
+            return response;
+        } catch (RuntimeException ex) {
+            logger.warn("CJ warehouse detail fetch failed for storageId {}: {}", storageId, ex.getMessage());
+            return null;
+        }
     }
 }

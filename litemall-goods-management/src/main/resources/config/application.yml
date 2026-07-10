@@ -52,6 +52,15 @@ spring:
         stock-query-url: "https://developers.cjdropshipping.com/api2.0/v1/product/stock/queryByVid"
         # CJ "Product Comments" — per-product customer reviews by ?pid=<uuid> (paged).
         comments-url: "https://developers.cjdropshipping.com/api2.0/v1/product/productComments"
+        # CJ "Product Sourcing" — create a sourcing request / query its status (POST, JSON body).
+        sourcing-create-url: "https://developers.cjdropshipping.com/api2.0/v1/product/sourcing/create"
+        sourcing-query-url: "https://developers.cjdropshipping.com/api2.0/v1/product/sourcing/query"
+        # CJ "Product Video" — per-product videos (POST, JSON body {productId}).
+        product-videos-url: "https://developers.cjdropshipping.com/api2.0/v1/product/queryVideosByProductId"
+      # CJ "Storage info" — warehouse detail by ?id=<storageId>. NOTE: this endpoint's response
+      # envelope is {code:200, result:true, ...}, unlike the product API's {success, code:0, ...}.
+      warehouse:
+        detail-url: "https://developers.cjdropshipping.com/api2.0/v1/warehouse/detail"
       # ORDER PLACEMENT is implemented in litemall-order (the order worktree), NOT here.
       # The create-order URL belongs with that ACL; left here only as a documented pointer:
       # order:
