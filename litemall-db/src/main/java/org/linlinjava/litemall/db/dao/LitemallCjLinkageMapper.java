@@ -59,4 +59,22 @@ public interface LitemallCjLinkageMapper {
 
     /** id of a CJ-sourced brand with this name, or null. */
     Integer findCjBrandIdByName(@Param("name") String name);
+
+    /**
+     * Write the V31 ranking signals onto a native goods row without touching the generated
+     * insert/update (which don't carry these columns). Each argument is COALESCEd against the
+     * existing column, so a null leaves that signal unchanged — the CJ promote path passes all
+     * four (listedNum + review aggregate + createTime), while the local review aggregator passes
+     * only reviewCount/rating (listedNum + createTime null, preserved). {@code createTime}, when
+     * present, also becomes the row's {@code add_time} so recency reflects the CJ product's true
+     * creation date.
+     */
+    int updateGoodsRankingSignals(@Param("goodsId") Integer goodsId,
+                                  @Param("listedNum") Integer listedNum,
+                                  @Param("reviewCount") Integer reviewCount,
+                                  @Param("rating") java.math.BigDecimal rating,
+                                  @Param("createTime") java.time.LocalDateTime createTime);
+
+    /** Distinct local goods ids carrying at least one visible product review (type 0). */
+    List<Integer> selectReviewedGoodsIds();
 }

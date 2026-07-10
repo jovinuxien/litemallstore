@@ -3,11 +3,77 @@ spring:
     name: PROMOTION-SERVICE-APP
   profiles:
     active: dev, db, core, elastic, admin, wx
+  cloud:
+    stream:
+      default:
+        contentType: application/json
+      # Cross-process promotion events. StreamBridge publishes to these
+      # destinations (Kafka topics) from @TransactionalEventListener(AFTER_COMMIT).
+      # Single backend = Kafka, mirroring litemall-order. Broker host is
+      # profile-overridable via config-server; no hardcoded host in Java.
+      kafka:
+        binder:
+          brokers: ${KAFKA_BROKERS:localhost:9092}
+          auto-create-topics: true
 litemall:
   svcsecurity:
     # Phase 4: validate the machine JWT against litemall-authserver JWKS
     # (replaces Keycloak). Dev default; config-server overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+  promotion:
+    # Phase 2 algorithmic-targeting thresholds. The single home for every RFM /
+    # segmentation tuning value — the scoring/segmentation logic carries no magic
+    # numbers. Profile-overridable via the config server. Boundaries are ascending
+    # lists of length 4 dividing a metric into five 1..5 buckets.
+    targeting:
+      recency-boundaries-days: [30, 60, 120, 240]   # ≤30d → R5 … >240d → R1
+      frequency-boundaries: [2, 4, 7, 12]            # ≥12 orders → F5 … <2 → F1
+      monetary-boundaries: [100, 500, 1000, 5000]    # ≥5000 spend → M5 … <100 → M1
+      stats-lookback-days: 365                        # window for fetching customer stats
+      segments:
+        champion-min-score: 4
+        loyal-min-score: 3
+        big-spender-min-monetary: 4
+        at-risk-max-recency: 2
+        at-risk-min-frequency: 3
+        new-min-recency: 4
+        new-max-frequency: 1
+    # Wave 2 group-buy participation ("pink") tuning: how long a group has to
+    # fill (capped at the campaign end) and how often the expiry sweep runs.
+    # Profile-overridable via the config server.
+    groupon:
+      group-ttl-hours: 24
+      sweep-fixed-delay-ms: 60000
+    # Phase 3 stats source selector. order = order-service RFM via Feign (default,
+    # transactional truth); matomo = Matomo Reporting-API engagement; composite =
+    # merge both by user id. Profile-overridable via the config server.
+    stats:
+      source: ${PROMOTION_STATS_SOURCE:order}
+    # Phase 3 external marketing-stack ACLs. All disabled by default and every
+    # host/token sourced from env (${ENV:default}) — nothing hardcoded or
+    # committed; the service boots and the adapters degrade to no-ops without them.
+    matomo:                                            # analytics → statistics (in)
+      enabled: ${MATOMO_ENABLED:false}
+      base-url: ${MATOMO_BASE_URL:http://localhost}
+      auth-token: ${MATOMO_AUTH_TOKEN:}
+      site-id: ${MATOMO_SITE_ID:1}
+      report-method: ${MATOMO_REPORT_METHOD:UserId.getUsers}
+      period: ${MATOMO_PERIOD:month}
+      date: ${MATOMO_DATE:previous12}
+      filter-limit: ${MATOMO_FILTER_LIMIT:5000}
+    mautic:                                            # automation → delivery (out)
+      enabled: ${MAUTIC_ENABLED:false}
+      base-url: ${MAUTIC_BASE_URL:http://localhost}
+      username: ${MAUTIC_USERNAME:}
+      password: ${MAUTIC_PASSWORD:}
+      user-id-field-alias: ${MAUTIC_USER_ID_FIELD:litemall_user_id}
+      segment-alias-prefix: ${MAUTIC_SEGMENT_PREFIX:litemall-campaign-}
+    nutch:                                             # crawl → read model (in)
+      enabled: ${NUTCH_ENABLED:false}
+      solr-url: ${NUTCH_SOLR_URL:http://localhost}
+      core: ${NUTCH_CORE:nutch}
+      query: ${NUTCH_QUERY:*:*}
+      rows: ${NUTCH_ROWS:1000}
 server:
   port: 8088
 eureka:
@@ -21,3 +87,8 @@ eureka:
 goods:
   service:
     url: http://localhost:8083
+order:
+  service:
+    # Phase 2: source of per-customer RFM statistics (read via Feign behind an
+    # ACL). Host is profile-overridable; no hardcoded host in Java.
+    url: http://localhost:8084

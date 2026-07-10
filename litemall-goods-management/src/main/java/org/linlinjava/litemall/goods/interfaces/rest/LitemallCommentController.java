@@ -2,19 +2,26 @@ package org.linlinjava.litemall.goods.interfaces.rest;
 
 import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.comment.CommentPostService;
 import org.linlinjava.litemall.goods.application.comment.CommentQueryService;
+import org.linlinjava.litemall.goods.utils.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Anonymous customer product-review reads (litemall-wx-api {@code /wx/comment} parity), on
- * {@code /srv/comment}. Public per {@code litemall.svcsecurity.public-paths}. Posting a review is
- * authenticated and intentionally NOT here (order/user follow-up).
+ * Customer product reviews (litemall-wx-api {@code /wx/comment} parity), on
+ * {@code /srv/comment}. Reads are anonymous ({@code /srv/comment/**} is on the
+ * svcsecurity public-paths list); the {@code /post} write therefore enforces
+ * its own login check — the reviewer is the gateway-injected {@code X-User-Id},
+ * and a missing identity gets {@code unlogin} despite the public path.
  *
  * <p>{@code valueId} is a String: a numeric goods id, or the {@code cj_&lt;pid&gt;} doc id the
  * index-only CJ detail page navigates with — CJ-sourced goods are served their CJ reviews
@@ -25,9 +32,12 @@ import java.util.Map;
 public class LitemallCommentController {
 
     private final CommentQueryService commentQueryService;
+    private final CommentPostService commentPostService;
 
-    public LitemallCommentController(CommentQueryService commentQueryService) {
+    public LitemallCommentController(CommentQueryService commentQueryService,
+                                     CommentPostService commentPostService) {
         this.commentQueryService = commentQueryService;
+        this.commentPostService = commentPostService;
     }
 
     @GetMapping("/list")
@@ -56,5 +66,34 @@ public class LitemallCommentController {
             return ResponseUtil.badArgumentValue();
         }
         return ResponseUtil.ok(commentQueryService.count(type, valueId));
+    }
+
+    /** Body: {@code {type: 0, valueId, star, content, hasPicture?, picUrls?}} (SPA ICommentPost). */
+    @PostMapping("/post")
+    public Object post(@RequestBody Map<String, Object> body) {
+        Integer userId = UserContext.getUserIdAsInt();
+        if (userId == null) {
+            return ResponseUtil.unlogin();
+        }
+        Byte type = body.get("type") != null ? Byte.valueOf(String.valueOf(body.get("type"))) : 0;
+        String valueId = body.get("valueId") != null ? String.valueOf(body.get("valueId")) : null;
+        Short star;
+        try {
+            star = body.get("star") != null ? Short.valueOf(String.valueOf(body.get("star"))) : null;
+        } catch (NumberFormatException e) {
+            star = null;
+        }
+        String content = body.get("content") != null ? String.valueOf(body.get("content")) : null;
+        String[] picUrls = null;
+        if (body.get("picUrls") instanceof List<?> pics) {
+            picUrls = pics.stream().map(String::valueOf).toArray(String[]::new);
+        }
+        Integer id = commentPostService.post(userId, type, valueId, star, content, picUrls);
+        if (id == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", id);
+        return ResponseUtil.ok(data);
     }
 }

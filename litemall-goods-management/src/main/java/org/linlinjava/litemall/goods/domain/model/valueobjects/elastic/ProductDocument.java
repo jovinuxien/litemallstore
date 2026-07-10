@@ -65,6 +65,25 @@ public class ProductDocument {
     @JsonProperty("source")
     private String source;
 
+    /**
+     * Ranking signals (V31), master-level numeric fields the searcher scoring-configuration
+     * multiplies into relevance (Relevant Search ch. 7). {@code listedNum} = CJ platform
+     * popularity; {@code reviewCount}/{@code rating} = unified review aggregate;
+     * {@code createdEpoch} = product creation date (epoch millis) for the recency decay / New
+     * Arrivals sort. Absent (null) when a signal is unavailable, so OCS treats it as neutral.
+     */
+    @JsonProperty("listed_num")
+    private Integer listedNum;
+
+    @JsonProperty("review_count")
+    private Integer reviewCount;
+
+    @JsonProperty("rating")
+    private BigDecimal rating;
+
+    @JsonProperty("created_epoch")
+    private Long createdEpoch;
+
     /** Curated attribute name→value pairs, emitted as extra flat {@code data} keys. */
     private final Map<String, Object> attributes = new LinkedHashMap<>();
 
@@ -153,6 +172,38 @@ public class ProductDocument {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public Integer getListedNum() {
+        return listedNum;
+    }
+
+    public void setListedNum(Integer listedNum) {
+        this.listedNum = listedNum;
+    }
+
+    public Integer getReviewCount() {
+        return reviewCount;
+    }
+
+    public void setReviewCount(Integer reviewCount) {
+        this.reviewCount = reviewCount;
+    }
+
+    public BigDecimal getRating() {
+        return rating;
+    }
+
+    public void setRating(BigDecimal rating) {
+        this.rating = rating;
+    }
+
+    public Long getCreatedEpoch() {
+        return createdEpoch;
+    }
+
+    public void setCreatedEpoch(Long createdEpoch) {
+        this.createdEpoch = createdEpoch;
     }
 
     /** Serialized as extra top-level {@code data} keys (one per curated attribute). */

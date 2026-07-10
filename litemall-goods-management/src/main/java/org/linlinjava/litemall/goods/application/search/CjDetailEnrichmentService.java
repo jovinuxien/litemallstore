@@ -5,6 +5,8 @@ import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductComment;
+import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvariant.CJProductVariantData;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product.CJProductService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +44,9 @@ import java.util.Map;
 public class CjDetailEnrichmentService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CjDetailEnrichmentService.class);
+
+    /** Reviews sampled per product for the rating average (page 1); total gives the count. */
+    private static final int REVIEW_SAMPLE_SIZE = 20;
 
     private final CJProductService cjProductService;
     private final LitemallCjProductService cjProductStore;
@@ -173,6 +179,14 @@ public class CjDetailEnrichmentService {
         // so discount_price stays null — leaving it real rather than fabricating a markdown.
         row.setDiscountPrice(null);
 
+        // V31 ranking signals. listedNum (popularity) + createTime (true creation date) ride the
+        // detail response we already fetched — free. The review aggregate needs one more paced CJ
+        // call, folded into THIS per-product loop so it shares the 1-QPS budget + Redis cache and
+        // converges over the same nightly enrichment cursor (no separate sweep).
+        row.setListedNum(d.getListedNum());
+        row.setCjCreateTime(parseCjDateTime(d.getCreateTime()));
+        applyReviewAggregate(row, pid);
+
         cjProductStore.enrich(row);                  // persist enriched snapshot + stamp enriched_time
         // Land the freshly-enriched row into the native litemall_goods family and index THAT (OCS
         // single-source, Phase 4) — no more parallel cj_<pid> document. promote() commits in its own
@@ -214,6 +228,85 @@ public class CjDetailEnrichmentService {
                 .multiply(pricing.getUsdToCny())
                 .multiply(pricing.getMargin())
                 .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Fetch the CJ review aggregate ({@code total} = review count, average {@code score} = rating)
+     * and stamp it on the row. One paced CJ call (page 1); failures/absent reviews leave the
+     * signals null so the {@code enrich} update's COALESCE preserves any prior value. reviews_synced_time
+     * is stamped only when the call actually returned, so a failed fetch stays due on the next cursor.
+     */
+    private void applyReviewAggregate(LitemallCjProduct row, String pid) {
+        CJProductReviewData reviews;
+        try {
+            reviews = cjProductService.getProductComments(pid, 1, REVIEW_SAMPLE_SIZE);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("CJ review fetch failed for pid={}: {}", pid, ex.getMessage());
+            return;
+        }
+        if (reviews == null) {
+            return;
+        }
+        row.setReviewCount(parseIntOrZero(reviews.getTotal()));
+        row.setRating(averageScore(reviews.getList()));
+        row.setReviewsSyncedTime(LocalDateTime.now());
+    }
+
+    private Integer parseIntOrZero(String s) {
+        if (s == null || s.isBlank()) {
+            return 0;
+        }
+        try {
+            return Integer.valueOf(s.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** Mean of the sampled review scores (1..5), rounded to 1 decimal; 0.0 when none parse. */
+    private BigDecimal averageScore(List<CJProductComment> list) {
+        if (list == null || list.isEmpty()) {
+            return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+        }
+        int sum = 0;
+        int n = 0;
+        for (CJProductComment c : list) {
+            Integer s = parseScore(c.getScore());
+            if (s != null) {
+                sum += s;
+                n++;
+            }
+        }
+        if (n == 0) {
+            return BigDecimal.ZERO.setScale(1, RoundingMode.HALF_UP);
+        }
+        return BigDecimal.valueOf(sum)
+                .divide(BigDecimal.valueOf(n), 1, RoundingMode.HALF_UP);
+    }
+
+    private Integer parseScore(String score) {
+        if (score == null || score.isBlank()) {
+            return null;
+        }
+        try {
+            int s = (int) Math.round(Double.parseDouble(score.trim()));
+            return (s >= 1 && s <= 5) ? s : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Tolerant CJ timestamp parse (ISO {@code T} or {@code "yyyy-MM-dd HH:mm:ss"}); null on failure. */
+    private LocalDateTime parseCjDateTime(String date) {
+        if (date == null || date.isBlank()) {
+            return null;
+        }
+        String v = date.trim();
+        try {
+            return LocalDateTime.parse(v.replace(' ', 'T'));
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** Parse a CJ {@code variantKey} (e.g. {@code ["Black","XL"]}) into its option-value strings. */
