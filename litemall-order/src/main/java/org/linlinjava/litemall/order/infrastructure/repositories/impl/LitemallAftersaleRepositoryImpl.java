@@ -42,7 +42,10 @@ public class LitemallAftersaleRepositoryImpl implements LitemallAftersaleReposit
     @Override
     public List<LitemallAftersaleAggregate> findByOrder(LitemallOrderId orderId) {
         LitemallAftersaleExample example = new LitemallAftersaleExample();
-        example.or().andOrderIdEqualTo(orderId.getId()).andLogicalDeleted(false);
+        // NOT andLogicalDeleted(false): the hand-maintained Deleted enum builds its
+        // values with Boolean.valueOf("1")/("0") — BOTH false — so andLogicalDeleted
+        // renders `deleted <> false` and matches only deleted rows. Bind the literal.
+        example.or().andOrderIdEqualTo(orderId.getId()).andDeletedEqualTo(false);
         example.setOrderByClause("add_time desc, id desc");
         return mapper.selectByExample(example).stream()
                 .map(this::toDomain)
@@ -54,7 +57,7 @@ public class LitemallAftersaleRepositoryImpl implements LitemallAftersaleReposit
         LitemallAftersaleExample example = new LitemallAftersaleExample();
         example.or().andOrderIdEqualTo(orderId.getId())
                 .andStatusIn(OPEN_STATUSES)
-                .andLogicalDeleted(false);
+                .andDeletedEqualTo(false); // see findByOrder: andLogicalDeleted is broken
         example.setOrderByClause("id desc");
         return mapper.selectByExample(example).stream().findFirst().map(this::toDomain);
     }
@@ -83,7 +86,7 @@ public class LitemallAftersaleRepositoryImpl implements LitemallAftersaleReposit
 
     private LitemallAftersaleExample adminExample(Short status, Integer orderId, Integer userId) {
         LitemallAftersaleExample example = new LitemallAftersaleExample();
-        LitemallAftersaleExample.Criteria criteria = example.or().andLogicalDeleted(false);
+        LitemallAftersaleExample.Criteria criteria = example.or().andDeletedEqualTo(false); // not andLogicalDeleted — see findByOrder
         if (status != null) {
             criteria.andStatusEqualTo(status);
         }

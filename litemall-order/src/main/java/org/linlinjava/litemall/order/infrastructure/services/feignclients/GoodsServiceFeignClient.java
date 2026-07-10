@@ -35,4 +35,13 @@ public interface GoodsServiceFeignClient {
     /** POST /srv/goods/stock/reduce → {@code {errno,data,errmsg}} (errno 0 = reduced). */
     @PostMapping("/srv/goods/stock/reduce")
     ApiResponse<Void> reduceStock(@RequestBody ReduceStockRequest request);
+
+    /**
+     * POST /srv/goods/stock/restore → {@code {errno,errmsg}} (errno 0 = restored).
+     * Inverse of reduce, for rollback/cancel compensation. NOT idempotent on the
+     * goods side — the caller keeps its at-most-once semantics
+     * (see goods-management docs/handoff-stock-and-batch-fixes.md).
+     */
+    @PostMapping("/srv/goods/stock/restore")
+    ApiResponse<Void> restoreStock(@RequestBody ReduceStockRequest request);
 }

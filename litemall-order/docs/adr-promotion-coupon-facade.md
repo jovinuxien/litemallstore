@@ -75,6 +75,9 @@ default `:8088`):
 - `orderSubtotal` sent to redeem = `checkedGoodsPrice` (goods total after groupon,
   before freight), the same amount validated against `min` by `/usable`.
 - The `userCouponId: -1` "none" sentinel is clamped to 0 (previously a raw 500).
+- Promotion's `GET /my?status=` filter takes the NUMERIC status code (`1` = USED);
+  an enum name comes back as a 200 `{errno:402}` envelope, not an array (found live —
+  the cancel-release lookup silently missed until switched to the numeric code).
 - Known trade-off: between a successful redeem-commit at promotion and this
   transaction's commit there is a small window where a crash (not a rollback) loses
   the release hook; promotion's release is replay-safe by (userCouponId, orderId), so
