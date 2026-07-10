@@ -81,10 +81,20 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
 
+    // CJ lifecycle sync (Wave 3): first pass fires after the pay transaction commits
+    // (confirm the CREATED draft + payBalance); the status-sync scheduler self-heals.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjLifecycleService cjLifecycleService;
+
     // Tags/validates the order's fulfillment source from the cart before placement
     // (mixed CJ+local carts are a clean client error, pre-checked outside placeOrder).
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
+
+    // CJ submit gate (cj_vid + live stock): pre-checked here, outside the nested
+    // transactional placeOrder, so an unfulfillable/over-stock line is a clean 422.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjOrderAvailabilityChecker cjOrderAvailabilityChecker;
 
     // Wallet vertical (absorbed from litemall-wallet-service). Used to debit the
     // user's wallet when PaymentMethod.WALLET is selected — mirrors how groupon
@@ -164,9 +174,15 @@ public class LitemallOrderOrchestratorService {
         }
         // Same pre-check rationale as the empty-cart guard above: a mixed CJ+local
         // cart must fail as a clean 422 from OUTSIDE the transactional placeOrder
-        // (which re-resolves the source when tagging the order).
+        // (which re-resolves the source when tagging the order). The CJ availability
+        // gate (cj_vid + live stock, Wave 3) sits here for the same reason — its
+        // LitemallOrderServiceException thrown inside placeOrder would mark the shared
+        // transaction rollback-only and surface as a 502 instead of this clean 422.
         try {
-            orderSourceResolver.resolve(checkedItems);
+            String orderSource = orderSourceResolver.resolve(checkedItems);
+            if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+                cjOrderAvailabilityChecker.assertAllFulfillable(checkedItems);
+            }
         } catch (LitemallOrderServiceException e) {
             return LitemallOrderOperationResult.submitFailed(e.getMessage());
         }
@@ -270,6 +286,25 @@ public class LitemallOrderOrchestratorService {
             // key, so a retried pay never double-places).
             if (order.isCjFulfilled()) {
                 cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
+
+                // First lifecycle pass AFTER this transaction commits: confirm the CREATED
+                // draft and (config-gated) pay it from balance. Async so checkout latency
+                // doesn't grow by CJ round-trips; a lost pass is self-healed by the
+                // CjOrderStatusSyncScheduler sweep.
+                org.springframework.transaction.support.TransactionSynchronizationManager
+                        .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() {
+                                java.util.concurrent.CompletableFuture.runAsync(() -> {
+                                    try {
+                                        cjLifecycleService.advance(orderId);
+                                    } catch (RuntimeException e) {
+                                        log.warn("post-pay CJ lifecycle pass failed for order {} "
+                                                + "(sweep will retry): {}", orderId.getId(), e.getMessage());
+                                    }
+                                });
+                            }
+                        });
             }
 
             // Handle post-payment logic
@@ -698,6 +733,9 @@ public class LitemallOrderOrchestratorService {
         }
         LitemallMoney refund = settleRefundToTender(order, orderId, null);
         orderServiceImpl.refundOrder(orderId, refund);
+        // CJ cleanup: a CJ order still CREATED/IN_CART/UNPAID at CJ (payBalance not yet
+        // through) is deleted there so it can never ship after the money went back.
+        cjFulfillmentService.cancelAtCjIfDeletable(order, "refund approved");
         return LitemallOrderOperationResult.refundSuccess(
                 orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
     }
@@ -737,6 +775,8 @@ public class LitemallOrderOrchestratorService {
 
         LitemallMoney refund = settleRefundToTender(order, orderId, aftersale.getAmount());
         orderServiceImpl.refundOrder(orderId, refund);
+        // Same CJ cleanup as approveRefund: never leave a paid-back order fulfillable at CJ.
+        cjFulfillmentService.cancelAtCjIfDeletable(order, "aftersale approved");
 
         aftersale.markRefunded();
         aftersaleRepository.update(aftersale);

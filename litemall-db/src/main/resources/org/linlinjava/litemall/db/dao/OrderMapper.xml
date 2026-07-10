@@ -173,4 +173,21 @@
             order by ${orderByClause}
         </if>
     </select>
+
+    <!--
+      Hand-maintained (V33): CJ lifecycle-sync candidates. An order leaves this set once
+      CJ reports a terminal status (DELIVERED/CANCELLED) or the local order is itself
+      terminal (102 canceled / 103 system-canceled / 203 refunded). Least-recently-updated
+      first so no order starves; LIMIT keeps each sweep inside CJ's ~1 QPS budget.
+    -->
+    <select id="selectSyncableCjOrderIds" resultType="java.lang.Integer">
+        select id from litemall_order
+        where source = 'cj'
+          and cj_order_id is not null
+          and deleted = 0
+          and (cj_order_status is null or cj_order_status not in ('DELIVERED', 'CANCELLED'))
+          and order_status not in (102, 103, 203)
+        order by update_time asc
+        limit #{limit}
+    </select>
 </mapper>

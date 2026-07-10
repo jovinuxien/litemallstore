@@ -49,7 +49,7 @@ class CjDropshipOrderFacadeImplTest {
     };
 
     private CjDropshipOrderFacadeImpl facade() {
-        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary");
+        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary", true);
     }
 
     private static CjOrderPlacement placement() {
@@ -74,7 +74,7 @@ class CjDropshipOrderFacadeImplTest {
         ok.setData(data);
 
         ArgumentCaptor<CjCreateOrderRequest> captor = ArgumentCaptor.forClass(CjCreateOrderRequest.class);
-        when(cjOrderFeignClient.createOrder(eq("tok"), captor.capture())).thenReturn(ok);
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), captor.capture())).thenReturn(ok);
 
         CjOrderResult result = facade().placeOrder(placement());
 
@@ -87,6 +87,9 @@ class CjDropshipOrderFacadeImplTest {
         assertEquals(1, sent.getProducts().size());
         assertEquals("VID-9", sent.getProducts().get(0).getVid());
         assertEquals(2, sent.getProducts().get(0).getQuantity());
+        // Wave 3: create-only draft (no CJ money inside the pay TX) + sandbox flag from config
+        assertEquals(3, sent.getPayType());
+        assertEquals(1, sent.getIsSandbox());
     }
 
     @Test
@@ -94,7 +97,7 @@ class CjDropshipOrderFacadeImplTest {
         CjCreateOrderResponse rejected = new CjCreateOrderResponse();
         rejected.setResult(false);
         rejected.setMessage("fromCountryCode must not be empty");
-        when(cjOrderFeignClient.createOrder(eq("tok"), any())).thenReturn(rejected);
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), any())).thenReturn(rejected);
 
         LitemallCjOrderException ex = assertThrows(LitemallCjOrderException.class,
                 () -> facade().placeOrder(placement()));
@@ -103,7 +106,7 @@ class CjDropshipOrderFacadeImplTest {
 
     @Test
     void placeOrder_transportFailure_throwsCjOrderException() {
-        when(cjOrderFeignClient.createOrder(eq("tok"), any()))
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), any()))
                 .thenThrow(new RuntimeException("connect timed out"));
 
         assertThrows(LitemallCjOrderException.class, () -> facade().placeOrder(placement()));
@@ -114,6 +117,6 @@ class CjDropshipOrderFacadeImplTest {
         CjOrderPlacement empty = CjOrderPlacement.builder().orderNumber("ORD-2").lines(List.of()).build();
 
         assertThrows(LitemallCjOrderException.class, () -> facade().placeOrder(empty));
-        verify(cjOrderFeignClient, never()).createOrder(any(), any());
+        verify(cjOrderFeignClient, never()).createOrderV2(any(), any());
     }
 }

@@ -33,7 +33,8 @@ import static org.mockito.Mockito.when;
 class LitemallOrderRestControllerPayActionTest {
 
     private LitemallOrderRestController controllerWith(LitemallOrderOrchestratorService orchestrator) {
-        return new LitemallOrderRestController(orchestrator, mock(CjFreightQuoteService.class));
+        return new LitemallOrderRestController(orchestrator, mock(CjFreightQuoteService.class),
+                mock(org.linlinjava.litemall.order.application.internal.cj.CjTrackingService.class));
     }
 
     @Test

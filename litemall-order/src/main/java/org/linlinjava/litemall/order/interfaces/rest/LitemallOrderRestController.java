@@ -37,11 +37,14 @@ public class LitemallOrderRestController {
 
     private final LitemallOrderOrchestratorService orderOrchestrationService;
     private final CjFreightQuoteService cjFreightQuoteService;
+    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
 
     public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService,
-                                       CjFreightQuoteService cjFreightQuoteService) {
+                                       CjFreightQuoteService cjFreightQuoteService,
+                                       org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
         this.orderOrchestrationService = orderOrchestrationService;
         this.cjFreightQuoteService = cjFreightQuoteService;
+        this.cjTrackingService = cjTrackingService;
     }
 
     /**
@@ -283,5 +286,23 @@ public class LitemallOrderRestController {
         return ApiResponse.ok(changes.stream()
                 .map(OrderStatusTimelineDtoResponse::fromDomain)
                 .collect(Collectors.toList()));
+    }
+
+    /**
+     * Shipment tracking for an order (Wave 3). Owner-scoped to {@code X-User-Id}; a
+     * non-owned/absent order returns 404. Not shipped yet → a clean
+     * {@code {shipped:false, status:"NOT_SHIPPED"}} payload, never an error. See
+     * docs/handoff-gateway-admin-cj-tracking.md for the contract.
+     */
+    @GetMapping("/{orderId}/tracking")
+    public ApiResponse<org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse> tracking(
+            @RequestHeader("X-User-Id") Integer userId,
+            @PathVariable Integer orderId) {
+        org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
+                cjTrackingService.getTrackingForUser(new LitemallUserId(userId), new LitemallOrderId(orderId));
+        if (dto == null) {
+            return ApiResponse.fail(404, "Order not found");
+        }
+        return ApiResponse.ok(dto);
     }
 }
