@@ -44,6 +44,13 @@ public class GoodsServiceFeignClientFallbackFactory implements FallbackFactory<G
                 return ApiResponse.fail(SERVICE_UNAVAILABLE_CODE,
                         "goods-service stock reduce unavailable: " + cause.getMessage());
             }
+
+            @Override
+            public ApiResponse<Void> restoreStock(ReduceStockRequest request) {
+                // Compensation is best-effort: report unrestored, never throw.
+                return ApiResponse.fail(SERVICE_UNAVAILABLE_CODE,
+                        "goods-service stock restore unavailable: " + cause.getMessage());
+            }
         };
     }
 }

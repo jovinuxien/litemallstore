@@ -92,4 +92,28 @@ class LitemallOrderCreationFailurePropagationTest {
                 () -> orchestrator.createOrder(COMMAND));
         verifyNoMoreInteractions(domainEventPublisher, unpaidOrderTaskScheduler);
     }
+
+    @Test
+    void invalidCoupon_propagatesTyped_noEventsNoTimer() throws Exception {
+        when(orderServiceImpl.placeOrder(any())).thenThrow(
+                new org.linlinjava.litemall.order.application.util.exception.coupon
+                        .LitemallInvalidCouponException("the selected coupon is not usable for this checkout"));
+
+        assertThrows(org.linlinjava.litemall.order.application.util.exception.coupon
+                        .LitemallInvalidCouponException.class,
+                () -> orchestrator.createOrder(COMMAND));
+        verifyNoMoreInteractions(domainEventPublisher, unpaidOrderTaskScheduler);
+    }
+
+    @Test
+    void promotionServiceUnavailable_propagatesTyped_noEventsNoTimer() throws Exception {
+        when(orderServiceImpl.placeOrder(any())).thenThrow(
+                new org.linlinjava.litemall.order.application.util.exception.coupon
+                        .LitemallPromotionServiceUnavailableException("redeem of user coupon 3", null));
+
+        assertThrows(org.linlinjava.litemall.order.application.util.exception.coupon
+                        .LitemallPromotionServiceUnavailableException.class,
+                () -> orchestrator.createOrder(COMMAND));
+        verifyNoMoreInteractions(domainEventPublisher, unpaidOrderTaskScheduler);
+    }
 }

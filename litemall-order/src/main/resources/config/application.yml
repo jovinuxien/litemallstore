@@ -93,6 +93,10 @@ goods:
   service:
     url: http://localhost:8082
 
+promotion:
+  service:
+    url: http://localhost:8088
+
 # Goods-service client resilience: connect/read timeouts + circuit breaker with
 # fallback (GoodsServiceFeignClientFallbackFactory). A goods-management outage
 # fails order placement cleanly instead of hanging — see docs/adr-goods-acquisition.md.
@@ -102,6 +106,11 @@ feign:
   client:
     config:
       goods-service:
+        connectTimeout: 2000
+        readTimeout: 3000
+        loggerLevel: basic
+      # Promotion coupon contract at submit: same internal-service budget as goods.
+      promotion-service:
         connectTimeout: 2000
         readTimeout: 3000
         loggerLevel: basic
@@ -123,6 +132,13 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 5
+      promotion-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+        # Coupon rejections (HTTP 400) come back as normal Responses, not exceptions,
+        # so only genuine transport failures count toward opening this circuit.
       cj-dropship-order:
         slidingWindowSize: 20
         failureRateThreshold: 50
@@ -131,6 +147,8 @@ resilience4j:
   timelimiter:
     instances:
       goods-service:
+        timeoutDuration: 4s
+      promotion-service:
         timeoutDuration: 4s
       cj-dropship-order:
         timeoutDuration: 9s
