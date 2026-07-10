@@ -45,10 +45,13 @@ class CjFulfillmentServiceTest {
     private LitemallAddressRepository addressRepository;
     @Mock
     private LitemallOrderRepository orderRepository;
+    @Mock
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
     private CjFulfillmentService service(String defaultShipToCountry) {
         return new CjFulfillmentService(
-                cjOrderFacade, lineResolver, addressRepository, orderRepository, defaultShipToCountry);
+                cjOrderFacade, lineResolver, addressRepository, orderRepository,
+                statusHistoryRepository, defaultShipToCountry);
     }
 
     private LitemallOrderAggregate paidCjOrder(String countryCode) {
@@ -105,7 +108,8 @@ class CjFulfillmentServiceTest {
         assertEquals("vid-abc", sent.getLines().get(0).getVid());
         assertEquals(2, sent.getLines().get(0).getQuantity());
 
-        verify(orderRepository).recordCjPlacement(order.getOrderId(), "cj-id-1", "cj-num-1", "CJPacket Ordinary");
+        verify(orderRepository).recordCjPlacement(order.getOrderId(), "cj-id-1", "cj-num-1",
+                "CJPacket Ordinary", "CREATED");
     }
 
     @Test
@@ -118,7 +122,7 @@ class CjFulfillmentServiceTest {
                 () -> service("").placeForPaidOrder(order, List.of(line(1043, (short) 1))));
 
         verify(cjOrderFacade, never()).placeOrder(any());
-        verify(orderRepository, never()).recordCjPlacement(any(), any(), any(), any());
+        verify(orderRepository, never()).recordCjPlacement(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -147,6 +151,60 @@ class CjFulfillmentServiceTest {
                 () -> service("").placeForPaidOrder(order, List.of(line(1043, (short) 1))));
 
         verify(cjOrderFacade, never()).placeOrder(any());
+    }
+
+    // ---- Wave 3: cancelAtCjIfDeletable -------------------------------------------------
+
+    @Test
+    void deletableCjDraft_isDeletedAtCj_withProjectionAndTimelineMarker() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.PAID);
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("UNPAID");
+        when(cjOrderFacade.deleteOrder("cj-id-9")).thenReturn(true);
+
+        service("").cancelAtCjIfDeletable(order, "refund approved");
+
+        verify(orderRepository).updateCjOrderStatus(order.getOrderId(), "CANCELLED");
+        verify(statusHistoryRepository).record(any());
+    }
+
+    @Test
+    void cjOrderPastTheDeletableWindow_isLeftAlone() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("UNSHIPPED"); // paid at CJ — deletion is blocked there
+
+        service("").cancelAtCjIfDeletable(order, "refund approved");
+
+        verify(cjOrderFacade, never()).deleteOrder(any());
+        verify(orderRepository, never()).updateCjOrderStatus(any(), any());
+    }
+
+    @Test
+    void refusedDelete_leavesTheProjectionUntouched() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.PAID);
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("CREATED");
+        when(cjOrderFacade.deleteOrder("cj-id-9")).thenReturn(false);
+
+        service("").cancelAtCjIfDeletable(order, "customer cancel");
+
+        verify(orderRepository, never()).updateCjOrderStatus(any(), any());
+    }
+
+    @Test
+    void localOrPlacedlessOrder_neverTouchesCj() {
+        LitemallOrderAggregate local = paidCjOrder("NO");
+        local.setSource(LitemallOrderAggregate.SOURCE_LOCAL);
+        local.setCjOrderId("irrelevant");
+        service("").cancelAtCjIfDeletable(local, "cancel");
+
+        LitemallOrderAggregate unplaced = paidCjOrder("NO"); // cancel-before-pay: no CJ order yet
+        service("").cancelAtCjIfDeletable(unplaced, "cancel");
+
+        verify(cjOrderFacade, never()).deleteOrder(any());
     }
 
     @Test

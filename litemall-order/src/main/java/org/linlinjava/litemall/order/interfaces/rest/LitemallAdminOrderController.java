@@ -67,14 +67,22 @@ public class LitemallAdminOrderController {
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
     private final LitemallOrderOrchestratorService orchestrator;
+    // ACL over CJ (Wave 3): account-balance readout for the admin dashboard/order list.
+    private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade;
+    // Shipment tracking read (Wave 3): live CJ trackInfo for CJ orders, clean NOT_SHIPPED otherwise.
+    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
                                         LitemallOrderGoodsRepository orderGoodsRepository,
-                                        LitemallOrderOrchestratorService orchestrator) {
+                                        LitemallOrderOrchestratorService orchestrator,
+                                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade,
+                                        org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
+        this.cjOrderFacade = cjOrderFacade;
+        this.cjTrackingService = cjTrackingService;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
@@ -124,6 +132,11 @@ public class LitemallAdminOrderController {
         order.put("orderPrice", money(o.getOrderPrice()));
         order.put("freightPrice", money(o.getFreightPrice()));
         order.put("payTime", date(o.getPayTime()));
+        // CJ linkage (V27/V33) for the admin CJ logistics/tracking panel.
+        order.put("source", o.getSource());
+        order.put("cjOrderId", o.getCjOrderId());
+        order.put("cjOrderNum", o.getCjOrderNum());
+        order.put("cjOrderStatus", o.getCjOrderStatus());
 
         List<Map<String, Object>> goods = new ArrayList<>();
         for (LitemallOrderGoodsAggregate g : orderGoodsRepository.findByOId(new LitemallOrderId(id))) {
@@ -165,6 +178,38 @@ public class LitemallAdminOrderController {
     public ResponseEntity<OrderOperationDtoResponse> approveRefund(@PathVariable Integer orderId) {
         LitemallOrderOperationResult result = orchestrator.approveRefund(new LitemallOrderId(orderId));
         return buildResponse(result);
+    }
+
+    // ---- CJ (Wave 3) ----------------------------------------------------------------
+
+    /**
+     * Shipment tracking for an order (Wave 3): carrier + tracking number + event list, live
+     * from CJ for {@code source='cj'} orders. Not shipped yet → clean {@code NOT_SHIPPED}
+     * payload. Contract: docs/handoff-gateway-admin-cj-tracking.md.
+     */
+    @GetMapping("/{orderId}/tracking")
+    public Object tracking(@PathVariable Integer orderId) {
+        org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
+                cjTrackingService.getTrackingForAdmin(new LitemallOrderId(orderId));
+        return dto == null ? ResponseUtil.badArgumentValue() : ResponseUtil.ok(dto);
+    }
+
+    /**
+     * CJ account balance ({@code shopping/pay/getBalance}) for the admin readout.
+     * Literal path segment, so it never collides with the {@code /{orderId}/...} mappings.
+     * CJ unreachable → clean errno payload, never a raw 500.
+     */
+    @GetMapping("/cj/balance")
+    public Object cjBalance() {
+        return cjOrderFacade.getBalance()
+                .<Object>map(b -> {
+                    Map<String, Object> data = new LinkedHashMap<>();
+                    data.put("amount", b.getAmount());
+                    data.put("noWithdrawalAmount", b.getNoWithdrawalAmount());
+                    data.put("freezeAmount", b.getFreezeAmount());
+                    return ResponseUtil.ok(data);
+                })
+                .orElseGet(() -> ResponseUtil.fail(502, "CJ balance unavailable"));
     }
 
     // ---- mapping helpers ------------------------------------------------------------

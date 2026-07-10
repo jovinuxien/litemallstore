@@ -51,10 +51,11 @@ public interface LitemallGoodsFacade {
 
     /**
      * Compensating release of previously-reserved stock (inverse of
-     * {@link #reduceStock}). Called from rollback / order-cancellation paths, so it
-     * is <strong>best-effort and MUST NOT throw</strong>. goods-management exposes no
-     * stock-restore endpoint today, so this logs and returns an empty map, leaving
-     * the stock un-restored rather than breaking the rollback. Empty input → empty map.
+     * {@link #reduceStock}), one {@code /srv/goods/stock/restore} call per product
+     * (errno 632 = unknown/deleted product). Called from rollback / order-cancellation
+     * paths, so it is <strong>best-effort and MUST NOT throw</strong>: a failed restore
+     * logs and reports {@code false} for that product (at-most-once — the goods side is
+     * not idempotent), never breaking the rollback. Empty input → empty map.
      */
     Map<Integer, Boolean> restoreStock(Map<Integer, Integer> productQuantities);
 }

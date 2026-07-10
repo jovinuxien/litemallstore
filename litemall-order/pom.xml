@@ -119,6 +119,14 @@
 			<artifactId>spring-cloud-starter-openfeign</artifactId>
 		</dependency>
 
+		<!-- OkHttp transport for Feign (spring.cloud.openfeign.okhttp.enabled): the default
+		     JDK HttpURLConnection cannot send PATCH, which CJ's shopping/order/confirmOrder
+		     requires (Wave 3 lifecycle parity). Version managed by the Spring Cloud BOM. -->
+		<dependency>
+			<groupId>io.github.openfeign</groupId>
+			<artifactId>feign-okhttp</artifactId>
+		</dependency>
+
 		<!-- Circuit breaker + fallback for the goods-service Feign client
 		     (enables feign.circuitbreaker so GoodsServiceFeignClient's
 		     fallbackFactory engages on timeout/outage). -->
