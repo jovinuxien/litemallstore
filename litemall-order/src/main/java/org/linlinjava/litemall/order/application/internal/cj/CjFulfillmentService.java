@@ -6,6 +6,9 @@ import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggrega
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallAddressRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderResult;
@@ -15,7 +18,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -39,10 +44,14 @@ public class CjFulfillmentService {
 
     private static final Logger log = LoggerFactory.getLogger(CjFulfillmentService.class);
 
+    /** CJ statuses in which {@code deleteOrder} is still worth attempting (money not yet moved). */
+    private static final Set<String> CJ_DELETABLE_STATUSES = Set.of("CREATED", "IN_CART", "UNPAID");
+
     private final CjDropshipOrderFacade cjOrderFacade;
     private final CjOrderLineResolver lineResolver;
     private final LitemallAddressRepository addressRepository;
     private final LitemallOrderRepository orderRepository;
+    private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
     /** Deployment-market fallback destination country when the order carries none. */
     private final String defaultShipToCountryCode;
 
@@ -50,11 +59,13 @@ public class CjFulfillmentService {
                                 CjOrderLineResolver lineResolver,
                                 LitemallAddressRepository addressRepository,
                                 LitemallOrderRepository orderRepository,
+                                LitemallOrderStatusHistoryRepository statusHistoryRepository,
                                 @Value("${spring.cjdropship.api.ship-to-country-code:}") String defaultShipToCountryCode) {
         this.cjOrderFacade = cjOrderFacade;
         this.lineResolver = lineResolver;
         this.addressRepository = addressRepository;
         this.orderRepository = orderRepository;
+        this.statusHistoryRepository = statusHistoryRepository;
         this.defaultShipToCountryCode = defaultShipToCountryCode;
     }
 
@@ -102,12 +113,49 @@ public class CjFulfillmentService {
                 .build();
 
         CjOrderResult result = cjOrderFacade.placeOrder(placement);
+        // createOrderV2 (payType=3) leaves the CJ order a CREATED draft; the post-commit
+        // hook / status-sync poller drive confirm + payBalance from this initial status.
+        String initialCjStatus = StringUtils.hasText(result.getCjOrderStatus())
+                ? result.getCjOrderStatus() : "CREATED";
         orderRepository.recordCjPlacement(order.getOrderId(), result.getCjOrderId(), result.getCjOrderNum(),
-                result.getLogisticName());
+                result.getLogisticName(), initialCjStatus);
         log.info("CJ fulfillment placed for order {} (sn {}): cjOrderId={}, cjOrderNum={}, logistic={}",
                 order.getOrderId().getId(), order.getOrderSn(),
                 result.getCjOrderId(), result.getCjOrderNum(), result.getLogisticName());
         return result;
+    }
+
+    /**
+     * Best-effort CJ-side cleanup when a local order stops before CJ fulfilment (cancel,
+     * refund approved): delete the CJ order while CJ still allows it (CREATED / IN_CART;
+     * UNPAID is attempted too per the Wave-3 contract — CJ refuses it harmlessly). No-op
+     * for non-CJ orders and orders never placed at CJ (cancel-before-pay: pay-first means
+     * there is nothing at CJ yet). Never throws — a refusal or outage is logged and the
+     * order flagged for manual attention in the CJ dashboard.
+     */
+    public void cancelAtCjIfDeletable(LitemallOrderAggregate order, String context) {
+        if (order == null || !order.isCjFulfilled() || !StringUtils.hasText(order.getCjOrderId())) {
+            return;
+        }
+        String cjStatus = order.getCjOrderStatus();
+        if (cjStatus != null && !CJ_DELETABLE_STATUSES.contains(cjStatus)) {
+            log.info("CJ order {} (local {}) not deletable at CJ (status {}); skipping delete on {}",
+                    order.getCjOrderId(), order.getOrderId().getId(), cjStatus, context);
+            return;
+        }
+        if (cjOrderFacade.deleteOrder(order.getCjOrderId())) {
+            orderRepository.updateCjOrderStatus(order.getOrderId(), "CANCELLED");
+            LitemallOrderStatus local = order.getOrderStatus();
+            statusHistoryRepository.record(new LitemallOrderStatusChange(
+                    order.getOrderId(), local, local, CjLifecycleService.CHANGE_TYPE_CJ_SYNC,
+                    "CJ order " + order.getCjOrderId() + " deleted at CJ (" + context + ")",
+                    "system", LocalDateTime.now()));
+            log.info("CJ order {} (local {}) deleted at CJ on {}",
+                    order.getCjOrderId(), order.getOrderId().getId(), context);
+        } else {
+            log.warn("CJ order {} (local {}) could NOT be deleted at CJ on {} — check the CJ dashboard",
+                    order.getCjOrderId(), order.getOrderId().getId(), context);
+        }
     }
 
     private LitemallAddressAggregate resolveAddress(LitemallOrderAggregate order) {

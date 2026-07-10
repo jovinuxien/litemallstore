@@ -31,7 +31,8 @@ class LitemallOrderRestControllerIdentityTest {
                         LitemallOrderHandleOption.forStatus(LitemallOrderStatus.CREATED)));
 
         LitemallOrderRestController controller = new LitemallOrderRestController(
-                orchestrator, mock(org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService.class));
+                orchestrator, mock(org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService.class),
+                mock(org.linlinjava.litemall.order.application.internal.cj.CjTrackingService.class));
 
         // Body claims userId=1 (spoofed); authenticated header says 99.
         LitemallPlaceOrderCommand body = new LitemallPlaceOrderCommand(1, 10, 20, 0, -1, "msg", 0, 0, null);

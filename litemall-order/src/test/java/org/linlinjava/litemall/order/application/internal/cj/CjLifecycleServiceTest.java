@@ -1,0 +1,183 @@
+package org.linlinjava.litemall.order.application.internal.cj;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderSnapshot;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * {@link CjLifecycleService}: each advance() pass records the CJ status hop exactly once
+ * (dedup on {@code cj_order_status}), drives at most one CJ mutation (confirm / payBalance,
+ * the latter config-gated), maps SHIPPED/DELIVERED into the local guarded transitions with
+ * CJ's tracking number, and degrades to a no-op when CJ gives no usable answer.
+ */
+@ExtendWith(MockitoExtension.class)
+class CjLifecycleServiceTest {
+
+    private static final LitemallOrderId ORDER_ID = new LitemallOrderId(61);
+
+    @Mock
+    private LitemallOrderRepository orderRepository;
+    @Mock
+    private LitemallOrderStatusHistoryRepository statusHistoryRepository;
+    @Mock
+    private LitemallOrderServiceImpl orderServiceImpl;
+    @Mock
+    private CjDropshipOrderFacade cjOrderFacade;
+
+    private CjLifecycleService service(boolean autoPayBalance) {
+        return new CjLifecycleService(orderRepository, statusHistoryRepository, orderServiceImpl,
+                cjOrderFacade, autoPayBalance);
+    }
+
+    private LitemallOrderAggregate cjOrder(LitemallOrderStatus localStatus, String lastSeenCjStatus) {
+        LitemallOrderAggregate order = new LitemallOrderAggregate();
+        order.setOrderId(ORDER_ID);
+        order.setUserId(new LitemallUserId(42));
+        order.setOrderStatus(localStatus);
+        order.setSource(LitemallOrderAggregate.SOURCE_CJ);
+        order.setCjOrderId("cj-id-1");
+        order.setCjOrderStatus(lastSeenCjStatus);
+        return order;
+    }
+
+    private CjOrderSnapshot snapshot(String cjStatus, String trackNumber, String provider) {
+        return new CjOrderSnapshot("cj-id-1", cjStatus, null, trackNumber, provider, "CJPacket Ordinary");
+    }
+
+    @Test
+    void createdDraft_recordsHopAndConfirms() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, null)));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("CREATED", null, null)));
+        when(cjOrderFacade.confirmOrder("cj-id-1")).thenReturn(true);
+
+        service(true).advance(ORDER_ID);
+
+        verify(cjOrderFacade).confirmOrder("cj-id-1");
+        verify(orderRepository).updateCjOrderStatus(ORDER_ID, "CREATED");
+        ArgumentCaptor<LitemallOrderStatusChange> hop = ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
+        verify(statusHistoryRepository).record(hop.capture());
+        assertEquals(CjLifecycleService.CHANGE_TYPE_CJ_SYNC, hop.getValue().getChangeType());
+        assertTrue(hop.getValue().getChangeMessage().contains("CREATED"));
+        assertEquals("system", hop.getValue().getOperator());
+    }
+
+    @Test
+    void unpaid_paysFromBalance_whenAutoPayEnabled() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CREATED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("UNPAID", null, null)));
+        when(cjOrderFacade.payBalance("cj-id-1")).thenReturn(true);
+
+        service(true).advance(ORDER_ID);
+
+        verify(cjOrderFacade).payBalance("cj-id-1");
+        verify(orderRepository).updateCjOrderStatus(ORDER_ID, "UNPAID");
+    }
+
+    @Test
+    void unpaid_waitsForManualPayment_whenAutoPayDisabled() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CREATED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("UNPAID", null, null)));
+
+        service(false).advance(ORDER_ID);
+
+        verify(cjOrderFacade, never()).payBalance(any());
+    }
+
+    @Test
+    void unchangedCjStatus_recordsNoDuplicateHop() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "UNSHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("UNSHIPPED", null, null)));
+
+        service(true).advance(ORDER_ID);
+
+        verify(statusHistoryRepository, never()).record(any());
+        verify(orderRepository, never()).updateCjOrderStatus(any(), any());
+    }
+
+    @Test
+    void shippedAtCj_shipsLocallyWithCjTrackingNumber() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "UNSHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("SHIPPED", "CJPKL123", "YunExpress")));
+
+        service(true).advance(ORDER_ID);
+
+        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123");
+        verify(orderRepository).updateCjOrderStatus(ORDER_ID, "SHIPPED");
+    }
+
+    @Test
+    void shippedAtCj_localAlreadyShipped_isIdempotent() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.SHIPPED, "SHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("SHIPPED", "CJPKL123", "YunExpress")));
+
+        service(true).advance(ORDER_ID);
+
+        verify(orderServiceImpl, never()).shipOrder(any(), any(), any());
+    }
+
+    @Test
+    void deliveredAtCj_fromPaid_shipsThenAutoConfirms() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "SHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("DELIVERED", "CJPKL123", "YunExpress")));
+
+        service(true).advance(ORDER_ID);
+
+        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123");
+        verify(orderServiceImpl).autoConfirmOrder(ORDER_ID);
+    }
+
+    @Test
+    void cjUnreachable_isANoop() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CREATED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.empty());
+
+        service(true).advance(ORDER_ID);
+
+        verify(statusHistoryRepository, never()).record(any());
+        verify(orderRepository, never()).updateCjOrderStatus(any(), any());
+        verify(cjOrderFacade, never()).confirmOrder(any());
+    }
+
+    @Test
+    void nonCjOrPlacedlessOrder_isIgnored() {
+        LitemallOrderAggregate local = cjOrder(LitemallOrderStatus.PAID, null);
+        local.setSource(LitemallOrderAggregate.SOURCE_LOCAL);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(local));
+
+        service(true).advance(ORDER_ID);
+
+        verify(cjOrderFacade, never()).fetchOrderDetail(any());
+    }
+}

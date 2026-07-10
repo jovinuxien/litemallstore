@@ -87,10 +87,25 @@ public interface LitemallOrderRepository {
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 
     /**
-     * Record the CJ identifiers returned by a successful CJ createOrder on a
-     * {@code source='cj'} order (see V27), plus the logistics line it was placed with
-     * (persisted as {@code ship_channel}). Called inside the payment transaction
-     * right after the placement, so a rollback also discards them.
+     * Record the CJ identifiers returned by a successful CJ createOrderV2 on a
+     * {@code source='cj'} order (see V27/V33), plus the logistics line it was placed with
+     * (persisted as {@code ship_channel}) and the initial CJ-side status (normally CREATED).
+     * Called inside the payment transaction right after the placement, so a rollback also
+     * discards them.
      */
-    int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel);
+    int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel,
+                          String cjOrderStatus);
+
+    /**
+     * Persist the last CJ-side status seen by the lifecycle sync (V33). A plain projection
+     * write — local {@code order_status} moves only through the guarded transitions above.
+     */
+    int updateCjOrderStatus(LitemallOrderId orderId, String cjOrderStatus);
+
+    /**
+     * Ids of CJ-fulfilled orders the status-sync poll should visit: placed at CJ, CJ status
+     * not yet terminal (DELIVERED/CANCELLED), local status not terminal. Least-recently-updated
+     * first, capped at {@code limit} per sweep (CJ's ~1 QPS budget).
+     */
+    List<LitemallOrderId> querySyncableCjOrders(int limit);
 }

@@ -92,6 +92,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // of at payment. Only consulted for CJ-sourced orders.
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjOrderAvailabilityChecker cjOrderAvailabilityChecker;
+    // CJ-side cleanup on cancel: delete the CJ order while CJ still allows it (Wave 3).
+    // Defensive on the cancel paths — under pay-first a CREATED local order normally has
+    // no CJ order yet; the real window is a placed-but-unpaid CJ draft.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
     // ACL to the promotion service's coupon contract (validate/redeem/release).
     // Promotion owns the coupon tables now — the placement path must never read them
     // directly. See docs/adr-promotion-coupon-facade.md.
@@ -471,6 +476,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     "Order " + orderId.getId() + " can no longer be cancelled (already paid/cancelled)");
         }
         restoreStockForOrder(orderId);
+        cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "customer cancel");
         releaseCouponOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
@@ -500,6 +506,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             return;
         }
         restoreStockForOrder(orderId);
+        cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "auto cancel (unpaid timeout)");
         releaseCouponOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);

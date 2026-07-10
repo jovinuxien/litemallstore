@@ -25,6 +25,11 @@ spring:
       max-file-size: 20MB
       max-request-size: 20MB
   cloud:
+    # Feign on OkHttp: the default JDK transport cannot send PATCH, which CJ's
+    # shopping/order/confirmOrder requires (Wave 3). Applies to all Feign clients.
+    openfeign:
+      okhttp:
+        enabled: true
     stream:
       default:
         contentType: application/json
@@ -67,6 +72,17 @@ spring:
       # the address book has no country column). Empty = fail the CJ placement with
       # a clear message instead of guessing the market. Set per deployment.
       ship-to-country-code: ""
+      # Wave-3 lifecycle (docs/adr-cj-lifecycle-parity.md): createOrderV2 is sent with
+      # payType=3 (create-only draft — no CJ money moves inside the pay transaction);
+      # the post-commit hook + status-sync poller then confirm and, when auto-pay-balance
+      # is on, pay the order from the CJ account balance. sandbox=true makes CJ simulate
+      # that payment (isSandbox=1, no real charges) — dev default; flip off in production.
+      sandbox: true
+      auto-pay-balance: true
+      # IOSS declaration for EU destinations — createOrderV2 rejects EU orders without
+      # one (100104/7001). 1 = no IOSS (buyer pays import VAT); 2 = own IOSS (set
+      # ioss-number too); 3 = CJ's IOSS service. Per-deployment decision.
+      ioss-type: 1
       auth:
         cj-email: "bimeni89@gmail.com"
         cj-api-key: "9520bc6b70fe45019688c5ae62be331b"
@@ -81,6 +97,10 @@ litemall:
   order:
     # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
     unpaid-sweep-ms: 60000
+    # CJ status-sync poll (Wave 3): every open CJ order is re-checked at this cadence,
+    # batch-capped so a sweep stays inside CJ's ~1 QPS budget. See CjOrderStatusSyncScheduler.
+    cj-sync-sweep-ms: 300000
+    cj-sync-batch: 20
 
 server:
   port: 8085
@@ -123,6 +143,17 @@ feign:
         connectTimeout: 3000
         readTimeout: 8000
         loggerLevel: basic
+      # Advisory submit-time stock lookup — its own client so failures never open the
+      # cj-dropship-order breaker that placement depends on.
+      cj-dropship-stock:
+        connectTimeout: 3000
+        readTimeout: 6000
+        loggerLevel: basic
+      # Shipment tracking (trackInfo) — read-only, 1h-cached; own client for the same reason.
+      cj-dropship-tracking:
+        connectTimeout: 3000
+        readTimeout: 6000
+        loggerLevel: basic
 
 resilience4j:
   circuitbreaker:
@@ -144,6 +175,16 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 15s
         permittedNumberOfCallsInHalfOpenState: 5
+      cj-dropship-stock:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
+      cj-dropship-tracking:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
   timelimiter:
     instances:
       goods-service:
@@ -152,6 +193,10 @@ resilience4j:
         timeoutDuration: 4s
       cj-dropship-order:
         timeoutDuration: 9s
+      cj-dropship-stock:
+        timeoutDuration: 7s
+      cj-dropship-tracking:
+        timeoutDuration: 7s
 
 logging:
   level:

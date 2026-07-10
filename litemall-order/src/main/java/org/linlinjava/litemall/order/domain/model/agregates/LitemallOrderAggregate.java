@@ -82,6 +82,9 @@ public class LitemallOrderAggregate {
     private String source;
     private String cjOrderId;
     private String cjOrderNum;
+    // Last CJ-side status seen by the lifecycle sync (V33): CREATED/IN_CART/UNPAID/
+    // UNSHIPPED/SHIPPED/DELIVERED/CANCELLED. Null for local orders.
+    private String cjOrderStatus;
 
     /** True when this order is fulfilled through CJ Dropshipping after payment. */
     public boolean isCjFulfilled() {
