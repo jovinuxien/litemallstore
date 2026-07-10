@@ -2,7 +2,7 @@ package org.linlinjava.litemall.order.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
-import org.linlinjava.litemall.order.application.internal.aftersale.LitemallAftersaleService;
+import org.linlinjava.litemall.order.application.internal.aftersale.LitemallAftersaleServiceLayer;
 import org.linlinjava.litemall.order.application.util.exception.order.LitemallAftersaleException;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.interfaces.dtos.aftersale.AftersaleDtoResponse;
@@ -37,10 +37,10 @@ import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponse
 @RequestMapping("/srv/private/admin/aftersale")
 public class LitemallAdminAftersaleController {
 
-    private final LitemallAftersaleService aftersaleService;
+    private final LitemallAftersaleServiceLayer aftersaleService;
     private final LitemallOrderOrchestratorService orchestrator;
 
-    public LitemallAdminAftersaleController(LitemallAftersaleService aftersaleService,
+    public LitemallAdminAftersaleController(LitemallAftersaleServiceLayer aftersaleService,
                                             LitemallOrderOrchestratorService orchestrator) {
         this.aftersaleService = aftersaleService;
         this.orchestrator = orchestrator;
