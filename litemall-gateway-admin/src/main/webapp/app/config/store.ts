@@ -4,8 +4,13 @@ import { loadingBarMiddleware } from 'react-redux-loading-bar';
 
 import sharedReducers from 'app/shared/reducers';
 import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { adminAftersaleApi } from 'app/shared/reducers/private/services/adminAftersaleApi';
 import { adminCatalogApi } from 'app/shared/reducers/private/services/adminCatalogApi';
+import { adminEngagementApi } from 'app/shared/reducers/private/services/adminEngagementApi';
+import { adminOrderCjApi } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import { adminPromotionApi } from 'app/shared/reducers/private/services/adminPromotionApi';
 import { adminStatApi } from 'app/shared/reducers/private/services/adminStatApi';
+import { adminSysApi } from 'app/shared/reducers/private/services/adminSysApi';
 import { adminUsersApi } from 'app/shared/reducers/private/services/adminUsersApi';
 //import errorMiddleware from './error-middleware';
 //import loggerMiddleware from './logger-middleware';
@@ -20,7 +25,18 @@ const store = configureStore({
         ignoredActionPaths: ['payload.config', 'payload.request', 'payload.headers', 'error', 'meta.arg'],
       },
       //}).concat(errorMiddleware, notificationMiddleware, loadingBarMiddleware(), loggerMiddleware),
-    }).concat(loadingBarMiddleware(), adminGoodsApi.middleware, adminCatalogApi.middleware, adminStatApi.middleware, adminUsersApi.middleware),
+    }).concat(
+      loadingBarMiddleware(),
+      adminGoodsApi.middleware,
+      adminCatalogApi.middleware,
+      adminStatApi.middleware,
+      adminUsersApi.middleware,
+      adminPromotionApi.middleware,
+      adminEngagementApi.middleware,
+      adminAftersaleApi.middleware,
+      adminOrderCjApi.middleware,
+      adminSysApi.middleware,
+    ),
 });
 
 // Allow lazy loading of reducers https://github.com/reduxjs/redux/blob/master/docs/usage/CodeSplitting.md

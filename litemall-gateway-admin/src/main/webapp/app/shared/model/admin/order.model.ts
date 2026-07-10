@@ -45,6 +45,13 @@ export interface IOrderDetail {
     addressId?: number;
     orderStatusText?: string;
     handleOption?: Record<string, boolean>;
+    // CJ dropship markers — present on the aggregate but NOT yet projected
+    // onto the admin detail payload (order-side follow-up, see
+    // docs/handoff-order-admin-cj.md). Read defensively.
+    source?: string; // 'local' | 'cj'
+    cjOrderId?: string;
+    cjOrderNum?: string;
+    trackNumber?: string;
   };
   orderGoods?: IOrderGoods[];
   user?: {
