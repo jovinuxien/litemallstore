@@ -112,6 +112,13 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
         // {goodsId, productId, number} (legacy /srv/cart/add); placement ignores them.
         goods.setGoodsSn(node.path("goodsSn").asText(null));
         goods.setPicUrl(node.path("picUrl").asText(null));
+        // Category is a cart fact the promotion usable-coupon query needs for
+        // CATEGORY-scoped coupons. The VO rejects null/non-positive ids, so only
+        // map a real one — a missing category just narrows the scope match.
+        int categoryId = node.path("categoryId").path("id").asInt(0);
+        if (categoryId > 0) {
+            goods.setCategoryId(new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallCategoryId(categoryId));
+        }
         return goods;
     }
 

@@ -176,9 +176,12 @@ public class LitemallOrderOrchestratorService {
         } catch (com.google.protobuf.ServiceException e) {
             return LitemallOrderOperationResult.submitFailed("Order creation failed: " + e.getMessage());
         } catch (org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException
-                 | org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException e) {
-            // Clean placement failures (out of stock / goods-service down). They were
-            // thrown inside the transactional placeOrder, so the shared transaction is
+                 | org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException
+                 | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException
+                 | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException e) {
+            // Clean placement failures (out of stock / goods-service down / coupon
+            // rejected / promotion down with a coupon selected). They were thrown
+            // inside the transactional placeOrder, so the shared transaction is
             // already rollback-only — returning a result here would trip
             // UnexpectedRollbackException at commit. Propagate typed; the REST layer
             // (outside the transaction) maps them to a 422/503 envelope.
