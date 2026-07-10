@@ -1,6 +1,7 @@
 import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchDashboardTotals, fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
+import { useGetCjBalanceQuery } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import * as React from 'react';
 import { Line } from 'react-chartjs-2';
 
@@ -35,6 +36,10 @@ const StatTile: React.FC<{ value: React.ReactNode; label: string; color: string 
 const Dashboard: React.FC = () => {
   const dispatch = useAppDispatch();
   const { rows, totals, dashboard, loading, unavailable, errorMessage } = useAppSelector(state => state.adminState);
+  // CJ dropship account balance (order's /srv/private/admin/order/cj/balance,
+  // Wave-3 dependency — renders '—' until the order side ships it).
+  const { data: cjBalance, isError: cjBalanceError } = useGetCjBalanceQuery();
+  const cjBalanceValue = !cjBalanceError && cjBalance?.available && cjBalance.amount != null ? `$${cjBalance.amount.toFixed(2)}` : '—';
 
   React.useEffect(() => {
     dispatch(fetchOrderStats());
@@ -86,6 +91,9 @@ const Dashboard: React.FC = () => {
         </div>
         <div className='col-sm-3'>
           <StatTile value={`¥${totals.amount.toFixed(2)}`} label='Revenue' color={SUCCESS} />
+        </div>
+        <div className='col-sm-3 mt-3'>
+          <StatTile value={cjBalanceValue} label='CJ dropship balance' color='#F56C6C' />
         </div>
       </div>
 
