@@ -159,6 +159,19 @@ public class LitemallOrderRestController {
             // 422 submit-failed envelope instead of a raw 500. Caught HERE (outside
             // the orchestrator's transaction) to dodge the rollback-only trap.
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException e) {
+            // Coupon rejected (not owned / expired / below threshold / out of scope /
+            // redeem refused): rolled back, no order row, coupon untouched. The 422
+            // message names the coupon — the SPA's inline "remove coupon and retry"
+            // affordance keys on exactly that.
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException e) {
+            // Promotion down while the checkout carried a coupon: fail cleanly rather
+            // than silently dropping the selected discount. 503 = transient/retryable.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(OrderOperationDtoResponse.fromResult(LitemallOrderOperationResult.submitFailed(
+                            "Promotion service is unavailable — the order was not placed. "
+                            + "Please retry, or remove the coupon to order without it.")));
         } catch (LitemallGoodsServiceUnavailableException e) {
             // goods-management down / circuit open / reservation unconfirmed: the
             // order was NOT created against unvalidated stock. 503 tells the SPA the

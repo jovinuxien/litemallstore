@@ -31,7 +31,9 @@ public enum LitemallOrderStatus {
     DELIVERED(401, "DELIVERED"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return false; // Final state, no transition allowed.
+            // A received order can still be unwound through aftersale/RMA:
+            // admin approval opens the refund flow (→ REFUND_REQUEST → REFUNDED).
+            return newStatus == REFUND_REQUEST;
         }
     },
     CANCELED(102, "CANCELLED"){
@@ -63,7 +65,9 @@ public enum LitemallOrderStatus {
     AUTO_DELIVERED(402, "GOODS_RECEIVED(SYSTEM)"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return false; // Final state, no transition allowed.
+            // Same aftersale/RMA unwind as DELIVERED — auto-confirmation must not
+            // strip the customer of the return window.
+            return newStatus == REFUND_REQUEST;
         }
     };
 

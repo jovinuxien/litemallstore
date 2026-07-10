@@ -93,13 +93,32 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
 
     @Override
     public Map<Integer, Boolean> restoreStock(Map<Integer, Integer> productQuantities) {
-        // Best-effort compensation from rollback/cancel paths: goods-management exposes
-        // no stock-restore endpoint, so this is a logged no-op and never throws.
-        if (productQuantities != null && !productQuantities.isEmpty()) {
-            log.warn("Stock restore requested for {} but goods-management has no restore "
-                    + "endpoint; stock NOT released (compensation skipped).", productQuantities);
+        // Best-effort compensation from rollback/cancel paths, wired to goods-management's
+        // POST /srv/goods/stock/restore (handoff-stock-and-batch-fixes.md). The restore is
+        // NOT idempotent on the goods side, so callers keep at-most-once semantics; any
+        // failure here is logged and reported false, never thrown — a compensation path
+        // must not turn a rollback into a second failure.
+        if (productQuantities == null || productQuantities.isEmpty()) {
+            return Collections.emptyMap();
         }
-        return Collections.emptyMap();
+        Map<Integer, Boolean> results = new HashMap<>();
+        for (Map.Entry<Integer, Integer> e : productQuantities.entrySet()) {
+            Integer productId = e.getKey();
+            try {
+                var resp = goodsServiceFeignClient.restoreStock(new ReduceStockRequest(productId, e.getValue()));
+                boolean restored = resp != null && resp.getErrno() == 0;
+                if (!restored) {
+                    log.error("Stock restore unconfirmed for product {} (qty {}): {}",
+                            productId, e.getValue(), resp == null ? "null response" : resp.getErrmsg());
+                }
+                results.put(productId, restored);
+            } catch (RuntimeException ex) {
+                log.error("Goods ACL 'restore stock' failed for product {} (qty {}); reconcile manually",
+                        productId, e.getValue(), ex);
+                results.put(productId, false);
+            }
+        }
+        return results;
     }
 
     // ---- JSON → aggregate mapping (only the fields placement needs) ----------
@@ -112,6 +131,13 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
         // {goodsId, productId, number} (legacy /srv/cart/add); placement ignores them.
         goods.setGoodsSn(node.path("goodsSn").asText(null));
         goods.setPicUrl(node.path("picUrl").asText(null));
+        // Category is a cart fact the promotion usable-coupon query needs for
+        // CATEGORY-scoped coupons. The VO rejects null/non-positive ids, so only
+        // map a real one — a missing category just narrows the scope match.
+        int categoryId = node.path("categoryId").path("id").asInt(0);
+        if (categoryId > 0) {
+            goods.setCategoryId(new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallCategoryId(categoryId));
+        }
         return goods;
     }
 
