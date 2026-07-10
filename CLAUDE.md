@@ -18,6 +18,20 @@
 > start both first. `order` consumes promotion's coupon handoff spec. The two
 > gateways wire SPAs last (or in parallel against committed handoff specs,
 > same `docs/handoff-*.md` pattern used in Wave 1).
+>
+> **Wave 3 (2026-07-10) — CJ Dropshipping API parity.** An audit against the
+> CJ API2 docs (developers.cjdropshipping.com/en/api/api2/api/) found only a
+> fraction of the CJ surface implemented: auth, product
+> list/query/category/comments, `stock/queryByVid` (goods-management), legacy
+> `shopping/order/createOrder`, `logistic/freightCalculate`, and the dispute
+> vertical (order). This wave closes the gaps: sourcing + video + warehouse
+> enrichment (goods-management), live stock check at submit + order lifecycle
+> parity + tracking (order), and an admin logistics/tracking panel
+> (gateway-admin). Merged Wave-2 blocks have been replaced (specs live in git
+> history); `order`'s Wave-2 Tasks A/B are complete and merged (master
+> `7b1d00cff`) — CJ Tasks C/D/E are its active assignment. gateway-admin's
+> tracking panel (task 5) depends on order Task E — build against the
+> committed handoff spec if it lands first.
 
 ### Worktree: `promotion`
 - **Branch:** `fix/promotion`
@@ -42,19 +56,17 @@
 - **Branch:** `fix/goods-management`
 - **Path:** `../litemall-wt/goods-management`
 - **Scope:** `litemall-goods-management/` only. Read-only checks against `litemall-db` fine; gateway/SPA wiring is the `gateway-api`/`gateway-admin` worktrees' job — verify here with curl.
-- **Context:** previous assignment (OCS pipeline §18/§19) shipped and merged. New task: the engagement verticals the customer SPA already stubs. The SPA pages exist and call `/srv/collect/list`, `/srv/footprint/list`, `/srv/feedback/submit` behind an `isMissingEndpoint` guard — the backend endpoints simply don't exist. The legacy tables (`litemall_collect`, `litemall_footprint`, `litemall_feedback`, `litemall_comment`) and litemall-db domain types already exist — reuse them, no new migrations expected.
+- **Context — Wave 3, CJ catalog-side parity.** Wave-2 engagement verticals merged (`ab3d365e6`); OCS relevance boost merged (`87ca0b8d4`). The CJ ACL plumbing already exists in this module — `CJRequestUtils` + `TokenManager` + the clients under `infrastructure/acl/client/cjdropshipclient/`, endpoint URLs config-driven in `config/application.yml` (~lines 43–54) — EXTEND that stack (new client class + yml URL per endpoint), don't fork a new one. Docs: developers.cjdropshipping.com/en/api/api2/api/product.html §5 (Sourcing) + §6 (Video); storage.html §1 (Storage info — path is `/api2.0/v1/warehouse/detail`).
 - **Task:**
-  1. **Collect/favorites** — `/srv/collect`: list (paged), add-or-toggle (goods, optionally topics like upstream), delete. 
-  2. **Footprint** — `/srv/footprint`: list (paged, newest first), record (POSTed by the SPA on product-detail view; dedupe same goods/day like upstream), delete.
-  3. **Feedback** — `/srv/feedback`: submit (type + content + optional images).
-  4. **Comment write path** — `POST /srv/comment/post` (goods review: star + content + optional images). Decide and document the purchase check: v1 may trust the authenticated user with a `hasPurchased` flag left false, or verify via an order facade — write the decision down; don't silently skip it.
-  5. **Admin surface** — `/srv/private/admin/{collect,footprint,feedback}/list` mirroring the existing admin list endpoints (user/address pattern), so gateway-admin can page them.
-  - All identity from the gateway-injected `X-User-Id` header — no caller-supplied `userId` params anywhere (the cart-IDOR rule).
+  1. **Sourcing vertical** — clients for `POST /product/sourcing/create` and `POST /product/sourcing/query`; admin surface `POST /srv/private/admin/cj/sourcing` (create from a cj_pid/URL + remark) and `GET /srv/private/admin/cj/sourcing` (query status by sourceId or list). Persist created requests locally so the admin list survives restarts — decide the storage (new table vs generic record) and document it in `docs/`.
+  2. **Product videos** — client for `POST /product/queryVideosByProductId`; surface videos for CJ-sourced goods on the detail read path (extra field on `/srv/goods/detail` or `GET /srv/goods/videos?id=` — match whichever is easiest for the SPA and note it in `docs/`), Redis-cached like productComments (6h TTL, respect ~1 QPS).
+  3. **Warehouse/storage info** — client for `GET /warehouse/detail?storageId=`; admin lookup `GET /srv/private/admin/cj/warehouse?id=`; optionally enrich CJ product detail with ship-from warehouse name/country.
+  4. Identity rules as everywhere: admin paths under `/srv/private/admin/**` (machine token + `X-User-Roles: ROLE_ADMIN`), customer reads need no userId; every new outbound CJ call gets explicit timeouts.
 - **Acceptance:**
-  - `mvn -q -o -pl litemall-goods-management -am compile` clean.
-  - With the service up: add→list→delete round-trips for collect and footprint; feedback submit persists and shows in the admin list; `POST /srv/comment/post` creates a review that `GET /srv/comment/list` then returns for that goods.
-  - Every endpoint scopes to the header user; requests for another user's data return only the caller's rows.
-  - The exact request/response shapes match what the SPA stubs already send (check the slices under `litemall-gateway-api/src/main/webapp/app/` read-only), so the gateway-api worktree only has to remove the guards — record any unavoidable shape difference in a short handoff note under `docs/`.
+  - `mvn -q -o -pl litemall-goods-management -am compile` clean; service boots.
+  - Live: create a sourcing request for a CJ pid → query returns its status; videos return (curl) for a CJ goods that has them and an empty list (not 5xx) for one that doesn't; warehouse detail round-trips for a real storageId.
+  - CJ-unreachable degrades soft: clear errmsg / empty payload, never a hang or raw 500.
+  - Existing CJ enrichment/index paths unaffected (catalog refresh + detail enrichment still run — regression check).
 
 ### Worktree: `order`
 - **Branch:** `fix/order`
@@ -62,12 +74,17 @@
 - **Scope:** `litemall-order/` only. Consumes the promotion coupon handoff spec; if it isn't committed yet, agree the contract with the `promotion` worktree first and build behind an ACL facade so the seam is stable.
 - **Task A — coupon application at checkout.** Order's domain already carries coupon/groupon validation value-objects but nothing reaches them. Mirror the `LitemallGoodsFacade` pattern: a `LitemallPromotionFacade` ACL (Feign underneath, timeouts + circuit-breaker like the goods client) that, on `POST /srv/order/submit` with a `couponId` in the body: validates the coupon (ownership, validity window, min-spend, goods scope), applies the discount to the order total, and marks it redeemed exactly-once in the same transaction as order creation — released/rolled back if placement fails. Invalid/expired/not-owned coupon → 422, no order created, coupon untouched. Promotion-service down → placement proceeds without the discount ONLY if no couponId was sent; with a couponId, fail cleanly (never silently drop a discount the customer selected).
 - **Task B — aftersale/RMA vertical for local orders.** Today order has the refund *action* and the CJ dispute vertical, but no aftersale workflow like upstream (`WxAftersaleController`/`AdminAftersaleController`). Mirror the CJ dispute vertical's DDD shape: customer `POST /srv/order/{orderId}/aftersale` (type: refund-only / return-and-refund; reason + optional images), list/detail/cancel; admin `/srv/private/admin/aftersale` list + approve/reject, approval flowing into the existing tender-parity refund path (wallet refund = min(actual, ledger debit), CARD = PSP seam). Status transitions persisted through the existing single-transition-source state machine + timeline. New migration numbered after checking `flyway_schema_history` (V28 was the last known — verify).
+- **Wave-3 status (2026-07-10):** Tasks A and B are complete and merged to master (`7b1d00cff`) — the CJ parity tasks below are the active assignment. Also wire goods-management's new `/srv/goods/stock/restore` (errno 632, master `b2f074662`) into the cancel/refund path while in here. Docs: developers.cjdropshipping.com/en/api/api2/api/{product,shopping,logistic}.html.
+- **Task C — live CJ stock check at submit.** For `source='cj'` lines, submit currently checks only that `goods_product.cj_vid` is non-blank (`CjOrderAvailabilityChecker`). Add a live check via CJ `GET /product/stock/queryByVid?vid=` — new Feign method beside the existing CJ clients, same fallback-factory + timeout pattern. Requested qty > CJ stock → 422 naming the offending line; CJ unreachable → proceed and log (advisory check; the vid guard already gates hard failures). Document the degrade decision in `docs/`.
+- **Task D — CJ order lifecycle parity.** Today only legacy `POST /shopping/order/createOrder` fires at pay time; the order is never confirmed, paid, or synced at CJ. Close the loop per the shopping docs: (1) migrate to `createOrderV2` keeping the pay-first in-TX replay semantics (choose payType per docs and write the decision down); (2) `PATCH /shopping/order/confirmOrder` after successful create; (3) status sync — scheduled poll of `GET /shopping/order/getOrderDetail` for open CJ orders, mapping CJ statuses (CREATED→UNPAID→UNSHIPPED→SHIPPED→DELIVERED) into the single-transition-source state machine + timeline, persisting `trackNumber` when it appears; (4) `DELETE /shopping/order/deleteOrder` on local cancel while the CJ order is still CREATED/UNPAID; (5) `GET /shopping/pay/getBalance` surfaced at `GET /srv/private/admin/order/cj/balance`; decide payBalance vs createOrderV2 payType and document in `docs/`.
+- **Task E — CJ tracking.** Client for `GET /logistic/trackInfo?trackNumber=` (batch-capable). Customer `GET /srv/order/{orderId}/tracking` (owner-scoped via `X-User-Id`) and admin `GET /srv/private/admin/order/{orderId}/tracking`, returning carrier + tracking number + event list; no tracking yet → clean "not shipped" payload, not an error. Cache trackInfo (~1h — tracking moves slowly). Commit a handoff spec under `docs/` (response shape + admin route) for gateway-admin's panel.
 - **Acceptance:**
   - `mvn -q -o -pl litemall-order -am compile` clean.
   - Live: submit with a valid coupon reduces the order total and the coupon shows redeemed exactly once (resubmit/failure does not double-redeem; failed placement releases it); invalid coupon → 422 and no order row.
   - Domain code never imports the Feign client — only the facade; the client has timeouts + circuit-breaker.
   - Live: aftersale apply → admin approve → refund lands via the tender-parity path and the order timeline shows every hop; reject leaves the order refund-free; all customer reads/writes scope to `X-User-Id`.
   - Contract matches the promotion handoff spec (or the agreed stub), documented in `litemall-order/docs/`.
+  - Wave 3 live: a CJ line exceeding CJ stock → 422 at submit (CJ down → order still places); a paid CJ order reaches CJ via `createOrderV2` and is confirmed; the status poll advances the local order and the timeline records each hop; cancel-before-pay deletes the CJ order; `/srv/order/{orderId}/tracking` returns events for a shipped order and only for its owner; admin tracking + balance endpoints respond through the gateway; the tracking handoff spec is committed under `docs/`.
 
 ### Worktree: `gateway-api`
 - **Branch:** `fix/gateway-api`
@@ -95,7 +112,9 @@
   2. **Route the existing Coupons/Groupons views** into `admin-routes.tsx` and bind them to the real promotion admin endpoints (coupon CRUD + issue records; group-buy rule CRUD + activity monitor).
   3. **New admin pages:** Feedback list, Collects list, Footprints list (goods-management admin endpoints), and an Aftersale queue (list + approve/reject) on order's admin aftersale endpoints — follow the existing UserList/AddressList page pattern.
   4. **Chase the recorded follow-ups:** loyalty controller 404 via the gateway (route or backend? diagnose, fix the gateway side, hand off the rest), and surface `/srv/order/admin/stat` if the order side ships it.
+  5. **CJ logistics/tracking panel (Wave 3):** on the admin order detail for `source='cj'` orders, show CJ order status, tracking number, and the trackInfo event list from order's `GET /srv/private/admin/order/{orderId}/tracking` (order Task E — if the endpoint isn't live yet, build against the handoff spec committed under `litemall-order/docs/` and note the dependency); add the CJ balance readout (`GET /srv/private/admin/order/cj/balance`) as a dashboard card or order-list header. Machine-token relay on any new route.
 - **Acceptance:**
   - `mvn -q -o -pl litemall-gateway-admin -am compile` clean; admin SPA builds (prod webapp build stays green).
   - Live through `:18080`: coupon create → appears in the customer claim center; group-buy rule create → appears on the customer `/groupon` page; feedback/collect/footprint lists page real data; an aftersale application can be approved and the refund verified on the order.
   - No admin view routes to `NotAvailable` for a feature whose backend is live.
+  - Wave 3: a shipped CJ order's detail page shows carrier + tracking events live through `:18080`; a CJ order without tracking yet renders a clear "not shipped" state, not an error; the balance readout displays a real figure.
