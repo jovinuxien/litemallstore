@@ -72,6 +72,16 @@ public class CjRawCacheRepository {
         return PREFIX + "reviews:" + pid + ":" + page + ":" + pageSize;
     }
 
+    /** Key for a CJ product's video list by raw pid. */
+    public static String videosKey(String pid) {
+        return PREFIX + "videos:" + pid;
+    }
+
+    /** Key for a CJ warehouse's storage info by storageId. */
+    public static String warehouseKey(String storageId) {
+        return PREFIX + "warehouse:" + storageId;
+    }
+
     /** Read and deserialize a cached payload, or empty on a miss / Redis error / parse error. */
     public <T> Optional<T> get(String key, Class<T> type) {
         String json;

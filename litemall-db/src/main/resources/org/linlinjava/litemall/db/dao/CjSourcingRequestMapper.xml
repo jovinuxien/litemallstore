@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_cj_sourcing_request (CJ sourcing projection, V32).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.CjSourcingRequestMapper">
+
+  <sql id="columns">
+    id, cj_sourcing_id, cj_pid, product_name, product_image, product_url,
+    remark, price, source_status, source_status_str, cj_product_id, cj_variant_sku,
+    add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_cj_sourcing_request
+      (cj_sourcing_id, cj_pid, product_name, product_image, product_url,
+       remark, price, source_status, source_status_str, cj_product_id, cj_variant_sku,
+       add_time, update_time, deleted)
+    values
+      (#{cjSourcingId}, #{cjPid}, #{productName}, #{productImage}, #{productUrl},
+       #{remark}, #{price}, #{sourceStatus}, #{sourceStatusStr}, #{cjProductId}, #{cjVariantSku},
+       #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest">
+    select <include refid="columns" />
+    from litemall_cj_sourcing_request
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectByCjSourcingId" resultType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest">
+    select <include refid="columns" />
+    from litemall_cj_sourcing_request
+    where cj_sourcing_id = #{cjSourcingId} and deleted = 0
+  </select>
+
+  <select id="selectPage" resultType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest">
+    select <include refid="columns" />
+    from litemall_cj_sourcing_request
+    where deleted = 0
+    order by id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countAll" resultType="int">
+    select count(*) from litemall_cj_sourcing_request where deleted = 0
+  </select>
+
+  <!-- CJ sourceStatus: refresh anything with a sourcing id whose status is not terminal.
+       CJ codes are opaque strings; we treat rows without a cj_product_id as still moving. -->
+  <select id="selectRefreshable" resultType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest">
+    select <include refid="columns" />
+    from litemall_cj_sourcing_request
+    where deleted = 0 and cj_sourcing_id is not null
+    order by id desc
+    limit #{limit}
+  </select>
+
+  <update id="updateCjProjection" parameterType="org.linlinjava.litemall.db.domain.LitemallCjSourcingRequest">
+    update litemall_cj_sourcing_request
+    <set>
+      <if test="cjSourcingId != null">cj_sourcing_id = #{cjSourcingId},</if>
+      <if test="sourceStatus != null">source_status = #{sourceStatus},</if>
+      <if test="sourceStatusStr != null">source_status_str = #{sourceStatusStr},</if>
+      <if test="cjProductId != null">cj_product_id = #{cjProductId},</if>
+      <if test="cjVariantSku != null">cj_variant_sku = #{cjVariantSku},</if>
+      update_time = #{updateTime},
+    </set>
+    where id = #{id}
+  </update>
+
+</mapper>
