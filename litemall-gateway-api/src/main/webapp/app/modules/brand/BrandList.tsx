@@ -2,28 +2,64 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { contentApi, IBrand } from 'app/shared/api';
+import { catalogApi, contentApi, IBrand } from 'app/shared/api';
 import 'app/shared/scss/content.scss';
 
 /**
  * Brand directory, modelled on litemall-vue `items/brand-list`. Sourced from
  * `/srv/brand/list` (live on goods-management).
+ *
+ * The seed carries ~49 brands but most native brand rows have no goods pointing
+ * at them today (the catalog is dominated by CJ imports), so listing every brand
+ * dead-ends at "No products" on most tiles. Until goods-management returns a
+ * per-brand goods count (see docs/handoff-brand-goods-count.md), we probe each
+ * brand's on-sale count client-side (`/srv/goods/list?brandId=&limit=1`) and show
+ * only the populated ones, most products first. Cached for the session so
+ * revisiting `/brands` is instant.
  */
+type BrandWithCount = IBrand & { goodsCount: number };
+
+// Session cache: populated the first time /brands is opened.
+let brandsCache: BrandWithCount[] | null = null;
+
 const BrandList: React.FC = () => {
-  const [brands, setBrands] = useState<IBrand[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [brands, setBrands] = useState<BrandWithCount[]>(brandsCache ?? []);
+  const [loading, setLoading] = useState(brandsCache === null);
 
   useEffect(() => {
+    if (brandsCache !== null) return;
     let cancelled = false;
+
+    const countFor = async (b: IBrand): Promise<number> => {
+      // Trust a backend-supplied count if it ever lands (handoff), else probe.
+      const supplied = (b as { goodsCount?: number }).goodsCount;
+      if (typeof supplied === 'number') return supplied;
+      if (b.id == null) return 0;
+      try {
+        const res: any = await catalogApi.goodsList({ brandId: b.id, page: 1, limit: 1 });
+        return Number(res?.total ?? res?.list?.length ?? 0) || 0;
+      } catch {
+        return 0;
+      }
+    };
+
     contentApi
-      .brandList({ page: 1, limit: 30 })
-      .then(res => {
-        if (!cancelled) setBrands(res?.list ?? []);
+      .brandList({ page: 1, limit: 100 })
+      .then(async res => {
+        const all = res?.list ?? [];
+        const counts = await Promise.all(all.map(countFor));
+        const populated = all
+          .map((b, i) => ({ ...b, goodsCount: counts[i] }))
+          .filter(b => b.goodsCount > 0)
+          .sort((a, b) => b.goodsCount - a.goodsCount);
+        brandsCache = populated;
+        if (!cancelled) setBrands(populated);
       })
       .catch(() => {
         if (!cancelled) setBrands([]);
       })
       .finally(() => !cancelled && setLoading(false));
+
     return () => {
       cancelled = true;
     };
@@ -44,7 +80,9 @@ const BrandList: React.FC = () => {
             <Link key={b.id} to={`/brand/${b.id}`} className='lm-brand-tile'>
               <img src={b.picUrl} alt={b.name} />
               <div className='lm-brand-tile__name'>{b.name}</div>
-              {b.floorPrice != null && <div className='lm-brand-tile__price'>from ${b.floorPrice}</div>}
+              <div className='lm-brand-tile__count'>
+                {b.goodsCount} {b.goodsCount === 1 ? 'product' : 'products'}
+              </div>
             </Link>
           ))}
         </div>
