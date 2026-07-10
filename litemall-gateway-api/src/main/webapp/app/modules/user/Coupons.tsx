@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
-import { ICoupon, isMissingEndpoint, userApi } from 'app/shared/api';
+import { ICoupon, userApi } from 'app/shared/api';
 import { EmptyState, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -10,8 +10,8 @@ const TABS = ['Unused', 'Used', 'Expired'];
 
 /**
  * My coupons, modelled on litemall-vue `user/coupon-list`. Sourced from
- * `/srv/coupon/mylist`; graceful empty when not live. The tab index IS the
- * status code the backend expects (0 unused / 1 used / 2 expired).
+ * `/srv/coupon/mylist`. The tab index IS the status code the backend
+ * expects (0 unused / 1 used / 2 expired).
  */
 const Coupons: React.FC = () => {
   const [status, setStatus] = useState(0);
@@ -26,8 +26,8 @@ const Coupons: React.FC = () => {
       .then(res => {
         if (!cancelled) setCoupons(res?.list ?? []);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setCoupons([]);
+      .catch(() => {
+        if (!cancelled) setCoupons([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
