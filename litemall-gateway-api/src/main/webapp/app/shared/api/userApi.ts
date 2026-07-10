@@ -4,10 +4,10 @@ import { baseAxios, SRV, unwrap } from './http';
  * Customer self-service domain: profile, address book, favorites (collect),
  * footprint (browsing history), coupons, feedback, product comments.
  *
- * NONE of these are on `/srv` yet — they currently only exist on the legacy
- * `/wx` route which this SPA does not consume. Each call below targets the
- * AGREED `/srv` path; until the owning worktree ships it, calls 404 and the
- * views render graceful empty states (see isMissingEndpoint). Tracked in
+ * Live on `/srv`: address (order-service), collect/footprint/feedback/comment
+ * (goods-management, 2026-07-07), coupon (promotion-service legacy-parity
+ * surface, 2026-07-07). Still pending: `/srv/user/index|profile` — no owning
+ * service yet; those views keep the isMissingEndpoint guard. Tracked in
  * docs/SRV-FOLLOWUPS.md.
  */
 export interface IAddress {
