@@ -1,33 +1,46 @@
 package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
 
 import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjBalance;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjLogisticsOption;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderResult;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderSnapshot;
 import org.linlinjava.litemall.order.infrastructure.services.cj.CjTokenService;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.CjOrderFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjBalanceResponse;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjCreateOrderRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjCreateOrderResponse;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjFreightCalculateResponse;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjOrderDetailResponse;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjOrderIdRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjOrderProduct;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjSimpleResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
  * {@link CjDropshipOrderFacade} implementation: authenticates via {@link CjTokenService}, maps a
- * {@link CjOrderPlacement} to the CJ {@code createOrder} request, calls {@link CjOrderFeignClient},
- * and converts any failure (transport, circuit-open, or {@code result=false}) into a
- * {@link LitemallCjOrderException}. Mirrors {@code LitemallGoodsFacadeImpl.call(...)}.
+ * {@link CjOrderPlacement} to the CJ {@code createOrderV2} request (payType=3 create-only draft,
+ * sandbox flag config-driven), calls {@link CjOrderFeignClient}, and converts any placement
+ * failure (transport, circuit-open, or {@code result=false}) into a
+ * {@link LitemallCjOrderException}. Lifecycle operations (confirm / payBalance / detail /
+ * delete / balance) are best-effort per the facade contract. Mirrors
+ * {@code LitemallGoodsFacadeImpl.call(...)}.
  */
 @Component
 public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
 
     private static final Logger log = LoggerFactory.getLogger(CjDropshipOrderFacadeImpl.class);
+
+    /** createOrderV2 payType: create-only draft — never move CJ money inside the pay transaction. */
+    private static final int PAY_TYPE_CREATE_ONLY = 3;
 
     private final CjOrderFeignClient cjOrderFeignClient;
     private final CjTokenService cjTokenService;
@@ -35,14 +48,25 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
     private final String fromCountryCode;
     /** CJ logistics line. CJ createOrder also requires this (code 1600300 "logisticName must be not empty"). */
     private final String logisticName;
+    /** When true, createOrderV2 carries isSandbox=1 so CJ simulates payment (no real charges). */
+    private final boolean sandbox;
+    /**
+     * IOSS declaration for EU destinations (createOrderV2 rejects EU orders without one,
+     * error 100104/7001). Default 1 = no IOSS: the buyer pays import VAT. See the ADR.
+     */
+    private final int iossType;
 
     public CjDropshipOrderFacadeImpl(CjOrderFeignClient cjOrderFeignClient, CjTokenService cjTokenService,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.from-country-code:CN}") String fromCountryCode,
-                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName) {
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.sandbox:false}") boolean sandbox,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-type:1}") int iossType) {
         this.cjOrderFeignClient = cjOrderFeignClient;
         this.cjTokenService = cjTokenService;
         this.fromCountryCode = fromCountryCode;
         this.logisticName = logisticName;
+        this.sandbox = sandbox;
+        this.iossType = iossType;
     }
 
     @Override
@@ -62,7 +86,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             CjLogisticsOption option = resolveLogisticOption(token, placement.getCountryCode(), products);
             String logistic = option != null ? option.getLogisticName() : logisticName;
             CjCreateOrderRequest request = toRequest(placement, products, logistic);
-            response = cjOrderFeignClient.createOrder(token, request);
+            response = cjOrderFeignClient.createOrderV2(token, request);
             placedLogistic = logistic;
         } catch (RuntimeException e) {
             // Transport/auth errors AND CJ business rejections (the FeignErrorDecoder turns a CJ
@@ -193,7 +217,95 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .shippingAddress(p.getAddress())
                 .shippingZip(p.getZip())
                 .remark(p.getRemark())
+                .payType(PAY_TYPE_CREATE_ONLY)
+                .isSandbox(sandbox ? 1 : null)
+                .iossType(iossType)
                 .products(products)
                 .build();
+    }
+
+    @Override
+    public boolean confirmOrder(String cjOrderId) {
+        return simpleCall("confirmOrder", cjOrderId,
+                token -> cjOrderFeignClient.confirmOrder(token, new CjOrderIdRequest(cjOrderId)));
+    }
+
+    @Override
+    public boolean payBalance(String cjOrderId) {
+        return simpleCall("payBalance", cjOrderId,
+                token -> cjOrderFeignClient.payBalance(token, new CjOrderIdRequest(cjOrderId)));
+    }
+
+    @Override
+    public boolean deleteOrder(String cjOrderId) {
+        return simpleCall("deleteOrder", cjOrderId,
+                token -> cjOrderFeignClient.deleteOrder(token, cjOrderId));
+    }
+
+    @Override
+    public Optional<CjOrderSnapshot> fetchOrderDetail(String cjOrderId) {
+        if (cjOrderId == null || cjOrderId.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            String token = cjTokenService.getValidToken();
+            CjOrderDetailResponse response = cjOrderFeignClient.getOrderDetail(token, cjOrderId);
+            boolean accepted = response != null && (response.isResult() || response.getCode() == 200);
+            if (!accepted || response.getData() == null) {
+                log.warn("CJ getOrderDetail gave no usable answer for {}: {}", cjOrderId,
+                        response == null ? "null response" : response.getMessage());
+                return Optional.empty();
+            }
+            CjOrderDetailResponse.Data d = response.getData();
+            return Optional.of(new CjOrderSnapshot(d.getOrderId(), d.getOrderStatus(), d.getSubStatus(),
+                    d.getTrackNumber(), d.getTrackingProvider(), d.getLogisticName()));
+        } catch (RuntimeException e) {
+            log.warn("CJ getOrderDetail failed for {}: {}", cjOrderId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<CjBalance> getBalance() {
+        try {
+            String token = cjTokenService.getValidToken();
+            CjBalanceResponse response = cjOrderFeignClient.getBalance(token);
+            boolean accepted = response != null && (response.isResult() || response.getCode() == 200);
+            if (!accepted || response.getData() == null) {
+                log.warn("CJ getBalance gave no usable answer: {}",
+                        response == null ? "null response" : response.getMessage());
+                return Optional.empty();
+            }
+            CjBalanceResponse.Data d = response.getData();
+            return Optional.of(new CjBalance(d.getAmount(), d.getNoWithdrawalAmount(), d.getFreezeAmount()));
+        } catch (RuntimeException e) {
+            log.warn("CJ getBalance failed: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Shared shape of the best-effort lifecycle mutations (confirm / payBalance / delete):
+     * acceptance decided from {@code result}/{@code code} exactly like placement; any failure
+     * logs and returns {@code false} so the caller (post-commit hook or poller) retries later.
+     */
+    private boolean simpleCall(String operation, String cjOrderId,
+                               java.util.function.Function<String, CjSimpleResponse> call) {
+        if (cjOrderId == null || cjOrderId.isBlank()) {
+            return false;
+        }
+        try {
+            String token = cjTokenService.getValidToken();
+            CjSimpleResponse response = call.apply(token);
+            boolean accepted = response != null && (response.isResult() || response.getCode() == 200);
+            if (!accepted) {
+                log.warn("CJ {} rejected for {}: {}", operation, cjOrderId,
+                        response == null ? "null response" : response.getMessage());
+            }
+            return accepted;
+        } catch (RuntimeException e) {
+            log.warn("CJ {} failed for {}: {}", operation, cjOrderId, e.getMessage());
+            return false;
+        }
     }
 }

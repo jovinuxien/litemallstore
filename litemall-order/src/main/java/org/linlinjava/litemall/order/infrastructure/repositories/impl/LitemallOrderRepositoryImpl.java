@@ -345,7 +345,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel) {
+    public int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel,
+                                 String cjOrderStatus) {
         LitemallOrder patch = new LitemallOrder();
         patch.setId(orderId.getId());
         patch.setCjOrderId(cjOrderId);
@@ -353,8 +354,27 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         if (StringUtils.hasText(shipChannel)) {
             patch.setShipChannel(shipChannel); // the CJ logistics line; never touches freight_price
         }
+        if (StringUtils.hasText(cjOrderStatus)) {
+            patch.setCjOrderStatus(cjOrderStatus);
+        }
         patch.setUpdateTime(LocalDateTime.now());
         return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
+    public int updateCjOrderStatus(LitemallOrderId orderId, String cjOrderStatus) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setId(orderId.getId());
+        patch.setCjOrderStatus(cjOrderStatus);
+        patch.setUpdateTime(LocalDateTime.now());
+        return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
+    public List<LitemallOrderId> querySyncableCjOrders(int limit) {
+        return orderMapper.selectSyncableCjOrderIds(limit).stream()
+                .map(LitemallOrderId::new)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -456,6 +476,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setSource(orderAggregate.getSource());
         dataModel.setCjOrderId(orderAggregate.getCjOrderId());
         dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
+        dataModel.setCjOrderStatus(orderAggregate.getCjOrderStatus());
 
         return dataModel;
     }
@@ -517,6 +538,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setSource(record.getSource());
         domainModel.setCjOrderId(record.getCjOrderId());
         domainModel.setCjOrderNum(record.getCjOrderNum());
+        domainModel.setCjOrderStatus(record.getCjOrderStatus());
 
         return  domainModel;
     }
