@@ -3,7 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 import './user.scss';
 
 interface CollectItem {
@@ -19,7 +19,7 @@ interface CollectItem {
 /**
  * Favorites / collect, modelled on litemall-vue `user/module-collect` (type 0 =
  * goods). Lists saved products with a remove toggle. Sourced from
- * `/srv/collect/list`; graceful empty when not live.
+ * `/srv/collect/list`.
  */
 const Favorites: React.FC = () => {
   const [items, setItems] = useState<CollectItem[]>([]);
@@ -30,8 +30,8 @@ const Favorites: React.FC = () => {
     try {
       const res: any = await userApi.collectList(0, { page: 1, limit: 30 });
       setItems((res?.collectList ?? res?.list ?? res ?? []) as CollectItem[]);
-    } catch (e) {
-      if (!isMissingEndpoint(e)) setItems([]);
+    } catch {
+      setItems([]);
     } finally {
       setLoading(false);
     }

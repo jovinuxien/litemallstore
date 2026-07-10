@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Form, Spinner } from 'react-bootstrap';
 
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -16,7 +16,7 @@ const CONTENT_MAX = 500;
 
 /**
  * Feedback form, modelled on litemall-vue `user/module-feedback`. Posts to
- * `/srv/feedback/submit`. Graceful when not live (follow-up: user worktree).
+ * `/srv/feedback/submit`.
  */
 const Feedback: React.FC = () => {
   const [type, setType] = useState('feedback');
@@ -36,8 +36,7 @@ const Feedback: React.FC = () => {
       setContent('');
       setMobile('');
     } catch (err) {
-      if (isMissingEndpoint(err)) setError('Feedback submission isn’t available yet.');
-      else setError((err as { message?: string })?.message ?? 'Could not send feedback.');
+      setError((err as { message?: string })?.message ?? 'Could not send feedback.');
     } finally {
       setBusy(false);
     }

@@ -3,7 +3,7 @@ import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { contentApi, promotionApi, isMissingEndpoint, ICombinationPink, IGrouponItem } from 'app/shared/api';
+import { contentApi, promotionApi, ICombinationPink, IGrouponItem } from 'app/shared/api';
 import 'app/shared/scss/content.scss';
 
 /** LocalDateTime arrives as an ISO string or a Jackson number[] tuple. */
@@ -20,8 +20,7 @@ const toDisplayTime = (t?: string | number[]): string => {
  * sourced from `/srv/groupon/list` (the promotion service's legacy-shape
  * controller); the interactive flow — start a group / join by invite / my
  * groups — uses the canonical `/srv/promotion/combination` surface
- * (spec-groupon-priced-submit-contract.md). Everything degrades gracefully
- * until the promotion service is live. Ordering AT the group price is the
+ * (spec-groupon-priced-submit-contract.md). Ordering AT the group price is the
  * order service's pending `pinkId` submit-field — until it lands, a completed
  * group is browsable here but checkout still prices at retail.
  */
@@ -33,7 +32,6 @@ const Groupon: React.FC = () => {
   // read identity from the gateway-injected X-User-Id.
   const signedIn = !!sessionStorage.getItem('customerToken');
   const [myGroups, setMyGroups] = useState<ICombinationPink[]>([]);
-  const [actionsAvailable, setActionsAvailable] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [joinPinkId, setJoinPinkId] = useState('');
@@ -43,9 +41,7 @@ const Groupon: React.FC = () => {
     promotionApi
       .combinationMy()
       .then(list => setMyGroups(list ?? []))
-      .catch(e => {
-        if (isMissingEndpoint(e)) setActionsAvailable(false);
-      });
+      .catch(() => setMyGroups([]));
   }, [signedIn]);
 
   useEffect(() => {
@@ -55,8 +51,8 @@ const Groupon: React.FC = () => {
       .then(res => {
         if (!cancelled) setItems(res?.list ?? []);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setItems([]);
+      .catch(() => {
+        if (!cancelled) setItems([]);
       })
       .finally(() => !cancelled && setLoading(false));
     refreshMyGroups();
@@ -74,12 +70,8 @@ const Groupon: React.FC = () => {
       refreshMyGroups();
       return true;
     } catch (e) {
-      if (isMissingEndpoint(e)) {
-        setActionsAvailable(false);
-      } else {
-        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-        setActionError(msg ?? 'The group action could not be completed.');
-      }
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setActionError(msg ?? 'The group action could not be completed.');
       return false;
     } finally {
       setActionBusy(false);
@@ -100,7 +92,7 @@ const Groupon: React.FC = () => {
     <div className='container my-4'>
       <h1 className='h4 mb-3'>Group deals</h1>
 
-      {signedIn && actionsAvailable && (myGroups.length > 0 || actionError) && (
+      {signedIn && (myGroups.length > 0 || actionError) && (
         <div className='mb-4'>
           <h2 className='h6 text-muted'>My groups</h2>
           {actionError && (
@@ -130,7 +122,7 @@ const Groupon: React.FC = () => {
         </div>
       )}
 
-      {signedIn && actionsAvailable && (
+      {signedIn && (
         <Form
           className='d-flex gap-2 align-items-center mb-4'
           onSubmit={e => {
@@ -171,7 +163,7 @@ const Groupon: React.FC = () => {
                 </div>
               </Link>
               <div className='small text-muted mt-1'>{g.discountMember ?? '?'} people per group</div>
-              {signedIn && actionsAvailable && (
+              {signedIn && (
                 <Button size='sm' variant='outline-primary' className='mt-2' disabled={actionBusy} onClick={() => startGroup(g.id)}>
                   Start a group
                 </Button>
