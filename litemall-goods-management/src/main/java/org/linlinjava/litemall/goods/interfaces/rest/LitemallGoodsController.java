@@ -332,7 +332,6 @@ public class LitemallGoodsController {
 
 
     @PostMapping("/stock/reduce" )
-    //public Object reduceStock(@NotNull Integer id, @NotNull Short quantity) {
     public ResponseEntity<ApiResponse<Void>> reduceStock(@RequestBody ReduceStockRequest request) {
         // Validate input
         if (request.getProductId() == null || request.getNumber() == null) {
@@ -341,7 +340,33 @@ public class LitemallGoodsController {
         }
         // Process the request
         LitemallGoodsProductId goodsProductId = new LitemallGoodsProductId(request.getProductId().toString());
-        goodsManagementService.reduceStock(goodsProductId, request.getNumber().shortValue());
+        boolean reduced = goodsManagementService.reduceStock(goodsProductId, request.getNumber().shortValue());
+        if (!reduced) {
+            // HTTP 200 + non-zero errno so Feign callers read the failure from the
+            // body instead of an exception path (order aborts placement on errno != 0).
+            return ResponseEntity.ok(ApiResponse.fail(631,
+                    "insufficient stock for product " + request.getProductId()));
+        }
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    /**
+     * Inverse of {@code /stock/reduce}: returns previously-reserved stock. Called by
+     * order's rollback/cancellation compensation, so it must never oversubtract —
+     * it only adds, guarded to existing non-deleted products.
+     */
+    @PostMapping("/stock/restore")
+    public ResponseEntity<ApiResponse<Void>> restoreStock(@RequestBody ReduceStockRequest request) {
+        if (request.getProductId() == null || request.getNumber() == null) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.fail(400, "ID and quantity are required"));
+        }
+        LitemallGoodsProductId goodsProductId = new LitemallGoodsProductId(request.getProductId().toString());
+        boolean restored = goodsManagementService.restoreStock(goodsProductId, request.getNumber().shortValue());
+        if (!restored) {
+            return ResponseEntity.ok(ApiResponse.fail(632,
+                    "unknown or deleted product " + request.getProductId()));
+        }
         return ResponseEntity.ok(ApiResponse.success());
     }
 
@@ -377,10 +402,15 @@ public class LitemallGoodsController {
     }
 
 
+    /**
+     * Bulk goods lookup keyed by plain integer goods id. Keying by the
+     * {@code LitemallGoodsId} value object serialized the map keys as JVM identity
+     * strings ({@code LitemallGoodsId@3b488a9a}), which consumers cannot index.
+     */
     @PostMapping("/batch")
-    public Map<LitemallGoodsId, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
+    public Map<Integer, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getAllGoodByIds(goodsIds.stream().map(LitemallGoodsId::new).toList());
-        return goodsList.stream().collect(Collectors.toMap(LitemallGoodsAggregate::getGoodsId, Function.identity()));
+        return goodsList.stream().collect(Collectors.toMap(g -> g.getGoodsId().getId(), Function.identity()));
     }
 }
 

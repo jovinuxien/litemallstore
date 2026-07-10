@@ -104,7 +104,9 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
         if(goodsProductAggregate.getGoodsProductId() != null){
             dataModel.setId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
         }
-        dataModel.setGoodsId(Integer.parseInt(goodsProductAggregate.getGoodsProductId().getId()));
+        if(goodsProductAggregate.getGoodsId() != null){
+            dataModel.setGoodsId(goodsProductAggregate.getGoodsId().getId());
+        }
         dataModel.setSpecifications(goodsProductAggregate.getSpecifications());
 
         dataModel.setPrice(goodsProductAggregate.getPrice().getAmount());
@@ -131,7 +133,7 @@ public class LitemallGoodsProductRepositoryImpl implements LitemallGoodsProductR
 
         // Relationship mappings
         domainModel.setGoodsProductId(new LitemallGoodsProductId(record.getId().toString()));
-        domainModel.setGoodsId(new LitemallGoodsId(record.getId()));
+        domainModel.setGoodsId(new LitemallGoodsId(record.getGoodsId()));
 
         // Orther fields
         //domainModel.setGrouponStatus(record.getStatus());
