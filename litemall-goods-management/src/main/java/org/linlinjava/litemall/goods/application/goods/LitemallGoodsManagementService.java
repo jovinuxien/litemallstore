@@ -49,6 +49,15 @@ public interface LitemallGoodsManagementService {
      * desc: stock verification section
      */
     void verifyGoodsAvailability(List<LitemallGoodsId> productIds);
-    void reduceStock(LitemallGoodsProductId goodsProductId, Short number);
+
+    /**
+     * Atomically decrement stock. Returns false when the guarded UPDATE affected no
+     * row (insufficient stock or unknown/deleted product) — the caller must treat
+     * that as a failed reservation, never as success.
+     */
+    boolean reduceStock(LitemallGoodsProductId goodsProductId, Short number);
+
+    /** Inverse of {@link #reduceStock}: return previously-reserved stock (order rollback/cancel compensation). */
+    boolean restoreStock(LitemallGoodsProductId goodsProductId, Short number);
 
 }

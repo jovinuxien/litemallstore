@@ -47,9 +47,21 @@ reserve-stock step of checkout.
   client directly; the facade is the single seam that adapts the remote contract
   to the order aggregates.
 - The Feign client carries **connect/read timeouts and a circuit breaker with a
-  fallback** so a goods-management outage fails the placement *cleanly* — a domain
-  exception, no order persisted, no partial stock decrement — rather than hanging
-  or creating an order against unvalidated stock.
+  fallback** (`GoodsServiceFeignClientFallbackFactory` — reads fail fast with
+  `LitemallGoodsServiceUnavailableException`, `reduceStock` degrades to an
+  unconfirmed reservation) so a goods-management outage fails the placement
+  *cleanly* — a domain exception, no order persisted — rather than hanging or
+  creating an order against unvalidated stock.
+- **Actual reserve guarantee (known limitation).** goods-management exposes only a
+  single per-product `POST /srv/goods/stock/reduce` — no batch/atomic reduce and no
+  inverse restore endpoint — so the facade issues one reduce call per product and
+  `restoreStock` compensation is a **logged no-op**. If a multi-line reserve fails
+  midway, products already decremented remotely stay decremented; the placement
+  still aborts (no order row) and the orphaned decrements are logged at ERROR with
+  the exact `productId -> qty` ledger for reconciliation. Closing this for real
+  (atomic batch reduce + restore endpoint, and fixing the currently no-op
+  `reduceStock` service method) is the goods-management follow-up — see
+  `handoff-goods-management-defects.md` Defects 1 & 3.
 - No broker-based goods *read* path is built for placement. A cached catalog
   projection (broker-fed) may be added **later** for browsing/listing only; it
   must not back the reserve-stock step. There is no half-built broker goods-read

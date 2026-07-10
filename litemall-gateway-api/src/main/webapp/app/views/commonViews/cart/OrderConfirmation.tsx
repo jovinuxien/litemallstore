@@ -1,16 +1,20 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { Page, ResultPanel } from 'app/components/commonComponents/storefront';
+import { orderApi } from 'app/shared/api';
+import { IOrderDetail } from 'app/shared/model/order/order.model';
+import { OrderSummary, Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
  * Post-placement confirmation. Reads the checkout's placed orders from the order
  * slice (up to one local + one CJ order, set by placeOrder/payOrder.fulfilled);
  * falls back to the :id route param so a direct visit / refresh still shows the
- * order reference. The CJ fulfilment number is not returned by pay — it lives on
- * the order's detail page in My Orders.
+ * order reference. Each order's money breakdown (goods / shipping / coupon /
+ * total) is fetched from the live /srv/order/detail — best-effort: a fetch
+ * failure just leaves the plain reference lines. The CJ fulfilment number is
+ * not returned by pay — it lives on the order's detail page in My Orders.
  */
 const OrderConfirmation: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +24,38 @@ const OrderConfirmation: React.FC = () => {
   const routeId = id ? Number(id) : undefined;
   const totalCharged = orders.reduce((sum, o) => sum + (o.actualPrice != null ? priceNum(o.actualPrice) : 0), 0);
   const paymentMethod = orders.find(o => o.paymentMethod)?.paymentMethod;
+
+  // Price breakdown per order id, from the (owner-scoped) order detail.
+  const [details, setDetails] = useState<Record<number, IOrderDetail>>({});
+  const orderIds = orders.length > 0 ? orders.map(o => o.orderId) : routeId != null && routeId > 0 ? [routeId] : [];
+  const idsKey = orderIds.join(',');
+  useEffect(() => {
+    let cancelled = false;
+    orderIds.forEach(orderId => {
+      orderApi
+        .detail(orderId)
+        .then(d => {
+          if (!cancelled && d?.id != null) setDetails(prev => ({ ...prev, [orderId]: d }));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+
+  const breakdownRows = (d: IOrderDetail) => {
+    const couponPrice = priceNum(d.couponPrice ?? 0);
+    const freightPrice = priceNum(d.freightPrice ?? 0);
+    return [
+      { label: 'Goods total', value: `$${priceNum(d.goodsPrice ?? 0).toFixed(2)}` },
+      { label: 'Shipping', value: freightPrice > 0 ? `$${freightPrice.toFixed(2)}` : 'Free', variant: 'muted' as const },
+      ...(couponPrice > 0 ? [{ label: 'Coupon', value: `−$${couponPrice.toFixed(2)}`, variant: 'success' as const }] : []),
+      { label: 'Total charged', value: `$${priceNum(d.actualPrice ?? 0).toFixed(2)}`, variant: 'total' as const },
+    ];
+  };
+  const fetchedDetails = orderIds.map(orderId => details[orderId]).filter((d): d is IOrderDetail => !!d);
 
   const sub = (
     <>
@@ -37,10 +73,21 @@ const OrderConfirmation: React.FC = () => {
       {cj && (
         <p className='mb-1 text-muted small'>The CJ fulfilment number appears on the order’s detail page in My Orders.</p>
       )}
-      {totalCharged > 0 && (
-        <p className='mb-1'>
-          Total charged: <span className='lm-amount'>${totalCharged.toFixed(2)}</span>
-        </p>
+      {fetchedDetails.length > 0 ? (
+        <div className='text-start mx-auto my-3' style={{ maxWidth: 360 }}>
+          {fetchedDetails.map(d => (
+            <div key={d.id} className='mb-2'>
+              {fetchedDetails.length > 1 && <div className='small text-muted mb-1'>Order #{d.id}</div>}
+              <OrderSummary rows={breakdownRows(d)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        totalCharged > 0 && (
+          <p className='mb-1'>
+            Total charged: <span className='lm-amount'>${totalCharged.toFixed(2)}</span>
+          </p>
+        )
       )}
       {paymentMethod && <p className='mb-0'>Paid via {paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
     </>

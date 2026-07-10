@@ -44,6 +44,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
     private final LitemallGoodsServiceApi goodsServiceApi;
     private final LitemallGoodsProperties properties;
     private final GoodsIndexEventPublisher goodsIndexEventPublisher;
+    private final LitemallGoodsProductRepository goodsProductRepository;
 
  public LitemallGoodsManagementServiceImpl(LitemallGoodsRepository goodsRepository,
                                            LitemallGoodsServiceApi goodsServiceApi,
@@ -53,7 +54,8 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
                                            LitemallCartService cartService,
                                            LitemallCatalogService catalogService,
                                            LitemallGoodsProperties properties,
-                                           GoodsIndexEventPublisher goodsIndexEventPublisher) {
+                                           GoodsIndexEventPublisher goodsIndexEventPublisher,
+                                           LitemallGoodsProductRepository goodsProductRepository) {
      this.goodsServiceApi = goodsServiceApi;
      this.categoryRepository = categoryRepository;
      this.brandRepository = brandRepository;
@@ -62,6 +64,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
      this.catalogService = catalogService;
      this.properties = properties;
      this.goodsIndexEventPublisher = goodsIndexEventPublisher;
+     this.goodsProductRepository = goodsProductRepository;
     }
 
     private void publishGoodsChange(GoodsChangeMessage.Action action, Integer goodsId) {
@@ -138,7 +141,7 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
 
 
             // This in memory call via Stream API check is good compared to the database call.
-            if(existingProductAggregate.stream().anyMatch(productAggregate -> productAggregate.isStockEnough(numberLimitInStock))){
+            if(existingProductAggregate.stream().anyMatch(productAggregate -> !productAggregate.isStockEnough(numberLimitInStock))){
                 throw new LitemallInsufficientStockException("Not enough stock for goods: " + ltmGoodsId);
             }
         }
@@ -146,9 +149,13 @@ public class LitemallGoodsManagementServiceImpl  implements LitemallGoodsManagem
  }
 
     @Override
-    public void reduceStock(LitemallGoodsProductId productId, Short number) {
-       //goodsProductRepository.reduceStock(productId, number);
-       //goodsProductRepository.reduceStock(productId, number);
+    public boolean reduceStock(LitemallGoodsProductId productId, Short number) {
+        return goodsProductRepository.reduceStock(productId, number) == 1;
+    }
+
+    @Override
+    public boolean restoreStock(LitemallGoodsProductId productId, Short number) {
+        return goodsProductRepository.addStock(productId, number) == 1;
     }
 
     @Override

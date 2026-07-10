@@ -3,7 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 import './user.scss';
 
 interface FootprintItem {
@@ -18,7 +18,7 @@ interface FootprintItem {
 
 /**
  * Browsing history, modelled on litemall-vue footprint. Sourced from
- * `/srv/footprint/list`; graceful empty when not live.
+ * `/srv/footprint/list`.
  */
 const Footprint: React.FC = () => {
   const [items, setItems] = useState<FootprintItem[]>([]);
@@ -31,8 +31,8 @@ const Footprint: React.FC = () => {
       .then((res: any) => {
         if (!cancelled) setItems((res?.list ?? res ?? []) as FootprintItem[]);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setItems([]);
+      .catch(() => {
+        if (!cancelled) setItems([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

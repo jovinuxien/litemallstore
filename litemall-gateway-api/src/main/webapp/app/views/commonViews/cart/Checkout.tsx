@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { CheckoutPaymentMethod, OrderGroup, PlacedOrder, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
-import { IAddress, ICoupon, isMissingEndpoint, orderApi, userApi } from 'app/shared/api';
+import { IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
 import { IFreightQuote } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -106,9 +106,14 @@ const CheckoutView: React.FC = () => {
   const [addresses, setAddresses] = useState<IAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | 'new' | null>(null);
 
-  // Coupons (graceful when /srv/coupon isn't live yet).
+  // Coupons usable for THIS checkout, from /srv/coupon/selectlist (promotion
+  // service; graceful empty while it isn't live). Item id = userCouponId (the
+  // redeem handle), cid = the coupon definition id — submit sends both.
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
   const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null);
+  // Server-side coupon rejection at submit (e.g. redeemed elsewhere meanwhile),
+  // surfaced inline at the picker rather than only as the page-level alert.
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
@@ -181,14 +186,33 @@ const CheckoutView: React.FC = () => {
           setSelectedAddressId('new');
         }
       })
-      .catch(e => {
-        if (isMissingEndpoint(e)) setSelectedAddressId('new');
-      });
-    userApi
-      .couponMyList(1)
-      .then(res => setCoupons(res?.list ?? []))
-      .catch(() => setCoupons([]));
+      .catch(() => setSelectedAddressId('new'));
   }, [dispatch]);
+
+  // Usable-coupon query: the caller supplies the cart facts (promotion has no
+  // cart access) — subtotal + the numeric goods ids. Re-runs when the cart
+  // changes so threshold coupons appear/disappear with the total.
+  useEffect(() => {
+    if (cartList.length === 0) {
+      setCoupons([]);
+      return;
+    }
+    const amount = cartList.reduce((sum, it) => sum + (it.price ?? 0) * (it.number ?? 0), 0);
+    const goodsIds = cartList.map(it => Number(it.goodsId)).filter(id => Number.isFinite(id));
+    userApi
+      .couponSelectList(Number(amount.toFixed(2)), goodsIds)
+      .then(list => setCoupons(list ?? []))
+      .catch(() => setCoupons([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSignature]);
+
+  // A refreshed usable-list can drop the selected coupon (threshold no longer met).
+  useEffect(() => {
+    if (selectedCouponId != null && !coupons.some(c => c.id === selectedCouponId)) {
+      setSelectedCouponId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coupons]);
 
   const cartTotalAmount = useMemo(
     () => cartList.reduce((sum, item) => sum + (item.price ?? 0) * (item.number ?? 0), 0),
@@ -234,6 +258,7 @@ const CheckoutView: React.FC = () => {
   // Place each cart group (once) then pay, so a retry never creates a second order.
   const handlePlaceOrder = async () => {
     setAddrError(null);
+    setCouponError(null);
 
     // 1. Resolve a saved addressId for the local order, persisting a typed address.
     let addressId = savedAddressId;
@@ -244,12 +269,8 @@ const CheckoutView: React.FC = () => {
         addressId = typeof newId === 'number' ? newId : Number(newId);
         if (!addressId) throw new Error('no id');
         setSelectedAddressId(addressId);
-      } catch (e) {
-        setAddrError(
-          isMissingEndpoint(e)
-            ? 'The address book service is unavailable right now. Please try again later.'
-            : 'Could not save the delivery address. Check the required fields and try again.'
-        );
+      } catch {
+        setAddrError('Could not save the delivery address. Check the required fields and try again.');
         return;
       }
     }
@@ -267,6 +288,8 @@ const CheckoutView: React.FC = () => {
     for (const { group, items } of groups) {
       if (next[group]) continue;
       // eslint-disable-next-line no-await-in-loop
+      // A coupon redeems once — it rides the first submitted order only.
+      const couponRides = group === groups[0].group && selectedCoupon != null;
       const res = await dispatch(
         placeOrder({
           group,
@@ -274,13 +297,25 @@ const CheckoutView: React.FC = () => {
           addressId,
           message,
           paymentMethod,
-          // A coupon redeems once — it rides the first submitted order only.
-          userCouponId: group === groups[0].group ? selectedCouponId ?? undefined : undefined,
+          // id = userCouponId (redeem handle), cid = coupon definition id.
+          couponId: couponRides ? selectedCoupon.cid : undefined,
+          userCouponId: couponRides ? selectedCoupon.id : undefined,
           // CJ placement (at pay time) needs the destination country.
           countryCode: group === 'cj' ? country.code : undefined,
         })
       );
       if (!placeOrder.fulfilled.match(res)) {
+        // A rejected submit that carried a coupon gets the inline
+        // remove-and-retry affordance at the picker on top of the page alert:
+        // the coupon is the one submit input the customer can drop and retry.
+        // Order rejects promotion-issued coupons as a generic "System internal
+        // error" until its promotion facade lands, so matching /coupon/i in
+        // the message alone misses the common case; only the slice's own
+        // pre-submit rejections (401 sign-in, 400 stale items) are excluded.
+        const { errno = 0, errmsg = '' } = (res.payload as { errno?: number; errmsg?: string } | undefined) ?? {};
+        if (couponRides && errno !== 400 && errno !== 401) {
+          setCouponError(/coupon/i.test(errmsg) ? errmsg : `The selected coupon may not be usable for this order${errmsg ? ` (${errmsg})` : ''}.`);
+        }
         setPlaced(next); // keep what was placed so a retry skips those groups
         return; // stock/validation error shown from order state
       }
@@ -455,22 +490,40 @@ const CheckoutView: React.FC = () => {
         </CellGroup>
 
         {/* Coupon */}
-        {coupons.length > 0 && (
+        {(coupons.length > 0 || couponError) && (
           <CellGroup>
             <Cell title='Coupon'>
               <Form.Select
                 size='sm'
                 value={selectedCouponId ?? ''}
-                onChange={e => setSelectedCouponId(e.target.value ? Number(e.target.value) : null)}
+                onChange={e => {
+                  setSelectedCouponId(e.target.value ? Number(e.target.value) : null);
+                  setCouponError(null);
+                }}
               >
                 <option value=''>No coupon ({couponCellValue})</option>
                 {coupons.map(c => (
                   <option key={c.id} value={c.id} disabled={(c.min ?? 0) > cartTotalAmount}>
-                    −${c.discount} {c.min ? `(over $${c.min})` : ''}
+                    {c.name ? `${c.name} — ` : ''}−${c.discount} {c.min ? `(over $${c.min})` : ''}
                   </option>
                 ))}
               </Form.Select>
             </Cell>
+            {couponError && (
+              <Alert variant='warning' className='m-3 mt-0 mb-3 d-flex justify-content-between align-items-center gap-2'>
+                <span>{couponError}</span>
+                <button
+                  type='button'
+                  className='btn btn-sm btn-outline-secondary flex-shrink-0'
+                  onClick={() => {
+                    setSelectedCouponId(null);
+                    setCouponError(null);
+                  }}
+                >
+                  Remove coupon
+                </button>
+              </Alert>
+            )}
           </CellGroup>
         )}
 

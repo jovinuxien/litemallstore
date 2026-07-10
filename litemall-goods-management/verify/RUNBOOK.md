@@ -821,3 +821,269 @@ L1s w/ images + mobile "All categories" toggle (hover flyout kept); /search rail
 - 97 CJ leaves upstream-empty; re-check occasionally or hide zero-count leaves in the SPA.
 - Concurrent-session hygiene: only ONE goods-management instance should run a startup/cron full
   sync at a time — a second instance's prune races any in-flight targeted fill.
+
+---
+
+## §20 — Cold-start re-proof of the full OCS path + §19 follow-up closure (2026-07-06)
+
+**Starting state.** The ENTIRE runtime stack was down and every OCS container had been *removed*
+(`docker ps -a` showed only a dead `litemall-redis-verify`); only host MySQL :3306 was alive. The
+`docker-compose_ocs_esdata` volume survived, so `litemall_index` came back with the containers
+(alias `ocs-79`, 3,708 docs). The shared DB had also moved since §19: a full-sync prune had
+soft-deleted ~1,567 CJ goods (on-sale 5,275 → 3,708; leaves-with-goods 443 → 286).
+
+**Stack (step 1).** Recreated from THIS worktree's `docker-compose/`:
+`docker compose -f docker-compose.yml -f docker-compose.local.yml up -d elasticsearch indexer
+searcher suggest kibana rabbitmq redis` (keycloak skipped — locked no-Keycloak architecture).
+es :9200 `yellow` (single node), indexer :8535 `UP` (+ `application-custom.yml` mount carrying the
+nine-field `litemall_index` config verified inside the container), searcher :8534 `UP`, suggest
+:8081, kibana :5601, rabbit :5672/15672, redis PONG. authserver :8089 (jar) + goods-management
+:8082 (main-checkout exec jar, Jul-5 build incl. the §19 resurrection fix) booted standalone.
+Machine token: `client_credentials` `gateway-admin` @ :8089.
+
+> **BOOT GOTCHA found & fixed (the one real break this session).** First boot used
+> `--spring.profiles.active=verify` ONLY — §16's recipe says `…,verify` and the `…` matters: it is
+> the module default `dev,db,core,admin,wx`. Without the `db` profile, litemall-db's
+> `application-db.yml` (`pagehelper.reasonable: true`) never loads, and every repository call site
+> that passes **page 0** to `PageHelper.startPage(pageNum, size)` (e.g.
+> `LitemallCatalogRepositoryImpl.queryL1(0,100)`) silently returns an EMPTY page — PageHelper skips
+> the row select when startRow==endRow==0. Symptoms observed live: `/srv/catalog/first-categories`
+> → `l1CatList: []` and `/srv/catalog/all` → `errno 502`
+> (`IndexOutOfBoundsException` at `LitemallCatalogController.queryAll` `l1CatList.get(0)`).
+> Fixes shipped here: (1) `verify/application-verify.yml` now carries the `pagehelper` block so a
+> verify-only boot is self-sufficient; (2) `LitemallCatalogController.queryAll` guards the empty
+> catalog (`isEmpty() ? null : get(0)` — the code's own `null != currentCategory` check downstream
+> always intended that) so an empty catalog returns an empty payload instead of 502. Search/reindex/
+> incremental were unaffected (their callers pass real page numbers). Canonical boot restated:
+> `--spring.profiles.active=dev,db,core,admin,wx,verify` + §16/§17 flags.
+
+**Full reindex (step 2).**
+```
+POST /srv/private/admin/search/reindex (Bearer machine-jwt + X-User-Roles: ROLE_ADMIN)
+-> {"errno":0,"data":{"indexed":3708},"errmsg":"success"}
+SELECT COUNT(*) WHERE is_on_sale=1 AND deleted=0 -> 3708 ; _count -> 3708 ; alias ocs-79 -> ocs-80
+```
+Nine-field spot checks: `1009009` (local) — `price:2019.0`/`discount_price:1999.0`,
+`brand:"MUJI Manufacturer"`, `category_names:["home","quilt pillow"]` +
+`category_ids:["1005000","1008008"]` root→leaf, title/description/image_url set, `product_id`
+as `_id`. `10000000` (CJ) — 3-level chain `["Consumer Electronics","Accessories & Parts",
+"Digital Cables"]` / `["1036453","1036454","1036455"]`, `discount_price`/`brand` absent BY DESIGN,
+CJ attribute facets (`Material`, `Weight`) riding along.
+
+**Search + suggest (step 3).**
+```
+GET /srv/search?q=silk&page=1&size=5 -> total 99, totalPages 20, item keys
+    {id,name,brief,picUrl,retailPrice,counterPrice,brand,categoryNames,source},
+    filters [price, category_ids, category_names, variant_price, source]
+page=2 -> disjoint ids ; sort=price -> [8.64, 9.22, 9.5, 9.79, 9.94] ascending
+GET /srv/search/suggest?q=quilt -> phrases (live ~20s after reindex — harvest window)
+```
+
+**Incremental (step 4).** `goods_sn VERIFY-INC-20260706` → id `10006816` via
+`/srv/private/admin/goods/{create,update,delete}`; alias stayed `ocs-80` throughout:
+create → doc visible ≤2 s (brand/category resolved, price 222.0 / discount_price 199.0);
+update → `title "... UPDATED"` in place ≤4 s; delete → `found:false` ≤2 s, `_count` back to 3708
+(the momentary 3709 right after delete is ES near-real-time refresh lag, settles <5 s).
+
+**Customer surface (step 5).** `/srv/goods/list` item keys == `/srv/search` item keys
+(`brand,brief,categoryNames,counterPrice,id,name,picUrl,retailPrice,source`), `source:"ocs"`.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean;
+guarded tests vs live stack `OcsSearchRoundTripVerificationTest` (2) +
+`OcsIncrementalIndexVerificationTest` (1) → `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
+(temp pom tweak per §6, reverted); hardcoded-host grep over `src/main/java` clean.
+
+**Follow-up A — "Imported" bucket RETIRED.** Re-verified cats 1036007–1036011 all 0 goods
+(L1 `Imported` + empty L2s `Digital Cables`/`Scarves & Wraps`/`Electronic Pets`/`Men's Sleep &
+Lounge`), then soft-deleted all five via the existing `POST /srv/private/admin/category/delete`
+(children first). After: `/srv/catalog/all` → 23 L1s, count-ranked, NO `Imported`, every L1 carries
+`picUrl`; each of the 4 previously-shadowed names now resolves to exactly ONE live category — the
+mirrored CJ leaf (1036455, 1036014, 1036366, 1036282). NAME-based CJ resolution is unambiguous.
+
+**Follow-up B — the 97 upstream-empty leaves are now 0: 540/540 leaves populated.** Re-ran the 14
+per-leaf targets (`POST /srv/private/admin/search/cj-fetch {"targets":[{"category":"<L1>",
+"perLeafLimit":10}]}`, additive/prune-free), which also had to RECOVER from a live reproduction of
+the §19 interference scenario:
+
+> **Concurrent-session interference, round 2 (23:22).** Another session booted the full platform
+> from the MAIN checkout mid-fill — including a second goods-management on **:18082** with default
+> config, whose one-shot startup CJ refresh (full sync + STALE-PRUNE) fired ~25 min after its boot,
+> exactly per the §17 note. Because the in-flight targeted fill held CJ's 1-QPS budget, the
+> refresh's own list fetches 429'd en masse, its "seen" set collapsed, and its global stale-prune
+> soft-deleted 1,020 `litemall_cj_product` rows (+ their goods mirrors) — including whole
+> just-filled trees. The targeted path itself is provably prune-free (`pruneStale=false`, every run
+> logged `0 soft-deleted stale`); the deletes were `softDeleteByPids` from the OTHER instance's
+> full sync. Recovery: re-ran the 5 damaged targets after the refresh settled — the §19
+> resurrection fix re-promoted everything (0 promoteFailed throughout). The §19 hygiene rule
+> stands, now with the mechanism spelled out: a starved full sync prunes what a concurrent fill
+> just landed. Consider `refresh-on-startup=false` as the default posture on dev boxes.
+
+> **Reindex paging bug found & FIXED (the second real break).** After the final fill,
+> `reindex → {"indexed":6246}` but `_count` stuck at 6229 — 17 docs short on every fresh
+> generation, no indexer/ES errors, last batch "46 of 46 converted". Root cause:
+> `SearchReindexService.reindexAll` paged `querySelective(..., "add_time", "desc")` — add_time is
+> NON-UNIQUE (bulk promotes stamp hundreds of rows in the same second), MySQL tie order is
+> arbitrary per query, so page boundaries read 17 tied rows twice and skipped 17 others (the
+> missing block was exactly the newest ids 10007141–10007157). Fix: page by the unique PK
+> (`"id","asc"`); order is irrelevant for a full replace. Verified live on the worktree exec jar
+> (:8092, same stack): `{"indexed":6246}` → `_count` **6246** on `ocs-102`, all 17 ids `found:true`.
+> NOTE: the main-checkout :8082 jar predates this fix — rebuild/restart from main after the merge
+> (do NOT overwrite main's target jar while another session's instance runs from it).
+
+**Final converged state (2026-07-07 00:2x):**
+```
+on_sale 6246 == litemall_index/_count 6246 (post-fix, ocs-102) ; cj_on_sale 6008 ; unpromoted 0
+CJ leaves with goods: 540/540 — the §19 "97 upstream-empty" set is GONE (CJ now returns products
+  for every mirrored leaf; targeted fills are idempotent to re-run)
+per-L1: Women's 730, Pets 664, Toys 550, Electronics 537, Men's 420, HomeGarden 399, Health 390,
+        Autos 390, Sports 382, Jewelry 348, Computer 311, Phones 306, Bags&Shoes 301, HomeImpr 280
+search: q=pumps → 24 hits ; /srv/search/category/1036342 (Pumps) → 10 hits,
+        breadcrumb Bags & Shoes → Women's Shoes → Pumps ; /srv/catalog/all → 23 L1s count-ranked,
+        every L1 with picUrl, no Imported bucket
+```
+
+**Follow-ups (not done here):**
+- Rebuild + restart the main-checkout goods-management (:8082/:18082) once this merge lands so the
+  reindex paging fix serves live (coordinate the jar swap with any session running from main).
+- SPA zero-count leaf hiding is moot while 540/540 are populated; `goodsCounts` on `/srv/catalog/all`
+  already carries the data if it recurs (gateway-api concern).
+
+---
+
+## §21 — Engagement verticals: collect / footprint / feedback / comment-post (2026-07-07)
+
+New Wave-2 task (CLAUDE.md): the customer SPA already calls `/srv/collect/**`, `/srv/footprint/**`,
+`/srv/feedback/**`, `/srv/comment/post` behind an `isMissingEndpoint` guard; the backends did not
+exist. Built them over the legacy tables (`litemall_collect`/`footprint`/`feedback`/`comment`) — no
+new migrations. Identity is the gateway-injected `X-User-Id` on every customer endpoint (cart-IDOR
+rule); a numeric goods id OR `cj_<pid>` reference is accepted and resolved to the promoted native
+goods row via `LitemallCjLinkageMapper.findGoodsIdByCjPid` (new `EngagementGoodsResolver`).
+
+**New code.** `application/engagement/{EngagementGoodsResolver,CollectService,FootprintService,
+FeedbackService}`, `application/comment/CommentPostService`, controllers
+`interfaces/rest/{LitemallCollectController,LitemallFootprintController,LitemallFeedbackController}`
++ `POST /post` on the existing `LitemallCommentController`, admin `interfaces/rest/admin/
+AdminEngagementController` (`/srv/private/admin/{collect,footprint,feedback}/list`). Added
+`UserContext.getUserIdAsInt()`. Purchase check for reviews: v1 trusts the authenticated user
+(no order facade in goods-management — order-worktree follow-up); documented in
+`docs/handoff-engagement-endpoints.md`.
+
+**Verified LIVE** — worktree exec jar on `:8093` (`dummy storage` + `refresh-on-startup=false`,
+profile `dev,db,core,admin,wx,verify`), shared MySQL + OCS stack, as `user123` (id 1):
+```
+unauth (no X-User-Id) GET /srv/collect/list           -> {errno:501,"Please log in"}
+collect add 1009009 -> collected:true ; add cj_04A66F1D... -> resolved valueId 10000516, collected:true
+collect list        -> 2 rows goods-enriched {id,type,valueId,name,brief,picUrl,retailPrice}, total 2
+collect toggle 1009009 -> collected:false ; list -> total 1 (only 10000516)  [toggle semantics]
+footprint record 1009009 + cj_04A66F1D... + 1009009-again -> list total 2  [same-day dedupe holds]
+footprint delete id 3 (mine) -> ok ; delete id 3 again -> 402
+feedback submit {content,type,mobile} -> ok ; missing content -> 402
+comment post 1009009 star5 -> {id:1015} ; post cj_04A66F1D... star4 -> {id:1016} ; star9 -> 402
+GET /srv/comment/list valueId=1009009  -> total 31, my star-5 row on top w/ userInfo.nickName user123
+GET /srv/comment/list valueId=10000516 -> total 1, my CJ review (local rows take precedence over CJ proxy)
+admin feedback/list -> total 1 (the submitted row) ; admin collect/footprint/list -> counts + userId filter
+```
+**Owner scoping proven.** `X-User-Id:2` → `GET /srv/collect/list` total 0 (user1's rows hidden);
+`POST /srv/footprint/delete {id:4}` (user1's row) as user2 → 402 (`findById(userId,id)` returns null).
+
+**Shape parity.** Cross-checked every path/body/param/response field against the SPA call sites
+(`userApi.ts`) and the gateway-api handoff spec — zero drift (`docs/handoff-engagement-endpoints.md`).
+
+**Security posture.** `/srv/{collect,footprint,feedback}/**` are authenticated (NOT added to
+`svcsecurity.public-paths`). `/srv/comment/**` stays public for anonymous review *reads*; `/post`
+enforces its own `X-User-Id` login check (no id → 501), and the edge strips client `X-User-*` so a
+spoofed header can't attribute a review.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean.
+Test-data left in the shared dev DB is benign (user123's own favorites/footprint/feedback + two
+real reviews on 1009009 / 10000516).
+
+**Follow-up (not done here):** `order` worktree — expose a "user U purchased goods G" query so a
+later revision can set a real `hasPurchased` on posted reviews (v1 leaves it false/untracked).
+
+---
+
+## §22 — Relevance boosting: price · popularity · recency · reviews for discovery (2026-07-08)
+
+New task: boost product relevance by price, popularity and reviews across BOTH local and CJ, and
+surface it as SuperDeals (popular), New Arrivals (recent+affordable) and All Products / navbar
+Products (boosted browse). Grounded in *Relevant Search* ch. 7 — signal modeling (§5.1/§7.4.2),
+sqrt/log-damped general-quality metric (§7.4.6), combine-by-multiplication (§7.4.8) — mapped onto
+OCS's existing `scoring-configuration` (which already multiplies in `stock`).
+
+**Signals + storage (V31).** `litemall_goods` gains `listed_num`/`review_count`/`rating`;
+`litemall_cj_product` gains those plus `cj_create_time`/`reviews_synced_time`. Recency rides
+`litemall_goods.add_time` (CJ rows: set to CJ createTime when present). Domain fields hand-added to
+`LitemallGoods`/`LitemallCjProduct` (+ Goods BaseResultMap/Base_Column_List read mappings); writes go
+through a dedicated `LitemallCjLinkageMapper.updateGoodsRankingSignals` (COALESCE, so a null preserves)
+rather than the generated insert/update.
+
+**Acquisition — ~0 new CJ calls.** The CJ list endpoint is V1 `/product/list`; detail is
+`/product/query`. `listedNum` + `createTime` ride the detail response the existing per-product
+enrichment (`CjDetailEnrichmentService.enrichOne`, nightly `enrich-cron`, quota-aware) already
+fetches — previously discarded, now persisted. The CJ review aggregate (`productComments` `total` =
+count, avg `score` = rating) is folded into the SAME paced loop (shares the 1-QPS limiter + Redis
+cache), so no separate sweep. Local review aggregate (`litemall_comment`) is written onto goods by
+`RankingSignalService` — incrementally on `POST /srv/comment/post` and in bulk via
+`POST /srv/private/admin/search/refresh-signals`. Promote copies the four CJ aggregates onto the
+goods row.
+
+**Indexing.** `ProductDocument` + `createProductDocument` emit `listed_num`/`review_count`/`rating`
+(0 when absent — NOT null) and `created_epoch` (add_time millis). `application.indexer-service.yml`
+adds the four as `number` with `Result,Sort,Score`, and excludes them from the dynamic-fields
+catch-all. OCS places master-level Score fields in the doc `scores` block (verified:
+`scores:{rating,review_count,listed_num,stock,created_epoch}`) + `sortData`.
+
+**Scoring (`application.search-service.yml`).** Added `field_value_factor` on `rating`,
+`review_count`, `listed_num`, all `MODIFIER: ln2p` (= ln(2+x)), multiplied alongside the existing
+`stock` (ln1p). ln2p CHOSEN over sqrt/ln1p because score-mode multiply would let those hit 0 and
+zero a product; ln2p floors every no-signal product at a UNIFORM ~0.69 (local goods legitimately
+carry listed_num 0) — no product zeroed, no source structurally buried, each rises only on the
+signals it has (rating≈1.95@5★, review_count≈4.6@100, listed_num≈3.1@20). Recency drives the New
+Arrivals rail via `-created_epoch` sort; a global recency *decay* is a follow-up (needs a decay
+function, not field_value_factor).
+
+**Discovery (`DiscoveryService`).** SuperDeals = empty browse `sort=-listed_num`; New Arrivals =
+empty browse `sort=-created_epoch` + `price=0,<affordable-max>` (config
+`litemall.discovery.affordable-max-price`, default 100). `LitemallGoodsController.index()` now sources
+`hotGoodsList`←SuperDeals and `newGoodsList`←New Arrivals (same goodsList DTO the SPA rails already
+render — no SPA change), with the DB is_new/is_hot lists as an OCS-down fallback. All Products / navbar
+Products keep `/srv/search` (default scoring = the global boost).
+
+**Verified LIVE** — worktree exec jar :8093, OCS stack (indexer+searcher recreated from THIS
+worktree's docker-compose), shared MySQL:
+```
+V31 applied (Flyway "31 - ranking signals"); refresh-signals -> {localGoodsUpdated:32}
+cj-enrich-one pid 2607070501241636200 -> cj_product{listed_num:1, review_count:15, rating:4.9}
+   -> goods 10007645{listed_num:1, review_count:15, rating:4.9}  (promote copy verified)
+reindex -> {indexed:3708}; ES _doc 10007645 scores{rating:4.9, review_count:15, listed_num:1,
+   created_epoch:1783452964000}; local 1009009 scores{review_count:31, rating:1.1, listed_num:0}
+All Products browse (q=, default scoring) -> reviewed/popular lifted to top:
+   10007645(cj,rev15) , 1181000(local,rev97), 1009009(rev31), 1006007(rev30)...  (was doc-id order)
+SuperDeals (-listed_num) -> 10007645 first, then reviewed local via score tie-break
+New Arrivals (-created_epoch, price<=100) -> newest CJ, all <=100 (78.77, 66.1, 50.69, 45.22...)
+```
+
+> **SEARCHER-RESTART GOTCHA (the one real snag).** OCS's ScoringCreator resolves a scoring field
+> against the CURRENT index field-config at searcher startup. Recreating the searcher BEFORE the
+> reindex that first writes the new fields → `WARN ScoringCreator - Field rating for scoring does not
+> exist. Will ignore scoring function`, and the boost silently no-ops (browse stays doc-id order).
+> Fix: reindex FIRST (creates the fields in the index), THEN restart the searcher so it re-reads the
+> field-config. Canonical order for a scoring-field change: edit indexer yml -> recreate indexer ->
+> reindex -> edit searcher yml -> restart searcher -> verify no "does not exist" warning.
+
+**Acceptance re-runs.** `mvn -q -o -pl litemall-goods-management -am compile -P'!webapp'` clean;
+hardcoded-host grep over src/main/java clean; V31 applies on the shared dev DB.
+
+**Follow-ups (not done here):**
+- `cj_create_time` comes back null from `/product/query` (CJ's detail `createTime` is often null).
+  Recency falls back to our `add_time` (promote/ingest time — still monotonic for "newness"). To get
+  CJ's TRUE creation date, switch the list sync to the V2 endpoint `/product/list` V2 (§1.2) which
+  returns `createAt` (ms) — a larger change, raised not done.
+- Price-value is carried implicitly (SuperDeals sorts by listed_num; browse boost has no explicit
+  price term — the book cautions against naive price boosts). A price-value tie-break / composite
+  deal_score field is a tuning follow-up.
+- Global recency decay for the All Products browse needs an OCS decay function (gauss), not
+  field_value_factor — deferred; New Arrivals already covers recency via sort.
+- Rebuild + restart the main-checkout goods-management (:8082) after merge so :8082 serves this
+  (its jar predates V31 + the new code); litemall-db jar in ~/.m2 was refreshed by this build.

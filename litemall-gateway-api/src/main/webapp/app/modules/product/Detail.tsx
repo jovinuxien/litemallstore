@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { userApi } from 'app/shared/api';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { goodId, priceNum } from 'app/components/userComponents/card/ProductCard';
 import ProductCard from 'app/components/userComponents/card/ProductCard';
@@ -54,6 +55,13 @@ const ProductDetailView: React.FC = () => {
       dispatch(getProductDetail(id));
       dispatch(getRelatedGoods(id));
       setQuantity(1);
+      // Record the visit in the customer's footprint (browsing history) —
+      // fire-and-forget, signed-in only; the backend dedupes same goods/day
+      // and the call is silently dropped until goods-management ships it
+      // (docs/handoff-goods-management-engagement.md).
+      if (sessionStorage.getItem('customerToken')) {
+        userApi.footprintRecord(id).catch(() => undefined);
+      }
     }
   }, [dispatch, id]);
 

@@ -24,7 +24,7 @@
   &:hover { border-color: var(--lm-primary, #0e7c86); }
   img { width: 100%; aspect-ratio: 1; object-fit: contain; }
   &__name { font-weight: 600; margin-top: 6px; }
-  &__price { color: var(--lm-accent, #ff5a5f); font-size: 0.85rem; }
+  &__count { color: var(--lm-muted, #78909c); font-size: 0.8rem; margin-top: 2px; }
 }
 .lm-brand-header {
   display: flex;

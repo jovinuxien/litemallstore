@@ -28,6 +28,19 @@ public class UserContext {
     public static String getUserId() { return userId.get(); }
     public static void setUserId(String v) { userId.set(v); }
 
+    /** The forwarded user id as an int, or null when anonymous/malformed. */
+    public static Integer getUserIdAsInt() {
+        String raw = getUserId();
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(raw.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     public static String getUserType() { return userType.get(); }
     public static void setUserType(String v) { userType.set(v); }
 

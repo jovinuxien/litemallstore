@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
-import { userApi, isMissingEndpoint } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 
 /**
  * Favorite / collect toggle, mirroring litemall-vue detail `addCollect`
  * (`/srv/collect/addordelete`, type 0 = goods). Gated on auth — anonymous
- * customers are bounced to /login. Degrades silently if the endpoint isn't
- * live yet (the page still works without favorites).
+ * customers are bounced to /login.
  */
 interface Props {
   goodsId?: number | string;
@@ -32,8 +31,8 @@ const CollectButton: React.FC<Props> = ({ goodsId, initialCollected = false }) =
     setCollected(next); // optimistic
     try {
       await userApi.collectToggle(0, goodsId);
-    } catch (e) {
-      if (!isMissingEndpoint(e)) setCollected(!next); // revert on real error
+    } catch {
+      setCollected(!next); // revert on error
     } finally {
       setBusy(false);
     }

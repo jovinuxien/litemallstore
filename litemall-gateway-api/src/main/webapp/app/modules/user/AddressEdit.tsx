@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { IAddress, isMissingEndpoint, userApi } from 'app/shared/api';
+import { IAddress, userApi } from 'app/shared/api';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -28,9 +28,7 @@ const AddressEdit: React.FC = () => {
     userApi
       .addressDetail(Number(id))
       .then(a => setForm({ ...EMPTY, ...(a ?? {}) }))
-      .catch(e => {
-        if (!isMissingEndpoint(e)) setError('Could not load this address.');
-      })
+      .catch(() => setError('Could not load this address.'))
       .finally(() => setLoading(false));
   }, [id, isNew]);
 
@@ -44,11 +42,7 @@ const AddressEdit: React.FC = () => {
       await userApi.addressSave(form);
       navigate('/user/address');
     } catch (err) {
-      if (isMissingEndpoint(err)) {
-        setError('Saving addresses isn’t available yet.');
-      } else {
-        setError((err as { message?: string })?.message ?? 'Save failed.');
-      }
+      setError((err as { message?: string })?.message ?? 'Save failed.');
     } finally {
       setSaving(false);
     }
@@ -62,11 +56,7 @@ const AddressEdit: React.FC = () => {
       await userApi.addressDelete(form.id);
       navigate('/user/address');
     } catch (err) {
-      if (isMissingEndpoint(err)) {
-        setError('Deleting addresses isn’t available yet.');
-      } else {
-        setError((err as { message?: string })?.message ?? 'Delete failed.');
-      }
+      setError((err as { message?: string })?.message ?? 'Delete failed.');
     } finally {
       setDeleting(false);
     }

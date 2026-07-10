@@ -28,6 +28,9 @@
     <result column="deleted" jdbcType="BIT" property="deleted" />
     <result column="source" jdbcType="VARCHAR" property="source" />
     <result column="cj_pid" jdbcType="VARCHAR" property="cjPid" />
+    <result column="listed_num" jdbcType="INTEGER" property="listedNum" />
+    <result column="review_count" jdbcType="INTEGER" property="reviewCount" />
+    <result column="rating" jdbcType="DECIMAL" property="rating" />
   </resultMap>
   <resultMap extends="BaseResultMap" id="ResultMapWithBLOBs" type="org.linlinjava.litemall.db.domain.LitemallGoods">
     <!--
@@ -147,7 +150,7 @@
     -->
     id, goods_sn, `name`, category_id, brand_id, gallery, keywords, brief, is_on_sale,
     sort_order, pic_url, share_url, is_new, is_hot, unit, counter_price, retail_price,
-    add_time, update_time, deleted, source, cj_pid
+    add_time, update_time, deleted, source, cj_pid, listed_num, review_count, rating
   </sql>
   <sql id="Blob_Column_List">
     <!--
