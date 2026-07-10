@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for atomic stock movements on litemall_goods_product.
+  NOT MyBatis-Generator output. The interface (GoodsProductMapper.java) predates
+  this file; the XML binding had been lost, leaving reduceStock/addStock unusable.
+
+  reduceStock is a guarded decrement: the `number >= #{num}` predicate makes the
+  check-and-decrement atomic in one statement, so concurrent orders can never
+  drive stock negative. 0 rows affected = insufficient stock (or unknown id).
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.GoodsProductMapper">
+
+  <update id="reduceStock">
+    update litemall_goods_product
+    set number = number - #{num}, update_time = now()
+    where id = #{id} and number >= #{num} and deleted = 0
+  </update>
+
+  <update id="addStock">
+    update litemall_goods_product
+    set number = number + #{num}, update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+</mapper>
