@@ -179,6 +179,14 @@ public class CjProductPromotionService {
         }
         Integer goodsId = goods.getId();
 
+        // V31 ranking signals: copy the enriched CJ aggregates onto the native goods row (outside the
+        // generated insert/update, which don't carry these columns). createTime, when present, also
+        // becomes the row's add_time so recency reflects the CJ product's true creation date. A
+        // shallow (pre-enrichment) row carries nulls here — COALESCE leaves the columns at their
+        // defaults until the enrichment pass fills them.
+        linkageMapper.updateGoodsRankingSignals(goodsId, row.getListedNum(), row.getReviewCount(),
+                row.getRating(), row.getCjCreateTime());
+
         upsertProducts(goodsId, aggregate.getProducts());
         regenerateSpecifications(goodsId, aggregate.getSpecifications());
         regenerateAttributes(goodsId, aggregate.getAttributes());

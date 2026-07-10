@@ -46,6 +46,14 @@ ocs:
     # differ only mildly), so relevance still drives ordering among in-stock products,
     # with higher availability a gentle tie-breaker. USE_FOR_VARIANTS applies it at the
     # SKU level where stock lives. Popularity boosting is deferred (no sales signal yet).
+    # Quality/discovery boost (Relevant Search ch. 7 — "general-quality metrics" §7.4.6, combined by
+    # multiplication §7.4.8). Every factor is field_value_factor multiplied into relevance. The
+    # quality signals (rating, review_count, listed_num) use MODIFIER ln2p = ln(2+x): a no-signal
+    # product (x=0, e.g. any local goods for listed_num) yields a UNIFORM ~0.69 — never 0, never
+    # source-biased — and a product rises only on the signals it has (rating≈1.95 @5★,
+    # review_count≈4.6 @100, listed_num≈3.1 @20). stock keeps ln1p (out-of-stock → 0, a deliberate
+    # hard demote). Recency (created_epoch) drives the New Arrivals rail via an explicit -sort;
+    # a global recency decay is a documented follow-up (needs a decay function, not field_value_factor).
     scoring-configuration:
       boost-mode: multiply
       score-mode: multiply
@@ -57,6 +65,24 @@ ocs:
             MISSING: 0
             FACTOR: 1
             USE_FOR_VARIANTS: "true"
+        - type: field_value_factor
+          field: rating
+          options:
+            MODIFIER: "ln2p"
+            MISSING: 0
+            FACTOR: 1
+        - type: field_value_factor
+          field: review_count
+          options:
+            MODIFIER: "ln2p"
+            MISSING: 0
+            FACTOR: 1
+        - type: field_value_factor
+          field: listed_num
+          options:
+            MODIFIER: "ln2p"
+            MISSING: 0
+            FACTOR: 1
     query-configuration:
       # AND-match across fields (primary strategy for normal multi-term queries)
       default-query:
