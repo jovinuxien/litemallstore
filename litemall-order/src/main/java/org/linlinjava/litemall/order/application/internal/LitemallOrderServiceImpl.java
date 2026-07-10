@@ -85,6 +85,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // pay step knows whether to replay the order to CJ createOrder.
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
+    // Submit-time gate: a CJ order every line of which can be fulfilled at CJ (has a
+    // cj_vid) before it is placed, so an unfulfillable line fails at submit (422) instead
+    // of at payment. Only consulted for CJ-sourced orders.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjOrderAvailabilityChecker cjOrderAvailabilityChecker;
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
@@ -180,6 +185,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Throws on a mixed cart — the orchestrator pre-checks this outside the
         // transaction so a mixed submit surfaces as a clean 422, not a rollback-only 500.
         String orderSource = orderSourceResolver.resolve(cartList);
+
+        // For a CJ order, prove every line can be placed at CJ (has a cj_vid) BEFORE
+        // creating the order. A shallow catalog-fill row marked on-sale before enrichment
+        // carries no cj_vid; without this gate it would only fail at pay time (rolling the
+        // payment back). Fail cleanly at submit (422) instead. Local orders skip this.
+        if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+            cjOrderAvailabilityChecker.assertAllFulfillable(cartList);
+        }
 
         // Validate the productStock through the goods ACL (price/stock authoritative read)
         this.orderDomainService.validateProductStock(cartList, goodsFacade);
