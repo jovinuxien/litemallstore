@@ -18,8 +18,11 @@ export const PAGE_SIZES = [10, 20, 50];
 
 interface PaginationProps {
   page: number;
-  pages: number;
-  total: number;
+  /** Omit both when the backend returns a bare list with no page metadata
+   *  (e.g. the promotion admin surface); the pager then falls back to the
+   *  rowCount < limit "has more" heuristic and shows only the page number. */
+  pages?: number;
+  total?: number;
   rowCount: number;
   limit: number;
   busy?: boolean;
@@ -27,13 +30,13 @@ interface PaginationProps {
 }
 
 // Prev/Next pager with a total/“page N of M” summary, matching AdminGoodsList.
-export const Pagination: React.FC<PaginationProps> = ({ page, pages, total, rowCount, limit, busy, onPage }) => {
+export const Pagination: React.FC<PaginationProps> = ({ page, pages = 0, total, rowCount, limit, busy, onPage }) => {
   const prevDisabled = page <= 1 || busy;
   const nextDisabled = (pages > 0 && page >= pages) || rowCount < limit || busy;
   return (
     <div className='el-pagination'>
       <span className='el-pagination-total'>
-        {total} item{total === 1 ? '' : 's'}
+        {total != null ? `${total} item${total === 1 ? '' : 's'}` : `page ${page}`}
         {pages > 0 && ` · page ${page} of ${pages}`}
       </span>
       <button className='el-pager-btn' disabled={prevDisabled} onClick={() => onPage(page - 1)}>

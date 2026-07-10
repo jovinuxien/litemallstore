@@ -1,11 +1,13 @@
 import { ICoupon } from 'app/shared/model/admin/promotion-system.model';
-import { useDeleteCouponMutation, useListCouponsQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
-import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { promotionOpMessage, useDeleteCouponMutation, useListCouponsQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
 // Coupon list with create/edit/delete + a link to the per-coupon issued list,
-// authenticated admin → /srv/private/admin/coupon.
+// authenticated admin → promotion-service /srv/private/admin/promotion/coupon.
+// The list endpoint is page/limit only (no name filter or sort) and returns a
+// bare array, so the pager runs on the has-more heuristic.
 
 const TYPE_LABEL: Record<number, string> = { 0: 'general', 1: 'on register', 2: 'exchange code' };
 const STATUS_TAG: Record<number, { tag: 'success' | 'warning' | 'info'; text: string }> = {
@@ -17,41 +19,24 @@ const STATUS_TAG: Record<number, { tag: 'success' | 'warning' | 'info'; text: st
 const CouponList: React.FC = () => {
   const [page, setPage] = React.useState(1);
   const [limit, setLimit] = React.useState(20);
-  const [order, setOrder] = React.useState<'asc' | 'desc'>('desc');
-  const [nameInput, setNameInput] = React.useState('');
-  const [name, setName] = React.useState('');
 
-  const { data, isLoading, isFetching, isError, error } = useListCouponsQuery({ page, limit, sort: 'add_time', order, name });
+  const { data, isLoading, isFetching, isError, error } = useListCouponsQuery({ page, limit });
   const [deleteCoupon, { isLoading: deleting }] = useDeleteCouponMutation();
   const [actionError, setActionError] = React.useState<string | null>(null);
 
   const list = data?.list ?? [];
-  const total = data?.total ?? 0;
-  const pages = data?.pages ?? 0;
   const errStatus = (error as { status?: number | string })?.status;
-
-  const onSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    setName(nameInput.trim());
-  };
 
   const onDelete = async (c: ICoupon) => {
     if (!window.confirm(`Delete coupon "${c.name ?? c.id}"?`)) return;
     setActionError(null);
-    const res = await deleteCoupon({ id: c.id });
-    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
-    if (msg) setActionError(msg);
+    const res = await deleteCoupon(c);
+    setActionError(promotionOpMessage(res));
   };
 
   return (
     <div className='app-container'>
-      <form className='filter-container' onSubmit={onSearch}>
-        <input className='form-control filter-item' style={{ width: 200 }} placeholder='Coupon name' value={nameInput} onChange={e => setNameInput(e.target.value)} />
-        <select className='form-select filter-item' style={{ width: 120 }} value={order} onChange={e => setOrder(e.target.value as 'asc' | 'desc')} aria-label='Sort direction'>
-          <option value='desc'>Newest</option>
-          <option value='asc'>Oldest</option>
-        </select>
+      <div className='filter-container'>
         <select
           className='form-select filter-item'
           style={{ width: 120 }}
@@ -68,14 +53,11 @@ const CouponList: React.FC = () => {
             </option>
           ))}
         </select>
-        <button className='btn btn-primary filter-item' type='submit'>
-          Search
-        </button>
         <Link className='btn btn-success filter-item' to='/admin/promotion/coupon/create'>
           + New coupon
         </Link>
         {isFetching && <Spinner />}
-      </form>
+      </div>
 
       {isError && <div className='alert alert-danger'>Failed to load coupons{errStatus ? ` (${errStatus})` : ''}.</div>}
       {actionError && <div className='alert alert-danger'>{actionError}</div>}
@@ -139,7 +121,7 @@ const CouponList: React.FC = () => {
         </tbody>
       </table>
 
-      <Pagination page={page} pages={pages} total={total} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
+      <Pagination page={page} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
     </div>
   );
 };

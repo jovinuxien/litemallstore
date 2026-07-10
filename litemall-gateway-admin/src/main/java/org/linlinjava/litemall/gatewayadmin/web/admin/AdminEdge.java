@@ -11,16 +11,18 @@ import com.github.pagehelper.Page;
 
 /**
  * Shared plumbing for the edge-hosted admin CRUD controllers
- * ({@code /srv/private/admin/{ad,coupon,groupon,admin,notice,log,role}}).
+ * ({@code /srv/private/admin/{ad,admin,notice,log,role}}).
  *
  * <p>These controllers exist at the edge because the DDD services do not (yet)
  * own these verticals: the only other implementation is the legacy
  * {@code litemall-admin-api}, which is deliberately not routed (ROUTING.md).
  * They are thin ports of the legacy controllers over the same litemall-db
  * services, kept under the {@code /srv/private/admin} prefix so each feature
- * can migrate into a real service later with a route change only. Promotion
- * verticals (coupon/groupon/ad) are earmarked for promotion-service once
- * {@code fix/promotion} lands.
+ * can migrate into a real service later with a route change only. The former
+ * coupon/groupon edge controllers were deleted 2026-07-10 when
+ * promotion-service (owning {@code /srv/private/admin/promotion/**}) landed
+ * on master and the SPA was re-pointed at it; ads remain edge-hosted until a
+ * service claims them.
  *
  * <p>Blocking MyBatis — every handler wraps its work in
  * {@code Mono.fromCallable(...).subscribeOn(boundedElastic)}, same as
@@ -38,9 +40,6 @@ final class AdminEdge {
     static final int ADMIN_DELETE_NOT_ALLOWED = 604;
     static final int ROLE_NAME_EXIST = 640;
     static final int ROLE_USER_EXIST = 641;
-    static final int GROUPON_GOODS_UNKNOWN = 650;
-    static final int GROUPON_GOODS_EXISTED = 651;
-    static final int GROUPON_GOODS_OFFLINE = 652;
     static final int NOTICE_UPDATE_NOT_ALLOWED = 660;
 
     private AdminEdge() {

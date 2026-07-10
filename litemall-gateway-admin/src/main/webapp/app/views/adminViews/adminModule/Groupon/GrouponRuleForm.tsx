@@ -1,57 +1,73 @@
-import { IGrouponRule } from 'app/shared/model/admin/promotion-system.model';
-import { useCreateGrouponRuleMutation, useListGrouponRulesQuery, useUpdateGrouponRuleMutation } from 'app/shared/reducers/private/services/adminPromotionApi';
-import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { ICombination } from 'app/shared/model/admin/promotion-system.model';
+import {
+  promotionOpMessage,
+  useCreateCombinationMutation,
+  useReadCombinationQuery,
+  useUpdateCombinationMutation,
+} from 'app/shared/reducers/private/services/adminPromotionApi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-// Create / edit a groupon rule. Server requires goodsId, discount,
-// discountMember and expireTime; goodsName/picUrl are resolved server-side from
-// the goods. There is no per-rule read endpoint, so the edit form hydrates from
-// the rule list (small dataset).
+// Create / edit a group-buy (combination) campaign against promotion-service.
+// Create needs goodsId + title + prices + requiredMembers + window; the
+// update command carries no goodsId (the campaign stays bound to its goods).
+// New campaigns start in DRAFT — activate from the list view.
 
-const empty: IGrouponRule = { goodsId: undefined, discount: 0, discountMember: 2, expireTime: '' };
+const empty: ICombination = {
+  goodsId: undefined,
+  title: '',
+  picUrl: '',
+  combinationPrice: 0,
+  originalPrice: 0,
+  requiredMembers: 2,
+  limitPerUser: 1,
+  startTime: '',
+  endTime: '',
+};
 
 const GrouponRuleForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
 
-  // No /groupon/read; pull the rule out of the (typically small) rule list.
-  const { data: rules, isLoading: loading } = useListGrouponRulesQuery({ page: 1, limit: 200, sort: 'add_time', order: 'desc' }, { skip: !isEdit });
-  const [createRule, { isLoading: creating }] = useCreateGrouponRuleMutation();
-  const [updateRule, { isLoading: updating }] = useUpdateGrouponRuleMutation();
+  const { data: existing, isLoading: loading } = useReadCombinationQuery(id as string, { skip: !isEdit });
+  const [createCombination, { isLoading: creating }] = useCreateCombinationMutation();
+  const [updateCombination, { isLoading: updating }] = useUpdateCombinationMutation();
 
-  const [form, setForm] = React.useState<IGrouponRule>(empty);
+  const [form, setForm] = React.useState<ICombination>(empty);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (isEdit && rules?.list) {
-      const found = rules.list.find(r => String(r.id) === id);
-      if (found) setForm(found);
-    }
-  }, [isEdit, rules, id]);
+    if (isEdit && existing && existing.id != null) setForm(existing);
+  }, [isEdit, existing]);
 
-  const set = (patch: Partial<IGrouponRule>) => setForm(prev => ({ ...prev, ...patch }));
+  const set = (patch: Partial<ICombination>) => setForm(prev => ({ ...prev, ...patch }));
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!form.goodsId) {
+    if (!isEdit && !form.goodsId) {
       setError('Goods ID is required.');
       return;
     }
-    if (!form.expireTime) {
-      setError('Expiry time is required.');
+    if (!form.title?.trim()) {
+      setError('Title is required.');
       return;
     }
-    const body: IGrouponRule = {
+    if (!form.startTime || !form.endTime) {
+      setError('Campaign start and end time are required.');
+      return;
+    }
+    const body: ICombination = {
       ...form,
-      goodsId: Number(form.goodsId),
-      discount: Number(form.discount ?? 0),
-      discountMember: Number(form.discountMember ?? 2),
+      goodsId: form.goodsId != null ? Number(form.goodsId) : undefined,
+      combinationPrice: Number(form.combinationPrice ?? 0),
+      originalPrice: Number(form.originalPrice ?? 0),
+      requiredMembers: Number(form.requiredMembers ?? 2),
+      limitPerUser: Number(form.limitPerUser ?? 1),
     };
-    const res = await (isEdit ? updateRule(body) : createRule(body));
-    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
+    const res = await (isEdit ? updateCombination(body) : createCombination(body));
+    const msg = promotionOpMessage(res);
     if (msg) {
       setError(msg);
       return;
@@ -73,27 +89,56 @@ const GrouponRuleForm: React.FC = () => {
 
   return (
     <div className='app-container'>
-      <h5 className='mb-3'>{isEdit ? `Edit groupon rule #${id}` : 'New groupon rule'}</h5>
+      <h5 className='mb-3'>{isEdit ? `Edit group-buy campaign #${id}` : 'New group-buy campaign'}</h5>
       {error && <div className='alert alert-danger'>{error}</div>}
       <form onSubmit={onSubmit} style={{ maxWidth: 640 }}>
+        <div className='row'>
+          <div className='col-md-4 mb-3'>
+            <label className='form-label'>Goods ID *</label>
+            <input
+              className='form-control'
+              type='number'
+              value={form.goodsId ?? ''}
+              onChange={e => set({ goodsId: e.target.value ? Number(e.target.value) : undefined })}
+              disabled={isEdit}
+            />
+          </div>
+          <div className='col-md-8 mb-3'>
+            <label className='form-label'>Title *</label>
+            <input className='form-control' value={form.title ?? ''} onChange={e => set({ title: e.target.value })} />
+          </div>
+        </div>
         <div className='mb-3'>
-          <label className='form-label'>Goods ID *</label>
-          <input className='form-control' type='number' value={form.goodsId ?? ''} onChange={e => set({ goodsId: e.target.value ? Number(e.target.value) : undefined })} disabled={isEdit} />
-          {isEdit && form.goodsName && <div className='form-text'>{form.goodsName}</div>}
+          <label className='form-label'>Image URL</label>
+          <input className='form-control' value={form.picUrl ?? ''} onChange={e => set({ picUrl: e.target.value })} />
+        </div>
+        <div className='row'>
+          <div className='col-md-3 mb-3'>
+            <label className='form-label'>Group price</label>
+            <input className='form-control' type='number' step='0.01' value={form.combinationPrice ?? 0} onChange={e => set({ combinationPrice: Number(e.target.value) })} />
+          </div>
+          <div className='col-md-3 mb-3'>
+            <label className='form-label'>Original price</label>
+            <input className='form-control' type='number' step='0.01' value={form.originalPrice ?? 0} onChange={e => set({ originalPrice: Number(e.target.value) })} />
+          </div>
+          <div className='col-md-3 mb-3'>
+            <label className='form-label'>Members to form</label>
+            <input className='form-control' type='number' value={form.requiredMembers ?? 2} onChange={e => set({ requiredMembers: Number(e.target.value) })} />
+          </div>
+          <div className='col-md-3 mb-3'>
+            <label className='form-label'>Per-user limit</label>
+            <input className='form-control' type='number' value={form.limitPerUser ?? 1} onChange={e => set({ limitPerUser: Number(e.target.value) })} />
+          </div>
         </div>
         <div className='row'>
           <div className='col-md-6 mb-3'>
-            <label className='form-label'>Discount (¥ off)</label>
-            <input className='form-control' type='number' step='0.01' value={form.discount ?? 0} onChange={e => set({ discount: Number(e.target.value) })} />
+            <label className='form-label'>Starts *</label>
+            <input className='form-control' type='datetime-local' value={dtLocal(form.startTime)} onChange={e => set({ startTime: e.target.value })} />
           </div>
           <div className='col-md-6 mb-3'>
-            <label className='form-label'>Member size (people to form a group)</label>
-            <input className='form-control' type='number' value={form.discountMember ?? 2} onChange={e => set({ discountMember: Number(e.target.value) })} />
+            <label className='form-label'>Ends *</label>
+            <input className='form-control' type='datetime-local' value={dtLocal(form.endTime)} onChange={e => set({ endTime: e.target.value })} />
           </div>
-        </div>
-        <div className='mb-3'>
-          <label className='form-label'>Expiry time *</label>
-          <input className='form-control' type='datetime-local' value={dtLocal(form.expireTime)} onChange={e => set({ expireTime: e.target.value })} />
         </div>
         <div className='mt-3'>
           <button className='btn btn-primary me-2' type='submit' disabled={busy}>

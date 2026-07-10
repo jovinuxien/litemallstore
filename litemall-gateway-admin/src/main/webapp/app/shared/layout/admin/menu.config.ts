@@ -46,10 +46,10 @@ export const ADMIN_MENU: MenuGroup[] = [
     children: [
       { path: '/admin/user/user', title: 'Users', wired: true },
       { path: '/admin/user/address', title: 'Addresses', wired: true },
-      { path: '/admin/user/collect', title: 'Collections' },
-      { path: '/admin/user/footprint', title: 'Footprints' },
+      { path: '/admin/user/collect', title: 'Collections', wired: true },
+      { path: '/admin/user/footprint', title: 'Footprints', wired: true },
       { path: '/admin/user/history', title: 'Search history' },
-      { path: '/admin/user/feedback', title: 'Feedback' },
+      { path: '/admin/user/feedback', title: 'Feedback', wired: true },
     ],
   },
   {
@@ -62,7 +62,7 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/mall/category', title: 'Categories', wired: true },
       { path: '/admin/mall/order', title: 'Orders', wired: true },
       { path: '/admin/mall/order/:id', title: 'Order detail', wired: true, hidden: true },
-      { path: '/admin/mall/aftersale', title: 'After-sale' },
+      { path: '/admin/mall/aftersale', title: 'After-sale', wired: true },
       { path: '/admin/mall/issue', title: 'Issues', wired: true },
       { path: '/admin/mall/keyword', title: 'Keywords', wired: true },
     ],

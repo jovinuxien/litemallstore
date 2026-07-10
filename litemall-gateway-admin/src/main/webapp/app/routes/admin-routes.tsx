@@ -5,6 +5,10 @@ import Dashboard from 'app/views/adminViews/adminModule/Dashboard/Dashboard';
 import StatPage from 'app/views/adminViews/adminModule/Stat/StatPage';
 import UserList from 'app/views/adminViews/adminModule/User/UserList';
 import AddressList from 'app/views/adminViews/adminModule/User/AddressList';
+import CollectList from 'app/views/adminViews/adminModule/User/CollectList';
+import FootprintList from 'app/views/adminViews/adminModule/User/FootprintList';
+import FeedbackList from 'app/views/adminViews/adminModule/User/FeedbackList';
+import AftersaleList from 'app/views/adminViews/adminModule/Order/AftersaleList';
 import BrandList from 'app/views/adminViews/adminModule/Brand/BrandList';
 import BrandForm from 'app/views/adminViews/adminModule/Brand/BrandForm';
 import CategoryList from 'app/views/adminViews/adminModule/Category/CategoryList';
@@ -65,6 +69,9 @@ export const AdminRoutes = () => (
       <Route path='goods/:id' element={<GoodsDetail />} />
       <Route path='user/user' element={<UserList />} />
       <Route path='user/address' element={<AddressList />} />
+      <Route path='user/collect' element={<CollectList />} />
+      <Route path='user/footprint' element={<FootprintList />} />
+      <Route path='user/feedback' element={<FeedbackList />} />
       <Route path='stat/user' element={<StatPage kind='user' />} />
       <Route path='stat/order' element={<StatPage kind='order' />} />
       <Route path='stat/goods' element={<StatPage kind='goods' />} />
@@ -82,7 +89,8 @@ export const AdminRoutes = () => (
       <Route path='mall/issue/:id' element={<IssueForm />} />
       <Route path='mall/order' element={<OrderList />} />
       <Route path='mall/order/:id' element={<OrderDetail />} />
-      {/* Promotion: ads / coupons / groupon (edge-hosted admin CRUD) */}
+      <Route path='mall/aftersale' element={<AftersaleList />} />
+      {/* Promotion: ads (edge-hosted) / coupons + group-buy (promotion-service) */}
       <Route path='promotion/ad' element={<AdList />} />
       <Route path='promotion/ad/create' element={<AdForm />} />
       <Route path='promotion/ad/:id' element={<AdForm />} />
