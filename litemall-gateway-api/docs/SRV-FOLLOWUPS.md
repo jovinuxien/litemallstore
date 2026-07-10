@@ -171,6 +171,18 @@ below are live on master; the SPA guards were removed 2026-07-10.
   clean 422 meanwhile) and **group-priced ordering** (`pinkId` submit field per
   `spec-groupon-priced-submit-contract.md`). Aftersale REST surface also not started on order
   (only value-object scaffolding) — the `/srv/order/**` route already covers it whenever it lands.
+- SPA-side mitigation shipped for the first bullet: `Checkout.tsx` now shows the inline
+  remove-coupon-and-retry affordance on ANY rejected submit that carried a coupon (except the
+  slice's own 400/401 pre-checks), because order's generic "System internal error" never matches
+  the old `/coupon/i` message test. The page-level alert still shows the underlying error.
+- Live e2e re-run 2026-07-10 through `:9001` → `:8090`: collect toggle/list, footprint
+  record/list + same-day dedupe, feedback submit → admin list, comment post → list, coupon
+  claim → mylist → selectlist include/exclude by amount, group-buy rule browse → start →
+  second-user join → `Success` — all PASS. Cart add/update could not be re-verified that day
+  (the shared dev `:8082` was running the goods-management worktree's in-flight build, which
+  broke order's cart-add facade validation with `errno:402`; stock numbers were being mutated
+  under live test) — plain-checkout regression stands on the 2026-07-07 verification; re-check
+  after the goods-management branch merges.
 
 ## Owner: auth edge (`/auth/**`, gateway-api `AuthController`)
 | Endpoint | Verb | Used by | Notes |
