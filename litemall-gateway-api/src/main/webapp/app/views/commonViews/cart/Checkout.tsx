@@ -305,10 +305,17 @@ const CheckoutView: React.FC = () => {
         })
       );
       if (!placeOrder.fulfilled.match(res)) {
-        // A coupon-shaped rejection (redeemed elsewhere / no longer eligible)
-        // gets an inline affordance at the picker on top of the page alert.
-        const errmsg = (res.payload as { errmsg?: string } | undefined)?.errmsg ?? '';
-        if (couponRides && /coupon/i.test(errmsg)) setCouponError(errmsg);
+        // A rejected submit that carried a coupon gets the inline
+        // remove-and-retry affordance at the picker on top of the page alert:
+        // the coupon is the one submit input the customer can drop and retry.
+        // Order rejects promotion-issued coupons as a generic "System internal
+        // error" until its promotion facade lands, so matching /coupon/i in
+        // the message alone misses the common case; only the slice's own
+        // pre-submit rejections (401 sign-in, 400 stale items) are excluded.
+        const { errno = 0, errmsg = '' } = (res.payload as { errno?: number; errmsg?: string } | undefined) ?? {};
+        if (couponRides && errno !== 400 && errno !== 401) {
+          setCouponError(/coupon/i.test(errmsg) ? errmsg : `The selected coupon may not be usable for this order${errmsg ? ` (${errmsg})` : ''}.`);
+        }
         setPlaced(next); // keep what was placed so a retry skips those groups
         return; // stock/validation error shown from order state
       }
