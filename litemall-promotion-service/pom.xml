@@ -74,6 +74,12 @@
 			<artifactId>spring-cloud-stream</artifactId>
 		</dependency>
 
+		<!-- Single messaging backend: Kafka, matching litemall-order's binder. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-stream-binder-kafka</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-bootstrap</artifactId>
