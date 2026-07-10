@@ -5,6 +5,7 @@ import org.linlinjava.litemall.goods.application.search.CategoryImageBackfillSer
 import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentService;
 import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.CjSnapshotSyncService;
+import org.linlinjava.litemall.goods.application.search.RankingSignalService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,17 +34,33 @@ public class LitemallSearchAdminController {
     private final CjDetailEnrichmentService cjDetailEnrichmentService;
     private final CjProductPromotionService cjProductPromotionService;
     private final CategoryImageBackfillService categoryImageBackfill;
+    private final RankingSignalService rankingSignalService;
 
     public LitemallSearchAdminController(SearchReindexService reindexService,
                                          CjSnapshotSyncService cjSnapshotSyncService,
                                          CjDetailEnrichmentService cjDetailEnrichmentService,
                                          CjProductPromotionService cjProductPromotionService,
-                                         CategoryImageBackfillService categoryImageBackfill) {
+                                         CategoryImageBackfillService categoryImageBackfill,
+                                         RankingSignalService rankingSignalService) {
         this.reindexService = reindexService;
         this.cjSnapshotSyncService = cjSnapshotSyncService;
         this.cjDetailEnrichmentService = cjDetailEnrichmentService;
         this.cjProductPromotionService = cjProductPromotionService;
         this.categoryImageBackfill = categoryImageBackfill;
+        this.rankingSignalService = rankingSignalService;
+    }
+
+    /**
+     * Backfill the LOCAL review ranking signal ({@code review_count}/{@code rating} on
+     * {@code litemall_goods}) from {@code litemall_comment} for every reviewed goods, then the
+     * caller runs {@code /reindex} to push the refreshed signals into OCS. Fast + no CJ API. The CJ
+     * signals ({@code listed_num}/{@code review_count}/{@code rating}/createTime) are filled by the
+     * enrichment pass ({@code /cj-enrich} or the nightly cron), not here. Returns goods updated.
+     */
+    @PostMapping("/refresh-signals")
+    public Object refreshSignals() {
+        int updated = rankingSignalService.backfillLocalReviewSignals();
+        return ResponseUtil.ok(Map.of("localGoodsUpdated", updated));
     }
 
     /**
