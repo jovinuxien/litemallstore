@@ -3,7 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 
 import ProductCard from 'app/components/userComponents/card/ProductCard';
-import { contentApi, ITopic, isMissingEndpoint } from 'app/shared/api';
+import { contentApi, ITopic } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import 'app/shared/scss/content.scss';
 
@@ -30,9 +30,8 @@ const TopicDetail: React.FC = () => {
         setTopic(res?.topic ?? null);
         setGoods((res?.goods ?? []) as IGood[]);
       })
-      .catch(e => {
-        if (cancelled) return;
-        if (isMissingEndpoint(e)) setMissing(true);
+      .catch(() => {
+        if (!cancelled) setMissing(true);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

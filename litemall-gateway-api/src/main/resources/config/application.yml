@@ -64,6 +64,28 @@ spring:
           predicates:
             - Path=/srv/wallet/**
 
+        # Promotion service — seckill/bargain live on master; the coupon and
+        # combination/group-buy verticals arrive with fix/promotion, which
+        # serves the SPA's existing legacy paths (/srv/coupon/*,
+        # /srv/groupon/list) natively alongside the canonical
+        # /srv/promotion/{coupon,combination}/** surface. Predicate per the
+        # committed contract in litemall-promotion-service/docs/
+        # spec-gateway-routes.md. Must be claimed before the goods catch-all.
+        - id: customer-promotion
+          uri: lb://promotion-service-app
+          predicates:
+            - Path=/srv/promotion/**,/srv/coupon/**,/srv/groupon/**
+
+        # Engagement verticals on goods-management. Same resolution as the
+        # catch-all below, but explicit so the customer surface is documented
+        # here: collect (favorites), footprint, feedback, comment (list/count
+        # live; POST /srv/comment/post pending — goods-management Wave 2,
+        # see docs/handoff-goods-management-engagement.md).
+        - id: customer-engagement
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/srv/collect/**,/srv/footprint/**,/srv/feedback/**,/srv/comment/**
+
         # Goods catch-all — handles /srv/catalog/**, /srv/goods/**, /srv/search,
         # /srv/suggest, /srv/category/**, etc. MUST be last among /srv/** routes
         # so the specific prefixes above win.

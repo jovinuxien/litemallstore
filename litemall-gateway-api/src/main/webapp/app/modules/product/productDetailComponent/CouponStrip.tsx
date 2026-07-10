@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 
-import { ICoupon, userApi, isMissingEndpoint } from 'app/shared/api';
+import { ICoupon, userApi } from 'app/shared/api';
 
 /**
  * Receivable-coupon strip on the detail page, mirroring litemall-vue's coupon
  * row. Reads public coupons (`/srv/coupon/list`) and lets the customer claim
- * one (`/srv/coupon/receive`). Renders nothing until/unless the endpoint is
- * live and returns coupons — so the page is unaffected by the follow-up gap.
+ * one (`/srv/coupon/receive`). Renders nothing when no coupons are on offer.
  */
 const CouponStrip: React.FC = () => {
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
@@ -19,8 +18,8 @@ const CouponStrip: React.FC = () => {
       .then(res => {
         if (!cancelled) setCoupons(res?.list ?? []);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setCoupons([]);
+      .catch(() => {
+        if (!cancelled) setCoupons([]);
       });
     return () => {
       cancelled = true;

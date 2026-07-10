@@ -10,7 +10,7 @@ import org.linlinjava.litemall.core.system.SystemConfig;
 import org.linlinjava.litemall.core.task.TaskService;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.order.application.LitemallIOrderService;
-import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallValidCouponException;
+import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException;
 import org.linlinjava.litemall.order.domain.model.agregates.*;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
@@ -22,9 +22,8 @@ import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.model.repositories.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.*;
 import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.coupon.LitemallCouponValidationResult;
-import org.linlinjava.litemall.order.domain.model.valueobjects.enums.coupons.LitemallCouponUserStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
+import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallCategoryId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.AggregatesValidationContext;
@@ -32,6 +31,9 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallPromotionFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.CouponRedemption;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.UsableCoupon;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.UserServiceFeignClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -85,6 +87,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // pay step knows whether to replay the order to CJ createOrder.
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
+    // Submit-time gate: a CJ order every line of which can be fulfilled at CJ (has a
+    // cj_vid) before it is placed, so an unfulfillable line fails at submit (422) instead
+    // of at payment. Only consulted for CJ-sourced orders.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjOrderAvailabilityChecker cjOrderAvailabilityChecker;
+    // ACL to the promotion service's coupon contract (validate/redeem/release).
+    // Promotion owns the coupon tables now — the placement path must never read them
+    // directly. See docs/adr-promotion-coupon-facade.md.
+    @Autowired
+    private LitemallPromotionFacade promotionFacade;
 
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
@@ -130,8 +142,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 command.getGrouponRulesId() == null ? 0 : command.getGrouponRulesId());
         LitemallCouponId cmdCouponId = new LitemallCouponId(
                 command.getCouponId() == null ? 0 : command.getCouponId());
+        // -1 is a "none" sentinel like couponId's; the VO rejects negatives, so clamp
+        // it to 0 here or a couponless submit carrying -1 dies as a 500.
         LitemallCouponUserId cmdCouponUserId = new LitemallCouponUserId(
-                command.getUserCouponId() == null ? 0 : command.getUserCouponId());
+                command.getUserCouponId() == null || command.getUserCouponId() < 0
+                        ? 0 : command.getUserCouponId());
 
 
        /* LitemallUserAggregate user = FeignResponseHandler.handleResponse(userServiceFeignClient.geUserById(userId.getId()), "Get userAggregate by Id");
@@ -181,6 +196,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // transaction so a mixed submit surfaces as a clean 422, not a rollback-only 500.
         String orderSource = orderSourceResolver.resolve(cartList);
 
+        // For a CJ order, prove every line can be placed at CJ (has a cj_vid) BEFORE
+        // creating the order. A shallow catalog-fill row marked on-sale before enrichment
+        // carries no cj_vid; without this gate it would only fail at pay time (rolling the
+        // payment back). Fail cleanly at submit (422) instead. Local orders skip this.
+        if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+            cjOrderAvailabilityChecker.assertAllFulfillable(cartList);
+        }
+
         // Validate the productStock through the goods ACL (price/stock authoritative read)
         this.orderDomainService.validateProductStock(cartList, goodsFacade);
 
@@ -196,22 +219,38 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         checkedGoodsPrice = this.orderDomainService.priceCalculation(cartList, grouponRulesAggregate, new LitemallMoney(grouponPrice));
 
 
-        //LitemallMoney checkedGoodsPriceMoney = new LitemallMoney(checkedGoodsPrice);
-        //Calculate and get the Coupon price info
-        // Amount reduced using coupons
+        // Coupon application. Promotion is the source of truth: ask it which of the
+        // user's held coupons are usable for THIS checkout (subtotal + the cart's
+        // goods/category ids — promotion has no cart access by design) and require
+        // the selected one to be among them. Anything else — not owned, expired,
+        // below threshold, out of goods scope — is a clean 422 with no order row and
+        // the coupon untouched. Promotion unreachable with a coupon selected is a
+        // 503: never silently drop a discount the customer picked.
         BigDecimal couponPrice = new BigDecimal(0);
-        if(cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1){
-            LitemallCouponValidationResult couponValidationResult = couponService.validateCouponApplication(cmdUserId, cmdCouponId, cartList);
-            if(!couponValidationResult.isValid()){
-                //ResponseUtil.badArgumentType(couponValidationResult.getMessage());
-                ResponseUtil.badArgument();
+        UsableCoupon appliedCoupon = null;
+        boolean couponSelected = (cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1)
+                || cmdCouponUserId.getId() > 0;
+        if (couponSelected) {
+            if (cmdCouponUserId.getId() <= 0) {
+                throw new LitemallInvalidCouponException(
+                        "a coupon was selected but no userCouponId was supplied");
             }
-
-            LitemallCouponAggregate couponAggregate = couponService.getCouponAggregate(cmdCouponId);
-            if(checkedGoodsPrice.compareTo(couponAggregate.getMinPrice()) < 0) {
-                return null;
-            }
-            couponPrice = couponAggregate.getDiscount();
+            Set<Integer> cartGoodsIds = cartList.stream()
+                    .map(item -> item.getGoodsId().getId())
+                    .collect(Collectors.toSet());
+            Set<Integer> cartCategoryIds = goodsFacade.batchGetGoods(cartGoodsIds).values().stream()
+                    .map(LitemallGoodsAggregate::getCategoryId)
+                    .filter(Objects::nonNull)
+                    .map(LitemallCategoryId::getId)
+                    .collect(Collectors.toSet());
+            appliedCoupon = promotionFacade.findUsableCoupon(
+                            cmdUserId, cmdCouponUserId.getId(), checkedGoodsPrice,
+                            cartGoodsIds, cartCategoryIds)
+                    .orElseThrow(() -> new LitemallInvalidCouponException(
+                            "the selected coupon is not usable for this checkout "
+                            + "(not owned, expired, below its minimum spend, or out of scope)"));
+            couponPrice = appliedCoupon.getDiscount() == null
+                    ? new BigDecimal(0) : appliedCoupon.getDiscount();
         }
 
         // Calculate shipping costs based on total order price，
@@ -307,14 +346,24 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Clear the cart
         clearCart(cmdUserId, new LitemallCartId(cartId));
 
-        // Update coupon usage if applicable
-        if (cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1) {
-            LitemallCouponUserAggregate couponUserAggregate = couponService.getUserCouponById(cmdCouponUserId);
-            //couponUserAggregate.setStatus(CouponUserConstant.STATUS_USED);
-            couponUserAggregate.setStatus(LitemallCouponUserStatus.USED);
-            couponUserAggregate.setUsedTime(LocalDateTime.now());
-            couponUserAggregate.setOrderId(newOrderId);
-            couponService.updateCouponUser(couponUserAggregate);
+        // Redeem the coupon EXACTLY-ONCE at promotion, now that the order row exists
+        // (redeem stamps the consuming order id). A business 400 aborts the placement:
+        // this transaction rolls back, no order survives, and the coupon was never
+        // consumed. After a successful redeem, any later failure in this transaction
+        // (groupon insert, stock reservation) must give the coupon back — registered
+        // as a rollback-time compensation, mirroring the stock-restore pattern.
+        if (appliedCoupon != null) {
+            LitemallOrderId redeemOrderId = existingOrderAggregate.getOrderId();
+            CouponRedemption redemption = promotionFacade.redeemCoupon(
+                    cmdUserId, appliedCoupon.getUserCouponId(), redeemOrderId, checkedGoodsPrice);
+            registerCouponReleaseOnRollback(cmdUserId, appliedCoupon.getUserCouponId(), redeemOrderId);
+            // The order was priced with the validate-step discount; if promotion's
+            // authoritative redeem-time discount disagrees, refuse to place a
+            // mispriced order (the rollback releases the just-redeemed coupon).
+            if (redemption.getDiscount() != null && redemption.getDiscount().compareTo(couponPrice) != 0) {
+                throw new LitemallInvalidCouponException(
+                        "the coupon discount changed between validation and redemption — please retry");
+            }
         }
 
         // If it's a groupon purchase project, add group buying information
@@ -357,20 +406,6 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             cartRepository.deleteById(cartId);
         }
     }
-    /**
-     *
-     * @param command
-     * @param orderId
-     */
-    private void updateCouponUsage(LitemallPlaceOrderCommand command, LitemallOrderId orderId){
-        if(command.getCouponId() != null && command.getCouponId() > 0){
-            couponService.couponUserUpdateUsage(new LitemallCouponUserId(command.getUserCouponId()), orderId);
-        } else {
-            throw new LitemallValidCouponException("The coupon is still valid");
-        }
-    }
-
-
    /* private LitemallGrouponAggregate handleGrouponCreation(LitemallPlaceOrderCommand command, LitemallOrderAggregateRoot orderAggregateRoot, LitemallGrouponRulesAggregate rulesAggregate) {
 
         if (rulesAggregate == null) {
@@ -436,6 +471,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     "Order " + orderId.getId() + " can no longer be cancelled (already paid/cancelled)");
         }
         restoreStockForOrder(orderId);
+        releaseCouponOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
     }
@@ -464,6 +500,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             return;
         }
         restoreStockForOrder(orderId);
+        releaseCouponOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
     }
@@ -615,7 +652,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         AggregatesValidationContext context = loadAggregatesValidationContext(cartList);
 
         if (!context.isValidForValidation()) {
-            throw new RuntimeException("Failed to load required product data for validation");
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "failed to load required product data for stock validation");
         }
 
         // STEP 2: Validate stock for all items
@@ -719,7 +757,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if (!outOfStockItems.isEmpty()) {
             String errorMessage = "Insufficient stock for products:\n" +
                     String.join("\n", outOfStockItems);
-            throw new RuntimeException(errorMessage);
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException(errorMessage);
         }
     }
 
@@ -744,7 +782,21 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 .toList();
 
         if (!failedReductions.isEmpty()) {
-            throw new RuntimeException("Stock reduction failed/unconfirmed for product IDs: " + failedReductions);
+            // Any product that DID confirm is now an orphaned remote decrement: the
+            // compensating restore is a known no-op (goods-management has no restore
+            // endpoint — see docs/handoff-goods-management-defects.md Defect 3), so
+            // record the exact ledger for ops reconciliation before aborting.
+            Map<Integer, Integer> confirmedReductions = productQuantities.entrySet().stream()
+                    .filter(e -> Boolean.TRUE.equals(reduceResults.get(e.getKey())))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (!confirmedReductions.isEmpty()) {
+                log.error("Partial stock reservation: products {} were decremented in "
+                        + "goods-management but the placement is aborting (failed: {}). "
+                        + "Compensation is a no-op — reconcile manually (productId -> qty): {}",
+                        confirmedReductions.keySet(), failedReductions, confirmedReductions);
+            }
+            throw new org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException(
+                    "stock reservation unconfirmed for product IDs " + failedReductions);
         }
 
         // The remote reserve has now committed in goods-management. If THIS local
@@ -771,6 +823,54 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                             productQuantities);
                     goodsFacade.restoreStock(productQuantities);
                 }
+            }
+        });
+    }
+
+    /**
+     * Register a transaction-synchronization that gives a just-redeemed coupon back
+     * to the customer if (and only if) the surrounding placement transaction rolls
+     * back — otherwise the failed placement would eat the coupon. Release is
+     * idempotent and replay-safe on the promotion side; a failure here is logged by
+     * the facade for manual replay, never rethrown from a rollback hook.
+     */
+    private void registerCouponReleaseOnRollback(LitemallUserId userId, Integer userCouponId,
+                                                 LitemallOrderId orderId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    log.warn("Order placement rolled back after coupon redeem; releasing user coupon {} (order {})",
+                            userCouponId, orderId.getId());
+                    promotionFacade.releaseCoupon(userId, userCouponId, orderId);
+                }
+            }
+        });
+    }
+
+    /**
+     * If the cancelled order had consumed a coupon, give it back once the cancel
+     * COMMITS (a rolled-back cancel must not release). The order row doesn't carry
+     * the userCouponId, so it is looked up at promotion by order id; both the lookup
+     * and the release are best-effort — promotion's release is replay-safe, so a
+     * miss only means the coupon stays consumed until replayed.
+     */
+    private void releaseCouponOnCancelCommit(LitemallOrderAggregate order) {
+        if (order.getCouponPrice() == null || order.getCouponPrice().getAmount() == null
+                || order.getCouponPrice().getAmount().signum() <= 0
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        LitemallUserId userId = order.getUserId();
+        LitemallOrderId orderId = order.getOrderId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                promotionFacade.findRedeemedUserCouponForOrder(userId, orderId)
+                        .ifPresent(userCouponId -> promotionFacade.releaseCoupon(userId, userCouponId, orderId));
             }
         });
     }

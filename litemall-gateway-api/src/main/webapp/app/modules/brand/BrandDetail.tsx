@@ -3,7 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 
 import ProductCard from 'app/components/userComponents/card/ProductCard';
-import { catalogApi, contentApi, IBrand, isMissingEndpoint } from 'app/shared/api';
+import { catalogApi, contentApi, IBrand } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import 'app/shared/scss/content.scss';
 

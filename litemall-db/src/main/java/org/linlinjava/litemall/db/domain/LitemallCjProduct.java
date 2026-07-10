@@ -32,6 +32,14 @@ public class LitemallCjProduct {
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
     private Boolean deleted;
+    // Ranking signals (V31), captured during detail enrichment and copied onto the promoted
+    // litemall_goods row. listedNum + createTime ride the detail response (free); reviewCount +
+    // rating come from a paced CJ productComments call folded into the same enrichment loop.
+    private Integer listedNum;
+    private Integer reviewCount;
+    private BigDecimal rating;
+    private LocalDateTime cjCreateTime;
+    private LocalDateTime reviewsSyncedTime;
 
     public String getPid() {
         return pid;
@@ -175,5 +183,45 @@ public class LitemallCjProduct {
 
     public void setDeleted(Boolean deleted) {
         this.deleted = deleted;
+    }
+
+    public Integer getListedNum() {
+        return listedNum;
+    }
+
+    public void setListedNum(Integer listedNum) {
+        this.listedNum = listedNum;
+    }
+
+    public Integer getReviewCount() {
+        return reviewCount;
+    }
+
+    public void setReviewCount(Integer reviewCount) {
+        this.reviewCount = reviewCount;
+    }
+
+    public BigDecimal getRating() {
+        return rating;
+    }
+
+    public void setRating(BigDecimal rating) {
+        this.rating = rating;
+    }
+
+    public LocalDateTime getCjCreateTime() {
+        return cjCreateTime;
+    }
+
+    public void setCjCreateTime(LocalDateTime cjCreateTime) {
+        this.cjCreateTime = cjCreateTime;
+    }
+
+    public LocalDateTime getReviewsSyncedTime() {
+        return reviewsSyncedTime;
+    }
+
+    public void setReviewsSyncedTime(LocalDateTime reviewsSyncedTime) {
+        this.reviewsSyncedTime = reviewsSyncedTime;
     }
 }

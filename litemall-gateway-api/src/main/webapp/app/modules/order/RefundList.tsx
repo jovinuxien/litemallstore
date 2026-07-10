@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead } from 'app/components/commonComponents/storefront';
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import './order.scss';
 
@@ -27,8 +27,8 @@ const RefundList: React.FC = () => {
         const refunds = (res?.list ?? []).filter(o => (o.aftersaleStatus ?? 0) > 0 || o.handleOption?.refund);
         setOrders(refunds);
       })
-      .catch(e => {
-        if (!cancelled && !isMissingEndpoint(e)) setOrders([]);
+      .catch(() => {
+        if (!cancelled) setOrders([]);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {

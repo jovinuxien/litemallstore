@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import './order.scss';
 
@@ -15,8 +15,7 @@ const TABS = ['All', 'Unpaid', 'Unshipped', 'Unreceived', 'Unrated'];
  * Customer order history, modelled on litemall-vue `user/order-list`: status
  * tabs, per-order item thumbnails, status text, total, and contextual actions
  * (pay / cancel / confirm receipt / refund / delete / rebuy). Sourced from
- * `/srv/order/list`. When that endpoint isn't live yet it renders an empty state
- * rather than an error (follow-up: order worktree).
+ * `/srv/order/list` (live on the order service).
  */
 const OrderList: React.FC = () => {
   const navigate = useNavigate();
@@ -31,10 +30,8 @@ const OrderList: React.FC = () => {
       const res = await orderApi.list({ showType: type, page: 1, limit: 20 });
       setOrders(res?.list ?? []);
     } catch (e) {
-      if (!isMissingEndpoint(e)) {
-        // Real error: still show empty, but it's distinguishable in console.
-        console.error('order list failed', e); // eslint-disable-line no-console
-      }
+      // Show empty, but keep the failure distinguishable in console.
+      console.error('order list failed', e); // eslint-disable-line no-console
       setOrders([]);
     } finally {
       setLoading(false);

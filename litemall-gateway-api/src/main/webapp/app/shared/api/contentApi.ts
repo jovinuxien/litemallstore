@@ -25,6 +25,18 @@ export interface ITopic {
   picUrl?: string;
 }
 
+/** One group-buy card as /srv/groupon/list returns it (legacy GrouponItem shape). */
+export interface IGrouponItem {
+  id?: number;
+  goodsId?: number;
+  goodsName?: string;
+  picUrl?: string;
+  retailPrice?: number;
+  grouponPrice?: number;
+  discount?: number;
+  discountMember?: number;
+}
+
 export interface PageParams {
   page?: number;
   limit?: number;
@@ -42,6 +54,10 @@ export const contentApi = {
   topicDetail: (id: number | string) => unwrap<{ topic: ITopic; goods: unknown[] }>(baseAxios.get(`${SRV}/topic/detail?id=${encodeURIComponent(String(id))}`)),
   topicRelated: (id: number | string) => unwrap<{ list: ITopic[] }>(baseAxios.get(`${SRV}/topic/related?id=${encodeURIComponent(String(id))}`)),
 
-  // TODO(/srv follow-up: promotion) — groupon list.
-  grouponList: (params: PageParams = {}) => unwrap<{ list: unknown[]; total: number }>(baseAxios.get(`${SRV}/groupon/list`, { params })),
+  // Group-buy browse — the promotion service serves this legacy path natively
+  // (fix/promotion LitemallGrouponLegacyController; live once that branch
+  // merges and the service runs). The interactive flow (start/join/my groups)
+  // uses the canonical /srv/promotion/combination surface in promotionApi.ts.
+  grouponList: (params: PageParams = {}) =>
+    unwrap<{ list: IGrouponItem[]; total: number }>(baseAxios.get(`${SRV}/groupon/list`, { params })),
 };

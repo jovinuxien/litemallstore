@@ -325,8 +325,11 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         if (refundContent != null) {
             patch.setRefundContent(refundContent);
         }
+        // DELIVERED/AUTO_DELIVERED are included for the aftersale/RMA flow: a received
+        // order can still be unwound (mirrors the enum's canTransitionTo).
         return conditionalTransition(orderId, patch,
-                LitemallOrderStatus.PAID, LitemallOrderStatus.SHIPPED);
+                LitemallOrderStatus.PAID, LitemallOrderStatus.SHIPPED,
+                LitemallOrderStatus.DELIVERED, LitemallOrderStatus.AUTO_DELIVERED);
     }
 
     @Override
