@@ -1,15 +1,17 @@
-import { useListCouponUsersQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { promotionOpMessage, useGrantCouponMutation, useListCouponUsersQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-// Read-only list of issued coupon instances (litemall_coupon_user) for one
-// coupon, authenticated admin → /srv/private/admin/coupon/listuser.
+// Issue records of one coupon (who holds it, in what state) plus a
+// direct-grant control, authenticated admin → promotion-service
+// /srv/private/admin/promotion/coupon/{id}/users and .../grant.
 
-const STATUS_TAG: Record<number, { tag: 'success' | 'info' | 'warning'; text: string }> = {
-  0: { tag: 'success', text: 'unused' },
+const STATUS_TAG: Record<number, { tag: 'success' | 'info' | 'warning' | 'danger'; text: string }> = {
+  0: { tag: 'success', text: 'usable' },
   1: { tag: 'info', text: 'used' },
   2: { tag: 'warning', text: 'expired' },
+  3: { tag: 'danger', text: 'withdrawn' },
 };
 
 const CouponUserList: React.FC = () => {
@@ -17,13 +19,28 @@ const CouponUserList: React.FC = () => {
   const couponId = id ? Number(id) : undefined;
   const [page, setPage] = React.useState(1);
   const [limit, setLimit] = React.useState(20);
+  const [grantUserId, setGrantUserId] = React.useState('');
+  const [grantMsg, setGrantMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
 
-  const { data, isLoading, isFetching, isError, error } = useListCouponUsersQuery({ page, limit, sort: 'add_time', order: 'desc', couponId });
+  const { data, isLoading, isFetching, isError, error } = useListCouponUsersQuery({ page, limit, couponId: couponId as number }, { skip: couponId == null });
+  const [grantCoupon, { isLoading: granting }] = useGrantCouponMutation();
 
   const list = data?.list ?? [];
-  const total = data?.total ?? 0;
-  const pages = data?.pages ?? 0;
   const errStatus = (error as { status?: number | string })?.status;
+
+  const onGrant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGrantMsg(null);
+    const userId = Number(grantUserId);
+    if (!userId || couponId == null) {
+      setGrantMsg({ ok: false, text: 'Enter a numeric user ID.' });
+      return;
+    }
+    const res = await grantCoupon({ couponId, userId });
+    const msg = promotionOpMessage(res);
+    setGrantMsg(msg ? { ok: false, text: msg } : { ok: true, text: `Coupon granted to user #${userId}.` });
+    if (!msg) setGrantUserId('');
+  };
 
   return (
     <div className='app-container'>
@@ -48,10 +65,25 @@ const CouponUserList: React.FC = () => {
             </option>
           ))}
         </select>
+        <form className='d-flex filter-item' onSubmit={onGrant}>
+          <input
+            className='form-control me-1'
+            style={{ width: 140 }}
+            type='number'
+            placeholder='User ID'
+            value={grantUserId}
+            onChange={e => setGrantUserId(e.target.value)}
+            aria-label='User ID to grant to'
+          />
+          <button className='btn btn-primary' type='submit' disabled={granting}>
+            {granting ? 'Granting…' : 'Grant'}
+          </button>
+        </form>
         {isFetching && <Spinner />}
       </div>
 
       {isError && <div className='alert alert-danger'>Failed to load issued coupons{errStatus ? ` (${errStatus})` : ''}.</div>}
+      {grantMsg && <div className={`alert ${grantMsg.ok ? 'alert-success' : 'alert-danger'}`}>{grantMsg.text}</div>}
 
       <table className='el-table'>
         <thead>
@@ -88,8 +120,8 @@ const CouponUserList: React.FC = () => {
                   <td>
                     <Tag tag={st.tag}>{st.text}</Tag>
                   </td>
-                  <td className='text-muted small'>{cu.startTime?.replace('T', ' ').slice(0, 16)}</td>
-                  <td className='text-muted small'>{cu.endTime?.replace('T', ' ').slice(0, 16)}</td>
+                  <td className='text-muted small'>{cu.startTime?.replace('T', ' ').slice(0, 16) ?? '—'}</td>
+                  <td className='text-muted small'>{cu.endTime?.replace('T', ' ').slice(0, 16) ?? '—'}</td>
                   <td className='text-muted small'>{cu.usedTime?.replace('T', ' ').slice(0, 16) ?? '—'}</td>
                   <td className='text-end'>{cu.orderId ?? '—'}</td>
                 </tr>
@@ -99,7 +131,7 @@ const CouponUserList: React.FC = () => {
         </tbody>
       </table>
 
-      <Pagination page={page} pages={pages} total={total} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
+      <Pagination page={page} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
     </div>
   );
 };

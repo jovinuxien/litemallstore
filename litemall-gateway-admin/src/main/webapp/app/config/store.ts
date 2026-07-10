@@ -4,7 +4,10 @@ import { loadingBarMiddleware } from 'react-redux-loading-bar';
 
 import sharedReducers from 'app/shared/reducers';
 import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { adminAftersaleApi } from 'app/shared/reducers/private/services/adminAftersaleApi';
 import { adminCatalogApi } from 'app/shared/reducers/private/services/adminCatalogApi';
+import { adminEngagementApi } from 'app/shared/reducers/private/services/adminEngagementApi';
+import { adminOrderCjApi } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { adminPromotionApi } from 'app/shared/reducers/private/services/adminPromotionApi';
 import { adminStatApi } from 'app/shared/reducers/private/services/adminStatApi';
 import { adminSysApi } from 'app/shared/reducers/private/services/adminSysApi';
@@ -29,6 +32,9 @@ const store = configureStore({
       adminStatApi.middleware,
       adminUsersApi.middleware,
       adminPromotionApi.middleware,
+      adminEngagementApi.middleware,
+      adminAftersaleApi.middleware,
+      adminOrderCjApi.middleware,
       adminSysApi.middleware,
     ),
 });

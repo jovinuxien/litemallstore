@@ -51,16 +51,20 @@ spring:
           uri: lb://loyalty-service-app
           predicates:
             - Path=/srv/loyalty/**
+        # Promotion admin CRUD (coupon/combination/campaign) lives under
+        # /srv/private/admin/promotion/** in promotion-service — see
+        # litemall-promotion-service/docs/spec-gateway-routes.md.
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
-            - Path=/srv/promotion/**
-        # Admin order surface lives in order-service (not goods-management), so
-        # route the admin order namespace there explicitly before the catch-all.
+            - Path=/srv/promotion/**,/srv/private/admin/promotion/**
+        # Admin order + aftersale surfaces live in order-service (not
+        # goods-management), so route those namespaces there explicitly
+        # before the catch-all.
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
         # Goods catch-all — handles /srv/goods/**, /srv/search, /srv/suggest,
         # /srv/category/**, /srv/admin/goods/**, /srv/manufacturer/**, etc.
         # Must be LAST among /srv/** routes so the specific prefixes above win.
@@ -119,11 +123,11 @@ spring:
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
-            - Path=/srv/promotion/**
+            - Path=/srv/promotion/**,/srv/private/admin/promotion/**
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:

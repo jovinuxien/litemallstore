@@ -1,25 +1,28 @@
 import { ICoupon } from 'app/shared/model/admin/promotion-system.model';
-import { useCreateCouponMutation, useReadCouponQuery, useUpdateCouponMutation } from 'app/shared/reducers/private/services/adminPromotionApi';
-import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { promotionOpMessage, useCreateCouponMutation, useReadCouponQuery, useUpdateCouponMutation } from 'app/shared/reducers/private/services/adminPromotionApi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-// Create / edit a coupon. Server requires a non-empty name; an exchange-code
-// coupon (type 2) has its code generated server-side on create.
+// Create / edit a coupon against promotion-service
+// (/srv/private/admin/promotion/coupon). Server requires a non-empty name; an
+// exchange-code coupon (type 2) has its code generated server-side on create.
+// timeType follows promotion's LitemallCouponTimeType: 0 = valid for `days`
+// after claim, 1 = absolute startTime..endTime window.
 
 const empty: ICoupon = {
   name: '',
-  desc: '',
+  description: '',
   tag: '',
   total: 0,
   discount: 0,
   min: 0,
-  limit: 1,
+  limitPerUser: 1,
   type: 0,
-  status: 0,
   goodsType: 0,
   timeType: 0,
   days: 0,
+  startTime: '',
+  endTime: '',
 };
 
 const CouponForm: React.FC = () => {
@@ -47,16 +50,20 @@ const CouponForm: React.FC = () => {
       setError('Name is required.');
       return;
     }
+    if (form.timeType === 1 && (!form.startTime || !form.endTime)) {
+      setError('An absolute-window coupon needs both start and end time.');
+      return;
+    }
     const body: ICoupon = {
       ...form,
       total: Number(form.total ?? 0),
       discount: Number(form.discount ?? 0),
       min: Number(form.min ?? 0),
-      limit: Number(form.limit ?? 1),
+      limitPerUser: Number(form.limitPerUser ?? 1),
       days: Number(form.days ?? 0),
     };
     const res = await (isEdit ? updateCoupon(body) : createCoupon(body));
-    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
+    const msg = promotionOpMessage(res);
     if (msg) {
       setError(msg);
       return;
@@ -73,6 +80,8 @@ const CouponForm: React.FC = () => {
   }
 
   const busy = creating || updating;
+  // datetime-local wants 'YYYY-MM-DDTHH:mm'; the server returns full ISO.
+  const dtLocal = (v?: string) => (v ? v.slice(0, 16) : '');
 
   return (
     <div className='app-container'>
@@ -91,7 +100,7 @@ const CouponForm: React.FC = () => {
         </div>
         <div className='mb-3'>
           <label className='form-label'>Description</label>
-          <input className='form-control' value={form.desc ?? ''} onChange={e => set({ desc: e.target.value })} />
+          <input className='form-control' value={form.description ?? ''} onChange={e => set({ description: e.target.value })} />
         </div>
         <div className='row'>
           <div className='col-md-3 mb-3'>
@@ -108,7 +117,7 @@ const CouponForm: React.FC = () => {
           </div>
           <div className='col-md-3 mb-3'>
             <label className='form-label'>Per-user limit</label>
-            <input className='form-control' type='number' value={form.limit ?? 1} onChange={e => set({ limit: Number(e.target.value) })} />
+            <input className='form-control' type='number' value={form.limitPerUser ?? 1} onChange={e => set({ limitPerUser: Number(e.target.value) })} />
           </div>
         </div>
         <div className='row'>
@@ -123,15 +132,27 @@ const CouponForm: React.FC = () => {
           <div className='col-md-4 mb-3'>
             <label className='form-label'>Validity</label>
             <select className='form-select' value={form.timeType ?? 0} onChange={e => set({ timeType: Number(e.target.value) })}>
-              <option value={0}>Fixed date range</option>
-              <option value={1}>Relative (days after claim)</option>
+              <option value={0}>Relative (days after claim)</option>
+              <option value={1}>Fixed date range</option>
             </select>
           </div>
           <div className='col-md-4 mb-3'>
             <label className='form-label'>Days valid (relative)</label>
-            <input className='form-control' type='number' value={form.days ?? 0} onChange={e => set({ days: Number(e.target.value) })} disabled={form.timeType !== 1} />
+            <input className='form-control' type='number' value={form.days ?? 0} onChange={e => set({ days: Number(e.target.value) })} disabled={form.timeType !== 0} />
           </div>
         </div>
+        {form.timeType === 1 && (
+          <div className='row'>
+            <div className='col-md-6 mb-3'>
+              <label className='form-label'>Valid from *</label>
+              <input className='form-control' type='datetime-local' value={dtLocal(form.startTime)} onChange={e => set({ startTime: e.target.value })} />
+            </div>
+            <div className='col-md-6 mb-3'>
+              <label className='form-label'>Valid to *</label>
+              <input className='form-control' type='datetime-local' value={dtLocal(form.endTime)} onChange={e => set({ endTime: e.target.value })} />
+            </div>
+          </div>
+        )}
         <div className='mt-3'>
           <button className='btn btn-primary me-2' type='submit' disabled={busy}>
             {busy ? 'Saving…' : 'Save'}

@@ -13,8 +13,8 @@ is expected; coordinate via this contract, not by reading each other's code.
 | `/srv/order/**`, `/srv/cart/**` | `lb://order-service-app`       | per `/srv/...` rules below |
 | `/srv/wallet/**`              | `lb://order-service-app` ¹       | authenticated              |
 | `/srv/loyalty/**`             | `lb://loyalty-service-app`       | per `/srv/...` rules below |
-| `/srv/promotion/**`           | `lb://promotion-service-app`     | per `/srv/...` rules below |
-| `/srv/private/admin/order/**` | `lb://order-service-app`         | `ROLE_ADMIN`               |
+| `/srv/promotion/**`, `/srv/private/admin/promotion/**` | `lb://promotion-service-app` | `ROLE_ADMIN` on the admin prefix |
+| `/srv/private/admin/order/**`, `/srv/private/admin/aftersale/**` | `lb://order-service-app` | `ROLE_ADMIN`  |
 | `/srv/**` (catch-all)         | `lb://litemall-goods-management` | per `/srv/...` rules below |
 | `/` (default profile)         | `forward:/index.html`            | public                     |
 
@@ -37,7 +37,7 @@ routes are declared **before** the `/srv/**` goods catch-all (see
 
 ### Edge-hosted admin CRUD (`web/admin/*`) — precedence over the catch-all
 
-Seven admin verticals have **no DDD service that owns them** (the only other
+Some admin verticals have **no DDD service that owns them** (the only other
 implementation is the unrouted `litemall-admin-api`), so they are served by thin
 `@RestController`s inside this gateway (`gatewayadmin/web/admin/EdgeAdmin*`),
 over the same `litemall-db` services the legacy admin-api used:
@@ -45,12 +45,18 @@ over the same `litemall-db` services the legacy admin-api used:
 | Path                              | Controller                    | litemall-db service(s)                        |
 |-----------------------------------|-------------------------------|-----------------------------------------------|
 | `/srv/private/admin/ad/**`        | `EdgeAdminAdController`        | `LitemallAdService`                           |
-| `/srv/private/admin/coupon/**`    | `EdgeAdminCouponController`    | `LitemallCoupon(User)Service`                 |
-| `/srv/private/admin/groupon/**`   | `EdgeAdminGrouponController`   | `LitemallGroupon(Rules)Service` + goods       |
 | `/srv/private/admin/admin/**`     | `EdgeAdminAccountController`   | `LitemallAdminService` (BCrypt on create)     |
 | `/srv/private/admin/notice/**`    | `EdgeAdminNoticeController`    | `LitemallNotice(Admin)Service`                |
 | `/srv/private/admin/log/**`       | `EdgeAdminLogController`       | `LitemallLogService` (read-only)              |
 | `/srv/private/admin/role/**`      | `EdgeAdminRoleController`      | `LitemallRole(+Admin)Service`                 |
+
+The former `EdgeAdminCouponController` / `EdgeAdminGrouponController` were
+**deleted 2026-07-10**: promotion-service (merged to master `73f12660c`) owns
+the coupon/combination admin CRUD at `/srv/private/admin/promotion/**`, and the
+SPA was re-pointed there (`adminPromotionApi.ts`). The edge pair wrote legacy
+`litemall-db` tables that the customer claim center (served by
+promotion-service) never reads, so keeping them would have been split-brain.
+Ads stay at the edge — promotion-service has no ad vertical.
 
 **Precedence:** these paths would otherwise fall through the `/srv/**` catch-all
 to goods-management. They resolve locally because Spring's
@@ -69,12 +75,13 @@ The admin name is resolved from the validated `X-User-Id`; the write is
 fire-and-forget on boundedElastic and never fails the request. This replaces the
 legacy admin-api `LogHelper`, which no DDD service carries.
 
-> **Migration note:** the promotion verticals (ad / coupon / groupon) are
-> earmarked to move into `promotion-service` when `fix/promotion` lands. Because
-> they already live under `/srv/private/admin/*`, that migration is a route
-> flip (add `/srv/private/admin/{ad,coupon,groupon}/**` → `lb://promotion-
-> service-app` **before** the catch-all, and delete the edge controllers) with
-> no SPA change.
+> **Migration note (updated 2026-07-10):** the coupon/groupon halves of this
+> migration are DONE — promotion-service owns them under
+> `/srv/private/admin/promotion/{coupon,combination}/**` (routed above) and the
+> SPA calls those paths directly; the edge controllers are deleted. The SPA
+> change was unavoidable: promotion's admin surface is REST-shaped
+> (`GET/POST/PUT/DELETE`, plain DTOs, no `{errno}` envelope), not
+> legacy-shaped. Ads remain edge-hosted until a service claims them.
 
 ## Rules downstream services MUST follow
 
@@ -224,18 +231,26 @@ The two audit rows carry the JWT-resolved admin name (`admin123` via
 These are backend gaps the admin SPA now depends on. They are intentionally NOT
 implemented here (out of scope); track them in the named worktrees.
 
-- **`order` worktree — implement `GET /srv/order/admin/stat`.** STILL OPEN as
-  of 2026-07-05: `litemall-order` serves `/srv/private/admin/order/{list,
-  detail,{orderId}/ship,{orderId}/refund}` (`LitemallAdminOrderController`)
-  but no stats endpoint. The admin dashboard (`Dashboard.tsx` →
-  `adminStateSlice.fetchOrderStats`) calls this as an authenticated admin.
-  Expected payload: per-day rows `{ day, orders, customers, amount, pcr? }`
-  (array, or `{ rows: [...] }`), in the litemall `{errno,errmsg,data}`
-  envelope. Until it exists the dashboard degrades gracefully (empty state +
-  "stats unavailable" banner; no mock data). The edge already gates
-  `/srv/order/admin/**` to ROLE_ADMIN (`SecurityConfig`) and the
-  `/srv/order/**` → `lb://order-service-app` route exists, so only the
-  service endpoint is missing.
+- **RESOLVED 2026-07-10 — `/srv/order/admin/stat` is superseded; nothing to
+  build.** The follow-up as recorded was a mis-remembered path: order stats
+  are served by goods-management's `AdminStatController` at
+  `GET /srv/private/admin/stat/order` (plus `/user`, `/goods`), which the
+  dashboard (`adminStateSlice.fetchOrderStats` → `ORDER_STATS_URL`) already
+  calls and the `/srv/**` catch-all already routes. Verified live. No order-
+  side endpoint is needed; if order ever ships a dedicated stat surface it
+  would be a new contract, not this follow-up.
+
+- **`loyalty` (whoever owns litemall-loyalty-service) — controller never
+  registers; `/srv/loyalty/**` 404s from inside the service.** Root-caused
+  2026-07-10, see `docs/handoff-loyalty-scanbasepackages.md`:
+  `LitemallLoyaltyServiceApplication` sets
+  `scanBasePackages = {"org.linlinjava.litemall.db",
+  "org.linlinjava.litemall.core"}` and omits its own
+  `org.linlinjava.litemall.loyalty` package, so
+  `LitemallLoyaltyRestController` (and every loyalty bean) is never scanned.
+  The gateway side (route `/srv/loyalty/**` → `lb://loyalty-service-app`,
+  machine-token relay, identity forwarding) is verified correct — the fix is
+  one line in the backend, out of this worktree's scope.
 
 - **RESOLVED — `goods-management` admin goods JSON on
   `/srv/private/admin/goods`.** `AdminGoodsController` now serves the admin
