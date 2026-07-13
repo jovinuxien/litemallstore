@@ -141,7 +141,9 @@ const channelRows = (raw: unknown, keyField: string, fallbackKey: string): IChan
   Array.isArray(raw)
     ? (raw as Array<Record<string, unknown>>).map(e => ({
         key: str(e[keyField]) ?? fallbackKey,
-        count: num(e.count) ?? 0,
+        // Backend aliases count(*) AS orders (OrderMapper.xml); keep `count`
+        // as a tolerant fallback.
+        count: num(e.orders) ?? num(e.count) ?? 0,
         amount: num(e.amount),
       }))
     : [];
@@ -161,11 +163,16 @@ const toChannelStat = (r: MaybeEnvelope): IChannelStat => {
 const toFulfillmentConfig = (r: MaybeEnvelope): IFulfillmentConfig => {
   const p = payloadOf(r);
   if (!p) return { available: false, flags: {} };
+  // Backend nests the readout: {printer:{provider,enabled,autoPrint,businessName},
+  // express:{provider,enabled,cacheMinutes}} (LitemallAdminOrderController
+  // /fulfillment/config). Keep the old flat reads as a tolerant fallback.
+  const printer = (p.printer && typeof p.printer === 'object' ? p.printer : {}) as Record<string, unknown>;
   return {
     available: true,
-    printerEnabled: typeof p.printerEnabled === 'boolean' ? p.printerEnabled : undefined,
-    provider: str(p.provider),
-    autoPrint: typeof p.autoPrint === 'boolean' ? p.autoPrint : undefined,
+    printerEnabled:
+      typeof printer.enabled === 'boolean' ? printer.enabled : typeof p.printerEnabled === 'boolean' ? p.printerEnabled : undefined,
+    provider: str(printer.provider) ?? str(p.provider),
+    autoPrint: typeof printer.autoPrint === 'boolean' ? printer.autoPrint : typeof p.autoPrint === 'boolean' ? p.autoPrint : undefined,
     flags: p,
   };
 };

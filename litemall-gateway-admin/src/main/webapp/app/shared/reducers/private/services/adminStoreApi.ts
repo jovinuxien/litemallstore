@@ -187,7 +187,7 @@ export const adminStoreApi = createApi({
       providesTags: ['Store'],
     }),
     readStore: builder.query<IStore, number | string>({
-      query: id => ({ url: '/store/read', params: { id } }),
+      query: id => ({ url: '/store/detail', params: { id } }),
       transformResponse: (r: ApiEnvelope) => normalizeStore(r?.data),
       providesTags: ['Store'],
     }),

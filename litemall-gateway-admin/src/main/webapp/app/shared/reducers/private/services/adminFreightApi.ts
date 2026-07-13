@@ -140,7 +140,7 @@ const normalizeRegion = (raw: unknown): IFreightRegionRow => {
     provinceName: pick(row, 'provinceName', 'province') != null ? String(pick(row, 'provinceName', 'province')) : undefined,
     first: asNumber(pick(row, 'first', 'firstNumber', 'firstNum'), 1),
     firstPrice: asNumber(pick(row, 'firstPrice', 'firstFee')),
-    continue: asNumber(pick(row, 'continue', 'continueNumber', 'renewal'), 1),
+    continue: asNumber(pick(row, 'continueP', 'continue', 'continueNumber', 'renewal'), 1),
     continuePrice: asNumber(pick(row, 'continuePrice', 'renewalPrice', 'continueFee')),
   };
 };
@@ -203,12 +203,13 @@ const normalizePreview = (raw: unknown): IFreightPreview => {
 };
 
 // Write payload: flat template fields (litemall body style) plus the two row
-// arrays. TODO(freight-contract): confirm whether the backend wants flat or a
-// nested {template:{...}} wrapper; flat matches every other litemall admin
-// create/update body in this SPA.
+// arrays. Contract verified against LitemallAdminFreightController (Wave-4
+// merge): template sort field is `sort`, region continue-units field is
+// `continueP` (`continue` is a Java keyword backend-side).
 const toWriteBody = (detail: IFreightTemplateDetail): Record<string, unknown> => ({
   ...detail.template,
-  regions: detail.regions,
+  sort: detail.template.sortOrder,
+  regions: detail.regions.map(({ continue: continueUnits, ...rest }) => ({ ...rest, continueP: continueUnits })),
   freeRules: detail.freeRules,
 });
 
@@ -284,9 +285,11 @@ export const adminFreightApi = createApi({
       providesTags: ['FreightTemplate'],
     }),
     previewFreight: builder.query<IFreightPreview, FreightPreviewParams>({
+      // Backend params (verified): tempId, quantity, amount (order value —
+      // NOT weight), countryCode, provinceName.
       query: ({ tempId, countryCode, province, quantity, weight }) => ({
         url: '/preview',
-        params: clean({ tempId, countryCode, province, quantity, weight }),
+        params: clean({ tempId, countryCode, provinceName: province, quantity, amount: weight }),
       }),
       transformResponse: normalizePreview,
     }),
