@@ -129,6 +129,11 @@ logging:
   level:
     org.springframework.cloud.gateway: INFO
     org.springframework.web.reactive: INFO
+    # litemall-db's application-db.yml (the shared 'db' profile) sets
+    # logging.level.root: ERROR, which silently swallows this gateway's own
+    # INFO/WARN logs (discovered when the dev no-op ResetMailSender WARN never
+    # appeared). Raise our package explicitly.
+    org.linlinjava.litemall.gatewayapi: INFO
 
 management:
   endpoints:
