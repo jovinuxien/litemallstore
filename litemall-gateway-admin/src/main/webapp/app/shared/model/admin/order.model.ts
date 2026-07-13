@@ -22,6 +22,9 @@ export interface IOrderVo {
   shipChannel?: string;
   shipSn?: string;
   message?: string;
+  // Fulfilment channel (Wave 4): 'express' (default) | 'pickup'. Read
+  // defensively — older rows/DTOs may not carry it.
+  deliveryType?: string;
 }
 
 // A line item on an order (litemall-db LitemallOrderGoods).
@@ -52,6 +55,15 @@ export interface IOrderDetail {
     cjOrderId?: string;
     cjOrderNum?: string;
     trackNumber?: string;
+    // In-store pickup fields (Wave 4, deliveryType === 'pickup') — all
+    // optional; the store name may instead be encoded in `address` as
+    // "PICKUP: <name>". Read defensively.
+    storeId?: number;
+    pickupName?: string;
+    pickupMobile?: string;
+    verifyCode?: string;
+    verifyTime?: string;
+    verifiedBy?: string;
   };
   orderGoods?: IOrderGoods[];
   user?: {

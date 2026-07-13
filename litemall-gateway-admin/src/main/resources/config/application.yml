@@ -65,6 +65,13 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
+        # Wave 4: freight templates + physical stores/write-off admin
+        # surfaces are owned by order-service. Must stay BEFORE the goods
+        # catch-all. Mirrored in the dev profile below — keep in sync.
+        - id: admin-freight-store
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/admin/freight/**,/srv/private/admin/store/**
         # Goods catch-all — handles /srv/goods/**, /srv/search, /srv/suggest,
         # /srv/category/**, /srv/admin/goods/**, /srv/manufacturer/**, etc.
         # Must be LAST among /srv/** routes so the specific prefixes above win.
@@ -128,6 +135,11 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
+        # Wave 4: mirror of the default-profile freight/store route.
+        - id: admin-freight-store
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/admin/freight/**,/srv/private/admin/store/**
         - id: goods-service
           uri: lb://litemall-goods-management
           predicates:
