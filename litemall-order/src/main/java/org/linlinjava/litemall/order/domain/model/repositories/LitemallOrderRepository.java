@@ -28,10 +28,13 @@ public interface LitemallOrderRepository {
     int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus);
 
     /** Admin: page across ALL users' orders (not user-scoped). sortColumn must be a vetted DB column. */
-    List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order);
+    List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus,
+                                            java.time.LocalDateTime start, java.time.LocalDateTime end,
+                                            int page, int limit, String sortColumn, String order);
 
     /** Admin: total order count matching the same filters as {@link #adminQuery}. */
-    long adminCount(String orderSn, List<Short> orderStatus);
+    long adminCount(String orderSn, List<Short> orderStatus,
+                    java.time.LocalDateTime start, java.time.LocalDateTime end);
 
     void deleteByOrderId(LitemallOrderId orderId);
 

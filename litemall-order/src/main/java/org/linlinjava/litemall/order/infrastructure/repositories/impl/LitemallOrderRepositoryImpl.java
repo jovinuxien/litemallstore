@@ -118,7 +118,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         return (int) litemallOrderMapper.countByExample(example);
     }
 
-    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus) {
+    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus,
+                                              LocalDateTime start, LocalDateTime end) {
         LitemallOrderExample example = new LitemallOrderExample();
         LitemallOrderExample.Criteria criteria = example.or();
         if (!StringUtils.isEmpty(orderSn)) {
@@ -127,13 +128,23 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         if (orderStatus != null && !orderStatus.isEmpty()) {
             criteria.andOrderStatusIn(orderStatus);
         }
+        // Wave 4: optional placement-time window (add_time >= start, < end) — shared by
+        // the admin list and the CSV export so both filter identically.
+        if (start != null) {
+            criteria.andAddTimeGreaterThanOrEqualTo(start);
+        }
+        if (end != null) {
+            criteria.andAddTimeLessThan(end);
+        }
         criteria.andDeletedEqualTo(false);
         return example;
     }
 
     @Override
-    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order) {
-        LitemallOrderExample example = adminExample(orderSn, orderStatus);
+    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus,
+                                                   LocalDateTime start, LocalDateTime end,
+                                                   int page, int limit, String sortColumn, String order) {
+        LitemallOrderExample example = adminExample(orderSn, orderStatus, start, end);
         // sortColumn is whitelisted by the caller; order normalised here.
         String dir = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
         example.setOrderByClause(sortColumn + " " + dir);
@@ -143,8 +154,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public long adminCount(String orderSn, List<Short> orderStatus) {
-        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus));
+    public long adminCount(String orderSn, List<Short> orderStatus,
+                           LocalDateTime start, LocalDateTime end) {
+        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus, start, end));
     }
 
     @Override
