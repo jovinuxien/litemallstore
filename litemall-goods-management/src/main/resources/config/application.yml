@@ -197,7 +197,11 @@ litemall:
       # value referenced /srv/private/admin/storage/fetch, a route that never
       # existed — every previously minted URL was already dead, so no
       # back-compat route is kept).
-      address: http://localhost:8090/srv/storage/fetch
+      # NOTE: the value that actually WINS at runtime lives in
+      # config/application-core.yml (litemall-core's application-core.yml is a
+      # profile-specific file and would beat this base entry; our config/ copy
+      # out-precedences core's). Keep both in sync.
+      address: http://localhost:8090/srv/storage/fetch/
   # Customer upload caps (POST /srv/storage/upload — X-User-Id required).
   # Image-only, whitelist verified by magic bytes, not Content-Type.
   customer-storage:

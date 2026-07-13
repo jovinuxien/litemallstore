@@ -135,11 +135,16 @@ from `litemall_region` (3231 rows; second call does no SQL).
   622, not upstream's 620-family text). Customer comment list already emits
   `adminContent` — zero read-side changes needed.
 
-## 8. Freight tempId (Task C) — status
+## 8. Freight tempId (Task C) — DEFERRED (2026-07-13)
 
-Deferred at handoff time if order's litemall-db `LitemallGoods.tempId`
-mapping has not merged (goods-management does NOT edit LitemallGoods — order
-owns that edit). Once present: `tempId` round-trips through admin
-`GoodsAllinone` create/update/detail and appears in `/srv/goods/goodsdetail`.
-Grey/ignore for `source='cj'` goods. See final section of this doc's commit
-history for the live status.
+Order's litemall-db edit mapping `LitemallGoods.tempId` exists on
+`fix/order` (`42aded890`, confirmed: temp_id/weight/volume mapped) but had
+NOT merged to master when this branch closed, and goods-management must not
+edit `LitemallGoods` itself (order owns that edit — merge-conflict rule).
+
+**Follow-up (small, post-merge):** once `fix/order` merges, round-trip
+`tempId` through admin `GoodsAllinone` create/update/detail
+(`AdminGoodsService`) and include it in `/srv/goods/goodsdetail` (order's
+facade cherry-picks JsonNode fields — additive, non-breaking). Grey/ignore
+the field for `source='cj'` goods. No migration — `litemall_goods.temp_id`
+has existed since V2 (DEFAULT 0 = unbound).

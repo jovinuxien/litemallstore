@@ -1,0 +1,17 @@
+# Shadows litemall-core's classpath:/application-core.yml for THIS service:
+# classpath:/config/ is a later config-data location than classpath:/, so this
+# profile file wins whenever the `core` profile is active (it always is here —
+# canonical boot profiles are dev,db,core,admin,wx[,verify]).
+#
+# Why: core's application-core.yml pins litemall.storage.local.address to
+# http://localhost:8080/wx/storage/fetch/ — a litemall-wx-api route this stack
+# never serves — and a profile-specific file beats the base application.yml, so
+# the value there never applied. Wave 4 mints stored-object URLs against the
+# customer gateway's anonymous GET /srv/storage/fetch/{key} instead
+# (docs/handoff-content-endpoints.md §4).
+litemall:
+  storage:
+    active: local
+    local:
+      storage-path: /tmp/litemall/storage
+      address: http://localhost:8090/srv/storage/fetch/

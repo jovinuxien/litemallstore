@@ -58,10 +58,12 @@ public class LitemallSearchController {
                          @RequestParam Map<String, String> allParams) {
         Map<String, String> filters = new HashMap<>(allParams);
         filters.keySet().removeAll(RESERVED_PARAMS);
-        // SearchService whitelists these to the index's Facet fields before they reach OCS.
-        Object result = ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+        // Record BEFORE the OCS round-trip (upstream litemall-wx-api ordering):
+        // the keyword is the user's intent, and an OCS outage — which surfaces
+        // as an exception from search() — must not skip the history write.
         recordHistory(query);
-        return result;
+        // SearchService whitelists these to the index's Facet fields before they reach OCS.
+        return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
     }
 
     /** Best-effort history write for logged-in searches — must NEVER fail the search itself. */
