@@ -40,13 +40,22 @@ public class OrderDetailDtoResponse {
     private final String cjOrderNum;
     /** Logistics line the order ships with (CJ line at placement / admin ship channel). */
     private final String shipChannel;
+    // In-store pickup (Wave 4): mode + store + the redeem code. verifyCode is only ever
+    // serialized on the OWNER-scoped detail read (this DTO) — paid orders only (null
+    // until pay). NON_NULL keeps express orders' payloads unchanged.
+    private final String deliveryType;
+    private final Integer storeId;
+    private final String verifyCode;
+    private final LocalDateTime verifyTime;
 
     public OrderDetailDtoResponse(Integer id, String orderSn, LocalDateTime addTime, String consignee,
                                   String mobile, String address, String orderStatusText,
                                   OrderHandleOptionDtoResponse handleOption, BigDecimal goodsPrice,
                                   BigDecimal freightPrice, BigDecimal couponPrice, BigDecimal actualPrice,
                                   List<OrderGoodsDtoResponse> orderGoods,
-                                  String source, String cjOrderId, String cjOrderNum, String shipChannel) {
+                                  String source, String cjOrderId, String cjOrderNum, String shipChannel,
+                                  String deliveryType, Integer storeId, String verifyCode,
+                                  LocalDateTime verifyTime) {
         this.id = id;
         this.orderSn = orderSn;
         this.addTime = addTime;
@@ -64,6 +73,10 @@ public class OrderDetailDtoResponse {
         this.cjOrderId = cjOrderId;
         this.cjOrderNum = cjOrderNum;
         this.shipChannel = shipChannel;
+        this.deliveryType = deliveryType;
+        this.storeId = storeId;
+        this.verifyCode = verifyCode;
+        this.verifyTime = verifyTime;
     }
 
     public static OrderDetailDtoResponse fromDomain(LitemallOrderAggregate o,
@@ -86,6 +99,10 @@ public class OrderDetailDtoResponse {
                 o.getSource(),
                 o.getCjOrderId(),
                 o.getCjOrderNum(),
-                o.getShipChannel());
+                o.getShipChannel(),
+                o.getDeliveryType(),
+                o.getStoreId(),
+                o.getVerifyCode(),
+                o.getVerifyTime());
     }
 }

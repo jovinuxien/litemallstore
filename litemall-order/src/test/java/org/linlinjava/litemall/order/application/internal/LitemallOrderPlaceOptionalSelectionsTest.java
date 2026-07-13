@@ -75,6 +75,14 @@ class LitemallOrderPlaceOptionalSelectionsTest {
     @BeforeEach
     void wireFieldInjectedDeps() {
         ReflectionTestUtils.setField(service, "cartServiceLayer", cartServiceLayer);
+        // Wave 4: freight is priced by FreightCalculationService. A real instance with the
+        // feature flag at its false default reproduces the legacy flat rule these tests
+        // assert (SystemConfig min/value), without touching the mocked mappers.
+        ReflectionTestUtils.setField(service, "freightCalculationService",
+                new FreightCalculationService(
+                        org.mockito.Mockito.mock(org.linlinjava.litemall.db.dao.FreightTemplateMapper.class),
+                        org.mockito.Mockito.mock(org.linlinjava.litemall.db.dao.LitemallGoodsMapper.class),
+                        new org.linlinjava.litemall.order.infrastructure.configuration.FreightTemplateProperties()));
         ReflectionTestUtils.setField(service, "grouponServiceLayer", grouponServiceLayer);
         // placeOrder now hard-requires a resolvable shipping address before the cart
         // guard; give it one so both tests still reach the empty-cart short-circuit.

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_store (pickup stores, V35).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallStoreMapper">
+
+  <sql id="columns">
+    id, name, intro, phone, address, detailed_address, logo,
+    latitude, longitude, business_hours, is_show,
+    add_time, update_time, deleted
+  </sql>
+
+  <select id="selectVisible" resultType="org.linlinjava.litemall.db.domain.LitemallStore">
+    select <include refid="columns" />
+    from litemall_store
+    where deleted = 0 and is_show = 1
+    order by id
+  </select>
+
+  <select id="selectAllAdmin" resultType="org.linlinjava.litemall.db.domain.LitemallStore">
+    select <include refid="columns" />
+    from litemall_store
+    where deleted = 0
+    order by id
+  </select>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallStore">
+    select <include refid="columns" />
+    from litemall_store
+    where id = #{id} and deleted = 0
+  </select>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallStore"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_store
+      (name, intro, phone, address, detailed_address, logo,
+       latitude, longitude, business_hours, is_show,
+       add_time, update_time, deleted)
+    values
+      <!-- string columns are NOT NULL DEFAULT '' (V35): coalesce so a partial admin
+           payload (e.g. no logo) inserts the schema default instead of NULL -->
+      (#{name}, coalesce(#{intro}, ''), coalesce(#{phone}, ''), coalesce(#{address}, ''),
+       coalesce(#{detailedAddress}, ''), coalesce(#{logo}, ''),
+       #{latitude}, #{longitude}, coalesce(#{businessHours}, ''), coalesce(#{isShow}, 1),
+       now(), now(), 0)
+  </insert>
+
+  <update id="update" parameterType="org.linlinjava.litemall.db.domain.LitemallStore">
+    update litemall_store
+    set name = #{name},
+        intro = coalesce(#{intro}, ''),
+        phone = coalesce(#{phone}, ''),
+        address = coalesce(#{address}, ''),
+        detailed_address = coalesce(#{detailedAddress}, ''),
+        logo = coalesce(#{logo}, ''),
+        latitude = #{latitude},
+        longitude = #{longitude},
+        business_hours = coalesce(#{businessHours}, ''),
+        is_show = coalesce(#{isShow}, 1),
+        update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="logicalDelete">
+    update litemall_store set deleted = 1, update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+</mapper>

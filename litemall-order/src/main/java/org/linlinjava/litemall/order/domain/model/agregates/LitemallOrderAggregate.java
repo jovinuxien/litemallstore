@@ -86,9 +86,27 @@ public class LitemallOrderAggregate {
     // UNSHIPPED/SHIPPED/DELIVERED/CANCELLED. Null for local orders.
     private String cjOrderStatus;
 
+    /** {@code delivery_type} value for courier delivery (column default). */
+    public static final String DELIVERY_EXPRESS = "express";
+    /** {@code delivery_type} value for in-store pickup (Wave 4, V35). */
+    public static final String DELIVERY_PICKUP = "pickup";
+
+    // In-store pickup / write-off (Wave 4, V35). verifyCode is assigned at PAY time
+    // (never on an unpaid order); verifyTime/verifiedBy record the write-off (核销).
+    private String deliveryType;
+    private Integer storeId;
+    private String verifyCode;
+    private LocalDateTime verifyTime;
+    private String verifiedBy;
+
     /** True when this order is fulfilled through CJ Dropshipping after payment. */
     public boolean isCjFulfilled() {
         return SOURCE_CJ.equals(this.source);
+    }
+
+    /** True when the customer picks the order up in a store (no shipping leg). */
+    public boolean isPickup() {
+        return DELIVERY_PICKUP.equals(this.deliveryType);
     }
 
     private List<LitemallDomainEvent> domainEvents = new ArrayList<>();
@@ -167,13 +185,46 @@ public class LitemallOrderAggregate {
     /** Customer confirms receipt (SHIPPED → DELIVERED). */
     public void confirmDelivery(){
         LitemallOrderStatus from = this.orderStatus;
-        if(!from.canTransitionTo(LitemallOrderStatus.DELIVERED)){
+        // Explicit SHIPPED gate: the graph also allows PAID→DELIVERED (pickup
+        // write-off, Wave 4), but a customer receipt confirmation only ever applies
+        // to a shipped order — write-off goes through writeOff() below.
+        if(from != LitemallOrderStatus.SHIPPED || !from.canTransitionTo(LitemallOrderStatus.DELIVERED)){
             throw new IllegalStateException("Order status cannot transition from " + from + " to DELIVERED");
         }
         this.setOrderStatus(LitemallOrderStatus.DELIVERED);
         this.setConfirmTime(LocalDateTime.now());
         this.domainEvents.add(new LitemallOrderDeliveredEvent(this.getOrderId(), false));
         recordChange(from, LitemallOrderStatus.DELIVERED, "receive", "Delivery confirmed by customer", "user");
+    }
+
+    /**
+     * Staff writes off a paid PICKUP order at the counter (PAID → DELIVERED, Wave 4).
+     * The customer presented the verify code; delivery happens over the counter, so
+     * there is no SHIPPED leg. Raises {@link LitemallOrderDeliveredEvent} (not
+     * auto-confirmed) like a customer receipt confirmation.
+     *
+     * @param verifiedBy audit identity, e.g. {@code "admin:<X-User-Id>"}
+     */
+    public void writeOff(String verifiedBy) {
+        LitemallOrderStatus from = this.orderStatus;
+        if (!isPickup()) {
+            throw new IllegalStateException("Only pickup orders can be written off");
+        }
+        if (!from.canTransitionTo(LitemallOrderStatus.DELIVERED)
+                || from != LitemallOrderStatus.PAID) {
+            // The graph gained PAID→DELIVERED for exactly this hop; keep the explicit
+            // PAID guard so SHIPPED→DELIVERED (courier receipt) never routes through here.
+            throw new IllegalStateException("Order status cannot transition from " + from
+                    + " to DELIVERED by write-off");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        this.setOrderStatus(LitemallOrderStatus.DELIVERED);
+        this.setConfirmTime(now);
+        this.setVerifyTime(now);
+        this.setVerifiedBy(verifiedBy);
+        this.domainEvents.add(new LitemallOrderDeliveredEvent(this.getOrderId(), false));
+        recordChange(from, LitemallOrderStatus.DELIVERED, "writeoff",
+                "Picked up in store — verify code redeemed", verifiedBy);
     }
 
     /** System auto-confirms a shipped order after the grace window (SHIPPED → AUTO_DELIVERED). */

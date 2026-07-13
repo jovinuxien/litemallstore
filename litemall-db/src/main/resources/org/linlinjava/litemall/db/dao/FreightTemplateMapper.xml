@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_shipping_templates (+ _region, _free); V8 base,
+  V34 international columns (country_code / province_name / is_default).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase
+  (continue_p -> continueP).
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.FreightTemplateMapper">
+
+  <sql id="template_columns">
+    id, name, type, appoint, is_default, sort, add_time, update_time, deleted
+  </sql>
+
+  <sql id="region_columns">
+    id, temp_id, country_code, province_name, province,
+    first, first_price, continue_p, continue_price,
+    add_time, update_time, deleted
+  </sql>
+
+  <sql id="free_columns">
+    id, temp_id, country_code, province_name, province,
+    number, price,
+    add_time, update_time, deleted
+  </sql>
+
+  <select id="selectAllTemplates" resultType="org.linlinjava.litemall.db.domain.LitemallShippingTemplate">
+    select <include refid="template_columns" />
+    from litemall_shipping_templates
+    where deleted = 0
+    order by sort, id
+  </select>
+
+  <select id="selectTemplateById" resultType="org.linlinjava.litemall.db.domain.LitemallShippingTemplate">
+    select <include refid="template_columns" />
+    from litemall_shipping_templates
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectDefaultTemplate" resultType="org.linlinjava.litemall.db.domain.LitemallShippingTemplate">
+    select <include refid="template_columns" />
+    from litemall_shipping_templates
+    where is_default = 1 and deleted = 0
+    limit 1
+  </select>
+
+  <insert id="insertTemplate" parameterType="org.linlinjava.litemall.db.domain.LitemallShippingTemplate"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_shipping_templates
+      (name, type, appoint, is_default, sort, add_time, update_time, deleted)
+    values
+      (#{name}, #{type}, #{appoint}, 0, #{sort}, now(), now(), 0)
+  </insert>
+
+  <update id="updateTemplate" parameterType="org.linlinjava.litemall.db.domain.LitemallShippingTemplate">
+    update litemall_shipping_templates
+    set name = #{name},
+        type = #{type},
+        appoint = #{appoint},
+        sort = #{sort},
+        update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="logicalDeleteTemplate">
+    update litemall_shipping_templates set deleted = 1, update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="clearDefaultTemplate">
+    update litemall_shipping_templates set is_default = 0, update_time = now()
+    where is_default = 1 and deleted = 0
+  </update>
+
+  <update id="setDefaultTemplate">
+    update litemall_shipping_templates set is_default = 1, update_time = now()
+    where id = #{id} and deleted = 0
+  </update>
+
+  <select id="selectRegionsByTempId" resultType="org.linlinjava.litemall.db.domain.LitemallShippingTemplateRegion">
+    select <include refid="region_columns" />
+    from litemall_shipping_templates_region
+    where temp_id = #{tempId} and deleted = 0
+    order by id
+  </select>
+
+  <select id="selectFreeByTempId" resultType="org.linlinjava.litemall.db.domain.LitemallShippingTemplateFree">
+    select <include refid="free_columns" />
+    from litemall_shipping_templates_free
+    where temp_id = #{tempId} and deleted = 0
+    order by id
+  </select>
+
+  <insert id="insertRegion" parameterType="org.linlinjava.litemall.db.domain.LitemallShippingTemplateRegion"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_shipping_templates_region
+      (temp_id, country_code, province_name, province,
+       first, first_price, continue_p, continue_price,
+       add_time, update_time, deleted)
+    values
+      (#{tempId}, coalesce(#{countryCode}, '*'), #{provinceName}, coalesce(#{province}, '[]'),
+       #{first}, #{firstPrice}, #{continueP}, #{continuePrice},
+       now(), now(), 0)
+  </insert>
+
+  <insert id="insertFree" parameterType="org.linlinjava.litemall.db.domain.LitemallShippingTemplateFree"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_shipping_templates_free
+      (temp_id, country_code, province_name, province,
+       number, price,
+       add_time, update_time, deleted)
+    values
+      (#{tempId}, coalesce(#{countryCode}, '*'), #{provinceName}, coalesce(#{province}, '[]'),
+       #{number}, #{price},
+       now(), now(), 0)
+  </insert>
+
+  <update id="logicalDeleteRegionsByTempId">
+    update litemall_shipping_templates_region set deleted = 1, update_time = now()
+    where temp_id = #{tempId} and deleted = 0
+  </update>
+
+  <update id="logicalDeleteFreeByTempId">
+    update litemall_shipping_templates_free set deleted = 1, update_time = now()
+    where temp_id = #{tempId} and deleted = 0
+  </update>
+
+  <select id="countLiveGoodsByTempId" resultType="int">
+    select count(*) from litemall_goods
+    where temp_id = #{tempId} and deleted = 0 and is_on_sale = 1
+  </select>
+
+</mapper>

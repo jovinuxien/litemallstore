@@ -118,7 +118,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         return (int) litemallOrderMapper.countByExample(example);
     }
 
-    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus) {
+    private LitemallOrderExample adminExample(String orderSn, List<Short> orderStatus,
+                                              LocalDateTime start, LocalDateTime end) {
         LitemallOrderExample example = new LitemallOrderExample();
         LitemallOrderExample.Criteria criteria = example.or();
         if (!StringUtils.isEmpty(orderSn)) {
@@ -127,13 +128,23 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         if (orderStatus != null && !orderStatus.isEmpty()) {
             criteria.andOrderStatusIn(orderStatus);
         }
+        // Wave 4: optional placement-time window (add_time >= start, < end) — shared by
+        // the admin list and the CSV export so both filter identically.
+        if (start != null) {
+            criteria.andAddTimeGreaterThanOrEqualTo(start);
+        }
+        if (end != null) {
+            criteria.andAddTimeLessThan(end);
+        }
         criteria.andDeletedEqualTo(false);
         return example;
     }
 
     @Override
-    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order) {
-        LitemallOrderExample example = adminExample(orderSn, orderStatus);
+    public List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus,
+                                                   LocalDateTime start, LocalDateTime end,
+                                                   int page, int limit, String sortColumn, String order) {
+        LitemallOrderExample example = adminExample(orderSn, orderStatus, start, end);
         // sortColumn is whitelisted by the caller; order normalised here.
         String dir = "asc".equalsIgnoreCase(order) ? "asc" : "desc";
         example.setOrderByClause(sortColumn + " " + dir);
@@ -143,8 +154,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public long adminCount(String orderSn, List<Short> orderStatus) {
-        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus));
+    public long adminCount(String orderSn, List<Short> orderStatus,
+                           LocalDateTime start, LocalDateTime end) {
+        return litemallOrderMapper.countByExample(adminExample(orderSn, orderStatus, start, end));
     }
 
     @Override
@@ -290,6 +302,31 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         patch.setOrderStatus(LitemallOrderStatus.SYSTEM_CANCELED.getCode());
         patch.setEndTime(LocalDateTime.now());
         return conditionalTransition(orderId, patch, LitemallOrderStatus.CREATED);
+    }
+
+    @Override
+    public int markDeliveredByWriteoff(LitemallOrderId orderId, String verifiedBy) {
+        // Hand-written conditional UPDATE (db.dao.OrderMapper): 201 → 401 with
+        // verify_time/verified_by stamped; WHERE order_status=201 AND verify_time IS NULL
+        // makes a double scan a clean 0-row loss.
+        return orderMapper.markDeliveredByWriteoff(orderId.getId(), verifiedBy);
+    }
+
+    @Override
+    public int assignVerifyCode(LitemallOrderId orderId, String verifyCode) {
+        return orderMapper.setVerifyCodeIfAbsent(orderId.getId(), verifyCode);
+    }
+
+    @Override
+    public Optional<LitemallOrderAggregate> findByVerifyCode(String verifyCode) {
+        if (verifyCode == null || verifyCode.isBlank()) {
+            return Optional.empty();
+        }
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andVerifyCodeEqualTo(verifyCode)
+                .andDeletedEqualTo(false);
+        return Optional.ofNullable(convertToDomainModel(litemallOrderMapper.selectOneByExample(example)));
     }
 
     @Override
@@ -478,6 +515,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
         dataModel.setCjOrderStatus(orderAggregate.getCjOrderStatus());
 
+        // In-store pickup / write-off (Wave 4, V35).
+        dataModel.setDeliveryType(orderAggregate.getDeliveryType());
+        dataModel.setStoreId(orderAggregate.getStoreId());
+        dataModel.setVerifyCode(orderAggregate.getVerifyCode());
+        dataModel.setVerifyTime(orderAggregate.getVerifyTime());
+        dataModel.setVerifiedBy(orderAggregate.getVerifiedBy());
+
         return dataModel;
     }
 
@@ -539,6 +583,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setCjOrderId(record.getCjOrderId());
         domainModel.setCjOrderNum(record.getCjOrderNum());
         domainModel.setCjOrderStatus(record.getCjOrderStatus());
+
+        // In-store pickup / write-off (Wave 4, V35).
+        domainModel.setDeliveryType(record.getDeliveryType());
+        domainModel.setStoreId(record.getStoreId());
+        domainModel.setVerifyCode(record.getVerifyCode());
+        domainModel.setVerifyTime(record.getVerifyTime());
+        domainModel.setVerifiedBy(record.getVerifiedBy());
 
         return  domainModel;
     }
