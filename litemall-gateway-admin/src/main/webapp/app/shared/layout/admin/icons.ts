@@ -1,4 +1,5 @@
 import {
+  FiBell,
   FiBox,
   FiChevronRight,
   FiGrid,
@@ -20,6 +21,7 @@ export type IconCmp = ComponentType<{ className?: string }>;
 
 const asCmp = (icon: unknown): IconCmp => icon as IconCmp;
 
+export const IconBell = asCmp(FiBell);
 export const IconBox = asCmp(FiBox);
 export const IconChevronRight = asCmp(FiChevronRight);
 export const IconGrid = asCmp(FiGrid);

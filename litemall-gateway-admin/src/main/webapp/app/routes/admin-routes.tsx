@@ -36,6 +36,22 @@ import LogList from 'app/views/adminViews/adminModule/Sys/LogList';
 import RoleList from 'app/views/adminViews/adminModule/Sys/RoleList';
 import RoleForm from 'app/views/adminViews/adminModule/Sys/RoleForm';
 import StorageList from 'app/views/adminViews/adminModule/Sys/StorageList';
+import FreightTemplateList from 'app/views/adminViews/adminModule/Freight/FreightTemplateList';
+import FreightTemplateForm from 'app/views/adminViews/adminModule/Freight/FreightTemplateForm';
+import StoreList from 'app/views/adminViews/adminModule/Store/StoreList';
+import StoreForm from 'app/views/adminViews/adminModule/Store/StoreForm';
+import WriteOffConsole from 'app/views/adminViews/adminModule/Store/WriteOffConsole';
+import ArticleList from 'app/views/adminViews/adminModule/Article/ArticleList';
+import ArticleForm from 'app/views/adminViews/adminModule/Article/ArticleForm';
+import PageList from 'app/views/adminViews/adminModule/Page/PageList';
+import PageEditor from 'app/views/adminViews/adminModule/Page/PageEditor';
+import TopicList from 'app/views/adminViews/adminModule/Topic/TopicList';
+import TopicForm from 'app/views/adminViews/adminModule/Topic/TopicForm';
+import HistoryList from 'app/views/adminViews/adminModule/User/HistoryList';
+import ConfigMall from 'app/views/adminViews/adminModule/Sys/ConfigMall';
+import ConfigExpress from 'app/views/adminViews/adminModule/Sys/ConfigExpress';
+import ConfigOrder from 'app/views/adminViews/adminModule/Sys/ConfigOrder';
+import ProfilePage from 'app/views/adminViews/adminModule/Profile/ProfilePage';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
 import NotAvailable from 'app/shared/layout/admin/NotAvailable';
 import { ALL_LEAVES } from 'app/shared/layout/admin/menu.config';
@@ -72,6 +88,8 @@ export const AdminRoutes = () => (
       <Route path='user/collect' element={<CollectList />} />
       <Route path='user/footprint' element={<FootprintList />} />
       <Route path='user/feedback' element={<FeedbackList />} />
+      {/* Wave 4: search history (goods-management admin) */}
+      <Route path='user/history' element={<HistoryList />} />
       <Route path='stat/user' element={<StatPage kind='user' />} />
       <Route path='stat/order' element={<StatPage kind='order' />} />
       <Route path='stat/goods' element={<StatPage kind='goods' />} />
@@ -90,6 +108,21 @@ export const AdminRoutes = () => (
       <Route path='mall/order' element={<OrderList />} />
       <Route path='mall/order/:id' element={<OrderDetail />} />
       <Route path='mall/aftersale' element={<AftersaleList />} />
+      {/* Wave 4: freight templates + stores/write-off (order-service backends) */}
+      <Route path='mall/freight' element={<FreightTemplateList />} />
+      <Route path='mall/freight/create' element={<FreightTemplateForm />} />
+      <Route path='mall/freight/:id' element={<FreightTemplateForm />} />
+      <Route path='mall/store' element={<StoreList />} />
+      <Route path='mall/store/create' element={<StoreForm />} />
+      <Route path='mall/store/:id' element={<StoreForm />} />
+      <Route path='mall/writeoff' element={<WriteOffConsole />} />
+      {/* Wave 4: article CMS + DIY pages (goods-management content subdomain) */}
+      <Route path='mall/article' element={<ArticleList />} />
+      <Route path='mall/article/create' element={<ArticleForm />} />
+      <Route path='mall/article/:id' element={<ArticleForm />} />
+      <Route path='mall/page' element={<PageList />} />
+      <Route path='mall/page/create' element={<PageEditor />} />
+      <Route path='mall/page/:id' element={<PageEditor />} />
       {/* Promotion: ads (edge-hosted) / coupons + group-buy (promotion-service) */}
       <Route path='promotion/ad' element={<AdList />} />
       <Route path='promotion/ad/create' element={<AdForm />} />
@@ -102,6 +135,10 @@ export const AdminRoutes = () => (
       <Route path='promotion/groupon-rule/create' element={<GrouponRuleForm />} />
       <Route path='promotion/groupon-rule/:id' element={<GrouponRuleForm />} />
       <Route path='promotion/groupon-activity' element={<GrouponActivityList />} />
+      {/* Wave 4: topics (goods-management admin CRUD) */}
+      <Route path='promotion/topic' element={<TopicList />} />
+      <Route path='promotion/topic/create' element={<TopicForm />} />
+      <Route path='promotion/topic/:id' element={<TopicForm />} />
       {/* System: admins / notices / logs / roles / storage */}
       <Route path='sys/admin' element={<AdminAccountList />} />
       <Route path='sys/admin/create' element={<AdminAccountForm />} />
@@ -114,6 +151,11 @@ export const AdminRoutes = () => (
       <Route path='sys/role/create' element={<RoleForm />} />
       <Route path='sys/role/:id' element={<RoleForm />} />
       <Route path='sys/os' element={<StorageList />} />
+      {/* Wave 4: system config (edge-hosted) + own profile/notice inbox */}
+      <Route path='config/mall' element={<ConfigMall />} />
+      <Route path='config/express' element={<ConfigExpress />} />
+      <Route path='config/order' element={<ConfigOrder />} />
+      <Route path='profile' element={<ProfilePage />} />
       {placeholderLeaves.map(leaf => (
         <Route key={leaf.path} path={leaf.path.slice(ADMIN_PREFIX.length)} element={<NotAvailable />} />
       ))}

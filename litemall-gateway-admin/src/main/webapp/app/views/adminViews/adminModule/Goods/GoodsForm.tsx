@@ -5,6 +5,7 @@ import {
   useGetCatAndBrandQuery,
   useUpdateGoodsMutation,
 } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { useFreightSelectListQuery } from 'app/shared/reducers/private/services/adminFreightApi';
 import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -40,6 +41,7 @@ interface GoodsFields {
   gallery: string; // one URL per line
   counterPrice: string;
   sortOrder: string;
+  tempId: number; // freight template; 0 = none (flat freight)
   isOnSale: boolean;
   isNew: boolean;
   isHot: boolean;
@@ -58,6 +60,7 @@ const EMPTY: GoodsFields = {
   gallery: '',
   counterPrice: '',
   sortOrder: '100',
+  tempId: 0,
   isOnSale: true,
   isNew: true,
   isHot: false,
@@ -87,6 +90,7 @@ const GoodsForm: React.FC = () => {
 
   const { data: detail, isLoading: loadingDetail } = useGetAdminGoodsDetailQuery(id as string, { skip: !isEdit });
   const { data: catAndBrand } = useGetCatAndBrandQuery();
+  const { data: freightTemplates } = useFreightSelectListQuery();
   const [createGoods, { isLoading: creating }] = useCreateGoodsMutation();
   const [updateGoods, { isLoading: updating }] = useUpdateGoodsMutation();
 
@@ -110,6 +114,7 @@ const GoodsForm: React.FC = () => {
       gallery: Array.isArray(goods.gallery) ? (goods.gallery as string[]).join('\n') : '',
       counterPrice: str(goods.counterPrice),
       sortOrder: str(goods.sortOrder ?? 100),
+      tempId: goods.tempId != null ? Number(goods.tempId) : 0,
       isOnSale: Boolean(goods.isOnSale),
       isNew: Boolean(goods.isNew),
       isHot: Boolean(goods.isHot),
@@ -146,6 +151,7 @@ const GoodsForm: React.FC = () => {
       .filter(Boolean),
     counterPrice: form.counterPrice === '' ? 0 : Number(form.counterPrice),
     sortOrder: Number(form.sortOrder || 100),
+    tempId: Number(form.tempId ?? 0),
     isOnSale: form.isOnSale,
     isNew: form.isNew,
     isHot: form.isHot,
@@ -231,6 +237,14 @@ const GoodsForm: React.FC = () => {
   const categories = catAndBrand?.categoryList ?? [];
   const brands = catAndBrand?.brandList ?? [];
 
+  // CJ-sourced goods carry the CJ product id on the goods row (litemall_goods
+  // .cj_pid → cjPid; the form has no other CJ marker today — the raw goods
+  // record is inspected directly, with a `source === 'cj'` fallback in case the
+  // backend adds that field). CJ freight is quoted live from CJ logistics
+  // (freightCalculate), so a local freight template never applies.
+  const rawGoods = isEdit && detail ? (((detail as unknown as RawDetail).goods ?? {}) as Record<string, unknown>) : {};
+  const isCjGoods = Boolean(rawGoods.cjPid) || rawGoods.source === 'cj';
+
   return (
     <div className='app-container'>
       <h5 className='mb-3'>{isEdit ? `Edit goods #${id}` : 'New goods'}</h5>
@@ -283,6 +297,30 @@ const GoodsForm: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className='row'>
+          <div className='col-md-6 mb-3'>
+            <label className='form-label'>Freight template</label>
+            <select
+              className='form-select'
+              value={form.tempId}
+              disabled={isCjGoods}
+              onChange={e => set({ tempId: Number(e.target.value) })}
+            >
+              <option value={0}>None (flat freight)</option>
+              {(freightTemplates ?? []).map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            {isCjGoods && (
+              <div className='form-text'>
+                CJ-sourced goods: freight is quoted live from CJ logistics, so freight templates do not apply.
+              </div>
+            )}
           </div>
         </div>
 

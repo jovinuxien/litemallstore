@@ -43,6 +43,8 @@ export interface OrderListParams extends ListParams {
   nickname?: string;
   consignee?: string;
   orderStatusArray?: number[];
+  /** Wave 4 fulfilment-channel filter: 'pickup' | 'express' (omit for all). */
+  deliveryType?: string;
 }
 
 // The litemall envelope: { errno, errmsg, data }.
@@ -189,9 +191,9 @@ export const adminCatalogApi = createApi({
 
     // ----- Order (read-only: list + detail) -----------------------------
     listOrders: builder.query<PagedList<IOrderVo>, OrderListParams>({
-      query: ({ page, limit, sort, order, orderSn, nickname, consignee, orderStatusArray }) => ({
+      query: ({ page, limit, sort, order, orderSn, nickname, consignee, orderStatusArray, deliveryType }) => ({
         url: '/order/list',
-        params: clean({ page, limit, sort, order, orderSn, nickname, consignee, orderStatusArray }),
+        params: clean({ page, limit, sort, order, orderSn, nickname, consignee, orderStatusArray, deliveryType }),
       }),
       transformResponse: (r: ApiEnvelope<PagedList<IOrderVo>>) => r?.data ?? emptyPage<IOrderVo>(),
       providesTags: ['Order'],
