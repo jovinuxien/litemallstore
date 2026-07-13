@@ -18,8 +18,8 @@ const fmtDate = (addTime?: string | number[]): string => {
 /**
  * Article CMS list (`/srv/article/list` + category tabs from
  * `/srv/article/categories` — goods-management Wave 4, handoff-content-endpoints
- * §1). Backend not merged/running yet → renders a friendly empty state
- * (isMissingEndpoint-equivalent: ANY failure degrades the same way).
+ * §1). Backend LIVE (Wave-4 merge, verified 2026-07-13); any transient failure
+ * still degrades to a friendly empty state.
  */
 const ArticleList: React.FC = () => {
   const [categories, setCategories] = useState<IArticleCategory[]>([]);
