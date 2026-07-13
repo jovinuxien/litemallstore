@@ -40,6 +40,9 @@ public class LitemallGoodsAggregate {
     private String detail;
     /** Catalog origin: 'local' or 'cj' (CJ Dropshipping). Lets the storefront flag a line as CJ at checkout. */
     private String source;
+    /** Freight-template binding (litemall_shipping_templates.id; 0/null = unbound → default template).
+     *  Order's freight facade reads it off /srv/goods/goodsdetail (Wave-4 tempId handoff). */
+    private Integer tempId;
 
 
 
