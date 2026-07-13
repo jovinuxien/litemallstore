@@ -32,7 +32,7 @@ class LitemallOrderRestControllerIdentityTest {
 
         LitemallOrderRestController controller = new LitemallOrderRestController(
                 orchestrator, mock(org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService.class),
-                mock(org.linlinjava.litemall.order.application.internal.cj.CjTrackingService.class),
+                mock(org.linlinjava.litemall.order.application.internal.OrderTrackingService.class),
                 mock(org.linlinjava.litemall.order.application.internal.FreightCalculationService.class),
                 mock(org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer.class));
 

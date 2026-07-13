@@ -37,7 +37,7 @@ public class LitemallOrderRestController {
 
     private final LitemallOrderOrchestratorService orderOrchestrationService;
     private final CjFreightQuoteService cjFreightQuoteService;
-    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    private final org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService;
     // Wave 4 (Task A): the single freight authority + the owner-scoped address read the
     // quote endpoint uses to resolve the destination province for region matching.
     private final org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService;
@@ -45,12 +45,12 @@ public class LitemallOrderRestController {
 
     public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService,
                                        CjFreightQuoteService cjFreightQuoteService,
-                                       org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService,
+                                       org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService,
                                        org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService,
                                        org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer addressServiceLayer) {
         this.orderOrchestrationService = orderOrchestrationService;
         this.cjFreightQuoteService = cjFreightQuoteService;
-        this.cjTrackingService = cjTrackingService;
+        this.orderTrackingService = orderTrackingService;
         this.freightCalculationService = freightCalculationService;
         this.addressServiceLayer = addressServiceLayer;
     }
@@ -348,7 +348,7 @@ public class LitemallOrderRestController {
             @RequestHeader("X-User-Id") Integer userId,
             @PathVariable Integer orderId) {
         org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
-                cjTrackingService.getTrackingForUser(new LitemallUserId(userId), new LitemallOrderId(orderId));
+                orderTrackingService.getTrackingForUser(new LitemallUserId(userId), new LitemallOrderId(orderId));
         if (dto == null) {
             return ApiResponse.fail(404, "Order not found");
         }

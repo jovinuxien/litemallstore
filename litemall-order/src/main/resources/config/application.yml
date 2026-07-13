@@ -112,6 +112,19 @@ litemall:
     # batch-capped so a sweep stays inside CJ's ~1 QPS budget. See CjOrderStatusSyncScheduler.
     cj-sync-sweep-ms: 300000
     cj-sync-batch: 20
+    # Wave 4 (Task D): fulfillment seams — disabled by default. printer.provider:
+    # none|yly (yly needs client-id/client-secret/machine-code/machine-secret —
+    # supply via env, e.g. LITEMALL_ORDER_PRINTER_CLIENT_SECRET). express.provider:
+    # none|kdniao|onepass (kdniao rides litemall-core's ExpressService — its
+    # litemall.express.* keys in core's profile yml OUTRANK this file: enable via
+    # env vars; onepass needs account/secret env vars).
+    printer:
+      provider: none
+      auto-print: true
+      business-name: "litemall"
+    express:
+      provider: none
+      cache-minutes: 30
 
 # Freight templates (Wave 4, Task A — docs/adr-freight-templates.md). The CODE default
 # is enabled:false (legacy flat litemall_express_freight_min/value rule, byte-identical
