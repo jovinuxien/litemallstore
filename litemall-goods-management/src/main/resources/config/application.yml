@@ -165,6 +165,12 @@ litemall:
       - /srv/comment/**
       - /srv/topic/**
       - /srv/home/**
+      # Wave 4 anonymous surfaces (docs/handoff-content-endpoints.md). NOTE:
+      # /srv/storage/upload is deliberately NOT public — fetch only.
+      - /srv/region/**
+      - /srv/storage/fetch/**
+      - /srv/article/**
+      - /srv/page/**
   goods:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
@@ -186,7 +192,20 @@ litemall:
     active: local
     local:
       storage-path: /tmp/litemall/storage
-      address: http://localhost:8082/srv/private/admin/storage/fetch
+      # Public fetch URL prefix minted into stored-object URLs. Wave 4: points at
+      # the customer gateway's anonymous GET /srv/storage/fetch/{key} (the old
+      # value referenced /srv/private/admin/storage/fetch, a route that never
+      # existed — every previously minted URL was already dead, so no
+      # back-compat route is kept).
+      # NOTE: the value that actually WINS at runtime lives in
+      # config/application-core.yml (litemall-core's application-core.yml is a
+      # profile-specific file and would beat this base entry; our config/ copy
+      # out-precedences core's). Keep both in sync.
+      address: http://localhost:8090/srv/storage/fetch/
+  # Customer upload caps (POST /srv/storage/upload — X-User-Id required).
+  # Image-only, whitelist verified by magic bytes, not Content-Type.
+  customer-storage:
+    max-size-bytes: 5242880
   # OCS (Open Commerce Search) endpoints. Local-dev defaults below; for the
   # container profile (docker-compose), override to docker service names —
   # http://indexer:8535, http://searcher:8534, http://suggest:8081.
