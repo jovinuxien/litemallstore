@@ -110,9 +110,18 @@ public class CjCatalogRefreshTask {
             CjSnapshotSyncService.SyncResult result = snapshotSyncService.syncAll();
 
             // 2) Promote enriched rows into native litemall_goods, and soft-delete native goods for
-            //    pids that vanished upstream (only source='cj' rows are ever touched).
+            //    pids that vanished upstream (only source='cj' rows are ever touched). Reconcile is
+            //    trusted ONLY when the sync's fetch plan completed — a partial fetch's livePids set
+            //    is a slice of the catalog, and reconciling against a slice mass-deletes the rest
+            //    (the 2026-07-13 erosion incident). reconcile() itself also carries a fraction
+            //    tripwire as defence in depth.
             CjProductPromotionService.PromoteResult promote = promotionService.promoteBatch(Integer.MAX_VALUE);
-            int reconciled = promotionService.reconcile(result.livePids());
+            int reconciled = 0;
+            if (result.complete()) {
+                reconciled = promotionService.reconcile(result.livePids());
+            } else {
+                LOGGER.warn("CJ refresh: fetch plan incomplete — native-goods reconcile skipped this run");
+            }
 
             // 3) Atomically swap the OCS index from the DB: promoted/refreshed goods appear and the
             //    just-soft-deleted ones drop out in one full replace.
