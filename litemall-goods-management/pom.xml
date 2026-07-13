@@ -57,6 +57,13 @@
 			<artifactId>litemall-db</artifactId>
 			<version>${litemall.version}</version>
 		</dependency>
+		<!-- Rich-text sanitization for the content subdomain (article CMS + DIY
+		     pages): custom Safelist, clean-and-store. See docs/spec-page-palette-v1.md. -->
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+			<version>1.22.2</version>
+		</dependency>
 
 		<!--<dependency>
 			<groupId>com.github.pagehelper</groupId>
