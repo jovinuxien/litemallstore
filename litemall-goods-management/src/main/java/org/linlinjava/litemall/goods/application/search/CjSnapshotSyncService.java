@@ -108,12 +108,19 @@ public class CjSnapshotSyncService {
                     ex.getMessage());
         }
 
-        List<CJProduct> products = fetchProducts(targetsOverride);
+        FetchOutcome fetch = fetchProducts(targetsOverride);
+        List<CJProduct> products = fetch.products();
 
         // A targeted run (explicit targetsOverride) covers only the chosen categories, so it is
         // ADDITIVE — it must NOT treat the rest of the catalog as "vanished". Stale detection /
-        // soft-delete only runs for a FULL sync (the configured plan, override null/empty).
-        boolean pruneStale = (targetsOverride == null || targetsOverride.isEmpty());
+        // soft-delete only runs for a FULL sync (the configured plan, override null/empty) whose
+        // fetch plan COMPLETED: a partial fetch (category tree down, a target skipped or yielding
+        // nothing, sample fallback) sees only a slice of the catalog, and pruning against a slice
+        // is what eroded 7.7k of 7.8k products across 07-05..07-10.
+        boolean pruneStale = (targetsOverride == null || targetsOverride.isEmpty()) && fetch.complete();
+        if (!fetch.complete() && (targetsOverride == null || targetsOverride.isEmpty())) {
+            LOGGER.warn("CJ fetch plan incomplete — stale-pruning skipped for this run (additive upsert only)");
+        }
 
         // Snapshot the currently-live pids BEFORE upserting, so each write classifies as an insert
         // (a genuinely new / resurrected product) vs an update, and the SAME set drives stale
@@ -150,6 +157,19 @@ public class CjSnapshotSyncService {
             for (String existing : preexistingPids) {
                 if (!livePids.contains(existing)) {
                     removed.add(existing);
+                }
+            }
+            // Erosion tripwire: CJ listings rotate, so a large "vanished" set is far more likely a
+            // partial/rotated fetch than genuine mass delisting. Refuse to prune above the configured
+            // fraction; an intentional rebuild raises cj.prune-max-fraction deliberately.
+            if (!removed.isEmpty() && !preexistingPids.isEmpty()) {
+                double fraction = (double) removed.size() / preexistingPids.size();
+                if (fraction > config.getPruneMaxFraction()) {
+                    LOGGER.error("CJ stale-prune tripwire: refusing to soft-delete {} of {} live products "
+                                    + "({}% > {}%) — partial fetch or listing rotation suspected; prune skipped",
+                            removed.size(), preexistingPids.size(),
+                            Math.round(fraction * 100), Math.round(config.getPruneMaxFraction() * 100));
+                    removed.clear();
                 }
             }
             if (!removed.isEmpty()) {
@@ -271,7 +291,14 @@ public class CjSnapshotSyncService {
 
     // ---- CJ catalog fetch (plan-driven, paced via Redis-through CJProductService) -----------------
 
-    private List<CJProduct> fetchProducts(List<CJDropshippingConfig.CatalogTarget> targetsOverride) {
+    /**
+     * Fetch haul + whether the plan COMPLETED. {@code complete} is false when any part of the plan
+     * was skipped or yielded nothing (tree fetch failure, unresolvable target, zero-haul target,
+     * sample fallback) — a signal that this haul must not drive stale-pruning.
+     */
+    private record FetchOutcome(List<CJProduct> products, boolean complete) {}
+
+    private FetchOutcome fetchProducts(List<CJDropshippingConfig.CatalogTarget> targetsOverride) {
         List<CJDropshippingConfig.CatalogTarget> targets =
                 (targetsOverride != null && !targetsOverride.isEmpty()) ? targetsOverride : config.getCatalogTargets();
         if (targets != null && !targets.isEmpty()) {
@@ -281,16 +308,17 @@ public class CjSnapshotSyncService {
             CJProductDataResponse response = cjProductService.fetchProductList();
             if (response != null && response.getData() != null
                     && response.getData().getList() != null && !response.getData().getList().isEmpty()) {
-                return response.getData().getList();
+                return new FetchOutcome(response.getData().getList(), true);
             }
             LOGGER.warn("CJ product list empty; falling back to sample (if configured)");
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ product fetch failed ({}); falling back to sample (if configured)", ex.getMessage());
         }
-        return loadSample();
+        return new FetchOutcome(loadSample(), false);
     }
 
-    private List<CJProduct> fetchByPlan(List<CJDropshippingConfig.CatalogTarget> targets) {
+    private FetchOutcome fetchByPlan(List<CJDropshippingConfig.CatalogTarget> targets) {
+        boolean complete = true;
         boolean needTree = targets.stream()
                 .anyMatch(t -> (t.getCategoryId() == null || t.getCategoryId().isBlank())
                         && t.getCategory() != null && !t.getCategory().isBlank());
@@ -300,6 +328,7 @@ public class CjSnapshotSyncService {
                 tree = cjProductService.fetchCategoryList();
             } catch (RuntimeException ex) {
                 LOGGER.warn("CJ category tree fetch failed ({}); name-based targets will be skipped", ex.getMessage());
+                complete = false;
             }
         }
         int pageSize = Math.max(1, config.getPageSize());
@@ -308,6 +337,7 @@ public class CjSnapshotSyncService {
             List<String> categoryIds = resolveCategoryIds(target, tree);
             if (categoryIds.isEmpty()) {
                 LOGGER.warn("CJ catalog-target '{}' resolved to no CJ category id; skipping", label(target));
+                complete = false;
                 continue;
             }
             int before = all.size();
@@ -325,6 +355,9 @@ public class CjSnapshotSyncService {
                             categoryId, Math.min(perLeaf, cap - taken), pageSize);
                     all.addAll(got);
                 }
+                if (all.size() - before == 0) {
+                    complete = false;
+                }
                 LOGGER.info("CJ catalog-target '{}' fetched {} products (per-leaf {}, {} leaf categories)",
                         label(target), all.size() - before, perLeaf, categoryIds.size());
             } else {
@@ -338,15 +371,18 @@ public class CjSnapshotSyncService {
                     all.addAll(got);
                     remaining -= got.size();
                 }
+                if (all.size() - before == 0) {
+                    complete = false;
+                }
                 LOGGER.info("CJ catalog-target '{}' fetched {} products (limit {}, {} leaf categories)",
                         label(target), all.size() - before, limit, categoryIds.size());
             }
         }
         if (all.isEmpty()) {
             LOGGER.warn("CJ plan yielded no products; falling back to sample (if configured)");
-            return loadSample();
+            return new FetchOutcome(loadSample(), false);
         }
-        return all;
+        return new FetchOutcome(all, complete);
     }
 
     private static String label(CJDropshippingConfig.CatalogTarget target) {
