@@ -95,8 +95,8 @@
         <module>litemall-core</module>
         <module>litemall-db</module>
         <module>litemall-svcsecurity</module>
-        <module>litemall-wx-api</module>
-        <module>litemall-admin-api</module>
+        <!-- litemall-wx-api + litemall-admin-api decommissioned (Wave 4, 2026-07-13):
+             the /srv microservices reached parity; modules removed, history preserves them. -->
         <!--<module>litemall-all</module>-->
         <!--<module>litemall-all-war</module>-->
         <!-- Phase 5: retired — split into the customer SPA (litemall-gateway-api)
