@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { IAddress, userApi } from 'app/shared/api';
+import { contentApi, IAddress, IRegionNode, userApi } from 'app/shared/api';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -22,6 +22,21 @@ const AddressEdit: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Region cascade (goods-management Wave 4, /srv/region/clist — China-only
+  // data). Tree present ⇒ offer province/city/county dropdowns; call failing
+  // or empty (backend not merged yet, or non-CN deployment) ⇒ free-text only.
+  const [regions, setRegions] = useState<IRegionNode[]>([]);
+  const [useCascade, setUseCascade] = useState(false);
+
+  useEffect(() => {
+    contentApi
+      .regionCList()
+      .then(tree => setRegions(Array.isArray(tree) ? tree : []))
+      .catch(() => setRegions([]));
+  }, []);
+
+  const province = regions.find(r => r.name === form.province);
+  const city = province?.children?.find(c => c.name === form.city);
 
   useEffect(() => {
     if (isNew) return;
@@ -86,18 +101,80 @@ const AddressEdit: React.FC = () => {
                 <Form.Label>Phone *</Form.Label>
                 <Form.Control value={form.tel ?? ''} onChange={set('tel')} required />
               </div>
-              <div className='col-md-4'>
-                <Form.Label>Province / Region</Form.Label>
-                <Form.Control value={form.province ?? ''} onChange={set('province')} />
-              </div>
-              <div className='col-md-4'>
-                <Form.Label>City</Form.Label>
-                <Form.Control value={form.city ?? ''} onChange={set('city')} />
-              </div>
-              <div className='col-md-4'>
-                <Form.Label>District</Form.Label>
-                <Form.Control value={form.county ?? ''} onChange={set('county')} />
-              </div>
+              {regions.length > 0 && (
+                <div className='col-12'>
+                  <Form.Check
+                    type='switch'
+                    id='region-cascade-switch'
+                    label='Pick region from list (China addresses)'
+                    checked={useCascade}
+                    onChange={e => setUseCascade(e.target.checked)}
+                  />
+                </div>
+              )}
+              {useCascade && regions.length > 0 ? (
+                <>
+                  <div className='col-md-4'>
+                    <Form.Label>Province / Region</Form.Label>
+                    <Form.Select
+                      value={form.province ?? ''}
+                      onChange={e => setForm(prev => ({ ...prev, province: e.target.value, city: '', county: '' }))}
+                    >
+                      <option value=''>Select…</option>
+                      {regions.map(r => (
+                        <option key={r.id} value={r.name}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </div>
+                  <div className='col-md-4'>
+                    <Form.Label>City</Form.Label>
+                    <Form.Select
+                      value={form.city ?? ''}
+                      disabled={!province}
+                      onChange={e => setForm(prev => ({ ...prev, city: e.target.value, county: '' }))}
+                    >
+                      <option value=''>Select…</option>
+                      {(province?.children ?? []).map(c => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </div>
+                  <div className='col-md-4'>
+                    <Form.Label>District</Form.Label>
+                    <Form.Select
+                      value={form.county ?? ''}
+                      disabled={!city}
+                      onChange={e => setForm(prev => ({ ...prev, county: e.target.value }))}
+                    >
+                      <option value=''>Select…</option>
+                      {(city?.children ?? []).map(d => (
+                        <option key={d.id} value={d.name}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className='col-md-4'>
+                    <Form.Label>Province / Region</Form.Label>
+                    <Form.Control value={form.province ?? ''} onChange={set('province')} />
+                  </div>
+                  <div className='col-md-4'>
+                    <Form.Label>City</Form.Label>
+                    <Form.Control value={form.city ?? ''} onChange={set('city')} />
+                  </div>
+                  <div className='col-md-4'>
+                    <Form.Label>District</Form.Label>
+                    <Form.Control value={form.county ?? ''} onChange={set('county')} />
+                  </div>
+                </>
+              )}
               <div className='col-12'>
                 <Form.Label>Address detail *</Form.Label>
                 <Form.Control value={form.addressDetail ?? ''} onChange={set('addressDetail')} required />
