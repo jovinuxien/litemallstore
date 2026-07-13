@@ -71,8 +71,11 @@ public class EdgeAdminProfileController {
                         "new password must be at least 6 characters");
             }
             Integer adminId = AdminEdge.adminId(authentication);
-            LitemallAdmin admin = adminId == null ? null : adminService.findById(adminId);
-            if (admin == null) {
+            // NB: findById projects {id,username,avatar,roleIds} — password is
+            // NULL there and BCrypt.matches would always fail. findAdmin(id)
+            // selects the full row.
+            LitemallAdmin admin = adminId == null ? null : adminService.findAdmin(adminId);
+            if (admin == null || Boolean.TRUE.equals(admin.getDeleted())) {
                 return AdminEdge.badArgument();
             }
             if (!encoder.matches(oldPassword, admin.getPassword())) {
