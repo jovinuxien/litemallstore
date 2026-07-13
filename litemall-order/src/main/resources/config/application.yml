@@ -80,9 +80,15 @@ spring:
       sandbox: true
       auto-pay-balance: true
       # IOSS declaration for EU destinations — createOrderV2 rejects EU orders without
-      # one (100104/7001). 1 = no IOSS (buyer pays import VAT); 2 = own IOSS (set
-      # ioss-number too); 3 = CJ's IOSS service. Per-deployment decision.
-      ioss-type: 1
+      # one (100104/7001). 1 = no IOSS (buyer pays import VAT — live-tested: CJ STILL
+      # demands a number for EU, so 1 is unusable there); 2 = own IOSS (set ioss-number
+      # too); 3 = CJ's IOSS service (CJ declares with their number — dev default, works
+      # without a merchant IOSS registration). Per-deployment decision.
+      ioss-type: ${CJ_IOSS_TYPE:3}
+      ioss-number: ${CJ_IOSS_NUMBER:}
+      # createOrderV2 also rejects a missing/invalid customer email (3001). The ordering
+      # user's email is used when present; this store contact is the fallback.
+      customer-email-fallback: ${CJ_CUSTOMER_EMAIL_FALLBACK:orders@litemall.dev}
       auth:
         cj-email: "bimeni89@gmail.com"
         cj-api-key: "9520bc6b70fe45019688c5ae62be331b"

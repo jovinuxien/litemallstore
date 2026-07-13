@@ -55,18 +55,26 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
      * error 100104/7001). Default 1 = no IOSS: the buyer pays import VAT. See the ADR.
      */
     private final int iossType;
+    /** Merchant IOSS number, sent when non-blank (required with {@code ioss-type: 2}). */
+    private final String iossNumber;
+    /** Store contact used when the ordering customer has no email on file (CJ error 3001). */
+    private final String customerEmailFallback;
 
     public CjDropshipOrderFacadeImpl(CjOrderFeignClient cjOrderFeignClient, CjTokenService cjTokenService,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.from-country-code:CN}") String fromCountryCode,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.sandbox:false}") boolean sandbox,
-                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-type:1}") int iossType) {
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-type:1}") int iossType,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-number:}") String iossNumber,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.customer-email-fallback:orders@litemall.dev}") String customerEmailFallback) {
         this.cjOrderFeignClient = cjOrderFeignClient;
         this.cjTokenService = cjTokenService;
         this.fromCountryCode = fromCountryCode;
         this.logisticName = logisticName;
         this.sandbox = sandbox;
         this.iossType = iossType;
+        this.iossNumber = iossNumber;
+        this.customerEmailFallback = customerEmailFallback;
     }
 
     @Override
@@ -220,6 +228,9 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .payType(PAY_TYPE_CREATE_ONLY)
                 .isSandbox(sandbox ? 1 : null)
                 .iossType(iossType)
+                .iossNumber(org.springframework.util.StringUtils.hasText(iossNumber) ? iossNumber.trim() : null)
+                .email(org.springframework.util.StringUtils.hasText(p.getEmail())
+                        ? p.getEmail().trim() : customerEmailFallback)
                 .products(products)
                 .build();
     }
