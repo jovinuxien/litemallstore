@@ -26,6 +26,7 @@ const Payment = lazy(() => import('app/views/commonViews/cart/Payment'));
 const PaymentStatus = lazy(() => import('app/views/commonViews/cart/PaymentStatus'));
 const UserCenter = lazy(() => import('app/modules/user/UserCenter'));
 const Profile = lazy(() => import('app/modules/user/Profile'));
+const ResetPassword = lazy(() => import('app/modules/user/ResetPassword'));
 const AddressList = lazy(() => import('app/modules/user/AddressList'));
 const AddressEdit = lazy(() => import('app/modules/user/AddressEdit'));
 const Favorites = lazy(() => import('app/modules/user/Favorites'));
@@ -72,6 +73,9 @@ const App: React.FC = () => (
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
           <Route path='register' element={<Register />} />
+          {/* Public: the forgot-password tab must work logged-out; the change
+              tab checks auth itself. */}
+          <Route path='reset' element={<ResetPassword />} />
           <Route
             path='checkout'
             element={

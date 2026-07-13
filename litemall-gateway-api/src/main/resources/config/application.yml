@@ -111,6 +111,13 @@ spring:
 # (logged as a warning). Supply litemall.jwt.private-key-pem /
 # litemall.jwt.public-key-pem (or via litemall-config) for real use.
 litemall:
+  auth:
+    reset-mail:
+      # Forgot-password-by-email flow (V37). Disabled by default:
+      # /auth/reset/request and /auth/reset/confirm answer errno 701 and the
+      # SPA hides the "forgot password" tab. Enabling without contributing a
+      # real ResetMailSender bean only LOGS tokens (dev-only no-op sender).
+      enabled: false
   jwt:
     issuer: litemall-customer
     audience: litemall-customer-api
