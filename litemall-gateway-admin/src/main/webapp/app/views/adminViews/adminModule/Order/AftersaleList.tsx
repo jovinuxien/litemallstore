@@ -6,14 +6,21 @@ import {
   useListAftersalesQuery,
   useRejectAftersaleMutation,
 } from 'app/shared/reducers/private/services/adminAftersaleApi';
+import {
+  IBatchResult,
+  useBatchApproveAftersalesMutation,
+  useBatchRejectAftersalesMutation,
+} from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { ElTag, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
-// Aftersale/RMA admin queue — list + approve/reject, through the gateway as
-// an authenticated admin (adminAftersaleApi → /srv/private/admin/aftersale).
-// Approval refunds via order's tender-parity path in one transaction; reject
-// closes the application and leaves the order untouched.
+// Aftersale/RMA admin queue — list + approve/reject (single and, since
+// Wave 4, batch), through the gateway as an authenticated admin
+// (/srv/private/admin/aftersale). Approval refunds via order's tender-parity
+// path in one transaction; reject closes the application and leaves the order
+// untouched. Batch operations return a partial-success envelope
+// {succeeded:[ids], failed:[{id,errmsg}]} rendered as a result banner.
 
 const STATUS_TAG: Record<number, ElTag> = {
   1: 'warning', // applied
@@ -32,20 +39,43 @@ const AftersaleList: React.FC = () => {
   const [orderIdInput, setOrderIdInput] = React.useState('');
   const [orderId, setOrderId] = React.useState<number | undefined>(undefined);
 
-  const { data, isLoading, isFetching, isError, error } = useListAftersalesQuery({ page, limit, status, orderId });
+  const { data, isLoading, isFetching, isError, error, refetch } = useListAftersalesQuery({ page, limit, status, orderId });
   const [approveAftersale, { isLoading: approving }] = useApproveAftersaleMutation();
   const [rejectAftersale, { isLoading: rejecting }] = useRejectAftersaleMutation();
+  const [batchApprove, { isLoading: batchApproving }] = useBatchApproveAftersalesMutation();
+  const [batchReject, { isLoading: batchRejecting }] = useBatchRejectAftersalesMutation();
   const [actionMsg, setActionMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const [selected, setSelected] = React.useState<Set<number>>(new Set());
 
   const list = data?.list ?? [];
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 0;
   const errStatus = (error as { status?: number | string })?.status;
-  const busy = approving || rejecting;
+  const busy = approving || rejecting || batchApproving || batchRejecting;
+
+  // Only applied (status 1) rows are actionable — checkboxes are limited to
+  // them so "select all" can't queue no-op ids.
+  const actionableIds = list.filter(a => a.status === 1 && a.id != null).map(a => a.id as number);
+  const selectedIds = actionableIds.filter(x => selected.has(x));
+  const allSelected = actionableIds.length > 0 && selectedIds.length === actionableIds.length;
+
+  const toggleOne = (aftersaleId: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(aftersaleId)) next.delete(aftersaleId);
+      else next.add(aftersaleId);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    setSelected(allSelected ? new Set() : new Set(actionableIds));
+  };
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
+    setSelected(new Set());
     setOrderId(orderIdInput.trim() ? Number(orderIdInput.trim()) : undefined);
   };
 
@@ -64,6 +94,35 @@ const AftersaleList: React.FC = () => {
     setActionMsg(msg ? { ok: false, text: msg } : { ok: true, text: `Aftersale ${a.aftersaleSn ?? a.id} rejected.` });
   };
 
+  // Render the partial-success envelope: succeeded count + each failed id/errmsg.
+  const batchOutcome = (verb: string, res: { data?: IBatchResult } | { error?: { status?: number | string } }): { ok: boolean; text: string } => {
+    if ('error' in res && res.error) {
+      return { ok: false, text: `Batch ${verb} failed (${res.error.status ?? 'network'}).` };
+    }
+    const r = (res as { data?: IBatchResult }).data;
+    if (!r || !r.ok) {
+      return { ok: false, text: r?.errmsg || `Batch ${verb} failed.` };
+    }
+    const failures = r.failed.map(f => `#${f.id} — ${f.errmsg || 'failed'}`).join('; ');
+    if (r.failed.length === 0) return { ok: true, text: `${r.succeeded.length} aftersale(s) ${verb}.` };
+    return { ok: false, text: `${r.succeeded.length} ${verb}, ${r.failed.length} failed: ${failures}` };
+  };
+
+  const onBatch = async (mode: 'approve' | 'reject') => {
+    if (selectedIds.length === 0) return;
+    const verb = mode === 'approve' ? 'approved' : 'rejected';
+    const warning =
+      mode === 'approve'
+        ? `Approve ${selectedIds.length} selected aftersale(s)? Each approval issues its refund.`
+        : `Reject ${selectedIds.length} selected aftersale(s)?`;
+    if (!window.confirm(warning)) return;
+    setActionMsg(null);
+    const res = mode === 'approve' ? await batchApprove(selectedIds) : await batchReject(selectedIds);
+    setActionMsg(batchOutcome(verb, res));
+    setSelected(new Set());
+    refetch();
+  };
+
   return (
     <div className='app-container'>
       <form className='filter-container' onSubmit={onSearch}>
@@ -73,6 +132,7 @@ const AftersaleList: React.FC = () => {
           value={status ?? ''}
           onChange={e => {
             setPage(1);
+            setSelected(new Set());
             setStatus(e.target.value === '' ? undefined : Number(e.target.value));
           }}
           aria-label='Status filter'
@@ -97,6 +157,7 @@ const AftersaleList: React.FC = () => {
           value={limit}
           onChange={e => {
             setPage(1);
+            setSelected(new Set());
             setLimit(Number(e.target.value));
           }}
           aria-label='Page size'
@@ -110,6 +171,22 @@ const AftersaleList: React.FC = () => {
         <button className='btn btn-primary filter-item' type='submit'>
           Search
         </button>
+        <button
+          className='btn btn-outline-success filter-item'
+          type='button'
+          disabled={busy || selectedIds.length === 0}
+          onClick={() => onBatch('approve')}
+        >
+          Approve selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+        </button>
+        <button
+          className='btn btn-outline-danger filter-item'
+          type='button'
+          disabled={busy || selectedIds.length === 0}
+          onClick={() => onBatch('reject')}
+        >
+          Reject selected{selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+        </button>
         {isFetching && <Spinner />}
       </form>
 
@@ -119,6 +196,15 @@ const AftersaleList: React.FC = () => {
       <table className='el-table'>
         <thead>
           <tr>
+            <th style={{ width: 32 }}>
+              <input
+                type='checkbox'
+                checked={allSelected}
+                disabled={actionableIds.length === 0}
+                onChange={toggleAll}
+                aria-label='Select all applied aftersales on this page'
+              />
+            </th>
             <th>SN</th>
             <th>Order</th>
             <th>User</th>
@@ -133,19 +219,29 @@ const AftersaleList: React.FC = () => {
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={9} className='text-center p-5'>
+              <td colSpan={10} className='text-center p-5'>
                 <span className='spinner-border text-primary' role='status' />
               </td>
             </tr>
           ) : list.length === 0 ? (
             <tr>
-              <td colSpan={9} className='text-center text-muted py-5'>
+              <td colSpan={10} className='text-center text-muted py-5'>
                 No aftersale applications.
               </td>
             </tr>
           ) : (
             list.map(a => (
               <tr key={a.id}>
+                <td>
+                  {a.status === 1 && a.id != null && (
+                    <input
+                      type='checkbox'
+                      checked={selected.has(a.id)}
+                      onChange={() => toggleOne(a.id as number)}
+                      aria-label={`Select aftersale ${a.aftersaleSn ?? a.id}`}
+                    />
+                  )}
+                </td>
                 <td>{a.aftersaleSn ?? a.id}</td>
                 <td>
                   <Link to={`/admin/mall/order/${a.orderId}`}>#{a.orderId}</Link>

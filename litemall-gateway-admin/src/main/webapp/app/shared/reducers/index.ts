@@ -12,7 +12,11 @@ import adminUi from './private/adminUiSlice';
 import { adminGoodsApi } from './private/services/admingoodsrv/adminGoodsApi';
 import { adminAftersaleApi } from './private/services/adminAftersaleApi';
 import { adminCatalogApi } from './private/services/adminCatalogApi';
+import { adminContentApi } from './private/services/adminContentApi';
 import { adminEngagementApi } from './private/services/adminEngagementApi';
+import { adminFreightApi } from './private/services/adminFreightApi';
+import { adminParityApi } from './private/services/adminParityApi';
+import { adminStoreApi } from './private/services/adminStoreApi';
 import { adminOrderCjApi } from './private/services/adminOrderCjApi';
 import { adminPromotionApi } from './private/services/adminPromotionApi';
 import { adminStatApi } from './private/services/adminStatApi';
@@ -36,6 +40,10 @@ const rootReducer: ReducersMapObject = {
   [adminAftersaleApi.reducerPath]: adminAftersaleApi.reducer,
   [adminOrderCjApi.reducerPath]: adminOrderCjApi.reducer,
   [adminSysApi.reducerPath]: adminSysApi.reducer,
+  [adminFreightApi.reducerPath]: adminFreightApi.reducer,
+  [adminStoreApi.reducerPath]: adminStoreApi.reducer,
+  [adminContentApi.reducerPath]: adminContentApi.reducer,
+  [adminParityApi.reducerPath]: adminParityApi.reducer,
   home,
   product,
   category,
