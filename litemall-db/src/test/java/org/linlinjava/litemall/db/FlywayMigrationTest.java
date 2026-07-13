@@ -7,11 +7,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.testcontainers.containers.MySQLContainer;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Validates every Flyway migration (V1-V14) runs cleanly against a real MySQL
+ * Validates every Flyway migration runs cleanly against a real MySQL
  * instance spun up in Docker via Testcontainers.
  *
  * Requirements: Docker daemon must be running.
@@ -21,8 +20,10 @@ import static org.junit.Assert.assertTrue;
  */
 public class FlywayMigrationTest {
 
-    // Total number of forward migration scripts (V1 through V14)
-    private static final int EXPECTED_MIGRATIONS = 14;
+    // Hand-maintained floor: V35 (store pickup / write-off) is the latest known
+    // migration; the exact-count assertion was replaced with a >= floor so this
+    // test no longer goes stale every time a script lands.
+    private static final int MIN_EXPECTED_MIGRATIONS = 35;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -58,10 +59,10 @@ public class FlywayMigrationTest {
         MigrateResult result = flyway.migrate();
 
         assertTrue("Flyway migration failed: " + result.warnings, result.success);
-        assertEquals(
-                "Expected " + EXPECTED_MIGRATIONS + " migrations but " + result.migrationsExecuted + " ran",
-                EXPECTED_MIGRATIONS,
-                result.migrationsExecuted
+        assertTrue(
+                "Expected at least " + MIN_EXPECTED_MIGRATIONS + " migrations but only "
+                        + result.migrationsExecuted + " ran",
+                result.migrationsExecuted >= MIN_EXPECTED_MIGRATIONS
         );
     }
 
@@ -84,6 +85,17 @@ public class FlywayMigrationTest {
             {"litemall_order",        "deduction_price"},
             {"litemall_coupon",       "last_total"},
             {"litemall_coupon_user",  "use_type"},
+            // V2: freight-template binding / billing units on goods
+            {"litemall_goods",        "temp_id"},
+            // V34: internationalized freight-template rows + default-template flag
+            {"litemall_shipping_templates",        "is_default"},
+            {"litemall_shipping_templates_region", "country_code"},
+            {"litemall_shipping_templates_region", "province_name"},
+            {"litemall_shipping_templates_free",   "country_code"},
+            {"litemall_shipping_templates_free",   "province_name"},
+            // V35: in-store pickup / write-off columns on order
+            {"litemall_order",        "delivery_type"},
+            {"litemall_order",        "verify_code"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
@@ -133,6 +145,8 @@ public class FlywayMigrationTest {
             "litemall_goods_rule",
             "litemall_goods_description",
             "litemall_goods_log",
+            // V35: physical pickup stores
+            "litemall_store",
         };
 
         try (var conn = MYSQL.createConnection("")) {

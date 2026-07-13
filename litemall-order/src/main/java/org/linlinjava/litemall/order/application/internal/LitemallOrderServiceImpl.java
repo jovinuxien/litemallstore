@@ -103,6 +103,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private LitemallPromotionFacade promotionFacade;
 
+    // Single freight authority (Wave 4): the same service backs the quote endpoint, so
+    // what checkout previews is exactly what submit charges. Injected (not constructed)
+    // so its template cache is shared with the admin CRUD invalidation path.
+    @Autowired
+    private FreightCalculationService freightCalculationService;
+
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
                                     LitemallCartRepository cartRepo,
@@ -258,12 +264,21 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     ? new BigDecimal(0) : appliedCoupon.getDiscount();
         }
 
-        // Calculate shipping costs based on total order price，
-        // Meet the conditions (e.g. $88), free shipping，Otherwise you need to pay shipping fee（For example, $8）；
-        BigDecimal freightPrice = new BigDecimal(0);
-        if (checkedGoodsPrice.compareTo(SystemConfig.getFreightLimit()) < 0) {
-            freightPrice = SystemConfig.getFreight();
-        }
+        // Freight (Wave 4, Task A): ONE authority — FreightCalculationService — prices
+        // freight for both this submit path and POST /srv/order/freight-quote, so the
+        // quoted and charged amounts can never disagree. The service internally applies
+        // the template ladder when freight.template.enabled=true and degrades to the
+        // legacy litemall_express_freight_min/value flat rule otherwise (and for CJ
+        // carts, which skip templates by design). See docs/adr-freight-templates.md.
+        List<FreightCalculationService.FreightLine> freightLines = cartList.stream()
+                .filter(Objects::nonNull)
+                .map(item -> new FreightCalculationService.FreightLine(
+                        item.getGoodsId().getId(), item.getNumber() == null ? 0 : item.getNumber(),
+                        item.getPrice() == null ? null : item.getPrice().getAmount()))
+                .collect(Collectors.toList());
+        BigDecimal freightPrice = freightCalculationService.quote(freightLines,
+                command.getCountryCode(), addressAggregate.getProvince(), checkedGoodsPrice,
+                LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)).getFreight();
         // Other money available，For example, user points
         BigDecimal integralPrice = new BigDecimal(0);
 

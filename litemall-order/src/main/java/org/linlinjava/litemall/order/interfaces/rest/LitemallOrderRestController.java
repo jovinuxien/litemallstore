@@ -38,32 +38,72 @@ public class LitemallOrderRestController {
     private final LitemallOrderOrchestratorService orderOrchestrationService;
     private final CjFreightQuoteService cjFreightQuoteService;
     private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    // Wave 4 (Task A): the single freight authority + the owner-scoped address read the
+    // quote endpoint uses to resolve the destination province for region matching.
+    private final org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService;
+    private final org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer addressServiceLayer;
 
     public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService,
                                        CjFreightQuoteService cjFreightQuoteService,
-                                       org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
+                                       org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService,
+                                       org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService,
+                                       org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer addressServiceLayer) {
         this.orderOrchestrationService = orderOrchestrationService;
         this.cjFreightQuoteService = cjFreightQuoteService;
         this.cjTrackingService = cjTrackingService;
+        this.freightCalculationService = freightCalculationService;
+        this.addressServiceLayer = addressServiceLayer;
     }
 
     /**
-     * Checkout freight/logistics quote. {@code freightPrice} mirrors the exact rule submit
-     * charges (free at/above {@code litemall_express_freight_min}, else the flat
-     * {@code litemall_express_freight_value}); the CJ block is an informational carrier +
-     * delivery-time estimate for CJ cart groups. CJ problems degrade to {@code cj:null} +
-     * {@code cjNote} — this endpoint never fails a checkout.
+     * Checkout freight/logistics quote. {@code freightPrice} is priced by the SAME
+     * {@code FreightCalculationService} the submit path charges through (Wave 4), so
+     * quote and submit always agree: template ladder when {@code freight.template.enabled},
+     * legacy flat rule otherwise. {@code source} + {@code breakdown} explain the figure.
+     * The CJ block is an informational carrier + delivery-time estimate for CJ cart
+     * groups (CJ carts skip templates). CJ problems degrade to {@code cj:null} +
+     * {@code cjNote} — this endpoint never fails a checkout for freight reasons.
+     *
+     * <p>Identity: {@code X-User-Id} is OPTIONAL — anonymous quotes must keep working.
+     * The optional {@code addressId} (destination province for region matching) is
+     * owner-scoped: an addressId the caller doesn't own — including any addressId on an
+     * anonymous call — is errno 605, never another user's address.
      */
     @PostMapping("/freight-quote")
-    public ApiResponse<FreightQuoteDtoResponse> freightQuote(@RequestBody FreightQuoteRequest request) {
+    public ApiResponse<FreightQuoteDtoResponse> freightQuote(
+            @RequestHeader(value = "X-User-Id", required = false) Integer userId,
+            @RequestBody FreightQuoteRequest request) {
         java.math.BigDecimal subtotal = request.getSubtotal() != null ? request.getSubtotal() : java.math.BigDecimal.ZERO;
-        java.math.BigDecimal freightPrice = subtotal.compareTo(SystemConfig.getFreightLimit()) < 0
-                ? SystemConfig.getFreight() : java.math.BigDecimal.ZERO;
+
+        // Resolve the destination province from the owner-scoped address book entry.
+        String provinceName = null;
+        if (request.getAddressId() != null) {
+            if (userId == null) {
+                return ApiResponse.fail(605, "Sign in to quote against a saved address");
+            }
+            var address = addressServiceLayer.detail(
+                    new LitemallUserId(userId),
+                    new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallAddressId(request.getAddressId()));
+            if (address == null) {
+                return ApiResponse.fail(605, "Address not found");
+            }
+            provinceName = address.getProvince();
+        }
+
+        boolean cjRequested = request.getCountryCode() != null && !request.getCountryCode().isBlank()
+                && request.getCjItems() != null && !request.getCjItems().isEmpty();
+
+        List<org.linlinjava.litemall.order.application.internal.FreightCalculationService.FreightLine> lines =
+                request.getItems() == null ? List.of() : request.getItems().stream()
+                        .filter(i -> i.getGoodsId() != null)
+                        .map(i -> new org.linlinjava.litemall.order.application.internal.FreightCalculationService.FreightLine(
+                                i.getGoodsId(), i.getQuantity() == null ? 0 : i.getQuantity(), i.getPrice()))
+                        .collect(Collectors.toList());
+        var freightQuote = freightCalculationService.quote(
+                lines, request.getCountryCode(), provinceName, subtotal, cjRequested);
 
         FreightQuoteDtoResponse.CjInfo cjInfo = null;
         String cjNote = null;
-        boolean cjRequested = request.getCountryCode() != null && !request.getCountryCode().isBlank()
-                && request.getCjItems() != null && !request.getCjItems().isEmpty();
         if (cjRequested) {
             CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(),
                     request.getCjItems().stream()
@@ -75,8 +115,8 @@ public class LitemallOrderRestController {
                 cjNote = "Logistics estimate unavailable right now";
             }
         }
-        return ApiResponse.ok(new FreightQuoteDtoResponse(
-                freightPrice, SystemConfig.getFreightLimit(), cjInfo, cjNote));
+        return ApiResponse.ok(FreightQuoteDtoResponse.fromQuote(
+                freightQuote, SystemConfig.getFreightLimit(), cjInfo, cjNote));
     }
 
     /**

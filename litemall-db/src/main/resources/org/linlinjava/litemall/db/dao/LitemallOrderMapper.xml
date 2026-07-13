@@ -43,6 +43,11 @@
     <result column="cj_order_id" jdbcType="VARCHAR" property="cjOrderId" />
     <result column="cj_order_num" jdbcType="VARCHAR" property="cjOrderNum" />
     <result column="cj_order_status" jdbcType="VARCHAR" property="cjOrderStatus" />
+    <result column="delivery_type" jdbcType="VARCHAR" property="deliveryType" />
+    <result column="store_id" jdbcType="INTEGER" property="storeId" />
+    <result column="verify_code" jdbcType="VARCHAR" property="verifyCode" />
+    <result column="verify_time" jdbcType="TIMESTAMP" property="verifyTime" />
+    <result column="verified_by" jdbcType="VARCHAR" property="verifiedBy" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <!--
@@ -120,7 +125,7 @@
     order_price, actual_price, pay_id, pay_time, ship_sn, ship_channel, ship_time, refund_amount, 
     refund_type, refund_content, refund_time, confirm_time, comments, end_time, add_time,
     update_time, deleted, address_id, country_code, source, cj_order_id, cj_order_num,
-    cj_order_status
+    cj_order_status, delivery_type, store_id, verify_code, verify_time, verified_by
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderExample" resultMap="BaseResultMap">
     <!--
@@ -252,7 +257,9 @@
       confirm_time, comments, end_time,
       add_time, update_time, deleted,
       address_id, country_code, source,
-      cj_order_id, cj_order_num, cj_order_status)
+      cj_order_id, cj_order_num, cj_order_status,
+      delivery_type, store_id, verify_code,
+      verify_time, verified_by)
     values (#{userId,jdbcType=INTEGER}, #{orderSn,jdbcType=VARCHAR}, #{orderStatus,jdbcType=SMALLINT}, 
       #{aftersaleStatus,jdbcType=SMALLINT}, #{consignee,jdbcType=VARCHAR}, #{mobile,jdbcType=VARCHAR}, 
       #{address,jdbcType=VARCHAR}, #{message,jdbcType=VARCHAR}, #{goodsPrice,jdbcType=DECIMAL}, 
@@ -264,7 +271,9 @@
       #{confirmTime,jdbcType=TIMESTAMP}, #{comments,jdbcType=SMALLINT}, #{endTime,jdbcType=TIMESTAMP}, 
       #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT},
       #{addressId,jdbcType=INTEGER}, #{countryCode,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR},
-      #{cjOrderId,jdbcType=VARCHAR}, #{cjOrderNum,jdbcType=VARCHAR}, #{cjOrderStatus,jdbcType=VARCHAR})
+      #{cjOrderId,jdbcType=VARCHAR}, #{cjOrderNum,jdbcType=VARCHAR}, #{cjOrderStatus,jdbcType=VARCHAR},
+      #{deliveryType,jdbcType=VARCHAR}, #{storeId,jdbcType=INTEGER}, #{verifyCode,jdbcType=VARCHAR},
+      #{verifyTime,jdbcType=TIMESTAMP}, #{verifiedBy,jdbcType=VARCHAR})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallOrder">
     <!--
@@ -384,6 +393,21 @@
       <if test="cjOrderStatus != null">
         cj_order_status,
       </if>
+      <if test="deliveryType != null">
+        delivery_type,
+      </if>
+      <if test="storeId != null">
+        store_id,
+      </if>
+      <if test="verifyCode != null">
+        verify_code,
+      </if>
+      <if test="verifyTime != null">
+        verify_time,
+      </if>
+      <if test="verifiedBy != null">
+        verified_by,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="userId != null">
@@ -493,6 +517,21 @@
       </if>
       <if test="cjOrderStatus != null">
         #{cjOrderStatus,jdbcType=VARCHAR},
+      </if>
+      <if test="deliveryType != null">
+        #{deliveryType,jdbcType=VARCHAR},
+      </if>
+      <if test="storeId != null">
+        #{storeId,jdbcType=INTEGER},
+      </if>
+      <if test="verifyCode != null">
+        #{verifyCode,jdbcType=VARCHAR},
+      </if>
+      <if test="verifyTime != null">
+        #{verifyTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="verifiedBy != null">
+        #{verifiedBy,jdbcType=VARCHAR},
       </if>
     </trim>
   </insert>
@@ -624,6 +663,21 @@
       <if test="row.cjOrderStatus != null">
         cj_order_status = #{row.cjOrderStatus,jdbcType=VARCHAR},
       </if>
+      <if test="row.deliveryType != null">
+        delivery_type = #{row.deliveryType,jdbcType=VARCHAR},
+      </if>
+      <if test="row.storeId != null">
+        store_id = #{row.storeId,jdbcType=INTEGER},
+      </if>
+      <if test="row.verifyCode != null">
+        verify_code = #{row.verifyCode,jdbcType=VARCHAR},
+      </if>
+      <if test="row.verifyTime != null">
+        verify_time = #{row.verifyTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="row.verifiedBy != null">
+        verified_by = #{row.verifiedBy,jdbcType=VARCHAR},
+      </if>
     </set>
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -671,7 +725,12 @@
       source = #{row.source,jdbcType=VARCHAR},
       cj_order_id = #{row.cjOrderId,jdbcType=VARCHAR},
       cj_order_num = #{row.cjOrderNum,jdbcType=VARCHAR},
-      cj_order_status = #{row.cjOrderStatus,jdbcType=VARCHAR}
+      cj_order_status = #{row.cjOrderStatus,jdbcType=VARCHAR},
+      delivery_type = #{row.deliveryType,jdbcType=VARCHAR},
+      store_id = #{row.storeId,jdbcType=INTEGER},
+      verify_code = #{row.verifyCode,jdbcType=VARCHAR},
+      verify_time = #{row.verifyTime,jdbcType=TIMESTAMP},
+      verified_by = #{row.verifiedBy,jdbcType=VARCHAR}
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -791,6 +850,21 @@
       <if test="cjOrderStatus != null">
         cj_order_status = #{cjOrderStatus,jdbcType=VARCHAR},
       </if>
+      <if test="deliveryType != null">
+        delivery_type = #{deliveryType,jdbcType=VARCHAR},
+      </if>
+      <if test="storeId != null">
+        store_id = #{storeId,jdbcType=INTEGER},
+      </if>
+      <if test="verifyCode != null">
+        verify_code = #{verifyCode,jdbcType=VARCHAR},
+      </if>
+      <if test="verifyTime != null">
+        verify_time = #{verifyTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="verifiedBy != null">
+        verified_by = #{verifiedBy,jdbcType=VARCHAR},
+      </if>
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>
@@ -835,7 +909,12 @@
       source = #{source,jdbcType=VARCHAR},
       cj_order_id = #{cjOrderId,jdbcType=VARCHAR},
       cj_order_num = #{cjOrderNum,jdbcType=VARCHAR},
-      cj_order_status = #{cjOrderStatus,jdbcType=VARCHAR}
+      cj_order_status = #{cjOrderStatus,jdbcType=VARCHAR},
+      delivery_type = #{deliveryType,jdbcType=VARCHAR},
+      store_id = #{storeId,jdbcType=INTEGER},
+      verify_code = #{verifyCode,jdbcType=VARCHAR},
+      verify_time = #{verifyTime,jdbcType=TIMESTAMP},
+      verified_by = #{verifiedBy,jdbcType=VARCHAR}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderExample" resultMap="BaseResultMap">

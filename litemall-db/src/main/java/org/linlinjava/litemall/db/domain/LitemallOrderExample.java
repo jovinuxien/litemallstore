@@ -3164,6 +3164,150 @@ public class LitemallOrderExample {
             addCriterion("deleted not between", value1, value2, "deleted");
             return (Criteria) this;
         }
+
+        // Hand-maintained (V35): criteria for litemall_order.verify_code (in-store pickup / write-off).
+
+        public Criteria andVerifyCodeIsNull() {
+            addCriterion("verify_code is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeIsNotNull() {
+            addCriterion("verify_code is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeEqualTo(String value) {
+            addCriterion("verify_code =", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeNotEqualTo(String value) {
+            addCriterion("verify_code <>", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeGreaterThan(String value) {
+            addCriterion("verify_code >", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeGreaterThanOrEqualTo(String value) {
+            addCriterion("verify_code >=", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeLessThan(String value) {
+            addCriterion("verify_code <", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeLessThanOrEqualTo(String value) {
+            addCriterion("verify_code <=", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeLike(String value) {
+            addCriterion("verify_code like", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeNotLike(String value) {
+            addCriterion("verify_code not like", value, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeIn(List<String> values) {
+            addCriterion("verify_code in", values, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeNotIn(List<String> values) {
+            addCriterion("verify_code not in", values, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeBetween(String value1, String value2) {
+            addCriterion("verify_code between", value1, value2, "verifyCode");
+            return (Criteria) this;
+        }
+
+        public Criteria andVerifyCodeNotBetween(String value1, String value2) {
+            addCriterion("verify_code not between", value1, value2, "verifyCode");
+            return (Criteria) this;
+        }
+
+        // Hand-maintained (V35): criteria for litemall_order.delivery_type ('express' | 'pickup').
+
+        public Criteria andDeliveryTypeIsNull() {
+            addCriterion("delivery_type is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeIsNotNull() {
+            addCriterion("delivery_type is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeEqualTo(String value) {
+            addCriterion("delivery_type =", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeNotEqualTo(String value) {
+            addCriterion("delivery_type <>", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeGreaterThan(String value) {
+            addCriterion("delivery_type >", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeGreaterThanOrEqualTo(String value) {
+            addCriterion("delivery_type >=", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeLessThan(String value) {
+            addCriterion("delivery_type <", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeLessThanOrEqualTo(String value) {
+            addCriterion("delivery_type <=", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeLike(String value) {
+            addCriterion("delivery_type like", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeNotLike(String value) {
+            addCriterion("delivery_type not like", value, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeIn(List<String> values) {
+            addCriterion("delivery_type in", values, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeNotIn(List<String> values) {
+            addCriterion("delivery_type not in", values, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeBetween(String value1, String value2) {
+            addCriterion("delivery_type between", value1, value2, "deliveryType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDeliveryTypeNotBetween(String value1, String value2) {
+            addCriterion("delivery_type not between", value1, value2, "deliveryType");
+            return (Criteria) this;
+        }
     }
 
     /**

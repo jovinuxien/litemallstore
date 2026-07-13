@@ -34,7 +34,9 @@ class LitemallOrderRestControllerPayActionTest {
 
     private LitemallOrderRestController controllerWith(LitemallOrderOrchestratorService orchestrator) {
         return new LitemallOrderRestController(orchestrator, mock(CjFreightQuoteService.class),
-                mock(org.linlinjava.litemall.order.application.internal.cj.CjTrackingService.class));
+                mock(org.linlinjava.litemall.order.application.internal.cj.CjTrackingService.class),
+                mock(org.linlinjava.litemall.order.application.internal.FreightCalculationService.class),
+                mock(org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer.class));
     }
 
     @Test
