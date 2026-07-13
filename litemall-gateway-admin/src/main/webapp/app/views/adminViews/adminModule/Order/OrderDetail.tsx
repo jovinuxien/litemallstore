@@ -1,26 +1,40 @@
 import { orderStatusInfo } from 'app/shared/model/admin/order.model';
 import { useReadOrderQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
-import { ITracking, useGetTrackingQuery } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import {
+  ITracking,
+  orderOpMessage,
+  useGetFulfillmentConfigQuery,
+  useGetTrackingQuery,
+  useMarkOrderPaidMutation,
+  usePrintReceiptMutation,
+} from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-// Read-only admin order detail — order summary, customer, shipping, line
-// items and the logistics/tracking panel (order's CJ trackInfo surface).
-// Fetched per id from order-service (/srv/private/admin/order/detail) as an
-// authenticated admin via adminCatalogApi.
+// Admin order detail — order summary, customer, shipping/pickup, line items,
+// the logistics/tracking panel (order's trackInfo surface — CJ and, since
+// Wave 4, locally-shipped orders too), plus fulfilment operations: offline
+// mark-paid (which live-fires the CJ createOrderV2 replay for CJ orders) and
+// receipt printing. Fetched per id from order-service
+// (/srv/private/admin/order/detail) as an authenticated admin.
 
 const money = (v?: number | string): string => `¥${Number(v ?? 0).toFixed(2)}`;
 
 const UNAVAILABLE: ITracking = { available: false, shipped: false, events: [] };
 
-// Logistics / tracking card. Degrades in layers: endpoint missing/erroring →
-// muted note (order's tracking surface is a Wave-3 dependency, see
-// docs/handoff-order-admin-cj.md); live but not shipped → clean empty state;
-// shipped → carrier + tracking number + event list.
-const TrackingPanel: React.FC<{ orderId: string }> = ({ orderId }) => {
+// Logistics / tracking card, rendered for CJ orders AND any order the DTO
+// marks as shipped (shipSn present). Degrades in layers: endpoint erroring →
+// fall back to the order's own shipChannel/shipSn if shipped, else a muted
+// note; live but not shipped → clean empty state; a Wave-4 `note`
+// ("tracking provider disabled" / "tracking temporarily unavailable") → muted
+// info line, never an error; shipped → carrier + tracking number + events.
+const TrackingPanel: React.FC<{ orderId: string; shipChannel?: string; shipSn?: string }> = ({ orderId, shipChannel, shipSn }) => {
   const { data, isLoading, isError } = useGetTrackingQuery(orderId);
   const tracking = isError ? UNAVAILABLE : data;
+
+  // Note text arrives machine-ish ("tracking provider disabled") — sentence-case it.
+  const noteText = tracking?.note ? tracking.note.charAt(0).toUpperCase() + tracking.note.slice(1) : undefined;
 
   return (
     <div className='box-card mt-3'>
@@ -28,9 +42,26 @@ const TrackingPanel: React.FC<{ orderId: string }> = ({ orderId }) => {
       {isLoading ? (
         <span className='spinner-border spinner-border-sm text-primary' role='status' />
       ) : !tracking || !tracking.available ? (
-        <div className='text-muted small'>Tracking not available — the order service does not expose its tracking endpoint yet.</div>
-      ) : !tracking.shipped ? (
-        <div className='text-muted'>Not shipped yet — no tracking events.</div>
+        shipSn ? (
+          <div className='small'>
+            {shipChannel && (
+              <span className='me-3'>
+                Carrier: <strong>{shipChannel}</strong>
+              </span>
+            )}
+            <span className='me-3'>
+              Tracking #: <strong>{shipSn}</strong>
+            </span>
+            <div className='text-muted mt-1'>Live tracking is temporarily unavailable.</div>
+          </div>
+        ) : (
+          <div className='text-muted small'>Tracking is temporarily unavailable.</div>
+        )
+      ) : !tracking.shipped && tracking.events.length === 0 && !tracking.trackNumber ? (
+        <>
+          {noteText && <div className='text-muted small mb-1'>{noteText}</div>}
+          <div className='text-muted'>Not shipped yet — no tracking events.</div>
+        </>
       ) : (
         <>
           <div className='small mb-2'>
@@ -46,8 +77,9 @@ const TrackingPanel: React.FC<{ orderId: string }> = ({ orderId }) => {
             )}
             {tracking.cjOrderStatus && <Tag tag='primary'>{tracking.cjOrderStatus}</Tag>}
           </div>
+          {noteText && <div className='text-muted small mb-2'>{noteText}</div>}
           {tracking.events.length === 0 ? (
-            <div className='text-muted small'>No tracking events reported yet.</div>
+            !noteText && <div className='text-muted small'>No tracking events reported yet.</div>
           ) : (
             <table className='el-table'>
               <thead>
@@ -79,7 +111,17 @@ const TrackingPanel: React.FC<{ orderId: string }> = ({ orderId }) => {
 const OrderDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { data, isLoading, isError, error } = useReadOrderQuery(id as string, { skip: id == null });
+  const { data, isLoading, isError, error, refetch } = useReadOrderQuery(id as string, { skip: id == null });
+
+  // Fulfilment ops (Wave 4). Config is flags-only and read tolerantly — if it
+  // is unavailable the print button stays enabled and errno 641 does the talking.
+  const { data: fulfillment } = useGetFulfillmentConfigQuery();
+  const [markPaid, { isLoading: paying }] = useMarkOrderPaidMutation();
+  const [printReceipt, { isLoading: printing }] = usePrintReceiptMutation();
+
+  const [payOpen, setPayOpen] = React.useState(false);
+  const [payReference, setPayReference] = React.useState('');
+  const [actionMsg, setActionMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
 
   if (isLoading) {
     return (
@@ -106,21 +148,119 @@ const OrderDetail: React.FC = () => {
   const goods = data?.orderGoods ?? [];
   const user = data?.user;
 
+  // Offline mark-paid is only legal from unpaid/created (101).
+  const isUnpaid = order.orderStatus === 101;
+  const isCj = order.source === 'cj';
+  const printerDisabled = fulfillment?.available === true && fulfillment.printerEnabled === false;
+
+  // Pickup block (deliveryType === 'pickup'): store name comes from an
+  // explicit field or the "PICKUP: <name>" address convention, else storeId.
+  const isPickup = order.deliveryType === 'pickup';
+  const pickupStore = /^PICKUP:\s*(.+)$/.exec(order.address ?? '')?.[1] ?? (order.storeId != null ? `Store #${order.storeId}` : undefined);
+
+  const onConfirmMarkPaid = async () => {
+    setActionMsg(null);
+    const res = await markPaid({ orderId: id as string, reference: payReference.trim() || undefined });
+    const msg = orderOpMessage(res);
+    if (msg) {
+      setActionMsg({ ok: false, text: msg });
+    } else {
+      setActionMsg({ ok: true, text: `Order ${order.orderSn || `#${order.id}`} marked paid (offline).` });
+      setPayOpen(false);
+      setPayReference('');
+      refetch();
+    }
+  };
+
+  const onPrintReceipt = async () => {
+    setActionMsg(null);
+    const res = await printReceipt(id as string);
+    const errno = (res as { data?: { errno?: number; errmsg?: string } }).data?.errno;
+    if (errno === 0) {
+      setActionMsg({ ok: true, text: 'Receipt sent to the printer.' });
+    } else if (errno === 641) {
+      setActionMsg({ ok: false, text: 'Receipt printing is disabled.' });
+    } else if (errno === 642) {
+      setActionMsg({ ok: false, text: 'Print failed — check the printer.' });
+    } else {
+      setActionMsg({ ok: false, text: orderOpMessage(res) ?? 'Print request failed.' });
+    }
+  };
+
   return (
     <div className='app-container'>
       <div className='d-flex align-items-center justify-content-between mb-3'>
         <h4 className='m-0'>
           Order {order.orderSn || `#${order.id}`} <Tag tag={st.tag}>{order.orderStatusText || st.label}</Tag>
-          {order.source === 'cj' && (
+          {isCj && (
             <span className='ms-2'>
               <Tag tag='warning'>CJ dropship{order.cjOrderNum ? ` · ${order.cjOrderNum}` : ''}</Tag>
             </span>
           )}
+          {isPickup && (
+            <span className='ms-2'>
+              <Tag tag='info'>Pickup</Tag>
+            </span>
+          )}
         </h4>
-        <button className='btn btn-outline-secondary btn-sm' onClick={() => navigate('/admin/mall/order')}>
-          ‹ Back to orders
-        </button>
+        <div>
+          {isUnpaid && (
+            <button className='btn btn-outline-success btn-sm me-2' disabled={paying || payOpen} onClick={() => setPayOpen(true)}>
+              Mark paid (offline)
+            </button>
+          )}
+          <button
+            className='btn btn-outline-secondary btn-sm me-2'
+            disabled={printing || printerDisabled}
+            title={printerDisabled ? 'Receipt printing is disabled in the fulfilment configuration.' : 'Print a receipt for this order'}
+            onClick={onPrintReceipt}
+          >
+            {printing ? 'Printing…' : 'Print receipt'}
+          </button>
+          <button className='btn btn-outline-secondary btn-sm' onClick={() => navigate('/admin/mall/order')}>
+            ‹ Back to orders
+          </button>
+        </div>
       </div>
+
+      {actionMsg && <div className={`alert ${actionMsg.ok ? 'alert-success' : 'alert-danger'}`}>{actionMsg.text}</div>}
+
+      {payOpen && (
+        <div className='box-card mb-3' style={{ borderLeft: '4px solid #E6A23C' }}>
+          <h6>Mark paid (offline)</h6>
+          <p className='mb-1'>
+            Mark order <strong>{order.orderSn || `#${order.id}`}</strong> ({money(order.actualPrice)}) as paid with an offline tender? This
+            cannot be undone.
+          </p>
+          {isCj && (
+            <p className='text-danger fw-bold mb-1'>
+              This will also submit the order to CJ Dropshipping (live order placement).
+            </p>
+          )}
+          <div className='d-flex align-items-center gap-2 mt-2'>
+            <input
+              className='form-control'
+              style={{ maxWidth: 320 }}
+              placeholder='Payment reference (optional)'
+              value={payReference}
+              onChange={e => setPayReference(e.target.value)}
+            />
+            <button className='btn btn-success btn-sm' disabled={paying} onClick={onConfirmMarkPaid}>
+              {paying ? 'Marking paid…' : 'Confirm mark paid'}
+            </button>
+            <button
+              className='btn btn-outline-secondary btn-sm'
+              disabled={paying}
+              onClick={() => {
+                setPayOpen(false);
+                setPayReference('');
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className='row g-3'>
         <div className='col-md-6'>
@@ -131,17 +271,45 @@ const OrderDetail: React.FC = () => {
           </div>
         </div>
         <div className='col-md-6'>
-          <div className='box-card'>
-            <h6>Shipping</h6>
-            <div>{order.consignee || '—'}</div>
-            {order.mobile && <div className='text-muted small'>{order.mobile}</div>}
-            {order.address && <div className='text-muted small'>{order.address}</div>}
-            {order.shipChannel && (
-              <div className='small mt-1'>
-                {order.shipChannel} · {order.shipSn}
-              </div>
-            )}
-          </div>
+          {isPickup ? (
+            <div className='box-card'>
+              <h6>In-store pickup</h6>
+              <div>{pickupStore ?? '—'}</div>
+              {(order.pickupName || order.pickupMobile) && (
+                <div className='text-muted small'>
+                  {order.pickupName}
+                  {order.pickupName && order.pickupMobile && ' · '}
+                  {order.pickupMobile}
+                </div>
+              )}
+              {order.verifyCode && (
+                <div className='small mt-1'>
+                  Pickup code: <strong>{order.verifyCode}</strong>
+                  {order.verifyTime ? (
+                    <span className='text-muted'>
+                      {' '}
+                      — verified {order.verifyTime}
+                      {order.verifiedBy ? ` by ${order.verifiedBy}` : ''}
+                    </span>
+                  ) : (
+                    <span className='text-muted'> — not verified yet</span>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className='box-card'>
+              <h6>Shipping</h6>
+              <div>{order.consignee || '—'}</div>
+              {order.mobile && <div className='text-muted small'>{order.mobile}</div>}
+              {order.address && <div className='text-muted small'>{order.address}</div>}
+              {order.shipChannel && (
+                <div className='small mt-1'>
+                  {order.shipChannel} · {order.shipSn}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -199,7 +367,9 @@ const OrderDetail: React.FC = () => {
         {order.payTime && <div className='text-muted small mt-1'>Paid at {order.payTime}</div>}
       </div>
 
-      {id && <TrackingPanel orderId={id} />}
+      {/* Tracking applies to CJ orders and any shipped order (Wave 4 widened
+          local tracking); pickup orders have nothing to track. */}
+      {id && !isPickup && <TrackingPanel orderId={id} shipChannel={order.shipChannel} shipSn={order.shipSn} />}
     </div>
   );
 };

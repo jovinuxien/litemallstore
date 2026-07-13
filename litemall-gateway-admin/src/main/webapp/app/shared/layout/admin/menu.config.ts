@@ -48,7 +48,7 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/user/address', title: 'Addresses', wired: true },
       { path: '/admin/user/collect', title: 'Collections', wired: true },
       { path: '/admin/user/footprint', title: 'Footprints', wired: true },
-      { path: '/admin/user/history', title: 'Search history' },
+      { path: '/admin/user/history', title: 'Search history', wired: true },
       { path: '/admin/user/feedback', title: 'Feedback', wired: true },
     ],
   },
@@ -65,6 +65,11 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/mall/aftersale', title: 'After-sale', wired: true },
       { path: '/admin/mall/issue', title: 'Issues', wired: true },
       { path: '/admin/mall/keyword', title: 'Keywords', wired: true },
+      { path: '/admin/mall/freight', title: 'Freight templates', wired: true },
+      { path: '/admin/mall/store', title: 'Stores', wired: true },
+      { path: '/admin/mall/writeoff', title: 'Pickup write-off', wired: true },
+      { path: '/admin/mall/article', title: 'Articles', wired: true },
+      { path: '/admin/mall/page', title: 'DIY pages', wired: true },
     ],
   },
   {
@@ -86,7 +91,7 @@ export const ADMIN_MENU: MenuGroup[] = [
     children: [
       { path: '/admin/promotion/ad', title: 'Ads', wired: true },
       { path: '/admin/promotion/coupon', title: 'Coupons', wired: true },
-      { path: '/admin/promotion/topic', title: 'Topics' },
+      { path: '/admin/promotion/topic', title: 'Topics', wired: true },
       { path: '/admin/promotion/groupon-rule', title: 'Groupon rules', wired: true },
       { path: '/admin/promotion/groupon-activity', title: 'Groupon activity', wired: true },
     ],
@@ -101,6 +106,8 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/sys/log', title: 'Logs', wired: true },
       { path: '/admin/sys/role', title: 'Roles', wired: true },
       { path: '/admin/sys/os', title: 'Storage', wired: true },
+      // Reached from the navbar bell, not the sidebar.
+      { path: '/admin/profile', title: 'My profile', wired: true, hidden: true },
     ],
   },
   {
@@ -108,9 +115,11 @@ export const ADMIN_MENU: MenuGroup[] = [
     title: 'Config',
     icon: IconSliders,
     children: [
-      { path: '/admin/config/mall', title: 'Mall config' },
-      { path: '/admin/config/express', title: 'Express config' },
-      { path: '/admin/config/order', title: 'Order config' },
+      { path: '/admin/config/mall', title: 'Mall config', wired: true },
+      { path: '/admin/config/express', title: 'Express config', wired: true },
+      { path: '/admin/config/order', title: 'Order config', wired: true },
+      // WeChat is out of scope for this deployment — the wx config group is
+      // deliberately not ported (no backend rows). Stays a placeholder.
       { path: '/admin/config/wx', title: 'WeChat config' },
     ],
   },
@@ -141,15 +150,24 @@ export const titleForPath = (pathname: string): string | undefined => {
   // order detail: /admin/mall/order/:id
   if (/^\/admin\/mall\/order\/[^/]+$/.test(pathname)) return 'Order detail';
   // catalog create/edit forms: resolve to "<Section> · New|Edit"
-  const form = /^\/admin\/mall\/(brand|category|keyword|issue)\/([^/]+)$/.exec(pathname);
+  const form = /^\/admin\/mall\/(brand|category|keyword|issue|freight|store|article|page)\/([^/]+)$/.exec(pathname);
   if (form) {
-    const section = { brand: 'Brands', category: 'Categories', keyword: 'Keywords', issue: 'Issues' }[form[1]];
+    const section = {
+      brand: 'Brands',
+      category: 'Categories',
+      keyword: 'Keywords',
+      issue: 'Issues',
+      freight: 'Freight templates',
+      store: 'Stores',
+      article: 'Articles',
+      page: 'DIY pages',
+    }[form[1]];
     return `${section} · ${form[2] === 'create' ? 'New' : 'Edit'}`;
   }
   // promotion create/edit forms
-  const promo = /^\/admin\/promotion\/(ad|coupon|groupon-rule)\/([^/]+)(\/issued)?$/.exec(pathname);
+  const promo = /^\/admin\/promotion\/(ad|coupon|groupon-rule|topic)\/([^/]+)(\/issued)?$/.exec(pathname);
   if (promo) {
-    const section = { ad: 'Ads', coupon: 'Coupons', 'groupon-rule': 'Groupon rules' }[promo[1]];
+    const section = { ad: 'Ads', coupon: 'Coupons', 'groupon-rule': 'Groupon rules', topic: 'Topics' }[promo[1]];
     if (promo[3]) return `${section} · Issued`;
     return `${section} · ${promo[2] === 'create' ? 'New' : 'Edit'}`;
   }
