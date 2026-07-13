@@ -61,7 +61,10 @@ spring:
     locations: classpath:db/migration
     table: flyway_schema_history
     validate-on-migrate: true
-    out-of-order: false
+    # Wave-4 merge left the shared dev DB with V34/V35 applied AFTER V36
+    # (installed_rank 35/36 vs 34). That history is permanent, and with
+    # out-of-order=false validation halts every service on boot. Keep true.
+    out-of-order: true
     encoding: UTF-8
     # The shared `litemall` dev DB was migrated by the promotion branch, which
     # applied V17 (add combination) + V18 (add promotion campaign). Those files
