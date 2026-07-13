@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_article (article CMS, V36).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+  List statements omit the MEDIUMTEXT content column on purpose.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.ArticleMapper">
+
+  <sql id="listColumns">
+    id, category_id, title, summary, pic_url, status, is_hot, is_banner,
+    goods_id, view_count, add_time, update_time, deleted
+  </sql>
+
+  <sql id="allColumns">
+    id, category_id, title, summary, pic_url, content, status, is_hot, is_banner,
+    goods_id, view_count, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallArticle"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_article
+      (category_id, title, summary, pic_url, content, status, is_hot, is_banner,
+       goods_id, view_count, add_time, update_time, deleted)
+    values
+      (#{categoryId}, #{title}, #{summary}, #{picUrl}, #{content}, #{status}, #{isHot}, #{isBanner},
+       #{goodsId}, #{viewCount}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallArticle">
+    select <include refid="allColumns" />
+    from litemall_article
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectPublishedById" resultType="org.linlinjava.litemall.db.domain.LitemallArticle">
+    select <include refid="allColumns" />
+    from litemall_article
+    where id = #{id} and status = 'published' and deleted = 0
+  </select>
+
+  <select id="selectCustomerPage" resultType="org.linlinjava.litemall.db.domain.LitemallArticle">
+    select <include refid="listColumns" />
+    from litemall_article
+    where status = 'published' and deleted = 0
+    <if test="categoryId != null">and category_id = #{categoryId}</if>
+    <if test="hotOnly">and is_hot = 1</if>
+    order by add_time desc, id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countCustomer" resultType="int">
+    select count(*)
+    from litemall_article
+    where status = 'published' and deleted = 0
+    <if test="categoryId != null">and category_id = #{categoryId}</if>
+    <if test="hotOnly">and is_hot = 1</if>
+  </select>
+
+  <select id="selectAdminPage" resultType="org.linlinjava.litemall.db.domain.LitemallArticle">
+    select <include refid="listColumns" />
+    from litemall_article
+    where deleted = 0
+    <if test="title != null and title != ''">and title like concat('%', #{title}, '%')</if>
+    <if test="categoryId != null">and category_id = #{categoryId}</if>
+    <if test="status != null and status != ''">and status = #{status}</if>
+    order by add_time desc, id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countAdmin" resultType="int">
+    select count(*)
+    from litemall_article
+    where deleted = 0
+    <if test="title != null and title != ''">and title like concat('%', #{title}, '%')</if>
+    <if test="categoryId != null">and category_id = #{categoryId}</if>
+    <if test="status != null and status != ''">and status = #{status}</if>
+  </select>
+
+  <update id="updateSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallArticle">
+    update litemall_article
+    <set>
+      <if test="categoryId != null">category_id = #{categoryId},</if>
+      <if test="title != null">title = #{title},</if>
+      <if test="summary != null">summary = #{summary},</if>
+      <if test="picUrl != null">pic_url = #{picUrl},</if>
+      <if test="content != null">content = #{content},</if>
+      <if test="status != null">status = #{status},</if>
+      <if test="isHot != null">is_hot = #{isHot},</if>
+      <if test="isBanner != null">is_banner = #{isBanner},</if>
+      <if test="goodsId != null">goods_id = #{goodsId},</if>
+      update_time = #{updateTime},
+    </set>
+    where id = #{id} and deleted = 0
+  </update>
+
+  <!-- Atomic bump: never read-modify-write (anonymous GET-with-UPDATE, crmeb-same). -->
+  <update id="incrementViewCount">
+    update litemall_article
+    set view_count = view_count + 1
+    where id = #{id} and status = 'published' and deleted = 0
+  </update>
+
+  <update id="logicalDeleteById">
+    update litemall_article
+    set deleted = 1, update_time = #{updateTime}
+    where id = #{id} and deleted = 0
+  </update>
+
+  <select id="countByCategory" resultType="int">
+    select count(*)
+    from litemall_article
+    where category_id = #{categoryId} and deleted = 0
+  </select>
+
+</mapper>

@@ -79,8 +79,9 @@ keeps rendering the legacy home.
 Anonymous (`/srv/region/**` public). Backed by an in-memory tree built lazily
 from `litemall_region` (3231 rows; second call does no SQL).
 
-- `GET /srv/region/list?pid=0` → `data:{list,total}` of
-  `{id, pid, name, type, code}`; `pid=0` → the 31 provinces.
+- `GET /srv/region/list?pid=0` → `data` = BARE ARRAY of
+  `{id, pid, name, type, code}` (upstream WxRegionController shape — no
+  `{list,total}` wrapper); `pid=0` → the 31 provinces.
 - `GET /srv/region/clist` → 3-level nested tree (legacy `RegionVo` shape):
   ```json
   { "errno":0, "data": [ { "id":1, "name":"北京市", "code":110000,

@@ -1,13 +1,17 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 import jakarta.validation.constraints.NotEmpty;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.goods.application.search.CategorySearchService;
+import org.linlinjava.litemall.goods.application.search.SearchHistoryService;
 import org.linlinjava.litemall.goods.application.search.SearchKeywordService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.utils.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,16 +33,21 @@ public class LitemallSearchController {
      */
     private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort", "offset", "limit");
 
+    private final Log logger = LogFactory.getLog(LitemallSearchController.class);
+
     private final SearchService searchService;
     private final SearchKeywordService searchKeywordService;
     private final CategorySearchService categorySearchService;
+    private final SearchHistoryService searchHistoryService;
 
     public LitemallSearchController(SearchService searchService,
                                     SearchKeywordService searchKeywordService,
-                                    CategorySearchService categorySearchService) {
+                                    CategorySearchService categorySearchService,
+                                    SearchHistoryService searchHistoryService) {
         this.searchService = searchService;
         this.searchKeywordService = searchKeywordService;
         this.categorySearchService = categorySearchService;
+        this.searchHistoryService = searchHistoryService;
     }
 
     @GetMapping
@@ -50,7 +59,36 @@ public class LitemallSearchController {
         Map<String, String> filters = new HashMap<>(allParams);
         filters.keySet().removeAll(RESERVED_PARAMS);
         // SearchService whitelists these to the index's Facet fields before they reach OCS.
-        return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+        Object result = ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+        recordHistory(query);
+        return result;
+    }
+
+    /** Best-effort history write for logged-in searches — must NEVER fail the search itself. */
+    private void recordHistory(String query) {
+        if (query == null || query.isBlank()) {
+            return;
+        }
+        Integer userId = resolveUserId();
+        if (userId == null) {
+            return;
+        }
+        try {
+            searchHistoryService.record(userId, query);
+        } catch (Exception e) {
+            logger.warn("search-history write failed for user " + userId, e);
+        }
+    }
+
+    /** Clears the caller's search history (litemall-wx-api {@code /wx/search/clearhistory} parity). */
+    @PostMapping("/clearhistory")
+    public Object clearHistory() {
+        Integer userId = resolveUserId();
+        if (userId == null) {
+            return ResponseUtil.unlogin();
+        }
+        searchHistoryService.clear(userId);
+        return ResponseUtil.ok();
     }
 
     /**

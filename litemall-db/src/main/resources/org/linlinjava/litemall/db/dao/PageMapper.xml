@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_page (DIY pages / palette v1, V36).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+  NEVER writes the DB-generated active_home_slot column (STORED generated,
+  UNIQUE — the schema-level single-active-home invariant).
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.PageMapper">
+
+  <sql id="columns">
+    id, name, position, config, status, add_time, update_time, deleted
+  </sql>
+
+  <sql id="listColumns">
+    id, name, position, status, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallPage"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_page
+      (name, position, config, status, add_time, update_time, deleted)
+    values
+      (#{name}, #{position}, #{config}, #{status}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
+    select <include refid="columns" />
+    from litemall_page
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectActiveHome" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
+    select <include refid="columns" />
+    from litemall_page
+    where active_home_slot = 'home'
+  </select>
+
+  <select id="selectActiveById" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
+    select <include refid="columns" />
+    from litemall_page
+    where id = #{id} and status = 'active' and deleted = 0
+  </select>
+
+  <select id="selectAdminPage" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
+    select <include refid="listColumns" />
+    from litemall_page
+    where deleted = 0
+    <if test="position != null and position != ''">and position = #{position}</if>
+    <if test="status != null and status != ''">and status = #{status}</if>
+    order by id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countAdmin" resultType="int">
+    select count(*)
+    from litemall_page
+    where deleted = 0
+    <if test="position != null and position != ''">and position = #{position}</if>
+    <if test="status != null and status != ''">and status = #{status}</if>
+  </select>
+
+  <!-- name/config only; status flows through the dedicated statements below. -->
+  <update id="updateSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallPage">
+    update litemall_page
+    <set>
+      <if test="name != null">name = #{name},</if>
+      <if test="config != null">config = #{config},</if>
+      update_time = #{updateTime},
+    </set>
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="demoteActiveHome">
+    update litemall_page
+    set status = 'draft', update_time = #{updateTime}
+    where position = 'home' and status = 'active' and deleted = 0
+  </update>
+
+  <!-- Duplicate-key on uk_page_active_home here = lost the activation race. -->
+  <update id="activate">
+    update litemall_page
+    set status = 'active', update_time = #{updateTime}
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="deactivate">
+    update litemall_page
+    set status = 'draft', update_time = #{updateTime}
+    where id = #{id} and deleted = 0
+  </update>
+
+  <update id="logicalDeleteById">
+    update litemall_page
+    set deleted = 1, update_time = #{updateTime}
+    where id = #{id} and deleted = 0
+  </update>
+
+</mapper>
