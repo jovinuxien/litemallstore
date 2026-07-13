@@ -73,6 +73,8 @@ public class LitemallAdminOrderController {
     private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
     // Pickup stores (Wave 4): store name on the write-off counter payload.
     private final org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
+    // CSV export + channel stat (Wave 4, Task C).
+    private final org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
@@ -80,28 +82,37 @@ public class LitemallAdminOrderController {
                                         LitemallOrderOrchestratorService orchestrator,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade,
                                         org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService,
-                                        org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer) {
+                                        org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer,
+                                        org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
         this.cjOrderFacade = cjOrderFacade;
         this.cjTrackingService = cjTrackingService;
         this.storeServiceLayer = storeServiceLayer;
+        this.adminExtrasService = adminExtrasService;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
 
-    /** Paged list of all orders. Returns the okList envelope { list, total, page, limit, pages }. */
+    /**
+     * Paged list of all orders. Returns the okList envelope { list, total, page, limit, pages }.
+     * start/end (Wave 4): optional placement-time window — ISO date or datetime, e.g.
+     * {@code start=2026-07-01&end=2026-07-14} (end exclusive); shared with /export.
+     */
     @GetMapping("/list")
     public Object list(String orderSn,
                        @RequestParam(required = false) List<Short> orderStatusArray,
+                       @RequestParam(required = false) String start,
+                       @RequestParam(required = false) String end,
                        @RequestParam(defaultValue = "1") Integer page,
                        @RequestParam(defaultValue = "10") Integer limit,
                        @RequestParam(defaultValue = "add_time") String sort,
                        @RequestParam(defaultValue = "desc") String order) {
         String sortColumn = SORT_COLUMNS.getOrDefault(sort, "add_time");
-        List<LitemallOrderAggregate> orders = orderRepository.adminQuery(orderSn, orderStatusArray, page, limit, sortColumn, order);
-        long total = orderRepository.adminCount(orderSn, orderStatusArray);
+        List<LitemallOrderAggregate> orders = orderRepository.adminQuery(
+                orderSn, orderStatusArray, parseTime(start), parseTime(end), page, limit, sortColumn, order);
+        long total = orderRepository.adminCount(orderSn, orderStatusArray, parseTime(start), parseTime(end));
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (LitemallOrderAggregate o : orders) {
@@ -182,6 +193,100 @@ public class LitemallAdminOrderController {
     public ResponseEntity<OrderOperationDtoResponse> approveRefund(@PathVariable Integer orderId) {
         LitemallOrderOperationResult result = orchestrator.approveRefund(new LitemallOrderId(orderId));
         return buildResponse(result);
+    }
+
+    // ---- CSV export + offline pay + channel stat (Wave 4, Task C) ---------------------
+
+    /**
+     * Streamed CSV export: UTF-8 BOM + RFC-4180 rows, same filters as /list (orderSn,
+     * orderStatusArray, start/end, plus userId), keyset-paged id-asc with a lean
+     * projection, capped at {@code litemall.order.export.max-rows} with a
+     * {@code # TRUNCATED} trailer. Contract: docs/handoff-admin-order-export-stat.md.
+     */
+    @GetMapping("/export")
+    public void export(@RequestParam(required = false) Integer userId,
+                       @RequestParam(required = false) String orderSn,
+                       @RequestParam(required = false) List<Short> orderStatusArray,
+                       @RequestParam(required = false) String start,
+                       @RequestParam(required = false) String end,
+                       jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"orders-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".csv\"");
+        java.io.OutputStream os = response.getOutputStream();
+        // UTF-8 BOM so Excel opens the file with the right encoding.
+        os.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
+        java.io.Writer writer = new java.io.BufferedWriter(
+                new java.io.OutputStreamWriter(os, java.nio.charset.StandardCharsets.UTF_8));
+        adminExtrasService.streamExportCsv(writer, userId, orderSn, orderStatusArray,
+                parseTime(start), parseTime(end));
+        writer.flush();
+    }
+
+    /**
+     * Offline mark-paid (bank transfer / counter cash): CREATED → PAID with
+     * {@code pay_id = "OFFLINE:<reference|admin:ts>"} and an {@code admin_offline_pay}
+     * timeline marker. Pre-checked OUTSIDE the transaction: any non-CREATED order is a
+     * clean 422. <b>A CJ order marked paid live-fires the CJ createOrderV2 replay</b>
+     * (docs/adr-offline-mark-paid.md — the SPA confirm dialog must name it).
+     */
+    @PostMapping("/{orderId}/pay")
+    public Object offlinePay(@PathVariable Integer orderId,
+                             @RequestHeader(value = "X-User-Id", required = false) String adminUserId,
+                             @RequestBody(required = false) Map<String, String> body) {
+        LitemallOrderId id = new LitemallOrderId(orderId);
+        LitemallOrderAggregate order = orderRepository.findById(id).orElse(null);
+        if (order == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        // Pre-check OUTSIDE the orchestrator transaction (in-TX 422 = rollback-only 502).
+        if (order.getOrderStatus() != org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.CREATED) {
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422,
+                    "Only an unpaid (CREATED) order can be marked paid offline — this one is "
+                    + order.getOrderStatus().getDisplayName() + "."));
+        }
+        String reference = body == null ? null : body.get("reference");
+        try {
+            LitemallOrderOperationResult result = orchestrator.adminOfflinePay(id, reference, adminUserId);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("id", orderId);
+            data.put("orderSn", order.getOrderSn());
+            data.put("payId", "OFFLINE:" + (reference == null || reference.isBlank()
+                    ? "(admin timestamp)" : reference.trim()));
+            data.put("success", result.isSuccess());
+            return ResponseUtil.ok(data);
+        } catch (IllegalStateException e) {
+            // Race: the order left CREATED between the pre-check and the guarded UPDATE.
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422, e.getMessage()));
+        }
+    }
+
+    /**
+     * Sales-by-channel stat: {@code {bySource[], byTender[]}} over an optional
+     * placement-time window. Literal {@code stat/} segment — never collides with the
+     * {@code /{orderId}/...} mappings (the cj/balance trick). Closes the recorded
+     * {@code /srv/order/admin/stat} follow-up.
+     */
+    @GetMapping("/stat/channel")
+    public Object statChannel(@RequestParam(required = false) String start,
+                              @RequestParam(required = false) String end) {
+        return ResponseUtil.ok(adminExtrasService.statChannel(parseTime(start), parseTime(end)));
+    }
+
+    /** Lenient ISO parser: "2026-07-13", "2026-07-13T08:00:00" or with a space. Null-safe. */
+    private static LocalDateTime parseTime(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String v = value.trim().replace(' ', 'T');
+        try {
+            return v.length() <= 10
+                    ? java.time.LocalDate.parse(v).atStartOfDay()
+                    : LocalDateTime.parse(v);
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("Unparseable date '" + value
+                    + "' — use yyyy-MM-dd or yyyy-MM-dd'T'HH:mm:ss");
+        }
     }
 
     // ---- pickup write-off (核销, Wave 4) ----------------------------------------------

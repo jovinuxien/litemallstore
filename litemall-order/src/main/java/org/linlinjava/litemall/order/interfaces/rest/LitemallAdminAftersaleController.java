@@ -91,4 +91,68 @@ public class LitemallAdminAftersaleController {
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
         }
     }
+
+    // ---- batch decisions (Wave 4, Task C) ---------------------------------------------
+
+    /**
+     * Approve many applications in one call. The loop calls the orchestrator PER ID —
+     * each call is its own transaction (this controller sits outside the orchestrator's
+     * proxy), so one bad id can never roll back its siblings' refunds. Partial-success
+     * envelope: {@code {succeeded: [id], failed: [{id, errmsg}]}}.
+     */
+    @PostMapping("/batch-approve")
+    public Object batchApprove(@RequestBody BatchRequest request) {
+        return batch(request, id -> orchestrator.approveAftersale(id));
+    }
+
+    /** Reject many applications; same per-id-transaction + partial-success semantics. */
+    @PostMapping("/batch-reject")
+    public Object batchReject(@RequestBody BatchRequest request) {
+        String reason = request == null ? null : request.getReason();
+        return batch(request, id -> orchestrator.rejectAftersale(id, reason));
+    }
+
+    private Object batch(BatchRequest request,
+                         java.util.function.Function<Integer, LitemallOrderOperationResult> op) {
+        if (request == null || request.getIds() == null || request.getIds().isEmpty()) {
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422, "ids is required"));
+        }
+        List<Integer> succeeded = new java.util.ArrayList<>();
+        List<Map<String, Object>> failed = new java.util.ArrayList<>();
+        for (Integer id : request.getIds()) {
+            if (id == null) {
+                continue;
+            }
+            try {
+                LitemallOrderOperationResult result = op.apply(id);
+                if (result.isSuccess()) {
+                    succeeded.add(id);
+                } else {
+                    failed.add(failure(id, result.getMessage()));
+                }
+            } catch (Exception e) {
+                // Typed refusals (LitemallAftersaleException etc.) and hard errors alike:
+                // this id failed, ITS transaction rolled back, the loop continues.
+                failed.add(failure(id, e.getMessage()));
+            }
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("succeeded", succeeded);
+        data.put("failed", failed);
+        return ResponseUtil.ok(data);
+    }
+
+    private static Map<String, Object> failure(Integer id, String errmsg) {
+        Map<String, Object> entry = new HashMap<>();
+        entry.put("id", id);
+        entry.put("errmsg", errmsg == null ? "operation failed" : errmsg);
+        return entry;
+    }
+
+    /** {@code {ids: [1,2,3], reason: "..."}} — reason applies to batch-reject only. */
+    @lombok.Data
+    public static class BatchRequest {
+        private List<Integer> ids;
+        private String reason;
+    }
 }
