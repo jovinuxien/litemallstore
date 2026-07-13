@@ -41,13 +41,6 @@ spring:
       # here and never relayed. /auth/** is served locally by AuthController
       # (a @RestController), so it needs no route entry.
       routes:
-        # Customer API surface. wx-api is not Eureka-registered -> direct URI.
-        # wx-api moved off 8082 (collided with goods-management) -> 8084.
-        - id: customer-wx-api
-          uri: http://localhost:8084
-          predicates:
-            - Path=/wx/**
-
         # Protected customer surface (reachable after sign-in). Order, cart and
         # the address book all live on the order service (LitemallAddressController
         # is mounted at /srv/address there); they MUST be claimed here so they do

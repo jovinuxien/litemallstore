@@ -37,7 +37,7 @@ module.exports = {
     historyApiFallback: true,
     proxy: [
       {
-        context: ['/auth', '/srv', '/wx'],
+        context: ['/auth', '/srv'],
         target: 'http://localhost:8090',
         changeOrigin: true,
       },
