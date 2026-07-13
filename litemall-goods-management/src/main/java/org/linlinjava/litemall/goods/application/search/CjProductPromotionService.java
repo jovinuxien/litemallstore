@@ -223,13 +223,35 @@ public class CjProductPromotionService {
             byVid.put(p.getCjVid(), p); // null key allowed (synthetic no-variant SKU)
         }
 
+        boolean incomingHasNullVid = incoming.stream().anyMatch(in -> in.getCjVid() == null);
+
+        // Cart self-heal (Demand-Driven CJ Enrichment): a shallow goods' vid-less placeholder
+        // SKUs may already sit in customer carts (they are what the submit-block 422 told the
+        // customer to retry). When real variants land, reuse the placeholder ROW IDS for the
+        // cheapest incoming variants (placeholders carried the "from" price, i.e. the cheapest
+        // variant's price), pairing by ascending price — so existing cart lines resolve to a
+        // real, orderable variant on retry instead of dangling on a soft-deleted row.
+        Set<Integer> reusedPlaceholderIds = new HashSet<>();
+        if (!incomingHasNullVid) {
+            List<LitemallGoodsProduct> vidless = existing.stream()
+                    .filter(p -> !StringUtils.hasText(p.getCjVid()))
+                    .sorted(java.util.Comparator.comparing(LitemallGoodsProduct::getId))
+                    .toList();
+            List<LitemallGoodsProduct> newVariants = incoming.stream()
+                    .filter(in -> StringUtils.hasText(in.getCjVid()) && in.getId() == null)
+                    .sorted(java.util.Comparator.comparing(
+                            in -> in.getPrice() == null ? new BigDecimal(Integer.MAX_VALUE) : in.getPrice()))
+                    .toList();
+            for (int i = 0; i < Math.min(vidless.size(), newVariants.size()); i++) {
+                newVariants.get(i).setId(vidless.get(i).getId());
+                reusedPlaceholderIds.add(vidless.get(i).getId());
+            }
+        }
+
         Set<String> incomingVids = new HashSet<>();
-        boolean incomingHasNullVid = false;
         for (LitemallGoodsProduct in : incoming) {
             in.setGoodsId(goodsId);
-            if (in.getCjVid() == null) {
-                incomingHasNullVid = true;
-            } else {
+            if (in.getCjVid() != null) {
                 incomingVids.add(in.getCjVid());
             }
             LitemallGoodsProduct match = byVid.get(in.getCjVid());
@@ -237,11 +259,17 @@ public class CjProductPromotionService {
                 in.setId(match.getId());
                 in.setAddTime(null); // keep original creation time
                 productMapper.updateByPrimaryKeySelective(in);
+            } else if (in.getId() != null) {
+                in.setAddTime(null); // placeholder reuse: update in place, keep row id + creation time
+                productMapper.updateByPrimaryKeySelective(in);
             } else {
                 productMapper.insertSelective(in);
             }
         }
         for (LitemallGoodsProduct p : existing) {
+            if (reusedPlaceholderIds.contains(p.getId())) {
+                continue; // reused in place — must not be soft-deleted
+            }
             String vid = p.getCjVid();
             boolean keep = vid == null ? incomingHasNullVid : incomingVids.contains(vid);
             if (!keep) {

@@ -4,6 +4,7 @@ import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrd
 import org.linlinjava.litemall.order.application.util.exception.order.LitemallOrderServiceException;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjStockFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Submit-time gate that a CJ order can actually be fulfilled BEFORE it is placed. CJ
@@ -43,10 +46,13 @@ public class CjOrderAvailabilityChecker {
 
     private final CjOrderLineResolver lineResolver;
     private final CjStockFacade stockFacade;
+    private final LitemallGoodsFacade goodsFacade;
 
-    public CjOrderAvailabilityChecker(CjOrderLineResolver lineResolver, CjStockFacade stockFacade) {
+    public CjOrderAvailabilityChecker(CjOrderLineResolver lineResolver, CjStockFacade stockFacade,
+                                      LitemallGoodsFacade goodsFacade) {
         this.lineResolver = lineResolver;
         this.stockFacade = stockFacade;
+        this.goodsFacade = goodsFacade;
     }
 
     /**
@@ -80,13 +86,20 @@ public class CjOrderAvailabilityChecker {
                 unavailable.add(label);
                 log.warn("CJ submit blocked: line productId={} unfulfillable at CJ: {}",
                         line.getProductId().getId(), ex.getMessage());
+                // Demand-Driven CJ Enrichment (part 2): a blocked line is the loudest possible
+                // demand signal. Re-reading the goods through the facade fires goods-management's
+                // /srv/goods/goodsdetail on-demand enrichment hook, so the customer's retry
+                // ("try again shortly", below) finds real variants. Fire-and-forget — the 422
+                // response never waits on it and a goods-management outage changes nothing.
+                triggerOnDemandEnrichment(line);
             }
         }
         if (!unavailable.isEmpty()) {
             throw new LitemallOrderServiceException(
                     "Some items are temporarily unavailable for checkout while we finish syncing "
                             + "their supplier details: " + String.join(", ", unavailable)
-                            + ". Please try again shortly or remove them from your cart.");
+                            + ". We are fetching those details now — please try again in about a minute,"
+                            + " or remove them from your cart.");
         }
 
         List<String> overStock = new ArrayList<>();
@@ -111,5 +124,24 @@ public class CjOrderAvailabilityChecker {
                             + String.join(", ", overStock)
                             + ". Please lower the quantity or remove them from your cart.");
         }
+    }
+
+    /**
+     * Fire-and-forget goods re-read whose only purpose is to trip goods-management's
+     * on-demand enrichment hook on {@code /srv/goods/goodsdetail} for a shallow CJ goods.
+     * Never throws, never blocks the 422 path; the facade's own timeouts/breaker apply.
+     */
+    private void triggerOnDemandEnrichment(LitemallCartAggregate line) {
+        if (line.getGoodsId() == null) {
+            return;
+        }
+        int goodsId = line.getGoodsId().getId();
+        CompletableFuture.runAsync(() -> {
+            try {
+                goodsFacade.batchGetGoods(Set.of(goodsId));
+            } catch (RuntimeException ex) {
+                log.debug("on-demand enrichment trigger for goods {} failed: {}", goodsId, ex.getMessage());
+            }
+        });
     }
 }

@@ -76,7 +76,21 @@ public class CJDropshippingConfig {
      * inventory (N calls) per product, against CJ's daily request quota — a batch of N products is roughly
      * N×(1+avgVariants) CJ calls. The job converges over successive runs via the {@code enriched_time} cursor.
      */
-    private int enrichBatchSize = 20;
+    private int enrichBatchSize = 100;
+
+    /**
+     * Demand-Driven CJ Enrichment: viewing a shallow CJ goods (customer detail page, or the
+     * order service's goods fetch — incl. the submit-block retry) enqueues an async
+     * enrich-in-place, so quota is spent in demand order. Disable to fall back to
+     * batch-only enrichment.
+     */
+    private boolean onDemandEnrichEnabled = true;
+
+    /** Per-product cooldown between on-demand enrichment attempts (default 6 h = raw-cache TTL). */
+    private long onDemandCooldownSeconds = 21600;
+
+    /** Bounded on-demand queue; bursts beyond it are dropped with a log (nightly batch catches up). */
+    private int onDemandQueueCapacity = 200;
 
     /**
      * Category fetch plan: which CJ categories to index and how many products from each, fetched
