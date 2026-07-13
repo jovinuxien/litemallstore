@@ -10,6 +10,6 @@ export type { GoodsListParams } from './catalogApi';
 export type { AddToCartBody, CheckoutSummary } from './cartApi';
 export type { OrderListParams } from './orderApi';
 export type { IAddress, ICoupon, IComment, ICommentPost } from './userApi';
-export type { IBrand, ITopic, IGrouponItem } from './contentApi';
+export type { IBrand, ITopic, IGrouponItem, IArticle, IArticleCategory, IPageView, IPageComponent, IRegion, IRegionNode } from './contentApi';
 export type { ICombination, ICombinationPink, IPromotionOperation } from './promotionApi';
-export type { RegisterBody } from './authApi';
+export type { RegisterBody, AccountInfo, ProfileBody, Envelope } from './authApi';

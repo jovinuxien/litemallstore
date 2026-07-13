@@ -63,6 +63,14 @@ export interface PlaceOrderParams {
    * used for CJ placement at pay time); optional and harmless on local.
    */
   countryCode?: string;
+  /**
+   * Wave 4 pickup checkout (ASSUMED contract — order worktree spec pending;
+   * the UI only offers pickup when /srv/store/list answers). Local group only.
+   */
+  deliveryType?: 'express' | 'pickup';
+  storeId?: number;
+  pickupName?: string;
+  pickupMobile?: string;
 }
 
 export interface PlacedOrder {
@@ -134,7 +142,7 @@ const customerUserId = (): number | null => {
  */
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
-  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode }, thunkApi) => {
+  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, deliveryType, storeId, pickupName, pickupMobile }, thunkApi) => {
     const userId = customerUserId();
     if (userId == null) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
@@ -178,6 +186,14 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
       };
       if (addressId != null) submitBody.addressId = addressId; // else order service uses the default
       if (countryCode) submitBody.countryCode = countryCode; // CJ placement needs it at pay time
+      // Pickup (Wave 4, assumed contract — only sent when the customer chose
+      // pickup, so express submits are byte-identical to today's).
+      if (deliveryType === 'pickup') {
+        submitBody.deliveryType = 'pickup';
+        if (storeId != null) submitBody.storeId = storeId;
+        if (pickupName) submitBody.pickupName = pickupName;
+        if (pickupMobile) submitBody.pickupMobile = pickupMobile;
+      }
       const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, submitBody);
       const data = response.data as OrderOperationResponse;
       if (data.success === false || data.orderId == null) {

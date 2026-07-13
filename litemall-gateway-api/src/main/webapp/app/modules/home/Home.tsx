@@ -3,7 +3,9 @@ import { Carousel } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { contentApi, IPageView } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
+import PageRenderer from '../page/PageRenderer';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
 import InfiniteProductGrid from '../../components/userComponents/card/InfiniteProductGrid';
 import { getCatalogAllData, getCatalogIndexData } from '../Category/categorySlice';
@@ -40,6 +42,24 @@ const HomeView: React.FC = () => {
   const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
   // Mobile: the category tree collapses behind an "All categories" toggle; desktop keeps it open.
   const [menuOpen, setMenuOpen] = useState(false);
+  // DIY home (goods-management Wave 4, spec-page-palette-v1.md): when an admin
+  // has activated a home page, render it instead of the legacy home. errno 642
+  // (none active), 404/501 (backend not shipped) or any failure ⇒ legacy home,
+  // no error UI — the legacy layout stays the default and renders immediately.
+  const [diyPage, setDiyPage] = useState<IPageView | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    contentApi
+      .pageHome()
+      .then(p => {
+        if (!cancelled && p && Array.isArray(p.components)) setDiyPage(p);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     dispatch(getHomeData());
@@ -47,6 +67,10 @@ const HomeView: React.FC = () => {
     dispatch(getCatalogIndexData());
     dispatch(getCatalogAllData());
   }, [dispatch]);
+
+  if (diyPage) {
+    return <PageRenderer page={diyPage} />;
+  }
 
   const banners = entities?.banner ?? [];
   const channels = entities?.channel ?? [];

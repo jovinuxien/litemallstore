@@ -26,6 +26,7 @@ const Payment = lazy(() => import('app/views/commonViews/cart/Payment'));
 const PaymentStatus = lazy(() => import('app/views/commonViews/cart/PaymentStatus'));
 const UserCenter = lazy(() => import('app/modules/user/UserCenter'));
 const Profile = lazy(() => import('app/modules/user/Profile'));
+const ResetPassword = lazy(() => import('app/modules/user/ResetPassword'));
 const AddressList = lazy(() => import('app/modules/user/AddressList'));
 const AddressEdit = lazy(() => import('app/modules/user/AddressEdit'));
 const Favorites = lazy(() => import('app/modules/user/Favorites'));
@@ -37,6 +38,9 @@ const BrandList = lazy(() => import('app/modules/brand/BrandList'));
 const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
 const TopicList = lazy(() => import('app/modules/topic/TopicList'));
 const TopicDetail = lazy(() => import('app/modules/topic/TopicDetail'));
+const PageView = lazy(() => import('app/modules/page/PageView'));
+const ArticleList = lazy(() => import('app/modules/article/ArticleList'));
+const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
 const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
 const Help = lazy(() => import('app/modules/static/Help'));
 const CustomerService = lazy(() => import('app/modules/static/CustomerService'));
@@ -66,12 +70,19 @@ const App: React.FC = () => (
           <Route path='brand/:id' element={<BrandDetail />} />
           <Route path='topics' element={<TopicList />} />
           <Route path='topic/:id' element={<TopicDetail />} />
+          {/* Content vertical (goods-management Wave 4): DIY pages + article CMS. */}
+          <Route path='page/:id' element={<PageView />} />
+          <Route path='articles' element={<ArticleList />} />
+          <Route path='article/:id' element={<ArticleDetail />} />
           <Route path='groupon' element={<Groupon />} />
           <Route path='help' element={<Help />} />
           <Route path='service' element={<CustomerService />} />
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
           <Route path='register' element={<Register />} />
+          {/* Public: the forgot-password tab must work logged-out; the change
+              tab checks auth itself. */}
+          <Route path='reset' element={<ResetPassword />} />
           <Route
             path='checkout'
             element={

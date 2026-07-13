@@ -1125,6 +1125,12 @@ public class LitemallUserExample {
             return (Criteria) this;
         }
 
+        /** V37: hand-added — email column (litemall-db is hand-maintained, never regenerated). */
+        public Criteria andEmailEqualTo(String value) {
+            addCriterion("email =", value, "email");
+            return (Criteria) this;
+        }
+
         public Criteria andMobileIsNull() {
             addCriterion("mobile is null");
             return (Criteria) this;

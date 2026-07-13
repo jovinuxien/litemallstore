@@ -6,9 +6,9 @@ import { baseAxios, SRV, unwrap } from './http';
  *
  * Live on `/srv`: address (order-service), collect/footprint/feedback/comment
  * (goods-management, 2026-07-07), coupon (promotion-service legacy-parity
- * surface, 2026-07-07). Still pending: `/srv/user/index|profile` — no owning
- * service yet; those views keep the isMissingEndpoint guard. Tracked in
- * docs/SRV-FOLLOWUPS.md.
+ * surface, 2026-07-07). Profile/account moved to the auth edge
+ * (`authApi.me`/`authApi.profile` — Wave 4 Task A); the dead
+ * `/srv/user/index|profile` stubs are gone.
  */
 export interface IAddress {
   id?: number;
@@ -76,9 +76,15 @@ export interface PageParams {
 }
 
 export const userApi = {
-  // TODO(/srv follow-up: user) — profile/order-stat hub.
-  index: () => unwrap(baseAxios.get(`${SRV}/user/index`)),
-  profileUpdate: (body: unknown) => unwrap(baseAxios.post(`${SRV}/user/profile`, body)),
+  // Customer image upload (avatar, review/feedback photos) — goods-management
+  // Wave 4 Task A.2 (POST /srv/storage/upload, X-User-Id required, 5 MB cap,
+  // magic-byte image whitelist). Callers keep an isMissingEndpoint guard until
+  // it lands. The response mirrors legacy WxStorageController: {url, ...}.
+  storageUpload: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return unwrap<{ url?: string }>(baseAxios.post(`${SRV}/storage/upload`, fd));
+  },
 
   // Address book CRUD — LIVE on the order service (LitemallAddressController,
   // /srv/address/*), routed via the gateway customer-order predicate. Buyer is

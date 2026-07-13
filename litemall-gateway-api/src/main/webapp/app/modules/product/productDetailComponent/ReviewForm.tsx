@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Button, Form } from 'react-bootstrap';
 
+import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { userApi } from 'app/shared/api';
 
 /**
@@ -17,7 +18,7 @@ interface Props {
 const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
   const [star, setStar] = useState(5);
   const [content, setContent] = useState('');
-  const [picUrlsRaw, setPicUrlsRaw] = useState('');
+  const [picUrls, setPicUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [notice, setNotice] = useState<{ variant: 'info' | 'danger'; text: string } | null>(null);
@@ -27,10 +28,6 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
     if (!content.trim()) return;
     setBusy(true);
     setNotice(null);
-    const picUrls = picUrlsRaw
-      .split(/[\n,]/)
-      .map(s => s.trim())
-      .filter(Boolean);
     try {
       await userApi.commentPost({
         type: 0,
@@ -82,13 +79,9 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
         className='mb-2'
         required
       />
-      <Form.Control
-        size='sm'
-        placeholder='Image URLs (optional, comma-separated)'
-        value={picUrlsRaw}
-        onChange={e => setPicUrlsRaw(e.target.value)}
-        className='mb-2'
-      />
+      <div className='mb-2'>
+        <ImageUploader value={picUrls} onChange={setPicUrls} max={5} disabled={busy} />
+      </div>
       {notice && (
         <Alert variant={notice.variant} className='py-2'>
           {notice.text}

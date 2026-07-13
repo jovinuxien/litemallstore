@@ -63,6 +63,13 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/wallet/**
+        # Physical stores (pickup checkout, Wave 4) live on the order service.
+        # MUST be claimed before the goods catch-all or /srv/store/** would be
+        # sent to goods-management and 404.
+        - id: customer-store
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/store/**
 
         # Promotion service — seckill/bargain live on master; the coupon and
         # combination/group-buy verticals arrive with fix/promotion, which
@@ -111,6 +118,13 @@ spring:
 # (logged as a warning). Supply litemall.jwt.private-key-pem /
 # litemall.jwt.public-key-pem (or via litemall-config) for real use.
 litemall:
+  auth:
+    reset-mail:
+      # Forgot-password-by-email flow (V37). Disabled by default:
+      # /auth/reset/request and /auth/reset/confirm answer errno 701 and the
+      # SPA hides the "forgot password" tab. Enabling without contributing a
+      # real ResetMailSender bean only LOGS tokens (dev-only no-op sender).
+      enabled: false
   jwt:
     issuer: litemall-customer
     audience: litemall-customer-api
@@ -122,6 +136,11 @@ logging:
   level:
     org.springframework.cloud.gateway: INFO
     org.springframework.web.reactive: INFO
+    # litemall-db's application-db.yml (the shared 'db' profile) sets
+    # logging.level.root: ERROR, which silently swallows this gateway's own
+    # INFO/WARN logs (discovered when the dev no-op ResetMailSender WARN never
+    # appeared). Raise our package explicitly.
+    org.linlinjava.litemall.gatewayapi: INFO
 
 management:
   endpoints:

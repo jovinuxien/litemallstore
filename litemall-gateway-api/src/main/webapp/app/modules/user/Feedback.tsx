@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Form, Spinner } from 'react-bootstrap';
 
 import { userApi } from 'app/shared/api';
+import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -22,6 +23,7 @@ const Feedback: React.FC = () => {
   const [type, setType] = useState('feedback');
   const [content, setContent] = useState('');
   const [mobile, setMobile] = useState('');
+  const [picUrls, setPicUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +33,13 @@ const Feedback: React.FC = () => {
     setBusy(true);
     setError(null);
     try {
-      await userApi.feedbackSubmit({ content, mobile, type });
+      // picUrls rides the legacy LitemallFeedback pic_urls column
+      // (goods-management engagement contract).
+      await userApi.feedbackSubmit({ content, mobile, type, picUrls });
       setDone(true);
       setContent('');
       setMobile('');
+      setPicUrls([]);
     } catch (err) {
       setError((err as { message?: string })?.message ?? 'Could not send feedback.');
     } finally {
@@ -81,6 +86,11 @@ const Feedback: React.FC = () => {
             <Form.Group className='mb-3'>
               <Form.Label className='small text-muted mb-1'>Contact (optional)</Form.Label>
               <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} placeholder='Phone or email' />
+            </Form.Group>
+
+            <Form.Group className='mb-3'>
+              <Form.Label className='small text-muted mb-1'>Screenshots (optional)</Form.Label>
+              <ImageUploader value={picUrls} onChange={setPicUrls} max={3} disabled={busy} />
             </Form.Group>
 
             <button type='submit' className='btn btn-lm-primary' disabled={busy || !content.trim()}>
