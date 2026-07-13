@@ -166,12 +166,14 @@ const CheckoutView: React.FC = () => {
           .freightQuote({
             subtotal: subtotalOf(localItems),
             // Wave 4 freight templates: the selected address resolves the region
-            // rule; cart lines drive per-template pricing. Both optional — the
-            // pre-template backend ignores them.
+            // rule; cart lines drive per-template pricing.
             addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
             items: localItems.map(it => ({ goodsId: it.goodsId, quantity: it.number ?? 1, price: it.price ?? 0 })),
           })
-          .catch(() => null);
+          // The pre-template order service 402s on the NEW fields (strict
+          // deserialization, verified live) — fall back to the legacy body so
+          // the quote keeps working whichever side deploys first.
+          .catch(() => orderApi.freightQuote({ subtotal: subtotalOf(localItems) }).catch(() => null));
       }
       if (cjItems.length > 0) {
         next.cj = await orderApi
