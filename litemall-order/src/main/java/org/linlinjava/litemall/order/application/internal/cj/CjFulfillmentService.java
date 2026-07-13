@@ -52,6 +52,7 @@ public class CjFulfillmentService {
     private final LitemallAddressRepository addressRepository;
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
+    private final org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper;
     /** Deployment-market fallback destination country when the order carries none. */
     private final String defaultShipToCountryCode;
 
@@ -60,12 +61,14 @@ public class CjFulfillmentService {
                                 LitemallAddressRepository addressRepository,
                                 LitemallOrderRepository orderRepository,
                                 LitemallOrderStatusHistoryRepository statusHistoryRepository,
+                                org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper,
                                 @Value("${spring.cjdropship.api.ship-to-country-code:}") String defaultShipToCountryCode) {
         this.cjOrderFacade = cjOrderFacade;
         this.lineResolver = lineResolver;
         this.addressRepository = addressRepository;
         this.orderRepository = orderRepository;
         this.statusHistoryRepository = statusHistoryRepository;
+        this.userMapper = userMapper;
         this.defaultShipToCountryCode = defaultShipToCountryCode;
     }
 
@@ -100,6 +103,7 @@ public class CjFulfillmentService {
                 .orderNumber(order.getOrderSn()) // CJ-side idempotency key
                 .customerName(order.getConsignee())
                 .phone(order.getMobile())
+                .email(customerEmailOf(order))
                 .countryCode(countryCode)
                 // CJ createOrder validates shippingCountry (the NAME) as non-empty on top
                 // of the code (error 1600300); we persist only the ISO code, so derive it.
@@ -168,6 +172,21 @@ public class CjFulfillmentService {
                             + " is no longer resolvable (deleted between submit and pay?)");
         }
         return address;
+    }
+
+    /**
+     * The ordering customer's email from {@code litemall_user}, or null (the facade then
+     * substitutes the configured store fallback — createOrderV2 rejects a missing email, 3001).
+     * Best-effort: a lookup failure must never block fulfillment of an already-paid order.
+     */
+    private String customerEmailOf(LitemallOrderAggregate order) {
+        try {
+            org.linlinjava.litemall.db.domain.LitemallUser user =
+                    userMapper.selectByPrimaryKey(order.getUserId().getId());
+            return user != null ? user.getEmail() : null;
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
     /** English display name for an ISO country code ("SE" -> "Sweden"); falls back to the code. */

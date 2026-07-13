@@ -71,6 +71,10 @@ public class CjCreateOrderRequest {
     @JsonProperty("iossNumber")
     private String iossNumber;
 
+    /** Customer contact email — required by createOrderV2 (CJ error 3001 without it). */
+    @JsonProperty("email")
+    private String email;
+
     @JsonProperty("products")
     private List<CjOrderProduct> products;
 }

@@ -18,6 +18,8 @@ public class CjOrderPlacement {
 
     private String customerName;
     private String phone;
+    /** Customer contact email — createOrderV2 rejects orders without one (CJ error 3001). */
+    private String email;
     private String countryCode;
     private String country;
     private String province;

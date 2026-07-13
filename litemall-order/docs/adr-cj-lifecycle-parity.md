@@ -35,14 +35,23 @@ the CJ dashboard; the shortfall is visible via the admin balance endpoint).
 sends `isSandbox=1` on createOrderV2, so confirm/payBalance are simulated by CJ and no
 real balance moves. Production flips it to false via config.
 
-**IOSS (found live, 2026-07-10):** unlike legacy createOrder, createOrderV2 REJECTS
-EU-destination orders without an IOSS declaration (`100104: ... 7001: Please enter a
-IOSS number`), and `iossType=1` (no IOSS) alone did not satisfy it in live testing —
-CJ still demanded a number for an SE-destination order. `spring.cjdropship.api.ioss-type`
-(default 1) is sent on every request; **shipping to EU destinations in production
-requires a real IOSS setup** (`ioss-type: 2` + `ioss-number`, or 3 for CJ's IOSS
-service) — a per-deployment commercial decision. Non-EU destinations (e.g. NO) are
-unaffected. A rejected EU placement fails the payment cleanly (402, wallet rolled back).
+**IOSS (found live, 2026-07-10; updated 2026-07-13):** unlike legacy createOrder,
+createOrderV2 REJECTS EU-destination orders without an IOSS declaration (`100104: ...
+7001: Please enter a IOSS number`). Live findings: `iossType=1` (no IOSS) does NOT
+satisfy it — CJ still demands a number for an SE destination — and **`iossType=3`
+(CJ's IOSS service) is ALSO rejected without a number unless the service is activated
+on the CJ account**. So EU shipping requires a real IOSS arrangement, config-driven:
+`CJ_IOSS_TYPE=2` + `CJ_IOSS_NUMBER=IM…` (own registration) or CJ's IOSS service
+enabled account-side for type 3. A rejected EU placement still fails the payment
+cleanly (402, wallet rolled back). Non-EU destinations (GB, NO, US…) are unaffected —
+live-verified 2026-07-13 (order 79 → CJ 20260713619543).
+
+**Customer email (found live, 2026-07-13):** createOrderV2 now also rejects a
+missing/invalid `email` (`3001: Please enter your email address`). The placement
+carries the ordering user's `litemall_user.email` when present; otherwise the
+configured `spring.cjdropship.api.customer-email-fallback` (default
+`orders@litemall.dev`) is sent, so guest/seed accounts without an email never block
+fulfillment.
 
 ## Decision 2 — CJ→local status mapping (single-transition-source preserved)
 
