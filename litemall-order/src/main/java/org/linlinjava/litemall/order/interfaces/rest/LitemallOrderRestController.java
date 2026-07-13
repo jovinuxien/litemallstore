@@ -192,7 +192,11 @@ public class LitemallOrderRestController {
                 command.getMessage(),
                 command.getGrouponRulesId(),
                 command.getGrouponLinkId(),
-                command.getCountryCode());
+                command.getCountryCode(),
+                command.getDeliveryType(),
+                command.getStoreId(),
+                command.getPickupName(),
+                command.getPickupMobile());
         try {
             LitemallOrderOperationResult result = orderOrchestrationService.createOrder(authoritativeCommand);
             return buildResponse(result);
@@ -207,6 +211,11 @@ public class LitemallOrderRestController {
             // redeem refused): rolled back, no order row, coupon untouched. The 422
             // message names the coupon — the SPA's inline "remove coupon and retry"
             // affordance keys on exactly that.
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException e) {
+            // Pickup precondition tripped inside the placement transaction (safety-net
+            // copy of the orchestrator pre-checks — e.g. store hidden mid-flight):
+            // rolled back, no order row. Same clean 422 as the pre-check zone.
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException e) {
             // Promotion down while the checkout carried a coupon: fail cleanly rather

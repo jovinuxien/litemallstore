@@ -293,6 +293,31 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int markDeliveredByWriteoff(LitemallOrderId orderId, String verifiedBy) {
+        // Hand-written conditional UPDATE (db.dao.OrderMapper): 201 → 401 with
+        // verify_time/verified_by stamped; WHERE order_status=201 AND verify_time IS NULL
+        // makes a double scan a clean 0-row loss.
+        return orderMapper.markDeliveredByWriteoff(orderId.getId(), verifiedBy);
+    }
+
+    @Override
+    public int assignVerifyCode(LitemallOrderId orderId, String verifyCode) {
+        return orderMapper.setVerifyCodeIfAbsent(orderId.getId(), verifyCode);
+    }
+
+    @Override
+    public Optional<LitemallOrderAggregate> findByVerifyCode(String verifyCode) {
+        if (verifyCode == null || verifyCode.isBlank()) {
+            return Optional.empty();
+        }
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andVerifyCodeEqualTo(verifyCode)
+                .andDeletedEqualTo(false);
+        return Optional.ofNullable(convertToDomainModel(litemallOrderMapper.selectOneByExample(example)));
+    }
+
+    @Override
     public int markShippedIfPaid(LitemallOrderId orderId, String shipChannel, String shipSn, LocalDateTime shipTime) {
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.SHIPPED.getCode());
@@ -478,6 +503,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
         dataModel.setCjOrderStatus(orderAggregate.getCjOrderStatus());
 
+        // In-store pickup / write-off (Wave 4, V35).
+        dataModel.setDeliveryType(orderAggregate.getDeliveryType());
+        dataModel.setStoreId(orderAggregate.getStoreId());
+        dataModel.setVerifyCode(orderAggregate.getVerifyCode());
+        dataModel.setVerifyTime(orderAggregate.getVerifyTime());
+        dataModel.setVerifiedBy(orderAggregate.getVerifiedBy());
+
         return dataModel;
     }
 
@@ -539,6 +571,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setCjOrderId(record.getCjOrderId());
         domainModel.setCjOrderNum(record.getCjOrderNum());
         domainModel.setCjOrderStatus(record.getCjOrderStatus());
+
+        // In-store pickup / write-off (Wave 4, V35).
+        domainModel.setDeliveryType(record.getDeliveryType());
+        domainModel.setStoreId(record.getStoreId());
+        domainModel.setVerifyCode(record.getVerifyCode());
+        domainModel.setVerifyTime(record.getVerifyTime());
+        domainModel.setVerifiedBy(record.getVerifiedBy());
 
         return  domainModel;
     }

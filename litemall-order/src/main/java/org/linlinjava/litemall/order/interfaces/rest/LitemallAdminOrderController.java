@@ -71,18 +71,22 @@ public class LitemallAdminOrderController {
     private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade;
     // Shipment tracking read (Wave 3): live CJ trackInfo for CJ orders, clean NOT_SHIPPED otherwise.
     private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    // Pickup stores (Wave 4): store name on the write-off counter payload.
+    private final org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
                                         LitemallOrderGoodsRepository orderGoodsRepository,
                                         LitemallOrderOrchestratorService orchestrator,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade,
-                                        org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
+                                        org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService,
+                                        org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
         this.cjOrderFacade = cjOrderFacade;
         this.cjTrackingService = cjTrackingService;
+        this.storeServiceLayer = storeServiceLayer;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
@@ -180,6 +184,82 @@ public class LitemallAdminOrderController {
         return buildResponse(result);
     }
 
+    // ---- pickup write-off (核销, Wave 4) ----------------------------------------------
+
+    /**
+     * Preview a scanned pickup verify code WITHOUT redeeming it: shows the counter
+     * staff the order + line items so they hand over the right parcel. Literal path
+     * segment (never collides with the {@code /{orderId}/...} mappings). Three distinct
+     * 422s: unknown code / already verified / wrong state.
+     */
+    @GetMapping("/writeoff")
+    public Object writeoffPreview(@RequestParam String verifyCode) {
+        try {
+            LitemallOrderAggregate order = orchestrator.writeoffPreview(verifyCode);
+            return ResponseUtil.ok(writeoffPayload(order));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+            return writeoffError(e);
+        }
+    }
+
+    /**
+     * Redeem a verify code: PAID → DELIVERED with the {@code writeoff} timeline hop and
+     * a {@code verified_by = "admin:<X-User-Id>"} audit stamp. A double scan loses
+     * cleanly (ALREADY_VERIFIED, no state change).
+     */
+    @PostMapping("/writeoff")
+    public Object writeoffCommit(@RequestHeader(value = "X-User-Id", required = false) String adminUserId,
+                                 @RequestBody Map<String, String> body) {
+        String verifyCode = body.get("verifyCode");
+        if (verifyCode == null || verifyCode.isBlank()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(ResponseUtil.fail(422, "verifyCode is required"));
+        }
+        String verifiedBy = "admin:" + (adminUserId == null || adminUserId.isBlank() ? "unknown" : adminUserId);
+        try {
+            LitemallOrderAggregate order = orchestrator.writeoffCommit(verifyCode, verifiedBy);
+            return ResponseUtil.ok(writeoffPayload(order));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+            return writeoffError(e);
+        }
+    }
+
+    private Object writeoffError(
+            org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+        // errno 422 + kind: the SPA can branch on kind while the errmsg names the exact
+        // problem (three distinct client errors, per the Task-B acceptance).
+        return ResponseEntity.unprocessableEntity()
+                .body(ResponseUtil.fail(422, "[" + e.getKind() + "] " + e.getMessage()));
+    }
+
+    /** Counter payload: order header + store + a lean line-item summary. */
+    private Map<String, Object> writeoffPayload(LitemallOrderAggregate order) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", order.getOrderId().getId());
+        data.put("orderSn", order.getOrderSn());
+        data.put("orderStatus", order.getOrderStatus().getCode());
+        data.put("orderStatusText", order.getOrderStatus().getDisplayName());
+        data.put("deliveryType", order.getDeliveryType());
+        data.put("consignee", order.getConsignee());
+        data.put("mobile", order.getMobile());
+        data.put("actualPrice", order.getActualPrice() == null ? null : order.getActualPrice().getAmount());
+        data.put("storeId", order.getStoreId());
+        org.linlinjava.litemall.db.domain.LitemallStore store = storeServiceLayer.findById(order.getStoreId());
+        data.put("storeName", store == null ? null : store.getName());
+        data.put("verifyTime", order.getVerifyTime());
+        data.put("verifiedBy", order.getVerifiedBy());
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (LitemallOrderGoodsAggregate g : orderGoodsRepository.findByOId(order.getOrderId())) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("goodsName", g.getGoodsName());
+            item.put("number", g.getNumber());
+            item.put("specifications", g.getSpecifications());
+            items.add(item);
+        }
+        data.put("items", items);
+        return data;
+    }
+
     // ---- CJ (Wave 3) ----------------------------------------------------------------
 
     /**
@@ -224,6 +304,10 @@ public class LitemallAdminOrderController {
         row.put("userId", o.getUserId() == null ? null : o.getUserId().getId());
         row.put("consignee", o.getConsignee());
         row.put("mobile", o.getMobile());
+        // Wave 4: delivery mode + fulfillment source so the admin list can badge
+        // pickup orders (write-off flow) and dropship orders.
+        row.put("deliveryType", o.getDeliveryType());
+        row.put("source", o.getSource());
         return row;
     }
 

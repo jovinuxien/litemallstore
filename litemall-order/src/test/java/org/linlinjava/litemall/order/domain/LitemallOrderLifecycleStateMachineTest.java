@@ -34,12 +34,37 @@ class LitemallOrderLifecycleStateMachineTest {
     }
 
     @Test
-    void paidGoesToShippedOrRefundRequest_neverHardCancel() {
+    void paidGoesToShippedDeliveredOrRefundRequest_neverHardCancel() {
         assertTrue(PAID.canTransitionTo(SHIPPED));
         assertTrue(PAID.canTransitionTo(REFUND_REQUEST));
+        // Wave 4: pickup write-off delivers a paid order over the counter. The REAL
+        // guards are the aggregate's pickup/SHIPPED gates + the conditional
+        // order_status=201 UPDATE — the graph only rules out impossible hops.
+        assertTrue(PAID.canTransitionTo(DELIVERED));
         // policy: a paid order is unwound via refund, not hard-cancel
         assertFalse(PAID.canTransitionTo(CANCELED));
         assertFalse(PAID.canTransitionTo(SYSTEM_CANCELED));
+    }
+
+    @Test
+    void writeOffDeliversPaidPickupOrder_andGuardsNonPickup() {
+        LitemallOrderAggregate pickup = orderIn(PAID);
+        pickup.setDeliveryType(LitemallOrderAggregate.DELIVERY_PICKUP);
+        pickup.writeOff("admin:7");
+        assertEquals(DELIVERED, pickup.getOrderStatus());
+        assertNotNull(pickup.getVerifyTime());
+        assertEquals("admin:7", pickup.getVerifiedBy());
+        assertEquals("writeoff", pickup.getStatusChanges().get(0).getChangeType());
+        assertFalse(pickup.getDomainEvents().isEmpty());
+
+        // express order: never write-off-able, even though the graph allows PAID→DELIVERED
+        LitemallOrderAggregate express = orderIn(PAID);
+        express.setDeliveryType(LitemallOrderAggregate.DELIVERY_EXPRESS);
+        assertThrows(IllegalStateException.class, () -> express.writeOff("admin:7"));
+        // unpaid pickup order: no redeemable state yet
+        LitemallOrderAggregate unpaid = orderIn(CREATED);
+        unpaid.setDeliveryType(LitemallOrderAggregate.DELIVERY_PICKUP);
+        assertThrows(IllegalStateException.class, () -> unpaid.writeOff("admin:7"));
     }
 
     @Test
@@ -53,8 +78,16 @@ class LitemallOrderLifecycleStateMachineTest {
     @Test
     void refundRequestGoesToRefunded_andTerminalsGoNowhere() {
         assertTrue(REFUND_REQUEST.canTransitionTo(REFUNDED));
+        // DELIVERED/AUTO_DELIVERED are NOT terminal since the aftersale/RMA wave:
+        // a received order can still be unwound through REFUND_REQUEST (and only that).
+        for (LitemallOrderStatus received : new LitemallOrderStatus[]{DELIVERED, AUTO_DELIVERED}) {
+            for (LitemallOrderStatus to : LitemallOrderStatus.values()) {
+                assertEquals(to == REFUND_REQUEST, received.canTransitionTo(to),
+                        received + " -> " + to);
+            }
+        }
         for (LitemallOrderStatus terminal : new LitemallOrderStatus[]{
-                DELIVERED, AUTO_DELIVERED, CANCELED, SYSTEM_CANCELED, REFUNDED}) {
+                CANCELED, SYSTEM_CANCELED, REFUNDED}) {
             for (LitemallOrderStatus to : LitemallOrderStatus.values()) {
                 assertFalse(terminal.canTransitionTo(to),
                         terminal + " must be terminal but allowed " + to);
