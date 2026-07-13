@@ -269,6 +269,12 @@ public class LitemallAdminOrderController {
         } catch (IllegalStateException e) {
             // Race: the order left CREATED between the pre-check and the guarded UPDATE.
             return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422, e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException e) {
+            // The live-fired CJ replay was rejected: the whole transaction rolled back
+            // (order still CREATED, no pay_id — live-verified). Surface it as the same
+            // clean refusal the customer pay path gives a CJ rejection, not a raw 502.
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422,
+                    "CJ rejected the order — nothing was marked paid: " + e.getMessage()));
         }
     }
 

@@ -191,13 +191,13 @@ public class LitemallOrderOrchestratorService {
         // transaction rollback-only and surface as a 502 instead of this clean 422.
         try {
             String orderSource = orderSourceResolver.resolve(checkedItems);
-            if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
-                cjOrderAvailabilityChecker.assertAllFulfillable(checkedItems);
-            }
             // Pickup pre-checks (Wave 4, Task B) — ALL pickup 422s fire HERE, outside
             // the transactional placeOrder (the in-TX-422→502 landmine): kill-switch,
             // CJ-in-cart, store missing/hidden, blank pickup contact. placeOrder keeps
             // typed safety-net copies (LitemallPickupException, rethrown below).
+            // Deliberately BEFORE the CJ availability gate: a pickup submit with CJ
+            // lines is doomed regardless of CJ stock — reject it with the accurate
+            // message and without spending a live CJ API call on it.
             if (command.isPickup()) {
                 if (!pickupEnabled) {
                     return LitemallOrderOperationResult.submitFailed(
@@ -216,6 +216,9 @@ public class LitemallOrderOrchestratorService {
                     return LitemallOrderOperationResult.submitFailed(
                             "Pickup contact name and mobile are required.");
                 }
+            }
+            if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+                cjOrderAvailabilityChecker.assertAllFulfillable(checkedItems);
             }
         } catch (LitemallOrderServiceException e) {
             return LitemallOrderOperationResult.submitFailed(e.getMessage());

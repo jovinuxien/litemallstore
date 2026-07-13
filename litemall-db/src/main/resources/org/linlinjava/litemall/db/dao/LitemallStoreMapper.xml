@@ -40,23 +40,26 @@
        latitude, longitude, business_hours, is_show,
        add_time, update_time, deleted)
     values
-      (#{name}, #{intro}, #{phone}, #{address}, #{detailedAddress}, #{logo},
-       #{latitude}, #{longitude}, #{businessHours}, #{isShow},
+      <!-- string columns are NOT NULL DEFAULT '' (V35): coalesce so a partial admin
+           payload (e.g. no logo) inserts the schema default instead of NULL -->
+      (#{name}, coalesce(#{intro}, ''), coalesce(#{phone}, ''), coalesce(#{address}, ''),
+       coalesce(#{detailedAddress}, ''), coalesce(#{logo}, ''),
+       #{latitude}, #{longitude}, coalesce(#{businessHours}, ''), coalesce(#{isShow}, 1),
        now(), now(), 0)
   </insert>
 
   <update id="update" parameterType="org.linlinjava.litemall.db.domain.LitemallStore">
     update litemall_store
     set name = #{name},
-        intro = #{intro},
-        phone = #{phone},
-        address = #{address},
-        detailed_address = #{detailedAddress},
-        logo = #{logo},
+        intro = coalesce(#{intro}, ''),
+        phone = coalesce(#{phone}, ''),
+        address = coalesce(#{address}, ''),
+        detailed_address = coalesce(#{detailedAddress}, ''),
+        logo = coalesce(#{logo}, ''),
         latitude = #{latitude},
         longitude = #{longitude},
-        business_hours = #{businessHours},
-        is_show = #{isShow},
+        business_hours = coalesce(#{businessHours}, ''),
+        is_show = coalesce(#{isShow}, 1),
         update_time = now()
     where id = #{id} and deleted = 0
   </update>
