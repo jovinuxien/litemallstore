@@ -88,7 +88,7 @@ const FreightPreviewWidget: React.FC<{ tempId: number }> = ({ tempId }) => {
             <input className='form-control form-control-sm' type='number' min='1' value={quantity} onChange={e => setQuantity(e.target.value)} />
           </div>
           <div className='col-md-2'>
-            <label className='form-label small mb-1'>Weight (optional)</label>
+            <label className='form-label small mb-1'>Order amount (optional)</label>
             <input className='form-control form-control-sm' type='number' step='0.01' min='0' value={weight} onChange={e => setWeight(e.target.value)} />
           </div>
           <div className='col-md-3'>
