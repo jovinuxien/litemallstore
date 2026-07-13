@@ -2,15 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { authApi, isMissingEndpoint, userApi } from 'app/shared/api';
+import { authApi, userApi } from 'app/shared/api';
 import './user.scss';
 
 /**
  * Profile view/edit against the auth edge (Wave 4 Task A): reads
  * `GET /auth/me`, saves via `POST /auth/profile` (partial update). The avatar
- * is uploaded as a file through `POST /srv/storage/upload`
- * (goods-management Wave 4) — until that endpoint lands, the file input
- * degrades to a plain URL field (isMissingEndpoint guard).
+ * is uploaded as a file through `POST /srv/storage/upload` (goods-management
+ * Wave 4 — LIVE, verified 2026-07-13; the isMissingEndpoint URL-field
+ * fallback was removed).
  */
 const Profile: React.FC = () => {
   const [nickname, setNickname] = useState('');
@@ -22,8 +22,6 @@ const Profile: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mobileTaken, setMobileTaken] = useState(false);
-  // Falls back to a URL text field when /srv/storage/upload is not live yet.
-  const [uploadUnavailable, setUploadUnavailable] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -55,12 +53,8 @@ const Profile: React.FC = () => {
       } else {
         setError('Upload succeeded but returned no URL.');
       }
-    } catch (err) {
-      if (isMissingEndpoint(err)) {
-        setUploadUnavailable(true);
-      } else {
-        setError('Avatar upload failed.');
-      }
+    } catch {
+      setError('Avatar upload failed.');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -126,20 +120,11 @@ const Profile: React.FC = () => {
                   <img src={avatar} alt='avatar' style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%' }} />
                 </div>
               )}
-              {!uploadUnavailable ? (
-                <>
-                  <Form.Control ref={fileRef} type='file' accept='image/*' onChange={pickAvatar} disabled={uploading} />
-                  {uploading && (
-                    <Form.Text className='text-muted'>
-                      <Spinner animation='border' size='sm' /> Uploading…
-                    </Form.Text>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Form.Control value={avatar} onChange={e => setAvatar(e.target.value)} placeholder='https://…' />
-                  <Form.Text className='text-muted'>Image upload isn’t available yet — paste an image URL.</Form.Text>
-                </>
+              <Form.Control ref={fileRef} type='file' accept='image/*' onChange={pickAvatar} disabled={uploading} />
+              {uploading && (
+                <Form.Text className='text-muted'>
+                  <Spinner animation='border' size='sm' /> Uploading…
+                </Form.Text>
               )}
             </Form.Group>
             <Form.Group className='mb-3'>

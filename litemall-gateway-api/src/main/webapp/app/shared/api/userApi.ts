@@ -78,8 +78,8 @@ export interface PageParams {
 export const userApi = {
   // Customer image upload (avatar, review/feedback photos) — goods-management
   // Wave 4 Task A.2 (POST /srv/storage/upload, X-User-Id required, 5 MB cap,
-  // magic-byte image whitelist). Callers keep an isMissingEndpoint guard until
-  // it lands. The response mirrors legacy WxStorageController: {url, ...}.
+  // magic-byte image whitelist). LIVE (Wave-4 merge, verified 2026-07-13).
+  // The response mirrors legacy WxStorageController: {url, ...}.
   storageUpload: (file: File) => {
     const fd = new FormData();
     fd.append('file', file);

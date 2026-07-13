@@ -118,7 +118,8 @@ export const contentApi = {
     unwrap<{ list: IGrouponItem[]; total: number }>(baseAxios.get(`${SRV}/groupon/list`, { params })),
 
   // Article CMS — goods-management Wave 4 (handoff-content-endpoints.md §1).
-  // Callers degrade via isMissingEndpoint until that branch merges + runs.
+  // LIVE (Wave-4 merge, verified 2026-07-13); callers keep a graceful
+  // empty-state on transient failure.
   articleList: (page = 1, limit = 10, categoryId?: number, hotOnly?: boolean) =>
     unwrap<{ list: IArticle[]; total: number }>(
       baseAxios.get(`${SRV}/article/list`, { params: { page, limit, categoryId, hotOnly: hotOnly || undefined } })

@@ -1,14 +1,14 @@
 import React, { useRef, useState } from 'react';
 import { Form, Spinner } from 'react-bootstrap';
 
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { userApi } from 'app/shared/api';
 
 /**
  * Shared image uploader: file picker → `POST /srv/storage/upload`
  * (goods-management Wave 4 — requires login, 5 MB cap, image-only magic-byte
- * whitelist) with thumbnail previews + remove. Until that endpoint merges and
- * runs, isMissingEndpoint flips the control to a comma-separated URL text
- * input (the previous ReviewForm pattern) so forms stay usable.
+ * whitelist) with thumbnail previews + remove. The endpoint is LIVE (Wave-4
+ * merge, verified 2026-07-13); the old isMissingEndpoint URL-text fallback
+ * was removed.
  */
 interface Props {
   value: string[];
@@ -21,8 +21,6 @@ interface Props {
 const ImageUploader: React.FC<Props> = ({ value, onChange, max = 5, disabled }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Fallback when /srv/storage/upload is not live yet (goods-management Wave 4 merge).
-  const [urlMode, setUrlMode] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,40 +36,13 @@ const ImageUploader: React.FC<Props> = ({ value, onChange, max = 5, disabled }) 
       } else {
         setError('Upload returned no URL.');
       }
-    } catch (err) {
-      if (isMissingEndpoint(err)) {
-        setUrlMode(true);
-      } else {
-        setError('Image upload failed (max 5 MB, images only).');
-      }
+    } catch {
+      setError('Image upload failed (max 5 MB, images only).');
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
-
-  if (urlMode) {
-    return (
-      <>
-        <Form.Control
-          size='sm'
-          placeholder='Image URLs (optional, comma-separated)'
-          value={value.join(', ')}
-          onChange={e =>
-            onChange(
-              e.target.value
-                .split(/[\n,]/)
-                .map(s => s.trim())
-                .filter(Boolean)
-                .slice(0, max)
-            )
-          }
-          disabled={disabled}
-        />
-        <Form.Text className='text-muted'>Image upload isn’t available yet — paste image URLs.</Form.Text>
-      </>
-    );
-  }
 
   return (
     <div>
