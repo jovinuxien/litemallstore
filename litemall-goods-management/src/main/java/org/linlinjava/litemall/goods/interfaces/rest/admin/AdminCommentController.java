@@ -7,10 +7,12 @@ import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.db.domain.LitemallComment;
 import org.linlinjava.litemall.db.service.LitemallCommentService;
+import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsServiceResponseCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -47,4 +49,57 @@ public class AdminCommentController {
         return ResponseUtil.ok();
     }
 
+    /**
+     * One-shot admin reply to a customer comment (litemall-admin-api {@code /admin/comment/reply}
+     * parity): a comment can be replied to exactly once — a second attempt returns errno
+     * {@link GoodsServiceResponseCode#ORDER_REPLY_EXIST} (622).
+     */
+    @PostMapping("/reply")
+    public Object reply(@RequestBody ReplyRequest body) {
+        if (body == null || body.getCommentId() == null
+                || body.getContent() == null || body.getContent().isBlank()) {
+            return ResponseUtil.badArgument();
+        }
+        // admin_content is varchar(511).
+        if (body.getContent().length() > 511) {
+            return ResponseUtil.badArgumentValue();
+        }
+        LitemallComment comment = commentService.findById(body.getCommentId());
+        // findById is selectByPrimaryKey — it does NOT filter deleted, so check it here.
+        if (comment == null || Boolean.TRUE.equals(comment.getDeleted())) {
+            return ResponseUtil.badArgumentValue();
+        }
+        if (comment.getAdminContent() != null && !comment.getAdminContent().isEmpty()) {
+            return ResponseUtil.fail(GoodsServiceResponseCode.ORDER_REPLY_EXIST,
+                    "the comment has already been replied to");
+        }
+        comment.setAdminContent(body.getContent());
+        comment.setUpdateTime(LocalDateTime.now());
+        if (commentService.updateById(comment) == 0) {
+            return ResponseUtil.updatedDataFailed();
+        }
+        return ResponseUtil.ok();
+    }
+
+    /** Body of {@code POST /reply}: {@code {"commentId": 1, "content": "..."}}. */
+    public static class ReplyRequest {
+        private Integer commentId;
+        private String content;
+
+        public Integer getCommentId() {
+            return commentId;
+        }
+
+        public void setCommentId(Integer commentId) {
+            this.commentId = commentId;
+        }
+
+        public String getContent() {
+            return content;
+        }
+
+        public void setContent(String content) {
+            this.content = content;
+        }
+    }
 }
