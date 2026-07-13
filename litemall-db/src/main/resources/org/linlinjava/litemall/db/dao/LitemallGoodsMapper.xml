@@ -31,6 +31,9 @@
     <result column="listed_num" jdbcType="INTEGER" property="listedNum" />
     <result column="review_count" jdbcType="INTEGER" property="reviewCount" />
     <result column="rating" jdbcType="DECIMAL" property="rating" />
+    <result column="temp_id" jdbcType="INTEGER" property="tempId" />
+    <result column="weight" jdbcType="DECIMAL" property="weight" />
+    <result column="volume" jdbcType="DECIMAL" property="volume" />
   </resultMap>
   <resultMap extends="BaseResultMap" id="ResultMapWithBLOBs" type="org.linlinjava.litemall.db.domain.LitemallGoods">
     <!--
@@ -150,7 +153,8 @@
     -->
     id, goods_sn, `name`, category_id, brand_id, gallery, keywords, brief, is_on_sale,
     sort_order, pic_url, share_url, is_new, is_hot, unit, counter_price, retail_price,
-    add_time, update_time, deleted, source, cj_pid, listed_num, review_count, rating
+    add_time, update_time, deleted, source, cj_pid, listed_num, review_count, rating,
+    temp_id, weight, volume
   </sql>
   <sql id="Blob_Column_List">
     <!--
@@ -312,14 +316,16 @@
       sort_order, pic_url, share_url, 
       is_new, is_hot, unit, counter_price, 
       retail_price, add_time, update_time,
-      deleted, detail, source, cj_pid)
+      deleted, detail, source, cj_pid,
+      temp_id, weight, volume)
     values (#{goodsSn,jdbcType=VARCHAR}, #{name,jdbcType=VARCHAR}, #{categoryId,jdbcType=INTEGER},
       #{brandId,jdbcType=INTEGER}, #{gallery,jdbcType=VARCHAR,typeHandler=org.linlinjava.litemall.db.mybatis.JsonStringArrayTypeHandler},
       #{keywords,jdbcType=VARCHAR}, #{brief,jdbcType=VARCHAR}, #{isOnSale,jdbcType=BIT},
       #{sortOrder,jdbcType=SMALLINT}, #{picUrl,jdbcType=VARCHAR}, #{shareUrl,jdbcType=VARCHAR},
       #{isNew,jdbcType=BIT}, #{isHot,jdbcType=BIT}, #{unit,jdbcType=VARCHAR}, #{counterPrice,jdbcType=DECIMAL},
       #{retailPrice,jdbcType=DECIMAL}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP},
-      #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR}, #{source,jdbcType=VARCHAR}, #{cjPid,jdbcType=VARCHAR})
+      #{deleted,jdbcType=BIT}, #{detail,jdbcType=LONGVARCHAR}, #{source,jdbcType=VARCHAR}, #{cjPid,jdbcType=VARCHAR},
+      #{tempId,jdbcType=INTEGER}, #{weight,jdbcType=DECIMAL}, #{volume,jdbcType=DECIMAL})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallGoods">
     <!--
@@ -397,6 +403,15 @@
       <if test="cjPid != null">
         cj_pid,
       </if>
+      <if test="tempId != null">
+        temp_id,
+      </if>
+      <if test="weight != null">
+        weight,
+      </if>
+      <if test="volume != null">
+        volume,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="goodsSn != null">
@@ -464,6 +479,15 @@
       </if>
       <if test="cjPid != null">
         #{cjPid,jdbcType=VARCHAR},
+      </if>
+      <if test="tempId != null">
+        #{tempId,jdbcType=INTEGER},
+      </if>
+      <if test="weight != null">
+        #{weight,jdbcType=DECIMAL},
+      </if>
+      <if test="volume != null">
+        #{volume,jdbcType=DECIMAL},
       </if>
     </trim>
   </insert>
@@ -547,6 +571,15 @@
       <if test="row.detail != null">
         detail = #{row.detail,jdbcType=LONGVARCHAR},
       </if>
+      <if test="row.tempId != null">
+        temp_id = #{row.tempId,jdbcType=INTEGER},
+      </if>
+      <if test="row.weight != null">
+        weight = #{row.weight,jdbcType=DECIMAL},
+      </if>
+      <if test="row.volume != null">
+        volume = #{row.volume,jdbcType=DECIMAL},
+      </if>
     </set>
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -578,7 +611,10 @@
       add_time = #{row.addTime,jdbcType=TIMESTAMP},
       update_time = #{row.updateTime,jdbcType=TIMESTAMP},
       deleted = #{row.deleted,jdbcType=BIT},
-      detail = #{row.detail,jdbcType=LONGVARCHAR}
+      detail = #{row.detail,jdbcType=LONGVARCHAR},
+      temp_id = #{row.tempId,jdbcType=INTEGER},
+      weight = #{row.weight,jdbcType=DECIMAL},
+      volume = #{row.volume,jdbcType=DECIMAL}
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -608,7 +644,10 @@
       retail_price = #{row.retailPrice,jdbcType=DECIMAL},
       add_time = #{row.addTime,jdbcType=TIMESTAMP},
       update_time = #{row.updateTime,jdbcType=TIMESTAMP},
-      deleted = #{row.deleted,jdbcType=BIT}
+      deleted = #{row.deleted,jdbcType=BIT},
+      temp_id = #{row.tempId,jdbcType=INTEGER},
+      weight = #{row.weight,jdbcType=DECIMAL},
+      volume = #{row.volume,jdbcType=DECIMAL}
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -686,6 +725,15 @@
       <if test="cjPid != null">
         cj_pid = #{cjPid,jdbcType=VARCHAR},
       </if>
+      <if test="tempId != null">
+        temp_id = #{tempId,jdbcType=INTEGER},
+      </if>
+      <if test="weight != null">
+        weight = #{weight,jdbcType=DECIMAL},
+      </if>
+      <if test="volume != null">
+        volume = #{volume,jdbcType=DECIMAL},
+      </if>
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>
@@ -714,7 +762,10 @@
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
       deleted = #{deleted,jdbcType=BIT},
-      detail = #{detail,jdbcType=LONGVARCHAR}
+      detail = #{detail,jdbcType=LONGVARCHAR},
+      temp_id = #{tempId,jdbcType=INTEGER},
+      weight = #{weight,jdbcType=DECIMAL},
+      volume = #{volume,jdbcType=DECIMAL}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <update id="updateByPrimaryKey" parameterType="org.linlinjava.litemall.db.domain.LitemallGoods">
@@ -741,7 +792,10 @@
       retail_price = #{retailPrice,jdbcType=DECIMAL},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
-      deleted = #{deleted,jdbcType=BIT}
+      deleted = #{deleted,jdbcType=BIT},
+      temp_id = #{tempId,jdbcType=INTEGER},
+      weight = #{weight,jdbcType=DECIMAL},
+      volume = #{volume,jdbcType=DECIMAL}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallGoodsExample" resultMap="BaseResultMap">

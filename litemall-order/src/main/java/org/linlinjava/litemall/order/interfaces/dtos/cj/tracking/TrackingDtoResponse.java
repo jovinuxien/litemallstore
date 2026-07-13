@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.interfaces.dtos.cj.tracking;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -35,6 +36,14 @@ public class TrackingDtoResponse {
     private String lastMileCarrier;
     private String lastTrackNumber;
     private List<Event> events;
+    /**
+     * Advisory hint for LOCAL orders only (Wave 4): {@code "tracking provider disabled"} or
+     * {@code "tracking temporarily unavailable"}. Never set on CJ payloads. FIELD-level
+     * NON_NULL on purpose: the class serializes nulls today, and keeping this the only
+     * conditionally-present field leaves ALL pre-Wave-4 payloads byte-identical.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String note;
 
     @Data
     @AllArgsConstructor

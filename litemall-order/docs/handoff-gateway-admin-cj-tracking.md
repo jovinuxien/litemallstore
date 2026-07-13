@@ -50,17 +50,41 @@ Not shipped yet (NOT an error — render a "not shipped" state):
 
 Degrades to be aware of (all errno 0, never a 5xx):
 - **CJ unreachable / CJ has no data yet** for a shipped CJ order → `shipped:true`,
-  `trackNumber` + `carrier` set, `status:null`, `events:[]`. Render "tracking details
-  temporarily unavailable", not an error.
-- **Locally-fulfilled order** (`source='local'`) that an admin shipped by hand → same
-  shape: `shipped:true` with carrier/trackNumber but no live events (there is no live
-  tracking source for arbitrary local carriers).
+  `trackNumber` + `carrier` set, `status:null`, `events:[]`, no `note`. Render "tracking
+  details temporarily unavailable", not an error.
+- **Locally-fulfilled order** (`source='local'`) that an admin shipped by hand →
+  ~~same shape: `shipped:true` with carrier/trackNumber but no live events (there is no
+  live tracking source for arbitrary local carriers)~~ **superseded by Wave 4 (Task D):**
+  local shipped orders CAN now return real live events when an express provider is
+  enabled (`litemall.order.express.provider: kdniao|onepass`, Caffeine-cached ~30min) —
+  same `shipped:true` + `status` + `carrier` + `events[]` shape as the CJ example above
+  (the local `events[]` may hold a full per-hop list, and origin/destination/deliveryDay/
+  lastMile* stay null). When the provider is disabled or has no data, the payload keeps
+  the old carrier+trackNumber shape and adds a `note` (below).
+
+## `note` field (Wave 4, LOCAL orders only)
+
+Nullable `note` on the tracking payload, present ONLY on locally-fulfilled shipped orders
+(CJ payloads NEVER carry it; when null it is omitted from the JSON entirely):
+
+| `note` | Meaning |
+|---|---|
+| `"tracking provider disabled"` | no express provider configured (`express.provider: none`) — carrier/trackNumber are still valid, there will never be live events until one is enabled |
+| `"tracking temporarily unavailable"` | a provider IS enabled but returned nothing (no data yet, or provider error) — worth re-rendering later |
+
+SPA notes:
+- Treat **missing `note` + empty `events` on a shipped LOCAL order** as loading/pending
+  provider data (a later render may fill events), not as a terminal "no tracking" state.
+- Render the `note` text as a muted hint under the carrier/tracking number, never as an
+  error banner.
 
 CJ reports summary-level tracking only (no per-hop array), so `events` currently holds
 ONE synthesized entry (current status + latest-event time). The array shape is
 deliberate — render it as a list so per-hop detail can land without an SPA change.
 
-Field nullability: everything except `shipped` and `events` may be null.
+Field nullability: everything except `shipped` and `events` may be null. All null fields
+are serialized as `null` EXCEPT `note`, which is omitted when null (field-level NON_NULL —
+keeps every pre-Wave-4 payload byte-identical).
 
 ## Balance payload (`data`)
 

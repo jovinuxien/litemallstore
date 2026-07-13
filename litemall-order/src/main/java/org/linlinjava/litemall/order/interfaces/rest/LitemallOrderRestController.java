@@ -37,33 +37,73 @@ public class LitemallOrderRestController {
 
     private final LitemallOrderOrchestratorService orderOrchestrationService;
     private final CjFreightQuoteService cjFreightQuoteService;
-    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    private final org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService;
+    // Wave 4 (Task A): the single freight authority + the owner-scoped address read the
+    // quote endpoint uses to resolve the destination province for region matching.
+    private final org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService;
+    private final org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer addressServiceLayer;
 
     public LitemallOrderRestController(LitemallOrderOrchestratorService orderOrchestrationService,
                                        CjFreightQuoteService cjFreightQuoteService,
-                                       org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
+                                       org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService,
+                                       org.linlinjava.litemall.order.application.internal.FreightCalculationService freightCalculationService,
+                                       org.linlinjava.litemall.order.application.internal.LitemallAddressServiceLayer addressServiceLayer) {
         this.orderOrchestrationService = orderOrchestrationService;
         this.cjFreightQuoteService = cjFreightQuoteService;
-        this.cjTrackingService = cjTrackingService;
+        this.orderTrackingService = orderTrackingService;
+        this.freightCalculationService = freightCalculationService;
+        this.addressServiceLayer = addressServiceLayer;
     }
 
     /**
-     * Checkout freight/logistics quote. {@code freightPrice} mirrors the exact rule submit
-     * charges (free at/above {@code litemall_express_freight_min}, else the flat
-     * {@code litemall_express_freight_value}); the CJ block is an informational carrier +
-     * delivery-time estimate for CJ cart groups. CJ problems degrade to {@code cj:null} +
-     * {@code cjNote} — this endpoint never fails a checkout.
+     * Checkout freight/logistics quote. {@code freightPrice} is priced by the SAME
+     * {@code FreightCalculationService} the submit path charges through (Wave 4), so
+     * quote and submit always agree: template ladder when {@code freight.template.enabled},
+     * legacy flat rule otherwise. {@code source} + {@code breakdown} explain the figure.
+     * The CJ block is an informational carrier + delivery-time estimate for CJ cart
+     * groups (CJ carts skip templates). CJ problems degrade to {@code cj:null} +
+     * {@code cjNote} — this endpoint never fails a checkout for freight reasons.
+     *
+     * <p>Identity: {@code X-User-Id} is OPTIONAL — anonymous quotes must keep working.
+     * The optional {@code addressId} (destination province for region matching) is
+     * owner-scoped: an addressId the caller doesn't own — including any addressId on an
+     * anonymous call — is errno 605, never another user's address.
      */
     @PostMapping("/freight-quote")
-    public ApiResponse<FreightQuoteDtoResponse> freightQuote(@RequestBody FreightQuoteRequest request) {
+    public ApiResponse<FreightQuoteDtoResponse> freightQuote(
+            @RequestHeader(value = "X-User-Id", required = false) Integer userId,
+            @RequestBody FreightQuoteRequest request) {
         java.math.BigDecimal subtotal = request.getSubtotal() != null ? request.getSubtotal() : java.math.BigDecimal.ZERO;
-        java.math.BigDecimal freightPrice = subtotal.compareTo(SystemConfig.getFreightLimit()) < 0
-                ? SystemConfig.getFreight() : java.math.BigDecimal.ZERO;
+
+        // Resolve the destination province from the owner-scoped address book entry.
+        String provinceName = null;
+        if (request.getAddressId() != null) {
+            if (userId == null) {
+                return ApiResponse.fail(605, "Sign in to quote against a saved address");
+            }
+            var address = addressServiceLayer.detail(
+                    new LitemallUserId(userId),
+                    new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallAddressId(request.getAddressId()));
+            if (address == null) {
+                return ApiResponse.fail(605, "Address not found");
+            }
+            provinceName = address.getProvince();
+        }
+
+        boolean cjRequested = request.getCountryCode() != null && !request.getCountryCode().isBlank()
+                && request.getCjItems() != null && !request.getCjItems().isEmpty();
+
+        List<org.linlinjava.litemall.order.application.internal.FreightCalculationService.FreightLine> lines =
+                request.getItems() == null ? List.of() : request.getItems().stream()
+                        .filter(i -> i.getGoodsId() != null)
+                        .map(i -> new org.linlinjava.litemall.order.application.internal.FreightCalculationService.FreightLine(
+                                i.getGoodsId(), i.getQuantity() == null ? 0 : i.getQuantity(), i.getPrice()))
+                        .collect(Collectors.toList());
+        var freightQuote = freightCalculationService.quote(
+                lines, request.getCountryCode(), provinceName, subtotal, cjRequested);
 
         FreightQuoteDtoResponse.CjInfo cjInfo = null;
         String cjNote = null;
-        boolean cjRequested = request.getCountryCode() != null && !request.getCountryCode().isBlank()
-                && request.getCjItems() != null && !request.getCjItems().isEmpty();
         if (cjRequested) {
             CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(),
                     request.getCjItems().stream()
@@ -75,8 +115,8 @@ public class LitemallOrderRestController {
                 cjNote = "Logistics estimate unavailable right now";
             }
         }
-        return ApiResponse.ok(new FreightQuoteDtoResponse(
-                freightPrice, SystemConfig.getFreightLimit(), cjInfo, cjNote));
+        return ApiResponse.ok(FreightQuoteDtoResponse.fromQuote(
+                freightQuote, SystemConfig.getFreightLimit(), cjInfo, cjNote));
     }
 
     /**
@@ -152,7 +192,11 @@ public class LitemallOrderRestController {
                 command.getMessage(),
                 command.getGrouponRulesId(),
                 command.getGrouponLinkId(),
-                command.getCountryCode());
+                command.getCountryCode(),
+                command.getDeliveryType(),
+                command.getStoreId(),
+                command.getPickupName(),
+                command.getPickupMobile());
         try {
             LitemallOrderOperationResult result = orderOrchestrationService.createOrder(authoritativeCommand);
             return buildResponse(result);
@@ -167,6 +211,11 @@ public class LitemallOrderRestController {
             // redeem refused): rolled back, no order row, coupon untouched. The 422
             // message names the coupon — the SPA's inline "remove coupon and retry"
             // affordance keys on exactly that.
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException e) {
+            // Pickup precondition tripped inside the placement transaction (safety-net
+            // copy of the orchestrator pre-checks — e.g. store hidden mid-flight):
+            // rolled back, no order row. Same clean 422 as the pre-check zone.
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException e) {
             // Promotion down while the checkout carried a coupon: fail cleanly rather
@@ -299,7 +348,7 @@ public class LitemallOrderRestController {
             @RequestHeader("X-User-Id") Integer userId,
             @PathVariable Integer orderId) {
         org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
-                cjTrackingService.getTrackingForUser(new LitemallUserId(userId), new LitemallOrderId(orderId));
+                orderTrackingService.getTrackingForUser(new LitemallUserId(userId), new LitemallOrderId(orderId));
         if (dto == null) {
             return ApiResponse.fail(404, "Order not found");
         }

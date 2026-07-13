@@ -21,6 +21,14 @@ public class LitemallPlaceOrderCommand {
     // no country, but a CJ-fulfilled order needs one for createOrder at pay time.
     private final String countryCode;
 
+    // In-store pickup (Wave 4, Task B). deliveryType: null/"express" (default) or
+    // "pickup". Pickup requires storeId + pickupName + pickupMobile and makes
+    // addressId optional (freight 0, address column stores "PICKUP: <store name>").
+    private final String deliveryType;
+    private final Integer storeId;
+    private final String pickupName;
+    private final String pickupMobile;
+
     // Immutable command with final fields => no default ctor for Jackson to use.
     // Bind the @RequestBody through this constructor so /srv/order/submit can
     // deserialize the JSON body (userId is overridden from the gateway header).
@@ -33,7 +41,11 @@ public class LitemallPlaceOrderCommand {
                                      @JsonProperty("message") String message,
                                      @JsonProperty("grouponRulesId") Integer grouponRulesId,
                                      @JsonProperty("grouponLinkId") Integer grouponLinkId,
-                                     @JsonProperty("countryCode") String countryCode) {
+                                     @JsonProperty("countryCode") String countryCode,
+                                     @JsonProperty("deliveryType") String deliveryType,
+                                     @JsonProperty("storeId") Integer storeId,
+                                     @JsonProperty("pickupName") String pickupName,
+                                     @JsonProperty("pickupMobile") String pickupMobile) {
         this.userId = userId;
         this.cartId = cartId;
         this.addressId = addressId;
@@ -43,6 +55,23 @@ public class LitemallPlaceOrderCommand {
         this.grouponRulesId = grouponRulesId;
         this.grouponLinkId = grouponLinkId;
         this.countryCode = countryCode;
+        this.deliveryType = deliveryType;
+        this.storeId = storeId;
+        this.pickupName = pickupName;
+        this.pickupMobile = pickupMobile;
     }
 
+    /** Pre-Wave-4 shape (express delivery) — kept for existing callers and tests. */
+    public LitemallPlaceOrderCommand(Integer userId, Integer cartId, Integer addressId,
+                                     Integer couponId, Integer userCouponId, String message,
+                                     Integer grouponRulesId, Integer grouponLinkId,
+                                     String countryCode) {
+        this(userId, cartId, addressId, couponId, userCouponId, message,
+                grouponRulesId, grouponLinkId, countryCode, null, null, null, null);
+    }
+
+    /** True when the buyer chose in-store pickup. */
+    public boolean isPickup() {
+        return "pickup".equals(deliveryType);
+    }
 }

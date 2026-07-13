@@ -94,13 +94,47 @@ litemall:
     # (replaces Keycloak OIDC/resource-server). Dev default; config-server
     # overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+    # Anonymous paths served by THIS service (svcsecurity is deny-by-default and
+    # this list REPLACES the starter's defaults — which only cover goods-side
+    # paths anyway). /srv/store/** is the customer store directory (Wave 4,
+    # pickup): browsing stores needs no identity. Everything else (incl. all
+    # /srv/order/**) keeps requiring the gateway's machine token.
+    public-paths:
+      - /actuator/health/**
+      - /srv/store/**
   order:
+    # Wave 4 (Task B): in-store pickup kill-switch. Flipping to false 422s NEW
+    # pickup submits; existing pickup orders still read/write-off normally.
+    pickup-enabled: true
     # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
     unpaid-sweep-ms: 60000
     # CJ status-sync poll (Wave 3): every open CJ order is re-checked at this cadence,
     # batch-capped so a sweep stays inside CJ's ~1 QPS budget. See CjOrderStatusSyncScheduler.
     cj-sync-sweep-ms: 300000
     cj-sync-batch: 20
+    # Wave 4 (Task D): fulfillment seams — disabled by default. printer.provider:
+    # none|yly (yly needs client-id/client-secret/machine-code/machine-secret —
+    # supply via env, e.g. LITEMALL_ORDER_PRINTER_CLIENT_SECRET). express.provider:
+    # none|kdniao|onepass (kdniao rides litemall-core's ExpressService — its
+    # litemall.express.* keys in core's profile yml OUTRANK this file: enable via
+    # env vars; onepass needs account/secret env vars).
+    printer:
+      provider: none
+      auto-print: true
+      business-name: "litemall"
+    express:
+      provider: none
+      cache-minutes: 30
+
+# Freight templates (Wave 4, Task A — docs/adr-freight-templates.md). The CODE default
+# is enabled:false (legacy flat litemall_express_freight_min/value rule, byte-identical
+# to pre-Wave-4); dev turns the template ladder on. combine-mode: how one cart's
+# per-template groups combine — max (default, never worse than the worst group) or
+# sum (crmeb-exact, silently raises multi-template carts).
+freight:
+  template:
+    enabled: true
+    combine-mode: max
 
 server:
   port: 8085

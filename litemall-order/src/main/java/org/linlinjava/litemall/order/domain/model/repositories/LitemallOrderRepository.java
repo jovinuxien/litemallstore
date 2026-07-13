@@ -28,10 +28,13 @@ public interface LitemallOrderRepository {
     int countByOrderStatus(LitemallUserId userId, List<Short> orderStatus);
 
     /** Admin: page across ALL users' orders (not user-scoped). sortColumn must be a vetted DB column. */
-    List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus, int page, int limit, String sortColumn, String order);
+    List<LitemallOrderAggregate> adminQuery(String orderSn, List<Short> orderStatus,
+                                            java.time.LocalDateTime start, java.time.LocalDateTime end,
+                                            int page, int limit, String sortColumn, String order);
 
     /** Admin: total order count matching the same filters as {@link #adminQuery}. */
-    long adminCount(String orderSn, List<Short> orderStatus);
+    long adminCount(String orderSn, List<Short> orderStatus,
+                    java.time.LocalDateTime start, java.time.LocalDateTime end);
 
     void deleteByOrderId(LitemallOrderId orderId);
 
@@ -77,6 +80,23 @@ public interface LitemallOrderRepository {
     int markDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
 
     int markAutoDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
+
+    /**
+     * PAID → DELIVERED by pickup write-off (Wave 4): conditional UPDATE guarded on
+     * {@code order_status=201 AND verify_time IS NULL}, stamping verify_time/verified_by.
+     * 0 rows = a concurrent scan won / the order moved on — the caller loses cleanly.
+     */
+    int markDeliveredByWriteoff(LitemallOrderId orderId, String verifiedBy);
+
+    /**
+     * Assign the pickup verify code exactly once ({@code verify_code IS NULL} guard,
+     * Wave 4). Called inside the payment transaction; a UNIQUE collision with another
+     * order's code raises a duplicate-key exception — the caller regenerates and retries.
+     */
+    int assignVerifyCode(LitemallOrderId orderId, String verifyCode);
+
+    /** Lookup by pickup verify code (admin write-off scan; deleted rows excluded). */
+    java.util.Optional<LitemallOrderAggregate> findByVerifyCode(String verifyCode);
 
     /** PAID or SHIPPED → REFUND_REQUEST. */
     int markRefundRequestedIfPayable(LitemallOrderId orderId, String refundContent);

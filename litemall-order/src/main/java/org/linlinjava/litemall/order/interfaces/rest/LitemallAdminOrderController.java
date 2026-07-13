@@ -69,35 +69,61 @@ public class LitemallAdminOrderController {
     private final LitemallOrderOrchestratorService orchestrator;
     // ACL over CJ (Wave 3): account-balance readout for the admin dashboard/order list.
     private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade;
-    // Shipment tracking read (Wave 3): live CJ trackInfo for CJ orders, clean NOT_SHIPPED otherwise.
-    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    // Shipment tracking read (Wave 3, generalized Wave 4): live CJ trackInfo for CJ orders,
+    // express-seam events for local orders, clean NOT_SHIPPED otherwise.
+    private final org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService;
+    // Pickup stores (Wave 4): store name on the write-off counter payload.
+    private final org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
+    // CSV export + channel stat (Wave 4, Task C).
+    private final org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService;
+    // Receipt reprint + fulfillment-config readout (Wave 4, Task D).
+    private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort;
+    private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort;
+    private final org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
                                         LitemallOrderGoodsRepository orderGoodsRepository,
                                         LitemallOrderOrchestratorService orchestrator,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade,
-                                        org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService) {
+                                        org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService,
+                                        org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer,
+                                        org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService,
+                                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort,
+                                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort,
+                                        org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
         this.cjOrderFacade = cjOrderFacade;
-        this.cjTrackingService = cjTrackingService;
+        this.orderTrackingService = orderTrackingService;
+        this.storeServiceLayer = storeServiceLayer;
+        this.adminExtrasService = adminExtrasService;
+        this.receiptPrinterPort = receiptPrinterPort;
+        this.expressQueryPort = expressQueryPort;
+        this.fulfillmentProperties = fulfillmentProperties;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
 
-    /** Paged list of all orders. Returns the okList envelope { list, total, page, limit, pages }. */
+    /**
+     * Paged list of all orders. Returns the okList envelope { list, total, page, limit, pages }.
+     * start/end (Wave 4): optional placement-time window — ISO date or datetime, e.g.
+     * {@code start=2026-07-01&end=2026-07-14} (end exclusive); shared with /export.
+     */
     @GetMapping("/list")
     public Object list(String orderSn,
                        @RequestParam(required = false) List<Short> orderStatusArray,
+                       @RequestParam(required = false) String start,
+                       @RequestParam(required = false) String end,
                        @RequestParam(defaultValue = "1") Integer page,
                        @RequestParam(defaultValue = "10") Integer limit,
                        @RequestParam(defaultValue = "add_time") String sort,
                        @RequestParam(defaultValue = "desc") String order) {
         String sortColumn = SORT_COLUMNS.getOrDefault(sort, "add_time");
-        List<LitemallOrderAggregate> orders = orderRepository.adminQuery(orderSn, orderStatusArray, page, limit, sortColumn, order);
-        long total = orderRepository.adminCount(orderSn, orderStatusArray);
+        List<LitemallOrderAggregate> orders = orderRepository.adminQuery(
+                orderSn, orderStatusArray, parseTime(start), parseTime(end), page, limit, sortColumn, order);
+        long total = orderRepository.adminCount(orderSn, orderStatusArray, parseTime(start), parseTime(end));
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (LitemallOrderAggregate o : orders) {
@@ -180,6 +206,182 @@ public class LitemallAdminOrderController {
         return buildResponse(result);
     }
 
+    // ---- CSV export + offline pay + channel stat (Wave 4, Task C) ---------------------
+
+    /**
+     * Streamed CSV export: UTF-8 BOM + RFC-4180 rows, same filters as /list (orderSn,
+     * orderStatusArray, start/end, plus userId), keyset-paged id-asc with a lean
+     * projection, capped at {@code litemall.order.export.max-rows} with a
+     * {@code # TRUNCATED} trailer. Contract: docs/handoff-admin-order-export-stat.md.
+     */
+    @GetMapping("/export")
+    public void export(@RequestParam(required = false) Integer userId,
+                       @RequestParam(required = false) String orderSn,
+                       @RequestParam(required = false) List<Short> orderStatusArray,
+                       @RequestParam(required = false) String start,
+                       @RequestParam(required = false) String end,
+                       jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        response.setContentType("text/csv; charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename=\"orders-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".csv\"");
+        java.io.OutputStream os = response.getOutputStream();
+        // UTF-8 BOM so Excel opens the file with the right encoding.
+        os.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
+        java.io.Writer writer = new java.io.BufferedWriter(
+                new java.io.OutputStreamWriter(os, java.nio.charset.StandardCharsets.UTF_8));
+        adminExtrasService.streamExportCsv(writer, userId, orderSn, orderStatusArray,
+                parseTime(start), parseTime(end));
+        writer.flush();
+    }
+
+    /**
+     * Offline mark-paid (bank transfer / counter cash): CREATED → PAID with
+     * {@code pay_id = "OFFLINE:<reference|admin:ts>"} and an {@code admin_offline_pay}
+     * timeline marker. Pre-checked OUTSIDE the transaction: any non-CREATED order is a
+     * clean 422. <b>A CJ order marked paid live-fires the CJ createOrderV2 replay</b>
+     * (docs/adr-offline-mark-paid.md — the SPA confirm dialog must name it).
+     */
+    @PostMapping("/{orderId}/pay")
+    public Object offlinePay(@PathVariable Integer orderId,
+                             @RequestHeader(value = "X-User-Id", required = false) String adminUserId,
+                             @RequestBody(required = false) Map<String, String> body) {
+        LitemallOrderId id = new LitemallOrderId(orderId);
+        LitemallOrderAggregate order = orderRepository.findById(id).orElse(null);
+        if (order == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        // Pre-check OUTSIDE the orchestrator transaction (in-TX 422 = rollback-only 502).
+        if (order.getOrderStatus() != org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.CREATED) {
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422,
+                    "Only an unpaid (CREATED) order can be marked paid offline — this one is "
+                    + order.getOrderStatus().getDisplayName() + "."));
+        }
+        String reference = body == null ? null : body.get("reference");
+        try {
+            LitemallOrderOperationResult result = orchestrator.adminOfflinePay(id, reference, adminUserId);
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("id", orderId);
+            data.put("orderSn", order.getOrderSn());
+            data.put("payId", "OFFLINE:" + (reference == null || reference.isBlank()
+                    ? "(admin timestamp)" : reference.trim()));
+            data.put("success", result.isSuccess());
+            return ResponseUtil.ok(data);
+        } catch (IllegalStateException e) {
+            // Race: the order left CREATED between the pre-check and the guarded UPDATE.
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422, e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException e) {
+            // The live-fired CJ replay was rejected: the whole transaction rolled back
+            // (order still CREATED, no pay_id — live-verified). Surface it as the same
+            // clean refusal the customer pay path gives a CJ rejection, not a raw 502.
+            return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422,
+                    "CJ rejected the order — nothing was marked paid: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Sales-by-channel stat: {@code {bySource[], byTender[]}} over an optional
+     * placement-time window. Literal {@code stat/} segment — never collides with the
+     * {@code /{orderId}/...} mappings (the cj/balance trick). Closes the recorded
+     * {@code /srv/order/admin/stat} follow-up.
+     */
+    @GetMapping("/stat/channel")
+    public Object statChannel(@RequestParam(required = false) String start,
+                              @RequestParam(required = false) String end) {
+        return ResponseUtil.ok(adminExtrasService.statChannel(parseTime(start), parseTime(end)));
+    }
+
+    /** Lenient ISO parser: "2026-07-13", "2026-07-13T08:00:00" or with a space. Null-safe. */
+    private static LocalDateTime parseTime(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String v = value.trim().replace(' ', 'T');
+        try {
+            return v.length() <= 10
+                    ? java.time.LocalDate.parse(v).atStartOfDay()
+                    : LocalDateTime.parse(v);
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new IllegalArgumentException("Unparseable date '" + value
+                    + "' — use yyyy-MM-dd or yyyy-MM-dd'T'HH:mm:ss");
+        }
+    }
+
+    // ---- pickup write-off (核销, Wave 4) ----------------------------------------------
+
+    /**
+     * Preview a scanned pickup verify code WITHOUT redeeming it: shows the counter
+     * staff the order + line items so they hand over the right parcel. Literal path
+     * segment (never collides with the {@code /{orderId}/...} mappings). Three distinct
+     * 422s: unknown code / already verified / wrong state.
+     */
+    @GetMapping("/writeoff")
+    public Object writeoffPreview(@RequestParam String verifyCode) {
+        try {
+            LitemallOrderAggregate order = orchestrator.writeoffPreview(verifyCode);
+            return ResponseUtil.ok(writeoffPayload(order));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+            return writeoffError(e);
+        }
+    }
+
+    /**
+     * Redeem a verify code: PAID → DELIVERED with the {@code writeoff} timeline hop and
+     * a {@code verified_by = "admin:<X-User-Id>"} audit stamp. A double scan loses
+     * cleanly (ALREADY_VERIFIED, no state change).
+     */
+    @PostMapping("/writeoff")
+    public Object writeoffCommit(@RequestHeader(value = "X-User-Id", required = false) String adminUserId,
+                                 @RequestBody Map<String, String> body) {
+        String verifyCode = body.get("verifyCode");
+        if (verifyCode == null || verifyCode.isBlank()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(ResponseUtil.fail(422, "verifyCode is required"));
+        }
+        String verifiedBy = "admin:" + (adminUserId == null || adminUserId.isBlank() ? "unknown" : adminUserId);
+        try {
+            LitemallOrderAggregate order = orchestrator.writeoffCommit(verifyCode, verifiedBy);
+            return ResponseUtil.ok(writeoffPayload(order));
+        } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+            return writeoffError(e);
+        }
+    }
+
+    private Object writeoffError(
+            org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException e) {
+        // errno 422 + kind: the SPA can branch on kind while the errmsg names the exact
+        // problem (three distinct client errors, per the Task-B acceptance).
+        return ResponseEntity.unprocessableEntity()
+                .body(ResponseUtil.fail(422, "[" + e.getKind() + "] " + e.getMessage()));
+    }
+
+    /** Counter payload: order header + store + a lean line-item summary. */
+    private Map<String, Object> writeoffPayload(LitemallOrderAggregate order) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", order.getOrderId().getId());
+        data.put("orderSn", order.getOrderSn());
+        data.put("orderStatus", order.getOrderStatus().getCode());
+        data.put("orderStatusText", order.getOrderStatus().getDisplayName());
+        data.put("deliveryType", order.getDeliveryType());
+        data.put("consignee", order.getConsignee());
+        data.put("mobile", order.getMobile());
+        data.put("actualPrice", order.getActualPrice() == null ? null : order.getActualPrice().getAmount());
+        data.put("storeId", order.getStoreId());
+        org.linlinjava.litemall.db.domain.LitemallStore store = storeServiceLayer.findById(order.getStoreId());
+        data.put("storeName", store == null ? null : store.getName());
+        data.put("verifyTime", order.getVerifyTime());
+        data.put("verifiedBy", order.getVerifiedBy());
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (LitemallOrderGoodsAggregate g : orderGoodsRepository.findByOId(order.getOrderId())) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("goodsName", g.getGoodsName());
+            item.put("number", g.getNumber());
+            item.put("specifications", g.getSpecifications());
+            items.add(item);
+        }
+        data.put("items", items);
+        return data;
+    }
+
     // ---- CJ (Wave 3) ----------------------------------------------------------------
 
     /**
@@ -190,7 +392,7 @@ public class LitemallAdminOrderController {
     @GetMapping("/{orderId}/tracking")
     public Object tracking(@PathVariable Integer orderId) {
         org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
-                cjTrackingService.getTrackingForAdmin(new LitemallOrderId(orderId));
+                orderTrackingService.getTrackingForAdmin(new LitemallOrderId(orderId));
         return dto == null ? ResponseUtil.badArgumentValue() : ResponseUtil.ok(dto);
     }
 
@@ -212,6 +414,67 @@ public class LitemallAdminOrderController {
                 .orElseGet(() -> ResponseUtil.fail(502, "CJ balance unavailable"));
     }
 
+    // ---- receipt reprint + fulfillment config (Wave 4, Task D) ------------------------
+
+    /**
+     * Reprint the receipt of a PAID order (docs/handoff-gateway-admin-receipt-print.md).
+     * Unknown id → badArgumentValue; not paid yet / cancelled → 422 (a receipt documents a
+     * payment); printer provider {@code none} → HTTP 200 + errno 641 so the SPA can grey
+     * the button out; vendor rejection → errno 642. The reprint's {@code origin_id} is
+     * {@code <orderSn>-R<epochMillis>} — the auto-print already consumed the bare orderSn
+     * as its vendor-side exactly-once key, and a deliberate reprint must not be deduped
+     * away. No per-order cooldown yet (noted in docs/adr-fulfillment-seams.md).
+     */
+    @PostMapping("/{orderId}/print-receipt")
+    public Object printReceipt(@PathVariable Integer orderId) {
+        LitemallOrderAggregate order = orderRepository.findById(new LitemallOrderId(orderId)).orElse(null);
+        if (order == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus status =
+                order.getOrderStatus();
+        boolean cancelled = status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.CANCELED
+                || status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.SYSTEM_CANCELED;
+        boolean unpaid = order.getPayTime() == null && (status == null || status.getCode() < 201);
+        if (cancelled || unpaid) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(ResponseUtil.fail(422, "only paid orders have receipts"));
+        }
+        if (!receiptPrinterPort.enabled()) {
+            return ResponseUtil.fail(641, "receipt printer disabled");
+        }
+        String originId = order.getOrderSn() + "-R" + System.currentTimeMillis();
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.fulfillment.ReceiptPrintJob job =
+                org.linlinjava.litemall.order.application.internal.OrderPaidReceiptPrintListener.toJob(
+                        order, orderGoodsRepository.findByOId(order.getOrderId()),
+                        fulfillmentProperties.getPrinter().getBusinessName(), originId);
+        return receiptPrinterPort.print(job) == org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort.PrintOutcome.OK
+                ? ResponseUtil.ok()
+                : ResponseUtil.fail(642, "print failed");
+    }
+
+    /**
+     * Fulfillment-seam flags for the admin SPA — providers + enablement only, NEVER
+     * secrets. Literal {@code fulfillment/} segment (the cj/balance and stat/channel
+     * trick), so it never collides with the {@code /{orderId}/...} mappings.
+     */
+    @GetMapping("/fulfillment/config")
+    public Object fulfillmentConfig() {
+        Map<String, Object> printer = new LinkedHashMap<>();
+        printer.put("provider", fulfillmentProperties.getPrinter().getProvider());
+        printer.put("enabled", receiptPrinterPort.enabled());
+        printer.put("autoPrint", fulfillmentProperties.getPrinter().isAutoPrint());
+        printer.put("businessName", fulfillmentProperties.getPrinter().getBusinessName());
+        Map<String, Object> express = new LinkedHashMap<>();
+        express.put("provider", fulfillmentProperties.getExpress().getProvider());
+        express.put("enabled", expressQueryPort.enabled());
+        express.put("cacheMinutes", fulfillmentProperties.getExpress().getCacheMinutes());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("printer", printer);
+        data.put("express", express);
+        return ResponseUtil.ok(data);
+    }
+
     // ---- mapping helpers ------------------------------------------------------------
 
     private Map<String, Object> toRow(LitemallOrderAggregate o) {
@@ -224,6 +487,10 @@ public class LitemallAdminOrderController {
         row.put("userId", o.getUserId() == null ? null : o.getUserId().getId());
         row.put("consignee", o.getConsignee());
         row.put("mobile", o.getMobile());
+        // Wave 4: delivery mode + fulfillment source so the admin list can badge
+        // pickup orders (write-off flow) and dropship orders.
+        row.put("deliveryType", o.getDeliveryType());
+        row.put("source", o.getSource());
         return row;
     }
 

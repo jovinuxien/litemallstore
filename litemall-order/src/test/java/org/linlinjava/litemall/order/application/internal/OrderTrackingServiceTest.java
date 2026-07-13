@@ -1,4 +1,4 @@
-package org.linlinjava.litemall.order.application.internal.cj;
+package org.linlinjava.litemall.order.application.internal;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -7,12 +7,15 @@ import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepo
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjTrackingFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjTrackingSnapshot;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.fulfillment.ExpressTrackingSnapshot;
 import org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,13 +28,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link CjTrackingService}: owner scoping mirrors order detail (foreign/absent → null → 404),
- * an unshipped order is a clean NOT_SHIPPED payload (never an error), a shipped CJ order maps
- * the CJ summary into the event-list contract, CJ-no-data degrades to shipped-without-events,
- * and local orders never spend CJ quota.
+ * {@link OrderTrackingService} (ex-CjTrackingService): owner scoping mirrors order detail
+ * (foreign/absent → null → 404), an unshipped order is a clean NOT_SHIPPED payload (never
+ * an error), a shipped CJ order maps the CJ summary into the event-list contract with NO
+ * {@code note}, CJ-no-data degrades to shipped-without-events, and local orders never
+ * spend CJ quota. Wave 4: local shipped orders consult the {@link ExpressQueryPort} seam —
+ * disabled provider / provider miss note the payload, a hit fills real events.
  */
 @ExtendWith(MockitoExtension.class)
-class CjTrackingServiceTest {
+class OrderTrackingServiceTest {
 
     private static final LitemallUserId USER = new LitemallUserId(42);
     private static final LitemallOrderId ORDER = new LitemallOrderId(61);
@@ -40,9 +45,11 @@ class CjTrackingServiceTest {
     private LitemallOrderRepository orderRepository;
     @Mock
     private CjTrackingFacade trackingFacade;
+    @Mock
+    private ExpressQueryPort expressQueryPort;
 
     @InjectMocks
-    private CjTrackingService service;
+    private OrderTrackingService service;
 
     private LitemallOrderAggregate order(String source, String shipSn, String shipChannel) {
         LitemallOrderAggregate order = new LitemallOrderAggregate();
@@ -70,6 +77,7 @@ class CjTrackingServiceTest {
         assertFalse(dto.isShipped());
         assertEquals("NOT_SHIPPED", dto.getStatus());
         assertTrue(dto.getEvents().isEmpty());
+        assertNull(dto.getNote());
         verify(trackingFacade, never()).trackInfo(any());
     }
 
@@ -92,6 +100,9 @@ class CjTrackingServiceTest {
         assertEquals(1, dto.getEvents().size());
         assertEquals("2026-07-09 14:32:00", dto.getEvents().get(0).getTime());
         assertTrue(dto.getEvents().get(0).getDescription().contains("PostNord"));
+        // CJ payloads never carry the Wave-4 local-tracking note.
+        assertNull(dto.getNote());
+        verify(expressQueryPort, never()).query(any(), any());
     }
 
     @Test
@@ -107,18 +118,75 @@ class CjTrackingServiceTest {
         assertEquals("CJPacket Ordinary", dto.getCarrier());
         assertEquals("CJPKL123", dto.getTrackNumber());
         assertTrue(dto.getEvents().isEmpty());
+        // The CJ branch stays byte-identical to Wave 3: no note, even without CJ data.
+        assertNull(dto.getNote());
+        verify(expressQueryPort, never()).query(any(), any());
     }
 
     @Test
     void locallyFulfilledOrder_neverSpendsCjQuota() {
         when(orderRepository.findByIdAndUserId(USER, ORDER))
                 .thenReturn(order(LitemallOrderAggregate.SOURCE_LOCAL, "LOCAL-SN-1", "PostNord"));
+        when(expressQueryPort.enabled()).thenReturn(false);
 
         TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
 
         assertTrue(dto.isShipped());
         assertEquals("LOCAL-SN-1", dto.getTrackNumber());
         assertTrue(dto.getEvents().isEmpty());
+        verify(trackingFacade, never()).trackInfo(any());
+    }
+
+    @Test
+    void localShipped_providerDisabled_notesTheDisabledProvider() {
+        when(orderRepository.findByIdAndUserId(USER, ORDER))
+                .thenReturn(order(LitemallOrderAggregate.SOURCE_LOCAL, "LOCAL-SN-1", "PostNord"));
+        when(expressQueryPort.enabled()).thenReturn(false);
+
+        TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
+
+        assertTrue(dto.isShipped());
+        assertNull(dto.getStatus());
+        assertEquals("PostNord", dto.getCarrier());
+        assertEquals("tracking provider disabled", dto.getNote());
+        verify(expressQueryPort, never()).query(any(), any());
+    }
+
+    @Test
+    void localShipped_providerMiss_notesTemporarilyUnavailable() {
+        when(orderRepository.findByIdAndUserId(USER, ORDER))
+                .thenReturn(order(LitemallOrderAggregate.SOURCE_LOCAL, "LOCAL-SN-1", "PostNord"));
+        when(expressQueryPort.enabled()).thenReturn(true);
+        when(expressQueryPort.query("PostNord", "LOCAL-SN-1")).thenReturn(Optional.empty());
+
+        TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
+
+        assertTrue(dto.isShipped());
+        assertEquals("LOCAL-SN-1", dto.getTrackNumber());
+        assertTrue(dto.getEvents().isEmpty());
+        assertEquals("tracking temporarily unavailable", dto.getNote());
+    }
+
+    @Test
+    void localShipped_providerHit_fillsRealEvents() {
+        when(orderRepository.findByIdAndUserId(USER, ORDER))
+                .thenReturn(order(LitemallOrderAggregate.SOURCE_LOCAL, "LOCAL-SN-1", "PostNord"));
+        when(expressQueryPort.enabled()).thenReturn(true);
+        when(expressQueryPort.query("PostNord", "LOCAL-SN-1")).thenReturn(Optional.of(
+                new ExpressTrackingSnapshot("PostNord AB", "LOCAL-SN-1", "In transit", List.of(
+                        new ExpressTrackingSnapshot.Event("2026-07-12 09:00:00", null, "Departed sorting hub"),
+                        new ExpressTrackingSnapshot.Event("2026-07-11 18:00:00", null, "Collected")))));
+
+        TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
+
+        assertTrue(dto.isShipped());
+        assertEquals("In transit", dto.getStatus());
+        assertEquals("PostNord AB", dto.getCarrier());
+        assertEquals("LOCAL-SN-1", dto.getTrackNumber());
+        assertEquals(2, dto.getEvents().size());
+        assertEquals("2026-07-12 09:00:00", dto.getEvents().get(0).getTime());
+        assertEquals("Departed sorting hub", dto.getEvents().get(0).getDescription());
+        assertNull(dto.getNote());
         verify(trackingFacade, never()).trackInfo(any());
     }
 

@@ -87,6 +87,11 @@ public class LitemallHttpResponseUtil {
             case REFUND:
                 return handleRefundErrors(result, response);
 
+            case SHIP:
+                // Ship refusals are business-rule conflicts (wrong state, or a pickup
+                // order that must be written off at the counter) — 422, like submit.
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+
             default:
                 return handleGenericErrors(result, response);
         }
