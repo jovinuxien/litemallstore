@@ -328,6 +328,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         dataModel.setUpdateTime(goodsAggregate.getUpdateTime());
         dataModel.setDeleted(goodsAggregate.isDeleted());
         dataModel.setDetail(goodsAggregate.getDetail());
+        dataModel.setTempId(goodsAggregate.getTempId()); // freight-template binding round-trip
 
 
         return dataModel;
@@ -396,6 +397,7 @@ public class LitemallGoodsRepositoryImpl implements LitemallGoodsRepository {
         domainModel.setDeleted(isDeleted);
         domainModel.setDetail(record.getDetail());
         domainModel.setSource(record.getSource()); // catalog origin (local|cj) for the storefront's CJ-line detection
+        domainModel.setTempId(record.getTempId()); // freight-template binding (0/null = default template)
 
 
         return  domainModel;
