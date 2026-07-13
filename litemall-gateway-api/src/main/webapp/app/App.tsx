@@ -38,6 +38,9 @@ const BrandList = lazy(() => import('app/modules/brand/BrandList'));
 const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
 const TopicList = lazy(() => import('app/modules/topic/TopicList'));
 const TopicDetail = lazy(() => import('app/modules/topic/TopicDetail'));
+const PageView = lazy(() => import('app/modules/page/PageView'));
+const ArticleList = lazy(() => import('app/modules/article/ArticleList'));
+const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
 const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
 const Help = lazy(() => import('app/modules/static/Help'));
 const CustomerService = lazy(() => import('app/modules/static/CustomerService'));
@@ -67,6 +70,10 @@ const App: React.FC = () => (
           <Route path='brand/:id' element={<BrandDetail />} />
           <Route path='topics' element={<TopicList />} />
           <Route path='topic/:id' element={<TopicDetail />} />
+          {/* Content vertical (goods-management Wave 4): DIY pages + article CMS. */}
+          <Route path='page/:id' element={<PageView />} />
+          <Route path='articles' element={<ArticleList />} />
+          <Route path='article/:id' element={<ArticleDetail />} />
           <Route path='groupon' element={<Groupon />} />
           <Route path='help' element={<Help />} />
           <Route path='service' element={<CustomerService />} />
