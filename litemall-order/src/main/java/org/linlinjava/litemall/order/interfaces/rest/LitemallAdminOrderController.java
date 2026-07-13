@@ -69,28 +69,39 @@ public class LitemallAdminOrderController {
     private final LitemallOrderOrchestratorService orchestrator;
     // ACL over CJ (Wave 3): account-balance readout for the admin dashboard/order list.
     private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade;
-    // Shipment tracking read (Wave 3): live CJ trackInfo for CJ orders, clean NOT_SHIPPED otherwise.
-    private final org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService;
+    // Shipment tracking read (Wave 3, generalized Wave 4): live CJ trackInfo for CJ orders,
+    // express-seam events for local orders, clean NOT_SHIPPED otherwise.
+    private final org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService;
     // Pickup stores (Wave 4): store name on the write-off counter payload.
     private final org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
     // CSV export + channel stat (Wave 4, Task C).
     private final org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService;
+    // Receipt reprint + fulfillment-config readout (Wave 4, Task D).
+    private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort;
+    private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort;
+    private final org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
                                         LitemallOrderGoodsRepository orderGoodsRepository,
                                         LitemallOrderOrchestratorService orchestrator,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade cjOrderFacade,
-                                        org.linlinjava.litemall.order.application.internal.cj.CjTrackingService cjTrackingService,
+                                        org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService,
                                         org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer,
-                                        org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService) {
+                                        org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService,
+                                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort,
+                                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort,
+                                        org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
         this.cjOrderFacade = cjOrderFacade;
-        this.cjTrackingService = cjTrackingService;
+        this.orderTrackingService = orderTrackingService;
         this.storeServiceLayer = storeServiceLayer;
         this.adminExtrasService = adminExtrasService;
+        this.receiptPrinterPort = receiptPrinterPort;
+        this.expressQueryPort = expressQueryPort;
+        this.fulfillmentProperties = fulfillmentProperties;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
@@ -375,7 +386,7 @@ public class LitemallAdminOrderController {
     @GetMapping("/{orderId}/tracking")
     public Object tracking(@PathVariable Integer orderId) {
         org.linlinjava.litemall.order.interfaces.dtos.cj.tracking.TrackingDtoResponse dto =
-                cjTrackingService.getTrackingForAdmin(new LitemallOrderId(orderId));
+                orderTrackingService.getTrackingForAdmin(new LitemallOrderId(orderId));
         return dto == null ? ResponseUtil.badArgumentValue() : ResponseUtil.ok(dto);
     }
 
@@ -395,6 +406,67 @@ public class LitemallAdminOrderController {
                     return ResponseUtil.ok(data);
                 })
                 .orElseGet(() -> ResponseUtil.fail(502, "CJ balance unavailable"));
+    }
+
+    // ---- receipt reprint + fulfillment config (Wave 4, Task D) ------------------------
+
+    /**
+     * Reprint the receipt of a PAID order (docs/handoff-gateway-admin-receipt-print.md).
+     * Unknown id → badArgumentValue; not paid yet / cancelled → 422 (a receipt documents a
+     * payment); printer provider {@code none} → HTTP 200 + errno 641 so the SPA can grey
+     * the button out; vendor rejection → errno 642. The reprint's {@code origin_id} is
+     * {@code <orderSn>-R<epochMillis>} — the auto-print already consumed the bare orderSn
+     * as its vendor-side exactly-once key, and a deliberate reprint must not be deduped
+     * away. No per-order cooldown yet (noted in docs/adr-fulfillment-seams.md).
+     */
+    @PostMapping("/{orderId}/print-receipt")
+    public Object printReceipt(@PathVariable Integer orderId) {
+        LitemallOrderAggregate order = orderRepository.findById(new LitemallOrderId(orderId)).orElse(null);
+        if (order == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus status =
+                order.getOrderStatus();
+        boolean cancelled = status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.CANCELED
+                || status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.SYSTEM_CANCELED;
+        boolean unpaid = order.getPayTime() == null && (status == null || status.getCode() < 201);
+        if (cancelled || unpaid) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(ResponseUtil.fail(422, "only paid orders have receipts"));
+        }
+        if (!receiptPrinterPort.enabled()) {
+            return ResponseUtil.fail(641, "receipt printer disabled");
+        }
+        String originId = order.getOrderSn() + "-R" + System.currentTimeMillis();
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.fulfillment.ReceiptPrintJob job =
+                org.linlinjava.litemall.order.application.internal.OrderPaidReceiptPrintListener.toJob(
+                        order, orderGoodsRepository.findByOId(order.getOrderId()),
+                        fulfillmentProperties.getPrinter().getBusinessName(), originId);
+        return receiptPrinterPort.print(job) == org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort.PrintOutcome.OK
+                ? ResponseUtil.ok()
+                : ResponseUtil.fail(642, "print failed");
+    }
+
+    /**
+     * Fulfillment-seam flags for the admin SPA — providers + enablement only, NEVER
+     * secrets. Literal {@code fulfillment/} segment (the cj/balance and stat/channel
+     * trick), so it never collides with the {@code /{orderId}/...} mappings.
+     */
+    @GetMapping("/fulfillment/config")
+    public Object fulfillmentConfig() {
+        Map<String, Object> printer = new LinkedHashMap<>();
+        printer.put("provider", fulfillmentProperties.getPrinter().getProvider());
+        printer.put("enabled", receiptPrinterPort.enabled());
+        printer.put("autoPrint", fulfillmentProperties.getPrinter().isAutoPrint());
+        printer.put("businessName", fulfillmentProperties.getPrinter().getBusinessName());
+        Map<String, Object> express = new LinkedHashMap<>();
+        express.put("provider", fulfillmentProperties.getExpress().getProvider());
+        express.put("enabled", expressQueryPort.enabled());
+        express.put("cacheMinutes", fulfillmentProperties.getExpress().getCacheMinutes());
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("printer", printer);
+        data.put("express", express);
+        return ResponseUtil.ok(data);
     }
 
     // ---- mapping helpers ------------------------------------------------------------
