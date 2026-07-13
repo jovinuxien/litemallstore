@@ -283,6 +283,9 @@ const Layout: React.FC = () => {
                   <Link to='/topics' className='link-light text-decoration-none small'>
                     Topics &amp; guides
                   </Link>
+                  <Link to='/articles' className='link-light text-decoration-none small'>
+                    Articles
+                  </Link>
                   <Link to='/groupon' className='link-light text-decoration-none small'>
                     Group buys
                   </Link>

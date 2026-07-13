@@ -6,8 +6,12 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
+import { QRCodeSVG } from 'qrcode.react';
+
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
+import AftersalePanel from './AftersalePanel';
 import DisputePanel from './DisputePanel';
+import TrackingPanel from './TrackingPanel';
 import './order.scss';
 
 /**
@@ -136,12 +140,39 @@ const OrderDetailView: React.FC = () => {
           />
         </CellGroup>
 
-        {/* Delivery address */}
-        <CellGroup title='Delivery address'>
-          <Cell title={`${order.consignee ?? ''}${order.mobile ? ` · ${order.mobile}` : ''}`}>
-            <span className='text-muted'>{order.address}</span>
-          </Cell>
-        </CellGroup>
+        {/* Pickup order: store card + verify code (Wave 4 — assumed contract,
+            renders only when the order carries pickup fields). */}
+        {order.deliveryType === 'pickup' ? (
+          <CellGroup title='Store pickup'>
+            {order.pickupStore && (
+              <Cell title={order.pickupStore.name ?? 'Pickup store'}>
+                <span className='text-muted'>
+                  {order.pickupStore.address}
+                  {order.pickupStore.businessHours ? ` · ${order.pickupStore.businessHours}` : ''}
+                  {order.pickupStore.phone ? ` · ${order.pickupStore.phone}` : ''}
+                </span>
+              </Cell>
+            )}
+            {(order.pickupName || order.pickupMobile) && (
+              <Cell title='Pickup contact' value={[order.pickupName, order.pickupMobile].filter(Boolean).join(' · ')} />
+            )}
+            {order.verifyCode && (
+              <div className='p-3 text-center'>
+                <div className='text-muted small mb-1'>Show this code at the store</div>
+                <div className='fw-bold' style={{ fontSize: '1.8rem', letterSpacing: '0.25em' }}>{order.verifyCode}</div>
+                <div className='mt-2'>
+                  <QRCodeSVG value={order.verifyCode} size={140} />
+                </div>
+              </div>
+            )}
+          </CellGroup>
+        ) : (
+          <CellGroup title='Delivery address'>
+            <Cell title={`${order.consignee ?? ''}${order.mobile ? ` · ${order.mobile}` : ''}`}>
+              <span className='text-muted'>{order.address}</span>
+            </Cell>
+          </CellGroup>
+        )}
 
         {/* Order meta */}
         <CellGroup>
@@ -152,6 +183,13 @@ const OrderDetailView: React.FC = () => {
           {order.cjOrderNum && <Cell title='CJ order no.' value={order.cjOrderNum} />}
           {order.orderStatusText && <Cell title='Status' value={order.orderStatusText} />}
         </CellGroup>
+
+        {/* Shipment tracking (Wave 4 — /srv/order/{id}/tracking; hides itself
+            when the endpoint isn't deployed). Pickup orders don't ship. */}
+        {orderId != null && order.deliveryType !== 'pickup' && <TrackingPanel orderId={orderId} />}
+
+        {/* Aftersale / RMA (Wave-2 vertical; ImageUploader photos — Wave 4). */}
+        {orderId != null && <AftersalePanel orderId={orderId} canApply={!!opt?.aftersale} onChanged={fetchDetail} />}
 
         {/* Dropship problems & disputes (CJ orders only, once paid = placed at CJ) */}
         {order.source === 'cj' && order.cjOrderId != null && orderId != null && <DisputePanel orderId={orderId} />}

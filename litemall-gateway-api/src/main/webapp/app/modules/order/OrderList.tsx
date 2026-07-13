@@ -77,8 +77,16 @@ const OrderList: React.FC = () => {
                 <span className='lm-order-panel__sn'>
                   #{o.orderSn ?? o.id}
                   {o.source === 'cj' && <span className='badge bg-lm-primary ms-2'>Dropship</span>}
+                  {/* Wave 4 pickup: badge + relabel shipping-phrased statuses. */}
+                  {o.deliveryType === 'pickup' && <span className='badge bg-secondary ms-2'>Pickup</span>}
                 </span>
-                <span className='lm-order-panel__status'>{o.orderStatusText}</span>
+                <span className='lm-order-panel__status'>
+                  {o.deliveryType === 'pickup'
+                    ? (o.orderStatusText ?? '')
+                        .replace(/^Unshipped$|^To be shipped$/i, 'Awaiting pickup preparation')
+                        .replace(/^Shipped$|^To be received$/i, 'Ready for pickup')
+                    : o.orderStatusText}
+                </span>
               </div>
               <div role='button' tabIndex={0} onClick={() => navigate(`/order/${o.id}`)}>
                 {(o.goodsList ?? []).map(g => (

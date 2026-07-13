@@ -18,10 +18,12 @@ import org.springframework.stereotype.Service;
 public class CustomerCredentialsService {
 
     private final LitemallUserService userService;
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder encoder;
 
-    public CustomerCredentialsService(LitemallUserService userService) {
+    public CustomerCredentialsService(LitemallUserService userService,
+                                      BCryptPasswordEncoder passwordEncoder) {
         this.userService = userService;
+        this.encoder = passwordEncoder;
     }
 
     /**

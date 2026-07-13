@@ -1,46 +1,95 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { authApi, isMissingEndpoint, userApi } from 'app/shared/api';
 import './user.scss';
 
 /**
- * Profile view/edit, modelled on litemall-vue `user/user-information-set`.
- * Reads `/srv/user/index` for the current nickname/avatar/mobile and saves via
- * `/srv/user/profile`. Degrades to an editable-but-unsaved form if not live.
+ * Profile view/edit against the auth edge (Wave 4 Task A): reads
+ * `GET /auth/me`, saves via `POST /auth/profile` (partial update). The avatar
+ * is uploaded as a file through `POST /srv/storage/upload`
+ * (goods-management Wave 4) — until that endpoint lands, the file input
+ * degrades to a plain URL field (isMissingEndpoint guard).
  */
 const Profile: React.FC = () => {
-  const [nickName, setNickName] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [email, setEmail] = useState('');
   const [avatar, setAvatar] = useState('');
   const [mobile, setMobile] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [unavailable, setUnavailable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mobileTaken, setMobileTaken] = useState(false);
+  // Falls back to a URL text field when /srv/storage/upload is not live yet.
+  const [uploadUnavailable, setUploadUnavailable] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    userApi
-      .index()
-      .then((d: any) => {
-        setNickName(d?.nickName ?? '');
-        setAvatar(d?.avatar ?? '');
-        setMobile(d?.mobile ?? '');
+    authApi
+      .me()
+      .then(env => {
+        if (env.errno === 0 && env.data) {
+          setNickname(env.data.nickName ?? '');
+          setEmail(env.data.email ?? '');
+          setAvatar(env.data.avatarUrl ?? '');
+          setMobile(env.data.mobile ?? '');
+        }
       })
-      .catch(e => {
-        if (isMissingEndpoint(e)) setUnavailable(true);
-      })
+      .catch(() => setError('Could not load your profile.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const pickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const stored = await userApi.storageUpload(file);
+      const url = stored?.url;
+      if (url) {
+        setAvatar(url);
+      } else {
+        setError('Upload succeeded but returned no URL.');
+      }
+    } catch (err) {
+      if (isMissingEndpoint(err)) {
+        setUploadUnavailable(true);
+      } else {
+        setError('Avatar upload failed.');
+      }
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
+    setError(null);
+    setMobileTaken(false);
     try {
-      await userApi.profileUpdate({ nickName, avatar, mobile });
-      setSaved(true);
-    } catch (err) {
-      if (isMissingEndpoint(err)) setUnavailable(true);
+      const env = await authApi.profile({ nickname, email, mobile, avatar });
+      if (env.errno === 0) {
+        setSaved(true);
+        if (env.data) {
+          setNickname(env.data.nickName ?? '');
+          setEmail(env.data.email ?? '');
+          setAvatar(env.data.avatarUrl ?? '');
+          setMobile(env.data.mobile ?? '');
+        }
+      } else if (env.errno === 705) {
+        setMobileTaken(true);
+      } else {
+        setError(env.errmsg || 'Profile update failed.');
+      }
+    } catch {
+      setError('Profile update failed.');
     } finally {
       setSaving(false);
     }
@@ -59,24 +108,51 @@ const Profile: React.FC = () => {
       <h1 className='h4 mb-3'>Profile</h1>
       <Card>
         <Card.Body>
-          {unavailable && <Alert variant='warning'>Profile editing isn’t available yet.</Alert>}
+          {error && <Alert variant='danger'>{error}</Alert>}
           {saved && <Alert variant='success'>Profile updated.</Alert>}
           <Form onSubmit={save}>
             <Form.Group className='mb-3'>
               <Form.Label>Nickname</Form.Label>
-              <Form.Control value={nickName} onChange={e => setNickName(e.target.value)} />
+              <Form.Control value={nickname} onChange={e => setNickname(e.target.value)} />
             </Form.Group>
             <Form.Group className='mb-3'>
-              <Form.Label>Avatar URL</Form.Label>
-              <Form.Control value={avatar} onChange={e => setAvatar(e.target.value)} />
+              <Form.Label>Email</Form.Label>
+              <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} />
+            </Form.Group>
+            <Form.Group className='mb-3'>
+              <Form.Label>Avatar</Form.Label>
+              {avatar && (
+                <div className='mb-2'>
+                  <img src={avatar} alt='avatar' style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%' }} />
+                </div>
+              )}
+              {!uploadUnavailable ? (
+                <>
+                  <Form.Control ref={fileRef} type='file' accept='image/*' onChange={pickAvatar} disabled={uploading} />
+                  {uploading && (
+                    <Form.Text className='text-muted'>
+                      <Spinner animation='border' size='sm' /> Uploading…
+                    </Form.Text>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Form.Control value={avatar} onChange={e => setAvatar(e.target.value)} placeholder='https://…' />
+                  <Form.Text className='text-muted'>Image upload isn’t available yet — paste an image URL.</Form.Text>
+                </>
+              )}
             </Form.Group>
             <Form.Group className='mb-3'>
               <Form.Label>Mobile</Form.Label>
-              <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} />
+              <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} isInvalid={mobileTaken} />
+              <Form.Control.Feedback type='invalid'>This mobile number is already registered.</Form.Control.Feedback>
             </Form.Group>
-            <Button type='submit' variant='primary' disabled={saving}>
+            <Button type='submit' variant='primary' disabled={saving || uploading}>
               {saving ? <Spinner animation='border' size='sm' /> : 'Save changes'}
             </Button>
+            <Link to='/reset' className='btn btn-outline-secondary ms-2'>
+              Change password
+            </Link>
           </Form>
         </Card.Body>
       </Card>

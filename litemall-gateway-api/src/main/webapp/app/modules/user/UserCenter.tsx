@@ -2,15 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
-import { isMissingEndpoint, userApi } from 'app/shared/api';
+import { AccountInfo, authApi } from 'app/shared/api';
 import './user.scss';
-
-interface UserIndex {
-  nickName?: string;
-  avatar?: string;
-  mobile?: string;
-  order?: { unpaid?: number; unship?: number; unrecv?: number; uncomment?: number };
-}
 
 const MENU = [
   { to: '/orders', icon: 'bi-box-seam', label: 'My orders' },
@@ -20,29 +13,29 @@ const MENU = [
   { to: '/user/coupons', icon: 'bi-ticket-perforated', label: 'Coupons' },
   { to: '/user/address', icon: 'bi-geo-alt', label: 'Addresses' },
   { to: '/user/profile', icon: 'bi-person-gear', label: 'Profile' },
+  { to: '/reset', icon: 'bi-shield-lock', label: 'Change password' },
   { to: '/user/feedback', icon: 'bi-chat-dots', label: 'Feedback' },
 ];
 
 /**
  * Customer account hub, modelled on litemall-vue `user/tabbar-user`: profile
- * header + order-status shortcuts + a grid of account sections. Profile/stats
- * come from `/srv/user/index`; the hub still renders if that's not live.
+ * header + a grid of account sections. Account info comes from the auth edge
+ * (`GET /auth/me`, Wave 4 Task A); the hub still renders from the cached login
+ * userInfo when that call fails.
  */
 const UserCenter: React.FC = () => {
   const auth = useAppSelector(state => state.customerAuth.data.userInfo);
-  const [info, setInfo] = useState<UserIndex | null>(null);
+  const [info, setInfo] = useState<AccountInfo | null>(null);
 
   useEffect(() => {
-    userApi
-      .index()
-      .then(d => setInfo((d as UserIndex) ?? null))
-      .catch(e => {
-        if (!isMissingEndpoint(e)) setInfo(null);
-      });
+    authApi
+      .me()
+      .then(env => setInfo(env.errno === 0 ? env.data : null))
+      .catch(() => setInfo(null));
   }, []);
 
   const nickName = info?.nickName ?? auth?.nickName ?? 'My account';
-  const avatar = info?.avatar ?? auth?.avatarUrl;
+  const avatar = info?.avatarUrl ?? auth?.avatarUrl;
 
   return (
     <div className='container my-4 lm-user'>

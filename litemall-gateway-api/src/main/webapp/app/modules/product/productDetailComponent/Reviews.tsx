@@ -84,6 +84,15 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
                 {fmtDate(c.addTime) && <span className='lm-pdp__reviewdate text-muted'>{fmtDate(c.addTime)}</span>}
               </div>
               <p className='lm-pdp__reviewbody'>{c.content}</p>
+              {c.adminContent && (
+                <div className='p-2 mb-2 bg-light rounded small'>
+                  <span className='fw-semibold'>
+                    <i className='bi bi-shop me-1' />
+                    Seller response:
+                  </span>{' '}
+                  {c.adminContent}
+                </div>
+              )}
               {c.picList && c.picList.length > 0 && (
                 <div className='lm-pdp__reviewpics'>
                   {c.picList.map(p => (

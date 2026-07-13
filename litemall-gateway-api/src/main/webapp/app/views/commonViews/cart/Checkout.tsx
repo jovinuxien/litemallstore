@@ -6,7 +6,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { CheckoutPaymentMethod, OrderGroup, PlacedOrder, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
 import { IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
-import { IFreightQuote } from 'app/shared/model/order/order.model';
+import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
   CellGroup,
@@ -118,6 +118,24 @@ const CheckoutView: React.FC = () => {
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
 
+  // Pickup checkout (Wave 4 — dependency: order-service stores backend; the
+  // toggle only appears when /srv/store/list answers with stores, so this is
+  // inert until that lands/merges). CJ lines always ship — pickup is offered
+  // for all-local carts only.
+  const [stores, setStores] = useState<IStore[]>([]);
+  const [deliveryType, setDeliveryType] = useState<'express' | 'pickup'>('express');
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
+  const [pickupName, setPickupName] = useState('');
+  const [pickupMobile, setPickupMobile] = useState('');
+  const isPickup = deliveryType === 'pickup' && !hasCjItems;
+
+  useEffect(() => {
+    orderApi
+      .storeList()
+      .then(list => setStores(list ?? []))
+      .catch(() => setStores([])); // endpoint absent → toggle stays hidden
+  }, []);
+
   // Freight/logistics quote per cart group (submit creates one order per group, each
   // charged its own freight). The CJ quote additionally carries the informational
   // carrier + delivery estimate once a destination country is picked.
@@ -142,8 +160,20 @@ const CheckoutView: React.FC = () => {
       const cjItems = cartList.filter(isCjItem);
       const subtotalOf = (items: typeof cartList) => items.reduce((s, it) => s + (it.price ?? 0) * (it.number ?? 0), 0);
       const next: { local?: IFreightQuote | null; cj?: IFreightQuote | null } = {};
-      if (localItems.length > 0) {
-        next.local = await orderApi.freightQuote({ subtotal: subtotalOf(localItems) }).catch(() => null);
+      // Pickup charges no freight — skip the local quote entirely.
+      if (localItems.length > 0 && !isPickup) {
+        next.local = await orderApi
+          .freightQuote({
+            subtotal: subtotalOf(localItems),
+            // Wave 4 freight templates: the selected address resolves the region
+            // rule; cart lines drive per-template pricing.
+            addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
+            items: localItems.map(it => ({ goodsId: it.goodsId, quantity: it.number ?? 1, price: it.price ?? 0 })),
+          })
+          // The pre-template order service 402s on the NEW fields (strict
+          // deserialization, verified live) — fall back to the legacy body so
+          // the quote keeps working whichever side deploys first.
+          .catch(() => orderApi.freightQuote({ subtotal: subtotalOf(localItems) }).catch(() => null));
       }
       if (cjItems.length > 0) {
         next.cj = await orderApi
@@ -163,12 +193,16 @@ const CheckoutView: React.FC = () => {
       cancelled = true;
       clearTimeout(timer);
     };
+    // selectedAddressId in the deps → re-quote on address change (region-rule
+    // freight varies by destination province); isPickup → drop/restore the
+    // local quote when the delivery method flips.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartSignature, country.code]);
+  }, [cartSignature, country.code, selectedAddressId, isPickup]);
 
   // Quote failure / endpoint missing → fee 0 (today's behavior); the server still charges
   // its rule at submit, so this is display-best-effort, never a checkout blocker.
-  const shippingFee = (quotes.local?.freightPrice ?? 0) + (quotes.cj?.freightPrice ?? 0);
+  // Pickup: no shipping — freight is 0 by contract.
+  const shippingFee = isPickup ? 0 : (quotes.local?.freightPrice ?? 0) + (quotes.cj?.freightPrice ?? 0);
 
   useEffect(() => {
     dispatch(fetchCart());
@@ -251,6 +285,9 @@ const CheckoutView: React.FC = () => {
   const baseValid = usingNewAddress ? !!(shipping.name && shipping.address && shipping.region && shipping.zip) : selectedAddressId != null;
   const addressValid = baseValid && (!hasCjItems || !!(shipping.mobile && country.code));
   const savedAddressId = typeof selectedAddressId === 'number' ? selectedAddressId : null;
+  // Pickup needs a store + contact instead of a delivery address.
+  const pickupValid = selectedStoreId != null && !!pickupName && !!pickupMobile;
+  const checkoutValid = isPickup ? pickupValid : addressValid;
 
   const couponCellValue =
     couponDiscount > 0 ? `−$${couponDiscount.toFixed(2)}` : coupons.length > 0 ? `${coupons.length} available` : 'None available';
@@ -261,8 +298,9 @@ const CheckoutView: React.FC = () => {
     setCouponError(null);
 
     // 1. Resolve a saved addressId for the local order, persisting a typed address.
+    //    Pickup orders need no delivery address — the store is the destination.
     let addressId = savedAddressId;
-    if (addressId == null) {
+    if (addressId == null && !isPickup) {
       if (!addressValid) return; // guarded by the disabled button below
       try {
         const newId = await userApi.addressSave(shippingToAddress(shipping));
@@ -294,9 +332,14 @@ const CheckoutView: React.FC = () => {
         placeOrder({
           group,
           items,
-          addressId,
+          addressId: isPickup && group === 'local' ? undefined : addressId ?? undefined,
           message,
           paymentMethod,
+          // Pickup rides the local group only (CJ always ships).
+          deliveryType: isPickup && group === 'local' ? 'pickup' : undefined,
+          storeId: isPickup && group === 'local' ? selectedStoreId ?? undefined : undefined,
+          pickupName: isPickup && group === 'local' ? pickupName : undefined,
+          pickupMobile: isPickup && group === 'local' ? pickupMobile : undefined,
           // id = userCouponId (redeem handle), cid = coupon definition id.
           couponId: couponRides ? selectedCoupon.cid : undefined,
           userCouponId: couponRides ? selectedCoupon.id : undefined,
@@ -368,7 +411,76 @@ const CheckoutView: React.FC = () => {
     <Page>
       <PageHead title='Checkout' />
       <div className='container'>
+        {/* Delivery method (Wave 4 pickup — only offered when the order service
+            has stores AND the cart is all-local; CJ lines always ship). */}
+        {stores.length > 0 && !hasCjItems && (
+          <CellGroup title='Delivery method'>
+            <div className='p-3 d-flex gap-4'>
+              <Form.Check
+                type='radio'
+                id='delivery-express'
+                name='deliveryType'
+                label='Ship to me'
+                checked={deliveryType === 'express'}
+                onChange={() => setDeliveryType('express')}
+              />
+              <Form.Check
+                type='radio'
+                id='delivery-pickup'
+                name='deliveryType'
+                label='Store pickup (free)'
+                checked={deliveryType === 'pickup'}
+                onChange={() => setDeliveryType('pickup')}
+              />
+            </div>
+          </CellGroup>
+        )}
+
+        {/* Pickup: store picker + pickup contact replace the address book. */}
+        {isPickup && (
+          <CellGroup title='Pickup store'>
+            <div className='p-2 d-grid gap-2'>
+              {stores.map(s => (
+                <button
+                  key={s.id}
+                  type='button'
+                  className={`lm-address-card text-start ${selectedStoreId === s.id ? 'is-active' : ''}`}
+                  onClick={() => setSelectedStoreId(s.id ?? null)}
+                >
+                  <div className='fw-semibold'>{s.name}</div>
+                  <div className='small text-muted'>{s.address}</div>
+                  <div className='small text-muted'>
+                    {s.businessHours && (
+                      <span className='me-3'>
+                        <i className='bi bi-clock me-1' />
+                        {s.businessHours}
+                      </span>
+                    )}
+                    {s.phone && (
+                      <span>
+                        <i className='bi bi-telephone me-1' />
+                        {s.phone}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className='row g-3 p-3 pt-0'>
+              <div className='col-md-6'>
+                <Form.Label>Pickup name *</Form.Label>
+                <Form.Control value={pickupName} onChange={e => setPickupName(e.target.value)} required />
+              </div>
+              <div className='col-md-6'>
+                <Form.Label>Pickup mobile *</Form.Label>
+                <Form.Control value={pickupMobile} onChange={e => setPickupMobile(e.target.value)} required />
+              </div>
+            </div>
+          </CellGroup>
+        )}
+
         {/* Delivery address */}
+        {!isPickup && (
         <CellGroup title='Delivery address'>
           {addresses.length > 0 && (
             <div className='p-2 d-grid gap-2'>
@@ -488,6 +600,7 @@ const CheckoutView: React.FC = () => {
             </div>
           )}
         </CellGroup>
+        )}
 
         {/* Coupon */}
         {(coupons.length > 0 || couponError) && (
@@ -568,6 +681,15 @@ const CheckoutView: React.FC = () => {
                 value: quoteLoading ? '…' : shippingFee > 0 ? `$${shippingFee.toFixed(2)}` : 'Free',
                 variant: 'muted' as const,
               },
+              // Wave-4 template breakdown: detail rows only — the charged figure
+              // stays freightPrice (combine-mode max, not the breakdown sum).
+              ...(!quoteLoading && !isPickup
+                ? [...(quotes.local?.breakdown ?? []), ...(quotes.cj?.breakdown ?? [])].map(b => ({
+                    label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? 'Standard shipping' : b.source ?? 'Shipping')}`,
+                    value: `$${Number(b.amount ?? 0).toFixed(2)}${b.note ? ` — ${b.note}` : ''}`,
+                    variant: 'muted' as const,
+                  }))
+                : []),
               ...(shippingFee > 0 && (quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold ?? 0) > 0
                 ? [
                     {
@@ -654,7 +776,7 @@ const CheckoutView: React.FC = () => {
               : 'Place order'
         }
         onSubmit={handlePlaceOrder}
-        disabled={!addressValid}
+        disabled={!checkoutValid}
         loading={submitting}
       />
     </Page>

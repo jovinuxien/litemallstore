@@ -189,3 +189,30 @@ below are live on master; the SPA guards were removed 2026-07-10.
 |---|---|---|---|
 | `/auth/register` | POST | `modules/login/Register` | issue customer JWT like `/auth/login` |
 | `/auth/reset` | POST | (reserved) | password reset |
+
+## Wave 4 (2026-07-13) — remaining guards + dependencies
+
+- `/auth/register|reset|reset/request|reset/confirm|me|profile` are LIVE (this
+  wave, `docs/handoff-auth-account.md`) — the auth-edge table above is closed.
+  `/srv/user/index|profile` stubs are deleted (replaced by `/auth/me|profile`).
+- **Guards remaining, each waiting on a backend merge:**
+  - `ImageUploader` (Profile avatar, ReviewForm, Feedback, AftersalePanel
+    photos) → `POST /srv/storage/upload` — goods-management Wave-4 Task A.2,
+    committed on `fix/goods-management`, unmerged. URL-text fallback until then.
+  - Pickup checkout toggle → `GET /srv/store/list` — order Wave-4 stores task,
+    spec NOT yet committed; the SPA ships an ASSUMED contract (see
+    `IStore` / `PlaceOrderParams` comments) and hides pickup until the endpoint
+    answers. RE-CHECK field names when `litemall-order/docs/` lands the spec.
+  - DIY home / articles / region cascade degrade to legacy/friendly-empty while
+    goods-management's content endpoints (committed, unmerged) 404.
+- **Freight-quote compat note:** the PRE-template order service 402s
+  ("Parameter value is wrong", strict deserialization) when the quote body
+  carries the Wave-4 `addressId`/`items` fields — verified live 2026-07-13.
+  `Checkout.tsx` falls back to the legacy `{subtotal}` body on any enriched-
+  quote failure, so either deploy order works. Remove the fallback once the
+  freight-template order service is the only one deployed.
+- Live-verified this wave through `:8090` (single gateway process, ephemeral
+  JWT): register→login→order-list/wallet as the SECOND user; full password
+  change + email-reset flows; tracking not-shipped payload + owner-scoping
+  (foreign order → errno 404 → panel hides); aftersale apply(+pictures) → 730
+  double-apply guard → cancel on a PAID order.

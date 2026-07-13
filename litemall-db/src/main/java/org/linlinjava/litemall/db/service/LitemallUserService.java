@@ -91,6 +91,13 @@ public class LitemallUserService {
         return userMapper.selectByExample(example);
     }
 
+    /** V37: lookup by email (password-reset request flow). */
+    public List<LitemallUser> queryByEmail(String email) {
+        LitemallUserExample example = new LitemallUserExample();
+        example.or().andEmailEqualTo(email).andDeletedEqualTo(false);
+        return userMapper.selectByExample(example);
+    }
+
     public List<LitemallUser> queryByOpenid(String openid) {
         LitemallUserExample example = new LitemallUserExample();
         example.or().andWeixinOpenidEqualTo(openid).andDeletedEqualTo(false);
