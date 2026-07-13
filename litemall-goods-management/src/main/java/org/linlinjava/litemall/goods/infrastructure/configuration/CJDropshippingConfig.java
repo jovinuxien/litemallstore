@@ -55,6 +55,16 @@ public class CJDropshippingConfig {
     private long refreshStartupDelayMs = 600000;
 
     /**
+     * Erosion tripwire for stale-pruning: a full sync may soft-delete at most this fraction of the
+     * previously-live snapshot in one run. CJ's per-category listings rotate and page-limited hauls
+     * see only a slice of a big category, so "absent from this fetch" is weak evidence of upstream
+     * delisting — a prune bigger than this is almost certainly a partial fetch, and is skipped with
+     * an ERROR log instead of executed (the incident on 07-05..07-10 eroded 7.7k of 7.8k products).
+     * Raise deliberately (e.g. to 1.0) for an intentional catalog rebuild.
+     */
+    private double pruneMaxFraction = 0.2;
+
+    /**
      * Spring cron for the incremental CJ detail+inventory enrichment job ({@code CjDetailEnrichmentService}).
      * Runs after the list sync (default 03:30 daily). Each enriched product costs 1 detail + N inventory
      * calls, so enrichment is intentionally incremental — see {@link #enrichBatchSize}.
