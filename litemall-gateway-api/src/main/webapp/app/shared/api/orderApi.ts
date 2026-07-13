@@ -1,4 +1,13 @@
-import { IDispute, IDisputeContext, IFreightQuote, IOrderDetail, IOrderListItem } from 'app/shared/model/order/order.model';
+import {
+  IAftersale,
+  IDispute,
+  IDisputeContext,
+  IFreightQuote,
+  IOrderDetail,
+  IOrderListItem,
+  IStore,
+  ITracking,
+} from 'app/shared/model/order/order.model';
 
 import { baseAxios, SRV, unwrap } from './http';
 
@@ -20,9 +29,25 @@ export const orderApi = {
   /**
    * POST /srv/order/freight-quote — the freight submit will charge for a cart group's
    * subtotal, plus (CJ carts) the informational logistics line/delivery estimate.
+   * Wave 4 (docs/handoff-gateway-api-freight-quote.md): `addressId` (owner-scoped,
+   * resolves the province for template region matching) and `items` (cart lines —
+   * REQUIRED for template pricing) are optional — the pre-template backend ignores
+   * them, so this is safe either side of the order-service merge.
    */
-  freightQuote: (body: { countryCode?: string; subtotal: number; cjItems?: { productId?: number; quantity?: number }[] }) =>
-    unwrap<IFreightQuote>(baseAxios.post(`${SRV}/order/freight-quote`, body)),
+  freightQuote: (body: {
+    countryCode?: string;
+    subtotal: number;
+    addressId?: number;
+    items?: { goodsId?: number | string; quantity?: number; price?: number }[];
+    cjItems?: { productId?: number; quantity?: number }[];
+  }) => unwrap<IFreightQuote>(baseAxios.post(`${SRV}/order/freight-quote`, body)),
+  /**
+   * GET /srv/order/{id}/tracking — carrier + tracking number + event list
+   * (owner-scoped; contract: litemall-order/docs/handoff-gateway-admin-cj-tracking.md,
+   * customer surface). Not shipped yet → {shipped:false}, NOT an error. Slow-ish
+   * (live CJ trackInfo behind a 1h server cache) — generous timeout.
+   */
+  tracking: (orderId: number | string) => unwrap<ITracking>(baseAxios.get(`${SRV}/order/${orderId}/tracking`, { timeout: 30000 })),
   /**
    * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
    * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment
@@ -40,6 +65,28 @@ export const orderApi = {
   refund: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/refund`, {})),
   remove: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/delete`, {})),
   prepay: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/prepay`, { orderId })),
+
+  // Aftersale / RMA (Wave-2 vertical, live on master —
+  // litemall-order/docs/aftersale-vertical.md). errno 730 = rule violation
+  // (window closed, open application exists, amount > paid...).
+  aftersaleList: (orderId: number | string) => unwrap<IAftersale[]>(baseAxios.get(`${SRV}/order/${orderId}/aftersale`)),
+  aftersaleApply: (
+    orderId: number | string,
+    body: { type: number; reason: string; amount?: number; pictures?: string[]; comment?: string }
+  ) => unwrap<IAftersale>(baseAxios.post(`${SRV}/order/${orderId}/aftersale`, body)),
+  aftersaleCancel: (orderId: number | string, aftersaleId: number) =>
+    unwrap<void>(baseAxios.post(`${SRV}/order/${orderId}/aftersale/${aftersaleId}/cancel`, {})),
+
+  /**
+   * GET /srv/store/list — pickup stores (order service, Wave 4). ASSUMED
+   * contract (spec pending from the order worktree): tolerates either a
+   * {list,total} wrapper or a bare array. The pickup checkout toggle only
+   * appears when this succeeds with stores.
+   */
+  storeList: async (): Promise<IStore[]> => {
+    const d = await unwrap<{ list?: IStore[] } | IStore[]>(baseAxios.get(`${SRV}/store/list`));
+    return Array.isArray(d) ? d : d?.list ?? [];
+  },
 
   // CJ dispute endpoints ("report a problem" on a dropship order). The order service
   // proxies CJ's dispute API with ~1s pacing between CJ calls, so these are SLOW

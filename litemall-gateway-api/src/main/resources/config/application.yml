@@ -63,6 +63,13 @@ spring:
           uri: lb://order-service-app
           predicates:
             - Path=/srv/wallet/**
+        # Physical stores (pickup checkout, Wave 4) live on the order service.
+        # MUST be claimed before the goods catch-all or /srv/store/** would be
+        # sent to goods-management and 404.
+        - id: customer-store
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/store/**
 
         # Promotion service — seckill/bargain live on master; the coupon and
         # combination/group-buy verticals arrive with fix/promotion, which
