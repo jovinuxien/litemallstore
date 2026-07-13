@@ -38,6 +38,8 @@ final class AdminEdge {
     static final int ADMIN_INVALID_PASSWORD = 602;
     static final int ADMIN_NAME_EXIST = 602;
     static final int ADMIN_DELETE_NOT_ALLOWED = 604;
+    /** Legacy AdminResponseCode.ADMIN_INVALID_ACCOUNT — wrong old password at /profile/password. */
+    static final int ADMIN_INVALID_ACCOUNT = 605;
     static final int ROLE_NAME_EXIST = 640;
     static final int ROLE_USER_EXIST = 641;
     static final int NOTICE_UPDATE_NOT_ALLOWED = 660;
