@@ -190,4 +190,102 @@
         order by update_time asc
         limit #{limit}
     </select>
+
+    <!--
+      Hand-maintained (V35): stamp a pickup write-off code at pay time, exactly once
+      (verify_code is null guard makes replays no-ops).
+    -->
+    <update id="setVerifyCodeIfAbsent">
+        update litemall_order
+        set verify_code = #{verifyCode}, update_time = now()
+        where id = #{id} and verify_code is null and deleted = 0
+    </update>
+
+    <!--
+      Hand-maintained (V35): redeem a pickup order: 201 (paid) -> 401 (confirmed),
+      single-shot (verify_time is null guard) and only while the order is paid.
+    -->
+    <update id="markDeliveredByWriteoff">
+        update litemall_order
+        set order_status = 401,
+            verify_time = now(),
+            verified_by = #{verifiedBy},
+            update_time = now()
+        where id = #{id} and order_status = 201 and verify_time is null and deleted = 0
+    </update>
+
+    <!--
+      Hand-maintained (Wave 4): keyset-paged lean export projection - enumerated columns
+      only, no joins; id > lastId + LIMIT keeps each page cheap on large tables.
+    -->
+    <select id="selectExportRows" resultType="org.linlinjava.litemall.db.domain.OrderExportVo">
+        select id, order_sn, add_time, order_status, aftersale_status, source, delivery_type,
+               consignee, mobile, address, country_code,
+               goods_price, freight_price, coupon_price, order_price, actual_price,
+               pay_id, pay_time, ship_channel, ship_sn, user_id
+        from litemall_order
+        where deleted = 0
+          and id &gt; #{lastId}
+        <if test="userId != null">
+            and user_id = #{userId}
+        </if>
+        <if test="orderSn != null">
+            and order_sn = #{orderSn}
+        </if>
+        <if test="orderStatuses != null and orderStatuses.size() > 0">
+            and order_status in
+            <foreach collection="orderStatuses" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        <if test="start != null">
+            and add_time &gt;= #{start}
+        </if>
+        <if test="end != null">
+            and add_time &lt; #{end}
+        </if>
+        order by id asc
+        limit #{limit}
+    </select>
+
+    <!--
+      Hand-maintained (Wave 4): orders + revenue by fulfillment source; blank/NULL source
+      rows (pre-V27 orders) bucket as 'local'.
+    -->
+    <select id="statBySource" resultType="java.util.HashMap">
+        select coalesce(nullif(source, ''), 'local') as source,
+               count(*) as orders,
+               coalesce(sum(actual_price), 0) as amount
+        from litemall_order
+        where deleted = 0
+        <if test="start != null">
+            and add_time &gt;= #{start}
+        </if>
+        <if test="end != null">
+            and add_time &lt; #{end}
+        </if>
+        group by 1
+        order by 2 desc
+    </select>
+
+    <!--
+      Hand-maintained (Wave 4): orders + revenue by tender, derived from the pay_id prefix
+      (refund-tender-parity records tender as '<tender>:<ref>'); unpaid orders = 'UNPAID'.
+    -->
+    <select id="statByTender" resultType="java.util.HashMap">
+        select case when pay_id is null or pay_id = '' then 'UNPAID'
+                    else substring_index(pay_id, ':', 1) end as tender,
+               count(*) as orders,
+               coalesce(sum(actual_price), 0) as amount
+        from litemall_order
+        where deleted = 0
+        <if test="start != null">
+            and add_time &gt;= #{start}
+        </if>
+        <if test="end != null">
+            and add_time &lt; #{end}
+        </if>
+        group by 1
+        order by 2 desc
+    </select>
 </mapper>
