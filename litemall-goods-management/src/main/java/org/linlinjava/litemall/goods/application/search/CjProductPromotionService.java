@@ -29,6 +29,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -139,17 +140,35 @@ public class CjProductPromotionService {
      */
     public int reconcile(Set<String> liveCjPids) {
         return txTemplate.execute(status -> {
-            int removed = 0;
-            for (LitemallGoods ref : linkageMapper.findCjGoodsRefs()) {
+            // Two-pass: collect candidates first so the erosion tripwire can veto the whole batch.
+            // "Absent from liveCjPids" is weak evidence when the fetch behind the set was partial or
+            // rotation-limited — the failure mode that eroded 7.7k goods before 2026-07-13.
+            List<LitemallGoods> refs = linkageMapper.findCjGoodsRefs();
+            List<LitemallGoods> candidates = new ArrayList<>();
+            for (LitemallGoods ref : refs) {
                 if (ref.getCjPid() != null && !liveCjPids.contains(ref.getCjPid())) {
-                    goodsMapper.logicalDeleteByPrimaryKey(ref.getId());
-                    LitemallGoodsProductExample ex = new LitemallGoodsProductExample();
-                    ex.createCriteria().andGoodsIdEqualTo(ref.getId()).andDeletedEqualTo(false);
-                    for (LitemallGoodsProduct p : productMapper.selectByExample(ex)) {
-                        productMapper.logicalDeleteByPrimaryKey(p.getId());
-                    }
-                    removed++;
+                    candidates.add(ref);
                 }
+            }
+            if (!refs.isEmpty() && !candidates.isEmpty()) {
+                double fraction = (double) candidates.size() / refs.size();
+                if (fraction > config.getPruneMaxFraction()) {
+                    log.error("CJ reconcile tripwire: refusing to soft-delete {} of {} live CJ goods "
+                                    + "({}% > {}%) — partial fetch or listing rotation suspected; reconcile skipped",
+                            candidates.size(), refs.size(),
+                            Math.round(fraction * 100), Math.round(config.getPruneMaxFraction() * 100));
+                    return 0;
+                }
+            }
+            int removed = 0;
+            for (LitemallGoods ref : candidates) {
+                goodsMapper.logicalDeleteByPrimaryKey(ref.getId());
+                LitemallGoodsProductExample ex = new LitemallGoodsProductExample();
+                ex.createCriteria().andGoodsIdEqualTo(ref.getId()).andDeletedEqualTo(false);
+                for (LitemallGoodsProduct p : productMapper.selectByExample(ex)) {
+                    productMapper.logicalDeleteByPrimaryKey(p.getId());
+                }
+                removed++;
             }
             log.info("CJ reconcile: soft-deleted {} goods no longer in the live snapshot", removed);
             return removed;

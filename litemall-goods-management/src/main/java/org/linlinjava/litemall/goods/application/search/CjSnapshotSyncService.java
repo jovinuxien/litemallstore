@@ -72,9 +72,10 @@ public class CjSnapshotSyncService {
      * {@code CjProductPromotionService.reconcile} so native goods for vanished pids are soft-deleted.
      */
     public record SyncResult(int upserted, int inserted, int updated,
-                             List<String> removedPids, java.util.Set<String> livePids) {
+                             List<String> removedPids, java.util.Set<String> livePids,
+                             boolean complete) {
         public static SyncResult empty() {
-            return new SyncResult(0, 0, 0, List.of(), java.util.Set.of());
+            return new SyncResult(0, 0, 0, List.of(), java.util.Set.of(), false);
         }
     }
 
@@ -185,7 +186,7 @@ public class CjSnapshotSyncService {
         }
 
         LOGGER.info("CJ snapshot sync: {} new, {} updated, {} soft-deleted stale", inserted, updated, removed.size());
-        return new SyncResult(upserted, inserted, updated, removed, livePids);
+        return new SyncResult(upserted, inserted, updated, removed, livePids, fetch.complete());
     }
 
     // ---- CJProduct → snapshot row (normalization lives here) --------------------------------------
