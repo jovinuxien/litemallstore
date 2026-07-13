@@ -109,6 +109,17 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private FreightCalculationService freightCalculationService;
 
+    // Pickup stores (Wave 4, Task B): store existence/visibility checks at submit.
+    @Autowired
+    private LitemallStoreServiceLayer storeServiceLayer;
+
+    /** 10-digit pickup verify codes (Wave 4) — SecureRandom, dup-key retried at assign. */
+    private final java.security.SecureRandom verifyCodeRandom = new java.security.SecureRandom();
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     public LitemallOrderServiceImpl(LitemallOrderRepository orderRepo,
                                     LitemallGrouponRepository grouponRepo,
                                     LitemallCartRepository cartRepo,
@@ -176,14 +187,35 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 && grouponServiceLayer.validateGrouponRules(
                         cmdGrouponRulesId.getId(), grouponLinkId, cmdUserId.getId()).isValid();
 
-        // Get and Check the shipping address. Use the explicit addressId when supplied,
-        // otherwise fall back to the user's default address. Either way a missing address
-        // is a hard error — the order needs a consignee/mobile/address to ship to.
-        LitemallAddressAggregate addressAggregate = command.getAddressId() == null
-                ? addressRepository.findDefaultAddress(cmdUserId)
-                : addressRepository.findAddress(cmdUserId, new LitemallAddressId(command.getAddressId()));
-        if (addressAggregate == null) {
-            throw new IllegalArgumentException("Address info is required");
+        // Delivery mode (Wave 4, Task B): express (default) needs a shipping address;
+        // in-store pickup needs a visible store + pickup contact instead. The orchestrator
+        // pre-checks all pickup 422s OUTSIDE this transaction; the checks here are the
+        // safety-net copies for other callers/races and throw the TYPED
+        // LitemallPickupException, which the orchestrator rethrows (never converts
+        // in-transaction — the rollback-only→502 landmine) and REST maps to 422.
+        boolean pickup = command.isPickup();
+        LitemallAddressAggregate addressAggregate = null;
+        org.linlinjava.litemall.db.domain.LitemallStore pickupStore = null;
+        if (pickup) {
+            pickupStore = storeServiceLayer.findPickupable(command.getStoreId());
+            if (pickupStore == null) {
+                throw new org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException(
+                        "The selected pickup store is not available.");
+            }
+            if (isBlank(command.getPickupName()) || isBlank(command.getPickupMobile())) {
+                throw new org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException(
+                        "Pickup contact name and mobile are required.");
+            }
+        } else {
+            // Get and Check the shipping address. Use the explicit addressId when supplied,
+            // otherwise fall back to the user's default address. Either way a missing address
+            // is a hard error — the order needs a consignee/mobile/address to ship to.
+            addressAggregate = command.getAddressId() == null
+                    ? addressRepository.findDefaultAddress(cmdUserId)
+                    : addressRepository.findAddress(cmdUserId, new LitemallAddressId(command.getAddressId()));
+            if (addressAggregate == null) {
+                throw new IllegalArgumentException("Address info is required");
+            }
         }
 
 
@@ -206,6 +238,13 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Throws on a mixed cart — the orchestrator pre-checks this outside the
         // transaction so a mixed submit surfaces as a clean 422, not a rollback-only 500.
         String orderSource = orderSourceResolver.resolve(cartList);
+
+        // CJ lines cannot be picked up in a store — CJ ships from its own warehouses.
+        // Pre-checked in the orchestrator; typed safety-net here (see above).
+        if (pickup && LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+            throw new org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException(
+                    "Dropshipped items cannot be picked up in store — choose delivery or remove them.");
+        }
 
         // For a CJ order, prove every line can be placed at CJ (has a cj_vid) BEFORE
         // creating the order. A shallow catalog-fill row marked on-sale before enrichment
@@ -270,15 +309,21 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // the template ladder when freight.template.enabled=true and degrades to the
         // legacy litemall_express_freight_min/value flat rule otherwise (and for CJ
         // carts, which skip templates by design). See docs/adr-freight-templates.md.
-        List<FreightCalculationService.FreightLine> freightLines = cartList.stream()
-                .filter(Objects::nonNull)
-                .map(item -> new FreightCalculationService.FreightLine(
-                        item.getGoodsId().getId(), item.getNumber() == null ? 0 : item.getNumber(),
-                        item.getPrice() == null ? null : item.getPrice().getAmount()))
-                .collect(Collectors.toList());
-        BigDecimal freightPrice = freightCalculationService.quote(freightLines,
-                command.getCountryCode(), addressAggregate.getProvince(), checkedGoodsPrice,
-                LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)).getFreight();
+        // In-store pickup has no shipping leg at all — freight is 0 by definition.
+        BigDecimal freightPrice;
+        if (pickup) {
+            freightPrice = BigDecimal.ZERO;
+        } else {
+            List<FreightCalculationService.FreightLine> freightLines = cartList.stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> new FreightCalculationService.FreightLine(
+                            item.getGoodsId().getId(), item.getNumber() == null ? 0 : item.getNumber(),
+                            item.getPrice() == null ? null : item.getPrice().getAmount()))
+                    .collect(Collectors.toList());
+            freightPrice = freightCalculationService.quote(freightLines,
+                    command.getCountryCode(), addressAggregate.getProvince(), checkedGoodsPrice,
+                    LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)).getFreight();
+        }
         // Other money available，For example, user points
         BigDecimal integralPrice = new BigDecimal(0);
 
@@ -308,14 +353,26 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         orderAggregate.setDeleted(false);
         orderAggregate.setAddTime(LocalDateTime.now());
         orderAggregate.setUpdateTime(LocalDateTime.now());
-        orderAggregate.setConsignee(addressAggregate.getName());
-        orderAggregate.setMobile(addressAggregate.getTel());
         orderAggregate.setMessage(command.getMessage());
-        String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
-        orderAggregate.setAddress(detailedAddress);
-        // CJ-fulfillment linkage (V27): keep the structured-address key + checkout
-        // country so the pay step can replay a source='cj' order to CJ createOrder.
-        orderAggregate.setAddressId(addressAggregate.getAddressId());
+        if (pickup) {
+            // Pickup (Wave 4): consignee/mobile are the pickup contact; the 127-char
+            // address column stores ONLY the marker + store name (store detail renders
+            // from litemall_store via store_id). No shipping address is captured.
+            orderAggregate.setConsignee(command.getPickupName());
+            orderAggregate.setMobile(command.getPickupMobile());
+            orderAggregate.setAddress("PICKUP: " + pickupStore.getName());
+            orderAggregate.setDeliveryType(LitemallOrderAggregate.DELIVERY_PICKUP);
+            orderAggregate.setStoreId(pickupStore.getId());
+        } else {
+            orderAggregate.setConsignee(addressAggregate.getName());
+            orderAggregate.setMobile(addressAggregate.getTel());
+            String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
+            orderAggregate.setAddress(detailedAddress);
+            // CJ-fulfillment linkage (V27): keep the structured-address key + checkout
+            // country so the pay step can replay a source='cj' order to CJ createOrder.
+            orderAggregate.setAddressId(addressAggregate.getAddressId());
+            orderAggregate.setDeliveryType(LitemallOrderAggregate.DELIVERY_EXPRESS);
+        }
         orderAggregate.setCountryCode(command.getCountryCode());
         orderAggregate.setSource(orderSource);
         orderAggregate.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
@@ -552,8 +609,55 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");
         }
 
+        // Pickup verify code (Wave 4): generated INSIDE this payment transaction — an
+        // unpaid order never carries a redeemable code (documented deviation from
+        // crmeb's generate-at-create). The UNIQUE index dedupes; a collision with
+        // another order's code raises a duplicate-key error and we regenerate.
+        if (orderAggregate.isPickup()) {
+            assignPickupVerifyCode(orderId);
+        }
+
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
+    }
+
+    /** Assign a fresh 10-digit verify code with a bounded dup-key retry (see markOrderPaid). */
+    private void assignPickupVerifyCode(LitemallOrderId orderId) {
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            String code = String.format("%010d", Math.floorMod(verifyCodeRandom.nextLong(), 10_000_000_000L));
+            try {
+                // 0 rows = the order already carries a code (idempotent under pay retries).
+                orderRepository.assignVerifyCode(orderId, code);
+                return;
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                log.warn("verify code collision for order {} (attempt {}), regenerating",
+                        orderId.getId(), attempt);
+            }
+        }
+        // 5 collisions in a 10^10 space means something is broken — fail the payment
+        // cleanly rather than produce a paid pickup order that can never be redeemed.
+        throw new IllegalStateException(
+                "Could not assign a unique pickup verify code for order " + orderId.getId());
+    }
+
+    /**
+     * Staff writes off a paid pickup order at the counter (PAID → DELIVERED, Wave 4).
+     * Mirrors {@link #confirmDelivery}: aggregate transition (raises the delivered
+     * event + timeline hop) then the guarded conditional UPDATE — 0 rows = a
+     * concurrent scan already redeemed the code (distinct 422 upstream).
+     */
+    public void writeoffOrder(LitemallOrderId orderId, String verifiedBy) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        agg.writeOff(verifiedBy);
+        int updated = orderRepository.markDeliveredByWriteoff(orderId, verifiedBy);
+        if (updated == 0) {
+            throw new org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException(
+                    org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException.Kind.ALREADY_VERIFIED,
+                    "This pickup code was already redeemed (concurrent scan)");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
     }
 
     /**

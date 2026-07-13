@@ -94,7 +94,18 @@ litemall:
     # (replaces Keycloak OIDC/resource-server). Dev default; config-server
     # overrides for non-dev.
     jwk-set-uri: http://localhost:8089/oauth2/jwks
+    # Anonymous paths served by THIS service (svcsecurity is deny-by-default and
+    # this list REPLACES the starter's defaults — which only cover goods-side
+    # paths anyway). /srv/store/** is the customer store directory (Wave 4,
+    # pickup): browsing stores needs no identity. Everything else (incl. all
+    # /srv/order/**) keeps requiring the gateway's machine token.
+    public-paths:
+      - /actuator/health/**
+      - /srv/store/**
   order:
+    # Wave 4 (Task B): in-store pickup kill-switch. Flipping to false 422s NEW
+    # pickup submits; existing pickup orders still read/write-off normally.
+    pickup-enabled: true
     # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
     unpaid-sweep-ms: 60000
     # CJ status-sync poll (Wave 3): every open CJ order is re-checked at this cadence,

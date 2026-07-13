@@ -78,6 +78,23 @@ public interface LitemallOrderRepository {
 
     int markAutoDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
 
+    /**
+     * PAID → DELIVERED by pickup write-off (Wave 4): conditional UPDATE guarded on
+     * {@code order_status=201 AND verify_time IS NULL}, stamping verify_time/verified_by.
+     * 0 rows = a concurrent scan won / the order moved on — the caller loses cleanly.
+     */
+    int markDeliveredByWriteoff(LitemallOrderId orderId, String verifiedBy);
+
+    /**
+     * Assign the pickup verify code exactly once ({@code verify_code IS NULL} guard,
+     * Wave 4). Called inside the payment transaction; a UNIQUE collision with another
+     * order's code raises a duplicate-key exception — the caller regenerates and retries.
+     */
+    int assignVerifyCode(LitemallOrderId orderId, String verifyCode);
+
+    /** Lookup by pickup verify code (admin write-off scan; deleted rows excluded). */
+    java.util.Optional<LitemallOrderAggregate> findByVerifyCode(String verifyCode);
+
     /** PAID or SHIPPED → REFUND_REQUEST. */
     int markRefundRequestedIfPayable(LitemallOrderId orderId, String refundContent);
 

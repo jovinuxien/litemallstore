@@ -15,9 +15,12 @@ public enum LitemallOrderStatus {
     PAID(201, "PAID"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            // Once paid, the order can be fulfilled (SHIPPED) or unwound via the
+            // Once paid, the order can be fulfilled (SHIPPED), delivered over the
+            // counter (DELIVERED — pickup write-off, Wave 4; the REAL guards are the
+            // aggregate's pickup/handle-option gate plus the conditional
+            // WHERE order_status=201 UPDATE, not this graph), or unwound via the
             // refund flow. A paid order is never hard-CANCELED — that path is a refund.
-            return newStatus == SHIPPED || newStatus == REFUND_REQUEST;
+            return newStatus == SHIPPED || newStatus == DELIVERED || newStatus == REFUND_REQUEST;
         }
     },
     SHIPPED(301, "SHIPPED"){

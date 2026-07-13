@@ -30,11 +30,13 @@ public class OrderListItemDtoResponse {
     // SPA can badge dropship orders and show the CJ reference.
     private final String source;
     private final String cjOrderNum;
+    /** 'express' | 'pickup' (Wave 4) — lets the My-Orders tabs relabel pickup orders. */
+    private final String deliveryType;
 
     public OrderListItemDtoResponse(Integer id, String orderSn, BigDecimal actualPrice,
                                     String orderStatusText, OrderHandleOptionDtoResponse handleOption,
                                     Short aftersaleStatus, List<OrderGoodsDtoResponse> goodsList,
-                                    String source, String cjOrderNum) {
+                                    String source, String cjOrderNum, String deliveryType) {
         this.id = id;
         this.orderSn = orderSn;
         this.actualPrice = actualPrice;
@@ -44,6 +46,7 @@ public class OrderListItemDtoResponse {
         this.goodsList = goodsList;
         this.source = source;
         this.cjOrderNum = cjOrderNum;
+        this.deliveryType = deliveryType;
     }
 
     public static OrderListItemDtoResponse fromDomain(LitemallOrderAggregate o,
@@ -58,6 +61,7 @@ public class OrderListItemDtoResponse {
                 goods == null ? List.of()
                         : goods.stream().map(OrderGoodsDtoResponse::fromDomain).collect(Collectors.toList()),
                 o.getSource(),
-                o.getCjOrderNum());
+                o.getCjOrderNum(),
+                o.getDeliveryType());
     }
 }

@@ -10,6 +10,7 @@ import org.linlinjava.litemall.order.application.internal.LitemallGrouponService
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
 import org.linlinjava.litemall.order.application.internal.UnpaidOrderTaskScheduler;
 import org.linlinjava.litemall.order.application.util.exception.order.LitemallOrderServiceException;
+import org.linlinjava.litemall.order.application.util.exception.order.LitemallWriteoffException;
 import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.events.groupon.LitemallGrouponParticipatedEvent;
 import org.linlinjava.litemall.order.domain.events.order.LitemallOrderCreatedEvent;
@@ -117,6 +118,16 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository statusHistoryRepository;
 
+    // Pickup stores (Wave 4, Task B): submit pre-checks + write-off store rendering.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
+
+    // Kill-switch for the pickup vertical (Wave 4). ON by default — flipping it off
+    // 422s NEW pickup submits; already-placed pickup orders keep working (write-off
+    // and reads are unaffected).
+    @org.springframework.beans.factory.annotation.Value("${litemall.order.pickup-enabled:true}")
+    private boolean pickupEnabled;
+
 
     public LitemallOrderOrchestratorService(LitemallOrderServiceImpl orderService, LitemallOrderRepository orderRepository,
                                             LitemallGrouponServiceLayer grouponService) {
@@ -183,6 +194,29 @@ public class LitemallOrderOrchestratorService {
             if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
                 cjOrderAvailabilityChecker.assertAllFulfillable(checkedItems);
             }
+            // Pickup pre-checks (Wave 4, Task B) — ALL pickup 422s fire HERE, outside
+            // the transactional placeOrder (the in-TX-422→502 landmine): kill-switch,
+            // CJ-in-cart, store missing/hidden, blank pickup contact. placeOrder keeps
+            // typed safety-net copies (LitemallPickupException, rethrown below).
+            if (command.isPickup()) {
+                if (!pickupEnabled) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "In-store pickup is currently unavailable — choose delivery instead.");
+                }
+                if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "Dropshipped items cannot be picked up in store — choose delivery or remove them.");
+                }
+                if (storeServiceLayer.findPickupable(command.getStoreId()) == null) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "The selected pickup store is not available.");
+                }
+                if (command.getPickupName() == null || command.getPickupName().isBlank()
+                        || command.getPickupMobile() == null || command.getPickupMobile().isBlank()) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "Pickup contact name and mobile are required.");
+                }
+            }
         } catch (LitemallOrderServiceException e) {
             return LitemallOrderOperationResult.submitFailed(e.getMessage());
         }
@@ -204,7 +238,8 @@ public class LitemallOrderOrchestratorService {
         } catch (org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException
                  | org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException
                  | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException
-                 | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException e) {
+                 | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException
+                 | org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException e) {
             // Clean placement failures (out of stock / goods-service down / coupon
             // rejected / promotion down with a coupon selected). They were thrown
             // inside the transactional placeOrder, so the shared transaction is
@@ -657,6 +692,12 @@ public class LitemallOrderOrchestratorService {
             return LitemallOrderOperationResult.orderNotFound(orderId);
         }
         LitemallOrderStatus previous = order.getOrderStatus();
+        // Pickup orders have no shipping leg — they are written off at the counter
+        // (Wave 4). Refuse ship cleanly (422 via the SHIP error mapping).
+        if (order.isPickup()) {
+            return LitemallOrderOperationResult.shipFailed(orderId,
+                    "This is an in-store pickup order — redeem its verify code via write-off instead of shipping.");
+        }
         if (!previous.canTransitionTo(LitemallOrderStatus.SHIPPED)) {
             return LitemallOrderOperationResult.invalidStateTransition(
                     orderId, LitemallOrderOperationResult.OperationType.SHIP, previous);
@@ -664,6 +705,53 @@ public class LitemallOrderOrchestratorService {
         orderServiceImpl.shipOrder(orderId, shipChannel, shipSn);
         return LitemallOrderOperationResult.shipSuccess(
                 orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.SHIPPED));
+    }
+
+    // ---- pickup write-off (核销, Wave 4 Task B) ---------------------------------------
+
+    /**
+     * Preview a scanned verify code WITHOUT redeeming it: returns the paid pickup order
+     * the code belongs to, or throws {@link LitemallWriteoffException} (three distinct
+     * kinds → three distinct 422s at the controller). Read-only.
+     */
+    public LitemallOrderAggregate writeoffPreview(String verifyCode) {
+        return loadWriteoffableOrder(verifyCode);
+    }
+
+    /**
+     * Redeem a verify code: PAID → DELIVERED with the {@code writeoff} timeline hop,
+     * {@code verified_by} audit stamp and the delivered domain event — all in THIS
+     * orchestrator transaction (the approveAftersale pattern; a bare service call
+     * would run without one). A concurrent scan loses on the conditional UPDATE and
+     * surfaces as ALREADY_VERIFIED.
+     *
+     * @param verifiedBy audit identity, e.g. {@code "admin:<X-User-Id>"}
+     */
+    public LitemallOrderAggregate writeoffCommit(String verifyCode, String verifiedBy) {
+        LitemallOrderAggregate order = loadWriteoffableOrder(verifyCode);
+        orderServiceImpl.writeoffOrder(order.getOrderId(), verifiedBy);
+        return orderRepository.findById(order.getOrderId()).orElse(order);
+    }
+
+    /** Shared write-off gate: unknown code / already verified / wrong state → typed throws. */
+    private LitemallOrderAggregate loadWriteoffableOrder(String verifyCode) {
+        LitemallOrderAggregate order = orderRepository.findByVerifyCode(
+                verifyCode == null ? null : verifyCode.trim()).orElse(null);
+        if (order == null) {
+            throw new LitemallWriteoffException(LitemallWriteoffException.Kind.UNKNOWN_CODE,
+                    "No order carries this pickup code — check the scan and try again.");
+        }
+        if (order.getVerifyTime() != null) {
+            throw new LitemallWriteoffException(LitemallWriteoffException.Kind.ALREADY_VERIFIED,
+                    "This pickup code was already redeemed on " + order.getVerifyTime()
+                    + " by " + order.getVerifiedBy() + ".");
+        }
+        if (!order.isPickup() || order.getOrderStatus() != LitemallOrderStatus.PAID) {
+            throw new LitemallWriteoffException(LitemallWriteoffException.Kind.WRONG_STATE,
+                    "Order " + order.getOrderSn() + " is not a redeemable paid pickup order (status: "
+                    + order.getOrderStatus().getDisplayName() + ").");
+        }
+        return order;
     }
 
     /**
@@ -676,7 +764,11 @@ public class LitemallOrderOrchestratorService {
             return LitemallOrderOperationResult.orderNotFound(orderId);
         }
         LitemallOrderStatus previous = order.getOrderStatus();
-        if (!previous.canTransitionTo(LitemallOrderStatus.DELIVERED)) {
+        // Explicit SHIPPED gate: PAID→DELIVERED exists in the graph for the pickup
+        // write-off (Wave 4) but must never be reachable through a customer receipt
+        // confirmation — a paid, unshipped order is not "received".
+        if (previous != LitemallOrderStatus.SHIPPED
+                || !previous.canTransitionTo(LitemallOrderStatus.DELIVERED)) {
             return LitemallOrderOperationResult.invalidStateTransition(
                     orderId, LitemallOrderOperationResult.OperationType.CONFIRM, previous);
         }
