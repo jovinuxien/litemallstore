@@ -89,12 +89,26 @@
     where pid = #{pid} and deleted = 0
   </update>
 
-  <!-- Rows due for enrichment: never-enriched (enriched_time NULL) first, then oldest. -->
+  <!-- Rows due for enrichment, DEMAND-PRIORITIZED (Demand-Driven CJ Enrichment, 2026-07-13):
+       never-enriched first, then by recent customer views (footprints on the promoted goods,
+       last 30 days), then CJ popularity (listed_num), then oldest-enriched. The nightly batch
+       thus converges the products people actually look at before the long tail. -->
   <select id="selectForEnrichment" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
-    select <include refid="Base_Column_List"/>
-    from litemall_cj_product
-    where deleted = 0
-    order by (enriched_time is null) desc, enriched_time asc, add_time desc
+    select cp.*
+    from litemall_cj_product cp
+    left join litemall_goods g
+      on g.cj_pid = cp.pid and g.deleted = 0
+    left join (
+        select goods_id, count(*) as views
+        from litemall_footprint
+        where deleted = 0 and add_time &gt; date_sub(now(), interval 30 day)
+        group by goods_id
+    ) f on f.goods_id = g.id
+    where cp.deleted = 0
+    order by (cp.enriched_time is null) desc,
+             coalesce(f.views, 0) desc,
+             coalesce(cp.listed_num, 0) desc,
+             cp.enriched_time asc, cp.add_time desc
     limit #{limit}
   </select>
 

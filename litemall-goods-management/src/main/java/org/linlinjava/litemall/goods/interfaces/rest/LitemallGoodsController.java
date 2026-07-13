@@ -56,6 +56,9 @@ public class LitemallGoodsController {
     private CjGoodsDetailService cjGoodsDetailService;
     @Autowired
     private CjGoodsVideoService cjGoodsVideoService;
+    // Demand-Driven CJ Enrichment: viewing a shallow CJ goods triggers an async enrich-in-place.
+    @Autowired
+    private org.linlinjava.litemall.goods.application.search.CjOnDemandEnrichmentService cjOnDemandEnrichmentService;
     @Autowired
     private SearchService searchService;
     // OCS-backed discovery rails (SuperDeals / New Arrivals), unified local + CJ, price·popularity·
@@ -312,9 +315,14 @@ public class LitemallGoodsController {
         // have no litemall_goods row, so the DB aggregation can't serve them. Route those to the
         // live CJ detail fetch; everything else is a local numeric goods id.
         if (CjGoodsDetailService.isCjId(id)) {
+            // Viewing an unpromoted CJ product is the strongest demand signal there is —
+            // enrich (and thereby promote) it in the background while the page is read.
+            cjOnDemandEnrichmentService.requestForPid(CjGoodsDetailService.pidOf(id));
             return cjGoodsDetailService.detail(id);
         }
         LitemallGoodsId goodsId = new LitemallGoodsId(Integer.valueOf(id.trim()));
+        // Shallow CJ goods (vid-less placeholder SKU) become orderable in the background.
+        cjOnDemandEnrichmentService.requestForGoods(goodsId.getId());
         return goodsManagementService.goodsDetail(goodsId, executorService, HANDLER, WORK_QUEUE);
     }
 
@@ -393,6 +401,9 @@ public class LitemallGoodsController {
     @GetMapping("/goodsdetail")
     public Object getGoodsDetail(@NotNull Integer id) {
         LitemallGoodsId goodsId = new LitemallGoodsId(id);
+        // Also fires on the order service's facade fetch — including its submit-block retry
+        // path, which deliberately re-reads the goods to trigger this enrichment hook.
+        cjOnDemandEnrichmentService.requestForGoods(id);
         return goodsManagementService.getGoodsAggregateById(goodsId);
     }
 
