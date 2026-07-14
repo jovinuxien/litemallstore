@@ -52,7 +52,10 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
     private final boolean sandbox;
     /**
      * IOSS declaration for EU destinations (createOrderV2 rejects EU orders without one,
-     * error 100104/7001). Default 1 = no IOSS: the buyer pays import VAT. See the ADR.
+     * error 100104/7001). 0 (default) = OMIT the field so CJ falls back to the account's
+     * dashboard IOSS Option ("Declare with CJ's IOSS" / own IOSS per country) — CJ's
+     * documented behavior when no IOSS is supplied on the order. 1/2/3 send explicitly
+     * (2 requires ioss-number). See the ADR.
      */
     private final int iossType;
     /** Merchant IOSS number, sent when non-blank (required with {@code ioss-type: 2}). */
@@ -64,7 +67,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.from-country-code:CN}") String fromCountryCode,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.sandbox:false}") boolean sandbox,
-                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-type:1}") int iossType,
+                                     @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-type:0}") int iossType,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ioss-number:}") String iossNumber,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.customer-email-fallback:orders@litemall.dev}") String customerEmailFallback) {
         this.cjOrderFeignClient = cjOrderFeignClient;
@@ -227,7 +230,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .remark(p.getRemark())
                 .payType(PAY_TYPE_CREATE_ONLY)
                 .isSandbox(sandbox ? 1 : null)
-                .iossType(iossType)
+                .iossType(iossType > 0 ? iossType : null)
                 .iossNumber(org.springframework.util.StringUtils.hasText(iossNumber) ? iossNumber.trim() : null)
                 .email(org.springframework.util.StringUtils.hasText(p.getEmail())
                         ? p.getEmail().trim() : customerEmailFallback)
