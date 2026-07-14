@@ -80,11 +80,14 @@ spring:
       sandbox: true
       auto-pay-balance: true
       # IOSS declaration for EU destinations — createOrderV2 rejects EU orders without
-      # one (100104/7001). 1 = no IOSS (buyer pays import VAT — live-tested: CJ STILL
-      # demands a number for EU, so 1 is unusable there); 2 = own IOSS (set ioss-number
-      # too); 3 = CJ's IOSS service (CJ declares with their number — dev default, works
-      # without a merchant IOSS registration). Per-deployment decision.
-      ioss-type: ${CJ_IOSS_TYPE:3}
+      # one (100104/7001). 0 (default) = OMIT the field: CJ then applies the account's
+      # dashboard IOSS Option (Profile > IOSS Setting — "Declare with CJ's IOSS" per
+      # country, or an own-IOSS entry), which is CJ's documented flow for orders that
+      # don't carry an IOSS. Explicit values if ever needed: 1 = no IOSS (live-tested:
+      # CJ still demands a number for EU), 2 = own IOSS (set ioss-number too),
+      # 3 = CJ IOSS service (live-tested: also demands a number unless the dashboard
+      # setting is active). Per-deployment decision.
+      ioss-type: ${CJ_IOSS_TYPE:0}
       ioss-number: ${CJ_IOSS_NUMBER:}
       # createOrderV2 also rejects a missing/invalid customer email (3001). The ordering
       # user's email is used when present; this store contact is the fallback.
