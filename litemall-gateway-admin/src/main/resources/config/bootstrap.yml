@@ -44,8 +44,46 @@ litemall:
     issuer: litemall-admin
     audience: litemall-admin-api
     access-ttl-seconds: 7200
-    private-key-pem: ""
-    public-key-pem: ""
+    # Dev keypair so restarts do NOT invalidate admin logins. DEV ONLY — override in prod.
+    private-key-pem: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCV13TIKzRI8coW
+      qg2qsegfA56gq0tgY9WDK6SKAecVzPk8jqwBfU8Uk8pzSolX5nNh43yC0HUWxKod
+      k3U8vaqUZIRuF4g0i2TBhcPgT23jb1k1nNunK9kcit9lSP5Y1wcT5tVQFpYUY3an
+      jFDXvZVyTQMkkR/mS9kCadbPlZwCIkqBgiqNGq5f4pFKZZtlEKKZXPU3p33sqiYA
+      BchGXqD76llb5UwOwHxSBbD3rtfGZV6Kp7ifjvfXfHM8VHcOXgF/uVdi1glSLGv+
+      rj+WesfKZfZhvOejI0iskq4TfvB+ViHDOccRwaJYBVfqOvW9bPWTE+HHo4FUp/WU
+      ryDQwZ8JAgMBAAECggEAGAqIpzEfY3C/3uEL7k47EvbOtbKmFmIOOMyAys/BVuMb
+      PhcaC+ciEAgiXFsiLCNCcftA1/BASRXmwXYOQl+gBc0W3l8SMHQJB2/B3LSByhLs
+      ekifiXPkksrJSwPqIzDk5tGLeh0VmVHYEMvXkLXPS5aFoZFTT+ztdZCrsYSskj7V
+      YN0z9KaVOuj0j91dfNcrGmEY1J/92Hy9UTeP3QDc5l3Ru/qBGXwXkyZ6xdanYcnx
+      TyWD66K5IP3Z3CvnUnHDAGf1GDuXJWcKisKE27gbd3Rie7qBpk8cYKdKOMSVfoqP
+      V/s2BgR03n3f8plQ/P74/xBT3JB+AZvPj+PwVwlMDQKBgQDGZNb/1pOHOZbiipLh
+      Jz6msIw7xa8aKvn4Y0qVT7INs2KrP4nd04C1UX3BhwV9S4XwnwFrzx+Q6n1jc59X
+      oumebyYmDYnocTUVFBF+pk5qrV1SaknNwai13P+SYKBepEGqa5F/IfdQFtC8vNky
+      t8vcnx8Lbl8b9qgPgnfbygUTiwKBgQDBWZfKq8D6XW9pS0ehFj3jO8IDon8cJJFv
+      CA1XUq9aZ7MvLLx/M3Qk/yqR0kFEp6+o6Lt6xq5Xt2L1JhSxnCtWbMyc9oaAVx0T
+      0sBn38PK2i7K3nh/KlQQwmMZv+Y7fjI4UkNqKW4sfrwIgSBUT/WHuiaUDoQMHJX9
+      HCMOhA4aOwKBgQCymuXTvOFjw7zKheZlPGdyuU4GIZnZ/Qa9TuY+NVkebHhPowwC
+      3/3nPk3whBW1DuCuFve4jubkF7Z6agTxaIDZWUcGyvl0gTZAm6iEVEQUVa7GG1oG
+      GmpAD40lwked7FIRknWR9oonV+Ljh0AiIMUvATF5oQuOqSfzjolJHT4ksQKBgQCO
+      3Y2MYraYCHwvGEHYJGAcTGaCWwqDF/4iRZfeAymwqlk7LVomvzU9tRGWZ/50JVdl
+      fnoxMSdXhxjmvXmi9xsKpB/Yh0xA/p1srVggKLY6aFcU7aephvRQ4eFqAGK1aPzg
+      ouBPTEetNwPnYMorol1xKbohwkwNyv2E5cp9ilQFSwKBgEvToMSrmuI1am/fqOIm
+      BQuh+Nht0JVAtLwgpO9ykTYMnd+xuXpZJAyGWfrW4PzUWzlkRkl6sh8CUp87GpIS
+      5AqDPSo6VzoRHE5qWIy0pB3ne+KG69GcejUXevlMOT1UPqaZcKKLNNhceKpjwz6w
+      /bVxPpzF/NJ+NkFOu1tFvUIX
+      -----END PRIVATE KEY-----
+    public-key-pem: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAldd0yCs0SPHKFqoNqrHo
+      HwOeoKtLYGPVgyukigHnFcz5PI6sAX1PFJPKc0qJV+ZzYeN8gtB1FsSqHZN1PL2q
+      lGSEbheINItkwYXD4E9t429ZNZzbpyvZHIrfZUj+WNcHE+bVUBaWFGN2p4xQ172V
+      ck0DJJEf5kvZAmnWz5WcAiJKgYIqjRquX+KRSmWbZRCimVz1N6d97KomAAXIRl6g
+      ++pZW+VMDsB8UgWw967XxmVeiqe4n47313xzPFR3Dl4Bf7lXYtYJUixr/q4/lnrH
+      ymX2YbznoyNIrJKuE37wflYhwznHEcGiWAVX6jr1vWz1kxPhx6OBVKf1lK8g0MGf
+      CQIDAQAB
+      -----END PUBLIC KEY-----
 
 jhipster:
   clientApp:
