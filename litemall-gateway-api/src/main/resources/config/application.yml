@@ -122,8 +122,47 @@ litemall:
     issuer: litemall-customer
     audience: litemall-customer-api
     access-ttl-seconds: 7200
-    private-key-pem: ""
-    public-key-pem: ""
+    # Dev keypair so restarts do NOT invalidate logins (the ephemeral-pair gotcha).
+    # DEV ONLY — production must override via env/config-server with its own keys.
+    private-key-pem: |
+      -----BEGIN PRIVATE KEY-----
+      MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC0nuWbh80nxLfE
+      /1bnlCeu4I/VU5j+llR2hxZnZafkrFXhA4XnFhajd1H/b4wFClvP7vpCkyw2sXx2
+      tGCW6YvkOMgtkq+KzdxA1KwzsAU8gRGqpfjOOSKUUnpDepeAeXHmnXb5kFNOEPlo
+      FOR359BSHUyMaqfKc3re6HmY4mwYdN3QxXlxj+IzEYpT0v7DYRVKRLx+XQ4uq8ag
+      UY5iVJPhnP9CRubM6oOjK72e4vsm9JBxj6M1zwz3ktSdUYXXaEgFlFeUmylyq6mR
+      wO7lNousNOcVnqj3DJQVWadSjUNXox3Oms7KK3Nhd7yTKT27hKwqgVSgMWIydoWJ
+      idZ0du9lAgMBAAECggEBAIl1dCCNlWByobjW6niLlDfOxyf+2yzFk7owzKgcAU5S
+      qXj5iWp4sPnu0QSpC9K6M21n3iXUg42MPcDJPckcLE6fuBiWzenBCaJ9OCCOES4e
+      vCc28MdhTCO9MTcxkSNBSaHMrML5R6zd1jGT1Nw8G5qimaMzeEbm49fI7OGhT8q7
+      vsFhVLd0MShNs3nNnEaDaf5yoPSPGQfvnpjIJfL7uFRgPmGRDBIf4kSxSgkReY82
+      ZwO3d1Cc0LM/mO9of7zCjM8qVsKcnsl//2PWWdJOnqZWMAh8TcNidVMEuaxYVSTJ
+      1MKgKUGkUA6vRvMKgdj6Nbzw8MU6H+ulUEdzqomJ3PECgYEA3AbmBWJOGCD3proI
+      pzDVWxcEhWDyItTLJpW464KUCPjH1pBEInFB8I+zdJPc9G9zxwJ+afQ92FpBFOdU
+      WPf5i4O8J7Y9z+6/z8n0wThQv6LloVoIdZ0g1KMkRpXxfTz93MaqGQIc34rToamD
+      qdPJpeZEEc21K7Vjiu6ok2+XsT8CgYEA0iasEwGEY3Rjc9U+Cy0f6rnJZ+vLTcgA
+      fyYX9Hfl7tU+Q1sQuDqAVPeSFCSwkCWxVL7reObMosM3xrzRgqo+6WuIIIbyeqQu
+      fU9f85HLaO3AvA8qliXKsH32Uun4taxw2ebhegw7aIX6faeM399KxJzwjHnb4YsH
+      YRyn+GdLklsCgYBOtH0FggOzZ9+OmU9NFw/K1LH+UA5tXTcKJ1aNkBkKGIvLebGV
+      rHPM7GpiEh5gpZmBn6e+mOqigK51HsaySInQWSAuCGeWAK5GUtSlZVKlKkz/6afL
+      Apji1zS7txk6Fl4s4jeoWHQhlpRbaLq7PhIMsRC6WZ4r82eXJAXTL4DQmwKBgQDC
+      cE+TwjqYvo5qFSozswut5TopceyISf3Tpw5Q/kJ7aUgTkAV3P4GPnATHqG7I4Gcj
+      zwYVtg4upktMEVYT/Kr606h+1/0wZgoxnShdN08qBZjnJ20ywUK5a8JmUt7wUN2V
+      b169yuWIvzXV3xmj5XjLU53pi7JbC4THYHk1h3VPswKBgQCH4zyhdhCmWG8sUIGk
+      L8K7AtX36CSIZLfs9dZRLFkzD1n1wKbeGzs2xjv72YXlDYi7wywth8NETZ8uvLze
+      1CM8Bl4qApRtULXK/0x+7PhrlES8DAObnJBHelAAZkZ9uNDaHJbhtV54JtGvxKmU
+      hy9k16/PRxcshBGegQwK+CngIg==
+      -----END PRIVATE KEY-----
+    public-key-pem: |
+      -----BEGIN PUBLIC KEY-----
+      MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtJ7lm4fNJ8S3xP9W55Qn
+      ruCP1VOY/pZUdocWZ2Wn5KxV4QOF5xYWo3dR/2+MBQpbz+76QpMsNrF8drRglumL
+      5DjILZKvis3cQNSsM7AFPIERqqX4zjkilFJ6Q3qXgHlx5p12+ZBTThD5aBTkd+fQ
+      Uh1MjGqnynN63uh5mOJsGHTd0MV5cY/iMxGKU9L+w2EVSkS8fl0OLqvGoFGOYlST
+      4Zz/QkbmzOqDoyu9nuL7JvSQcY+jNc8M95LUnVGF12hIBZRXlJspcqupkcDu5TaL
+      rDTnFZ6o9wyUFVmnUo1DV6MdzprOyitzYXe8kyk9u4SsKoFUoDFiMnaFiYnWdHbv
+      ZQIDAQAB
+      -----END PUBLIC KEY-----
 
 logging:
   level:
