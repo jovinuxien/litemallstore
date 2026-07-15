@@ -34,6 +34,27 @@ const fmtPrice = (n: number): string => n.toLocaleString(undefined, { minimumFra
 // Compact "sold" count: 1203 -> "1.2k+".
 const fmtSold = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k+` : `${n}`);
 
+// "2d 4h" / "3h 12m" / "8m" remaining until a deal-end epoch (ms); null once past.
+const fmtRemaining = (endEpoch: number, now: number): string | null => {
+  const ms = endEpoch - now;
+  if (ms <= 0) return null;
+  const m = Math.floor(ms / 60000);
+  if (m >= 2880) return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
+  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `${m}m`;
+};
+
+/** Ticks every 30s while a deal countdown is on screen. */
+const useNow = (active: boolean): number => {
+  const [now, setNow] = useState(() => Date.now());
+  React.useEffect(() => {
+    if (!active) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
+};
+
 interface Props {
   product: IGood;
 }
@@ -54,6 +75,9 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     new?: boolean;
     hot?: boolean;
     source?: string;
+    dealActive?: boolean;
+    dealEndEpoch?: number;
+    dealClaimedPct?: number;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -67,6 +91,12 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   const sold = Number(p.salesQuantity) || 0;
   const rating = Number(p.star) || 0;
   const to = `/product/${id}`;
+  // Live flash deal: countdown chip (30s tick) + claimed bar. Fields ride the search DTO
+  // only while a deal is live, so this renders nothing everywhere else.
+  const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
+  const now = useNow(dealEnd != null);
+  const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
+  const claimedPct = p.dealActive && typeof p.dealClaimedPct === 'number' ? Math.min(100, p.dealClaimedPct) : undefined;
 
   // Quick add: drop the goods into the (local) cart at qty 1. SKU/spec selection
   // still happens on the detail page; this gives the marketplace one-tap add.
@@ -116,6 +146,18 @@ const ProductCard: React.FC<Props> = ({ product }) => {
           </span>
           {hasDiscount && <span className="lm-card__orig">US&nbsp;${fmtPrice(counter)}</span>}
         </div>
+
+        {remaining && (
+          <div className="lm-card__deal" style={{ fontSize: '0.78rem', color: '#CC0C39', fontWeight: 600 }}>
+            ⏱ Ends in {remaining}
+            {claimedPct != null && claimedPct > 0 && <span style={{ marginLeft: 6, color: '#6c757d', fontWeight: 400 }}>{claimedPct}% claimed</span>}
+          </div>
+        )}
+        {remaining && claimedPct != null && claimedPct > 0 && (
+          <div style={{ height: 4, borderRadius: 2, background: '#f1f3f5', overflow: 'hidden', margin: '2px 0 4px' }}>
+            <div style={{ width: `${claimedPct}%`, height: '100%', background: '#CC0C39' }} />
+          </div>
+        )}
 
         <div className="lm-card__meta">
           {rating > 0 && (

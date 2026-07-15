@@ -91,6 +91,7 @@ export const ADMIN_MENU: MenuGroup[] = [
     children: [
       { path: '/admin/promotion/ad', title: 'Ads', wired: true },
       { path: '/admin/promotion/coupon', title: 'Coupons', wired: true },
+      { path: '/admin/promotion/deal', title: 'Flash Deals', wired: true },
       { path: '/admin/promotion/topic', title: 'Topics', wired: true },
       { path: '/admin/promotion/groupon-rule', title: 'Groupon rules', wired: true },
       { path: '/admin/promotion/groupon-activity', title: 'Groupon activity', wired: true },
@@ -165,9 +166,9 @@ export const titleForPath = (pathname: string): string | undefined => {
     return `${section} · ${form[2] === 'create' ? 'New' : 'Edit'}`;
   }
   // promotion create/edit forms
-  const promo = /^\/admin\/promotion\/(ad|coupon|groupon-rule|topic)\/([^/]+)(\/issued)?$/.exec(pathname);
+  const promo = /^\/admin\/promotion\/(ad|coupon|deal|groupon-rule|topic)\/([^/]+)(\/issued)?$/.exec(pathname);
   if (promo) {
-    const section = { ad: 'Ads', coupon: 'Coupons', 'groupon-rule': 'Groupon rules', topic: 'Topics' }[promo[1]];
+    const section = { ad: 'Ads', coupon: 'Coupons', deal: 'Flash Deals', 'groupon-rule': 'Groupon rules', topic: 'Topics' }[promo[1]];
     if (promo[3]) return `${section} · Issued`;
     return `${section} · ${promo[2] === 'create' ? 'New' : 'Edit'}`;
   }

@@ -42,6 +42,7 @@ const DISCOUNT_BANDS: { label: string; range: string | null }[] = [
 const SORTS: { label: string; value: string | null }[] = [
   { label: 'Featured', value: null },
   { label: 'Deepest discount', value: '-discount_pct' },
+  { label: 'Ending soon', value: 'deal_end_epoch' },
   { label: 'Price: low to high', value: 'price' },
 ];
 
@@ -62,6 +63,7 @@ const DealsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [band, setBand] = useState<string | null>(null);
+  const [liveOnly, setLiveOnly] = useState(false);
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -75,11 +77,12 @@ const DealsPage: React.FC = () => {
   const params = useMemo(() => {
     const p: Record<string, string | number> = { deal_flag: 1, size: PAGE_SIZE, page };
     if (band) p.discount_pct = band;
+    if (liveOnly) p.deal_active = 1;
     if (category) p.category_names = category;
     if (sort) p.sort = sort;
     if (q) p.q = q;
     return p;
-  }, [band, category, sort, q, page]);
+  }, [band, liveOnly, category, sort, q, page]);
 
   useEffect(() => {
     const seq = ++requestSeq.current;
@@ -166,6 +169,9 @@ const DealsPage: React.FC = () => {
             {b.label}
           </Chip>
         ))}
+        <Chip active={liveOnly} onClick={() => resetAnd(() => setLiveOnly(!liveOnly))}>
+          ⏱ Limited-time
+        </Chip>
       </div>
 
       {categoryChips.length > 0 && (

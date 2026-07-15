@@ -93,6 +93,9 @@ public class FlywayMigrationTest {
             {"litemall_shipping_templates_region", "province_name"},
             {"litemall_shipping_templates_free",   "country_code"},
             {"litemall_shipping_templates_free",   "province_name"},
+            // V38: flash-deal price-swap lifecycle state on the V9 seckill table
+            {"litemall_seckill",      "original_retail_price"},
+            {"litemall_seckill",      "price_swapped"},
             // V35: in-store pickup / write-off columns on order
             {"litemall_order",        "delivery_type"},
             {"litemall_order",        "verify_code"},
@@ -133,6 +136,7 @@ public class FlywayMigrationTest {
             "litemall_shipping_templates_region",
             "litemall_seckill_time",
             "litemall_seckill",
+            "litemall_goods_related",
             "litemall_bargain",
             "litemall_bargain_user",
             "litemall_bargain_help",

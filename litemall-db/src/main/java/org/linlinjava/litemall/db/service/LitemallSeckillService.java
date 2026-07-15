@@ -47,4 +47,38 @@ public class LitemallSeckillService {
     public int deleteById(Integer id) {
         return seckillMapper.logicalDeleteByPrimaryKey(id);
     }
+
+    // --- V38 flash-deal lifecycle (goods-management price-swap scheduler) ---
+
+    public List<LitemallSeckill> queryDueForActivation() {
+        return seckillMapper.selectDueForActivation();
+    }
+
+    public List<LitemallSeckill> queryDueForExpiry() {
+        return seckillMapper.selectDueForExpiry();
+    }
+
+    public List<LitemallSeckill> querySwapped() {
+        return seckillMapper.selectSwapped();
+    }
+
+    public LitemallSeckill findLiveByGoodsId(Integer goodsId) {
+        return seckillMapper.selectLiveByGoodsId(goodsId);
+    }
+
+    public boolean hasOverlapping(Integer goodsId, LocalDateTime start, LocalDateTime stop, Integer excludeId) {
+        return seckillMapper.countOverlapping(goodsId, start, stop, excludeId == null ? 0 : excludeId) > 0;
+    }
+
+    public List<LitemallSeckill> queryAdminPage(int offset, int limit) {
+        return seckillMapper.selectAdminPage(offset, limit);
+    }
+
+    public int countAdmin() {
+        return seckillMapper.countAdmin();
+    }
+
+    public int sumPaidQuantityInWindow(Integer goodsId, LocalDateTime start, LocalDateTime stop) {
+        return seckillMapper.sumPaidQuantityInWindow(goodsId, start, stop);
+    }
 }

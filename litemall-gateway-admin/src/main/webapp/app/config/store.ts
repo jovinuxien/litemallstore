@@ -7,6 +7,7 @@ import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv
 import { adminAftersaleApi } from 'app/shared/reducers/private/services/adminAftersaleApi';
 import { adminCatalogApi } from 'app/shared/reducers/private/services/adminCatalogApi';
 import { adminContentApi } from 'app/shared/reducers/private/services/adminContentApi';
+import { adminDealApi } from 'app/shared/reducers/private/services/adminDealApi';
 import { adminEngagementApi } from 'app/shared/reducers/private/services/adminEngagementApi';
 import { adminFreightApi } from 'app/shared/reducers/private/services/adminFreightApi';
 import { adminParityApi } from 'app/shared/reducers/private/services/adminParityApi';
@@ -43,6 +44,7 @@ const store = configureStore({
       adminFreightApi.middleware,
       adminStoreApi.middleware,
       adminContentApi.middleware,
+      adminDealApi.middleware,
       adminParityApi.middleware,
     ),
 });

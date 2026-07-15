@@ -143,6 +143,38 @@ ocs:
               - Result
               - Filter
 
+          # Live flash-deal signals (price-swap lifecycle) — emitted only while a deal is live.
+          # deal_active: Filter (deal_active=1 scopes "live deals only"); deal_end_epoch: Sort
+          # (sort=deal_end_epoch = "ending soon") + Result (card countdown); deal_claimed_pct:
+          # Result (claimed bar); deal_urgency: Score (index-time gaussian the scheduler keeps
+          # fresh — OCS SCRIPT_CODE takes no params, so no query-time decay; spike 2026-07-15).
+          deal_active:
+            name: deal_active
+            type: number
+            usage:
+              - Result
+              - Filter
+
+          deal_end_epoch:
+            name: deal_end_epoch
+            type: number
+            usage:
+              - Result
+              - Sort
+
+          deal_claimed_pct:
+            name: deal_claimed_pct
+            type: number
+            usage:
+              - Result
+
+          deal_urgency:
+            name: deal_urgency
+            type: number
+            usage:
+              - Result
+              - Score
+
           # Per-SKU variant fields (litemall_goods_product). field-level: variant means OCS indexes
           # them on each variant sub-document, facets/filters across SKUs, and flattens the matched
           # SKU into the hit. variant_price mirrors the SKU price; stock drives an in-stock filter.
@@ -176,14 +208,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result

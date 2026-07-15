@@ -94,6 +94,17 @@ ocs:
             MODIFIER: "ln2p"
             MISSING: 0
             FACTOR: 1
+        # Ending-soon urgency (Phase B): deal_urgency is an INDEX-TIME 0–100 gaussian in
+        # hours-to-deal-end, kept fresh by the flash-deal lifecycle scheduler (reindex on ≥2
+        # drift). Index-time because OCS SCRIPT_CODE scoring takes no params and numeric decay
+        # can't anchor origin at "now" (capability spike 2026-07-15). Same ln2p multiplicative
+        # shape: absent/0 → the uniform ~0.69 baseline, a deal ending now → ln(102)≈4.6.
+        - type: field_value_factor
+          field: deal_urgency
+          options:
+            MODIFIER: "ln2p"
+            MISSING: 0
+            FACTOR: 1
     query-configuration:
       # AND-match across fields (primary strategy for normal multi-term queries)
       default-query:
