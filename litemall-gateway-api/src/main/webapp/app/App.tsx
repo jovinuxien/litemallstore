@@ -66,6 +66,7 @@ const App: React.FC = () => (
           <Route path='product/:id' element={<ProductDetail />} />
           <Route path='hot' element={<GoodsListPage mode='hot' />} />
           <Route path='new' element={<GoodsListPage mode='new' />} />
+          <Route path='summer' element={<GoodsListPage mode='summer' />} />
           <Route path='brands' element={<BrandList />} />
           <Route path='brand/:id' element={<BrandDetail />} />
           <Route path='topics' element={<TopicList />} />
