@@ -1,0 +1,101 @@
+# Relevance judgment list (RUNBOOK §23). One row per (query, product) pair.
+# grade: 3 = exactly what the query asks for, 2 = relevant, 1 = marginal, 0 = off-topic.
+# Graded 2026-07-15 against the live litemall_index (8756 docs) top results; unjudged
+# documents score 0 gain in nDCG — that is intentional (a new doc displacing a graded
+# one must earn its place through a regrade, not silently).
+# Seed sources: litemall_keyword + RUNBOOK §15 golden queries + catalog vocabulary
+# (litemall_search_history was empty in dev at seed time — regrade from real history
+# once traffic accumulates).
+query,product_id,grade
+dress,10003592,3
+dress,10003593,3
+dress,10003610,3
+dress,10003622,3
+dress,10003624,3
+dress,10003625,3
+dress,10003633,3
+dress,10003761,3
+charger,10000056,3
+charger,10000280,2
+charger,10001609,3
+charger,10003267,3
+charger,10008993,3
+charger,10008265,3
+charger,10008999,3
+charger,10007787,3
+pillow,1019006,3
+pillow,1009012,3
+pillow,1009013,3
+pillow,1019000,3
+pillow,1019001,3
+pillow,1019002,3
+pillow,1015007,3
+pillow,1006014,0
+sunglasses,10003104,2
+sunglasses,10004384,1
+sunglasses,10004385,1
+sunglasses,10004388,1
+sunglasses,10004389,1
+sunglasses,10004391,1
+sunglasses,10005340,1
+sunglasses,10005341,1
+flat shoes,10006151,2
+flat shoes,10008375,3
+flat shoes,10006156,3
+flat shoes,10007736,3
+flat shoes,10008370,3
+flat shoes,10008373,3
+flat shoes,10008374,3
+flat shoes,10008377,3
+summer quilt,1027004,3
+summer quilt,1023012,3
+summer quilt,1023034,3
+summer quilt,1011004,2
+summer quilt,1006013,2
+summer quilt,1127052,3
+summer quilt,1130049,3
+summer quilt,1068012,2
+memory foam pillow,1037011,1
+memory foam pillow,10007926,3
+memory foam pillow,10006726,2
+memory foam pillow,10008558,3
+phone case,10000143,1
+phone case,10001498,3
+phone case,10001577,3
+phone case,10001667,3
+phone case,10001669,3
+phone case,10008182,2
+phone case,10001392,3
+phone case,10001400,3
+backpack,1152004,2
+backpack,10001240,3
+backpack,10008757,3
+backpack,10008758,3
+backpack,10008767,3
+backpack,10001058,3
+backpack,10001209,3
+backpack,10001210,3
+kitchen,10005100,3
+kitchen,10006583,2
+kitchen,10007146,3
+kitchen,10007158,2
+kitchen,10007169,2
+kitchen,10007171,2
+kitchen,10007251,2
+kitchen,10007253,2
+dog toy,10003079,3
+dog toy,10003084,3
+dog toy,10008676,3
+dog toy,10003078,3
+dog toy,10003105,3
+dog toy,10007963,3
+dog toy,10000553,3
+dog toy,10003073,3
+silk quilt,1006014,3
+silk quilt,1009012,1
+silk quilt,1009013,1
+silk quilt,1006013,3
+silk quilt,1130049,3
+silk quilt,1092024,3
+silk quilt,1115023,3
+silk quilt,10000380,0

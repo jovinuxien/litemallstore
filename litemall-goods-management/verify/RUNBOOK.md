@@ -1087,3 +1087,50 @@ hardcoded-host grep over src/main/java clean; V31 applies on the shared dev DB.
   field_value_factor — deferred; New Arrivals already covers recency via sort.
 - Rebuild + restart the main-checkout goods-management (:8082) after merge so :8082 serves this
   (its jar predates V31 + the new code); litemall-db jar in ~/.m2 was refreshed by this build.
+
+## §23 — Test-driven relevance: judgment replay + deals assertions + zero-results telemetry (2026-07-15)
+
+Deals Phase D (Relevant Search §9.3–§9.6, §10.6–§10.8). Three standing tools, all committed:
+
+**1. Judgment replay** — `verify/relevance/judgments.csv` (12 queries × top-8 graded 0–3; seeded
+from litemall_keyword + §15 golden queries; search-history was empty in dev at seed time) +
+`RelevanceJudgmentVerificationTest` (guarded live test, same skip-when-down pattern as the §6
+round-trip tests). Computes nDCG@10 per query against the OCS searcher (:8534 direct) and asserts
+the MEAN doesn't drop more than 0.05 below `verify/relevance/baseline.properties`.
+Baseline pinned 2026-07-15: **mean-ndcg=0.9286** (per-query: dress 1.00, charger .95, pillow 1.00,
+sunglasses 1.00, flat shoes .90, summer quilt .98, memory foam pillow .74, phone case .83,
+backpack .90, kitchen .97, dog toy 1.00, silk quilt .88). Run after EVERY scoring/query-config
+change (hand-run — surefire's jdwp fork is still broken):
+
+```
+mvn -q -o -pl litemall-goods-management test-compile -Dmaven.test.skip=false
+# assemble platform 1.10.0 console+launcher jars + module test cp, then:
+java -cp "…/target/test-classes:…/target/classes:<platform-1.10 jars>:<test cp>" \
+  org.junit.platform.console.ConsoleLauncher execute \
+  -c org.linlinjava.litemall.goods.search.RelevanceJudgmentVerificationTest \
+  -c org.linlinjava.litemall.goods.search.OcsDealsVerificationTest
+```
+
+Re-pin the baseline ONLY for a deliberate judged improvement, never to green a red run. Regrade
+judgments from real `litemall_search_history` rows once traffic accumulates; grades live in the
+CSV precisely so a stakeholder can edit them without touching code.
+
+**2. Deals assertions** — `OcsDealsVerificationTest`: deal_flag=1 hits all carry deal_flag=1 AND
+discount_pct ≥ threshold; `discount_pct=25,50` closed range respected (bounds inclusive);
+`sort=-discount_pct` monotonic; exact-full-title query ranks its product top-3 (top-3 not top-1:
+multiplicative business boosts may promote another all-terms match — an exact title pushed off
+the first row means text lost control, ch.-7 failure mode). All 4 verified green live 2026-07-15.
+
+**3. Zero-results telemetry** — `SearchService` WARNs `zero-results search: q='…' filters=…` when
+a NON-EMPTY query returns 0 hits (empty-q browses with narrow filters are not relevance failures).
+Harvest into querqy-rules.txt synonyms / judgment-list additions.
+
+**Tuning protocol (standing, Relevant Search §9.3.5):** one knob at a time — (1) tune text weights
+with business functions zeroed; (2) each business signal tuned against a zeroed field, then
+restored; (3) judgment replay is the scoreboard; (4) `explain=true` on the searcher for surprises.
+Diminishing-returns rule: past ~93% "perfect", corner-case fixes make search MORE brittle — stop.
+
+**Ops note (2026-07-15):** the whole OCS compose stack was externally `docker compose down`'d
+mid-session (all containers destroyed ~13:06); `ocs_esdata` survives a plain down — brought back
+up from this worktree's compose dir, index generation ocs-123 intact, deal fields verified
+present. If containers are missing, check `docker events` before assuming a crash.
