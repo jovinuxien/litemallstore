@@ -8,11 +8,10 @@ import {
   Pagination,
   RangeInput,
   RefinementList,
-  SearchBox,
   SortBy,
   Stats,
 } from 'react-instantsearch';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
@@ -119,6 +118,15 @@ const DynamicExtraFacets: React.FC = () => {
 const SearchView: React.FC = () => {
   const dispatch = useAppDispatch();
   const params = useParams<{ id?: string }>();
+  const location = useLocation();
+  // The header search bar is THE search box (there is no SearchBox widget on
+  // this page). A header submit navigates to /search?q=<term>; keying the
+  // InstantSearch mount on that q makes the navigation start a fresh search
+  // (routing re-reads the URL, old refinements cleared — Amazon behavior).
+  // Refinement-driven URL rewrites go through InstantSearch's own history
+  // router, which react-router doesn't observe, so this key stays stable
+  // while the user filters.
+  const headerQuery = new URLSearchParams(location.search).get('q') ?? '';
 
   // Category facet values are ids; build an id -> name map from the catalog data
   // already fetched for the home/menu so the refinement list shows readable
@@ -160,18 +168,15 @@ const SearchView: React.FC = () => {
       <InstantSearch
         // Remount per category route so initialUiState re-seeds the scope when
         // drilling between categories (otherwise the refinement, seeded once at
-        // mount, would go stale on /category/:id → /category/:childId).
-        key={params.id ?? 'search'}
+        // mount, would go stale on /category/:id → /category/:childId), and per
+        // header-submitted query (see headerQuery above).
+        key={`${params.id ?? 'search'}:${headerQuery}`}
         searchClient={litemallSearchClient}
         indexName={PRIMARY_INDEX}
         routing={searchRouting}
         future={{ preserveSharedStateOnUnmount: true }}
       >
         <Configure hitsPerPage={12} {...(params.id ? { facetFilters: [`category_ids:${params.id}`] } : {})} />
-
-        <div className="lm-isearch__bar">
-          <SearchBox placeholder="Search products…" className="lm-isearch__box" />
-        </div>
 
         <div className="lm-isearch__body">
           {/* ── Filter rail ─────────────────────────────────────────────── */}

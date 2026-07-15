@@ -1,0 +1,232 @@
+// ── Amazon-style two-row header on the litemall Teal & Coral tokens ──────────
+// Row 1 (main): brand · flex-grow search · "Hello / Account & Lists",
+// "Returns & Orders", "Cart (n)". Row 2 (strip): "☰ All" drawer toggle + text
+// links. Tokens come from product-card.scss's :root block (bundled globally).
+
+.lm-header {
+  &__main {
+    background: var(--lm-primary-dark, #0a5d65);
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  &__brand {
+    font-weight: 700;
+    font-size: 1.35rem;
+    letter-spacing: 0.01em;
+  }
+
+  // Search: attached input + accent button, Amazon-style pill.
+  &__search {
+    max-width: 780px;
+
+    @media (min-width: 992px) {
+      width: auto !important; // beat the mobile w-100 utility on desktop
+      margin: 0 12px;
+    }
+  }
+
+  &__search-input {
+    border: none;
+    border-radius: 6px 0 0 6px !important;
+
+    &:focus {
+      box-shadow: 0 0 0 3px var(--lm-accent, #ff5a5f);
+    }
+  }
+
+  &__search-btn {
+    border: none;
+    border-radius: 0 6px 6px 0;
+    background: var(--lm-accent, #ff5a5f);
+    color: #fff;
+    padding: 0 16px;
+    font-size: 1.05rem;
+
+    &:hover {
+      background: var(--lm-accent-dark, #e8484d);
+    }
+  }
+
+  // Two-line text cluster ("Hello, x" over "Account & Lists").
+  &__stack {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    white-space: nowrap;
+
+    small {
+      font-size: 0.72rem;
+      opacity: 0.85;
+    }
+
+    strong {
+      font-size: 0.85rem;
+    }
+  }
+
+  &__acct .dropdown-toggle {
+    display: flex;
+    align-items: center;
+  }
+
+  &__cart {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    white-space: nowrap;
+
+    i {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    strong {
+      font-size: 0.85rem;
+    }
+  }
+
+  &__cart-count {
+    position: absolute;
+    top: -2px;
+    left: 16px;
+    min-width: 18px;
+    text-align: center;
+    background: var(--lm-accent, #ff5a5f);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 9px;
+    padding: 0 5px;
+  }
+
+  // Secondary strip: slightly lighter than the main bar, like Amazon's.
+  &__strip {
+    background: var(--lm-primary, #0e7c86);
+    padding: 4px 0;
+    // hide the horizontal scrollbar the overflow-auto utility can show
+    scrollbar-width: none;
+
+    ::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  &__all {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    white-space: nowrap;
+
+    i {
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    &:hover {
+      border-color: #fff;
+    }
+  }
+
+  &__strip-link {
+    color: #fff;
+    text-decoration: none;
+    font-size: 0.88rem;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    white-space: nowrap;
+
+    &:hover {
+      color: #fff;
+      border-color: #fff;
+    }
+  }
+}
+
+// ── "All" category drawer ─────────────────────────────────────────────────────
+.lm-drawer {
+  max-width: 340px;
+
+  &__head {
+    background: var(--lm-primary-dark, #0a5d65);
+    color: #fff;
+
+    .offcanvas-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+  }
+
+  &__section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--lm-text, #1f2a2e);
+    padding: 12px 20px 6px;
+    border-top: 1px solid var(--lm-border, #eceff1);
+
+    &:first-child {
+      border-top: none;
+    }
+  }
+
+  &__group {
+    border-bottom: 0;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+  }
+
+  &__link {
+    flex: 1 1 auto;
+    display: block;
+    padding: 9px 20px;
+    color: var(--lm-text, #1f2a2e);
+    font-size: 0.9rem;
+    text-decoration: none;
+
+    &:hover {
+      background: var(--lm-primary-soft, #e3f2f3);
+      color: var(--lm-primary-dark, #0a5d65);
+    }
+  }
+
+  &__expand {
+    flex: 0 0 auto;
+    border: none;
+    background: transparent;
+    color: var(--lm-muted, #6b7b82);
+    padding: 9px 16px;
+
+    &:hover {
+      color: var(--lm-primary-dark, #0a5d65);
+    }
+  }
+
+  &__subs {
+    background: var(--lm-bg, #f6f9fa);
+    padding: 4px 0;
+  }
+
+  &__sublink {
+    display: block;
+    padding: 7px 20px 7px 34px;
+    color: var(--lm-muted, #6b7b82);
+    font-size: 0.86rem;
+    text-decoration: none;
+
+    &:hover {
+      background: var(--lm-primary-soft, #e3f2f3);
+      color: var(--lm-primary-dark, #0a5d65);
+    }
+  }
+}
