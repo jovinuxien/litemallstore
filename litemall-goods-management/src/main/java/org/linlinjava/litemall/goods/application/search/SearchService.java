@@ -2,6 +2,8 @@ package org.linlinjava.litemall.goods.application.search;
 
 import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSearchClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSearchResult;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestion;
@@ -23,6 +25,8 @@ import java.util.Set;
  */
 @Service
 public class SearchService {
+
+    private static final Logger log = LoggerFactory.getLogger(SearchService.class);
 
     private final OcsSearchClient searchClient;
     private final OcsSuggestClient suggestClient;
@@ -69,6 +73,13 @@ public class SearchService {
         }
         // Batch-decorate the page's local hits with review stats (star avg + count); cj_ ids skipped.
         commentStatsService.decorate(items);
+        // Zero-results visibility (RUNBOOK §23): the cheapest relevance-feedback signal there is.
+        // Grep for "zero-results search" to harvest synonym/typo/catalog gaps into querqy rules
+        // and the judgment list. Only real user queries are worth logging — empty-q browses with
+        // over-narrow filters are not a relevance failure.
+        if (total == 0 && query != null && !query.isBlank()) {
+            log.warn("zero-results search: q='{}' filters={}", query, filters);
+        }
         Map<String, Object> response = new HashMap<>();
         response.put("totalPages", computeTotalPages(total, size));
         response.put("total", total);
