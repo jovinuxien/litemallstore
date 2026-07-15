@@ -106,120 +106,78 @@
     }
   }
 
-  // ── channel quick-links strip ───────────────────────────────────────────
-  .lm-channels {
-    // wrap (not horizontal-scroll) so the hover dropdown can escape: a scroll
-    // container clips overflow on both axes and would hide the dropdown.
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end; // keep channels on the right so their hover
-    gap: 18px 22px; //            dropdowns don't fall over the left sidebar menu
-    overflow: visible;
+  // ── category picture-tile nav (above the hero) ──────────────────────────
+  // Column counts mirror .lm-grid's breakpoints so the tiles line up with the
+  // product grids below; Home slices the ranked list to full rows (cols × 2).
+  .lm-catnav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 14px 0;
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(5, 1fr);
+    }
+    @media (min-width: 1200px) {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  .lm-catnav__tile {
     position: relative;
-    z-index: 4;
+    display: block;
+    height: 110px;
+    border-radius: var(--lm-radius);
+    overflow: hidden;
     background: var(--lm-surface);
     border: 1px solid var(--lm-border);
-    border-radius: var(--lm-radius);
-    padding: 14px 16px;
-    margin: 14px 0;
-  }
-
-  .lm-channel-item {
-    position: relative; // anchor for this channel's dropdown
-  }
-
-  .lm-channel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-    color: var(--lm-text);
-    font-size: 12px;
-    min-width: 64px;
 
     img {
-      width: 48px;
-      height: 48px;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
-      border-radius: 50%;
-      background: var(--lm-primary-soft);
-      padding: 4px;
+      display: block;
+      transition: transform 0.25s ease, filter 0.25s ease;
     }
 
-    span {
-      max-width: 72px;
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .lm-channel-item:hover .lm-channel {
-    color: var(--lm-primary);
-  }
-
-  // ── top channel-strip hover dropdown ────────────────────────────────────
-  .lm-channel-dropdown {
-    position: absolute;
-    top: 100%; // touches the item's bottom — no gap, so hover bridges across
-    right: 0; // right-anchored: opens leftward, stays inside the right column
-    left: auto;
-    z-index: 60;
-    min-width: 220px;
-    max-width: 340px;
-    background: var(--lm-surface);
-    border: 1px solid var(--lm-border);
-    border-radius: var(--lm-radius);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
-    padding: 10px;
-    // hidden until hover; animate without opening a gap that drops the hover
-    visibility: hidden;
-    opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity 0.15s ease, transform 0.15s ease;
-
-    &__inner {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px 10px;
-    }
-
-    &__item {
+    // Just the name, on hover: dimmed image + centered label overlay.
+    .lm-catnav__name {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      font-size: 13px;
-      color: var(--lm-text);
-      text-decoration: none;
+      justify-content: center;
+      text-align: center;
+      padding: 0 8px;
+      background: rgba(10, 93, 101, 0.72); // --lm-primary-dark tint
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
 
-      img {
-        width: 20px;
-        height: 20px;
-        object-fit: contain;
-        flex: 0 0 auto;
-      }
+    &:hover img {
+      transform: scale(1.06);
+      filter: brightness(0.9);
+    }
 
-      span {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      &:hover {
-        background: var(--lm-primary-soft);
-        color: var(--lm-primary-dark);
-      }
+    &:hover .lm-catnav__name {
+      opacity: 1;
     }
   }
 
-  .lm-channel-item:hover .lm-channel-dropdown {
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(0);
+  .lm-catnav__ph {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--lm-primary-soft);
   }
 
   // ── hero: sidebar + banner + aside ──────────────────────────────────────
