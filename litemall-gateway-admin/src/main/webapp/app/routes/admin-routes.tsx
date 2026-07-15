@@ -25,6 +25,8 @@ import AdForm from 'app/views/adminViews/adminModule/Ad/AdForm';
 import CouponList from 'app/views/adminViews/adminModule/Coupon/CouponList';
 import CouponForm from 'app/views/adminViews/adminModule/Coupon/CouponForm';
 import CouponUserList from 'app/views/adminViews/adminModule/Coupon/CouponUserList';
+import DealList from 'app/views/adminViews/adminModule/Deal/DealList';
+import DealForm from 'app/views/adminViews/adminModule/Deal/DealForm';
 import GrouponRuleList from 'app/views/adminViews/adminModule/Groupon/GrouponRuleList';
 import GrouponRuleForm from 'app/views/adminViews/adminModule/Groupon/GrouponRuleForm';
 import GrouponActivityList from 'app/views/adminViews/adminModule/Groupon/GrouponActivityList';
@@ -131,6 +133,10 @@ export const AdminRoutes = () => (
       <Route path='promotion/coupon/create' element={<CouponForm />} />
       <Route path='promotion/coupon/:id/issued' element={<CouponUserList />} />
       <Route path='promotion/coupon/:id' element={<CouponForm />} />
+      {/* Flash deals (goods-management admin) */}
+      <Route path='promotion/deal' element={<DealList />} />
+      <Route path='promotion/deal/create' element={<DealForm />} />
+      <Route path='promotion/deal/:id' element={<DealForm />} />
       <Route path='promotion/groupon-rule' element={<GrouponRuleList />} />
       <Route path='promotion/groupon-rule/create' element={<GrouponRuleForm />} />
       <Route path='promotion/groupon-rule/:id' element={<GrouponRuleForm />} />

@@ -13,6 +13,7 @@ import { adminGoodsApi } from './private/services/admingoodsrv/adminGoodsApi';
 import { adminAftersaleApi } from './private/services/adminAftersaleApi';
 import { adminCatalogApi } from './private/services/adminCatalogApi';
 import { adminContentApi } from './private/services/adminContentApi';
+import { adminDealApi } from './private/services/adminDealApi';
 import { adminEngagementApi } from './private/services/adminEngagementApi';
 import { adminFreightApi } from './private/services/adminFreightApi';
 import { adminParityApi } from './private/services/adminParityApi';
@@ -43,6 +44,7 @@ const rootReducer: ReducersMapObject = {
   [adminFreightApi.reducerPath]: adminFreightApi.reducer,
   [adminStoreApi.reducerPath]: adminStoreApi.reducer,
   [adminContentApi.reducerPath]: adminContentApi.reducer,
+  [adminDealApi.reducerPath]: adminDealApi.reducer,
   [adminParityApi.reducerPath]: adminParityApi.reducer,
   home,
   product,

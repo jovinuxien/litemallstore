@@ -131,6 +131,16 @@ public class SearchService {
             if (discountPct instanceof Number && ((Number) discountPct).intValue() > 0) {
                 item.put("discountPct", ((Number) discountPct).intValue());
             }
+            // Live flash-deal extras (present only while a deal is live): countdown + claimed bar.
+            if (data.get("deal_active") instanceof Number && ((Number) data.get("deal_active")).intValue() == 1) {
+                item.put("dealActive", true);
+                if (data.get("deal_end_epoch") instanceof Number) {
+                    item.put("dealEndEpoch", ((Number) data.get("deal_end_epoch")).longValue());
+                }
+                if (data.get("deal_claimed_pct") instanceof Number) {
+                    item.put("dealClaimedPct", ((Number) data.get("deal_claimed_pct")).intValue());
+                }
+            }
         }
         return item;
     }

@@ -97,6 +97,29 @@ public class ProductDocument {
     @JsonProperty("deal_flag")
     private Integer dealFlag;
 
+    /**
+     * Live flash-deal signals (price-swap lifecycle, Phase B). The three QUERYABLE fields ride
+     * every document — {@code dealActive} 1/0, {@code dealEndEpoch} (millis; card countdown +
+     * "ending soon" sort, {@code DealMath.NO_DEAL_END_EPOCH} when no deal so live deals always
+     * sort first), {@code dealUrgency} 0–100 index-time gaussian the searcher multiplies in
+     * (OCS SCRIPT_CODE takes no params, so no query-time decay; 0 = uniform ln2p baseline).
+     * Always-emit is deliberate: OCS resolves filter/sort/score fields against the index
+     * mapping, and a conditionally-emitted field vanishes from a full reindex taken while no
+     * deal is live. {@code dealClaimedPct} is Result-only and stays live-deals-only (absent
+     * for uncapped deals too).
+     */
+    @JsonProperty("deal_active")
+    private Integer dealActive;
+
+    @JsonProperty("deal_end_epoch")
+    private Long dealEndEpoch;
+
+    @JsonProperty("deal_claimed_pct")
+    private Integer dealClaimedPct;
+
+    @JsonProperty("deal_urgency")
+    private Integer dealUrgency;
+
     /** Curated attribute name→value pairs, emitted as extra flat {@code data} keys. */
     private final Map<String, Object> attributes = new LinkedHashMap<>();
 
@@ -233,6 +256,38 @@ public class ProductDocument {
 
     public void setDealFlag(Integer dealFlag) {
         this.dealFlag = dealFlag;
+    }
+
+    public Integer getDealActive() {
+        return dealActive;
+    }
+
+    public void setDealActive(Integer dealActive) {
+        this.dealActive = dealActive;
+    }
+
+    public Long getDealEndEpoch() {
+        return dealEndEpoch;
+    }
+
+    public void setDealEndEpoch(Long dealEndEpoch) {
+        this.dealEndEpoch = dealEndEpoch;
+    }
+
+    public Integer getDealClaimedPct() {
+        return dealClaimedPct;
+    }
+
+    public void setDealClaimedPct(Integer dealClaimedPct) {
+        this.dealClaimedPct = dealClaimedPct;
+    }
+
+    public Integer getDealUrgency() {
+        return dealUrgency;
+    }
+
+    public void setDealUrgency(Integer dealUrgency) {
+        this.dealUrgency = dealUrgency;
     }
 
     /** Serialized as extra top-level {@code data} keys (one per curated attribute). */

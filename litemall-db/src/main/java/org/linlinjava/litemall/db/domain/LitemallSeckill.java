@@ -56,6 +56,10 @@ public class LitemallSeckill {
     private LocalDateTime startTime;
     /** 秒杀结束时间 */
     private LocalDateTime stopTime;
+    /** V38: goods.retail_price captured at swap-on; restored at swap-off. */
+    private BigDecimal    originalRetailPrice;
+    /** V38: true while the deal price is live on the goods row (the "deal is live" source of truth). */
+    private Boolean       priceSwapped;
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
     private Boolean       deleted;

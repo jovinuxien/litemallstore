@@ -12,6 +12,7 @@ import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
 import CollectButton from './productDetailComponent/CollectButton';
 import CouponStrip from './productDetailComponent/CouponStrip';
+import DealBanner from './productDetailComponent/DealBanner';
 import Reviews from './productDetailComponent/Reviews';
 import './Detail.scss';
 
@@ -219,6 +220,8 @@ const ProductDetailView: React.FC = () => {
             {hasDiscount && <span className='lm-pdp__save'>You save {discountPct}%</span>}
             {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
           </div>
+
+          <DealBanner goodsId={gid} isCj={isCj} />
 
           {/* Receivable coupons (litemall-vue coupon row); hidden until live. */}
           <CouponStrip />

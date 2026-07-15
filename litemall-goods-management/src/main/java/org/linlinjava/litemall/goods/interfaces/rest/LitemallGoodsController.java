@@ -68,6 +68,9 @@ public class LitemallGoodsController {
     // Batched per-goods review stats (star avg + count) decorating the listing surfaces.
     @Autowired
     private CommentStatsService commentStatsService;
+    // Flash deals (price-swap lifecycle): serves the live-deal block for the detail-page countdown.
+    @Autowired
+    private org.linlinjava.litemall.goods.application.deals.FlashDealService flashDealService;
 
     // Home-page marketing data sourced from litemall-db (mirrors the monolith's
     // WxHomeController): banners (ads), channels (channel categories), coupons.
@@ -308,6 +311,21 @@ public class LitemallGoodsController {
         return ResponseUtil.okList(commentStatsService.withStats(goodsList));
     }
 
+
+    /**
+     * Live flash-deal block for a goods: {@code {dealPrice, originalPrice, endEpoch, stock,
+     * claimed, claimedPct}} or {@code data:null} when no deal is live. The detail page polls
+     * this once to render the countdown/claimed bar; the deal PRICE itself already rides the
+     * normal detail payload (price-swap semantics — retail_price IS the deal price while live).
+     * CJ ids have no deals by design (652 on authoring), so they short-circuit to null.
+     */
+    @GetMapping("/deal")
+    public Object liveDeal(@NotBlank String id) {
+        if (CjGoodsDetailService.isCjId(id)) {
+            return ResponseUtil.ok(null);
+        }
+        return ResponseUtil.ok(flashDealService.liveDealBlock(Integer.valueOf(id.trim())));
+    }
 
     @GetMapping("/detail")
     public Object privateGoodsDetails(@NotBlank String id) {

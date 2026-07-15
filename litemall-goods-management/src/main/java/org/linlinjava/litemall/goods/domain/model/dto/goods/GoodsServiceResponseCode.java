@@ -20,5 +20,11 @@ public class GoodsServiceResponseCode {
     public static final Integer PAGE_NOT_ACTIVE = 642;
     /** Article missing or hidden on the customer read path. */
     public static final Integer ARTICLE_NOT_AVAILABLE = 643;
+    /** Flash-deal validation failure; errmsg names the reason (price, window, goods…). */
+    public static final Integer DEAL_INVALID = 650;
+    /** An enabled deal already overlaps this goods+window, or the deal is live and immutable. */
+    public static final Integer DEAL_CONFLICT = 651;
+    /** Flash deals refuse source='cj' goods (CJ price sync would fight the price swap). */
+    public static final Integer DEAL_CJ_UNSUPPORTED = 652;
 
 }

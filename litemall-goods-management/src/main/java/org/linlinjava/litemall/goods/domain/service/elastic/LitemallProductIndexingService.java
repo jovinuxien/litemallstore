@@ -6,10 +6,13 @@ import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
+import org.linlinjava.litemall.db.domain.LitemallSeckill;
 import org.linlinjava.litemall.db.service.LitemallBrandService;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallGoodsAttributeService;
 import org.linlinjava.litemall.db.service.LitemallGoodsProductService;
+import org.linlinjava.litemall.db.service.LitemallSeckillService;
+import org.linlinjava.litemall.goods.domain.deals.DealMath;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
 import org.springframework.stereotype.Service;
@@ -44,17 +47,20 @@ public class LitemallProductIndexingService {
     private final LitemallCategoryService categoryService;
     private final LitemallGoodsAttributeService attributeService;
     private final LitemallGoodsProductService productService;
+    private final LitemallSeckillService seckillService;
     private final LitemallSearchProperties properties;
 
     public LitemallProductIndexingService(LitemallBrandService brandService,
                                           LitemallCategoryService categoryService,
                                           LitemallGoodsAttributeService attributeService,
                                           LitemallGoodsProductService productService,
+                                          LitemallSeckillService seckillService,
                                           LitemallSearchProperties properties) {
         this.brandService = brandService;
         this.categoryService = categoryService;
         this.attributeService = attributeService;
         this.productService = productService;
+        this.seckillService = seckillService;
         this.properties = properties;
     }
 
@@ -90,6 +96,24 @@ public class LitemallProductIndexingService {
         // enrichment-on-view keeps flowing through this same method unchanged.
         doc.setDiscountPct(discountPct);
         doc.setDealFlag(discountPct >= properties.getDealMinPct() ? 1 : 0);
+
+        // Live flash deal (price_swapped=1): the swap already put the deal price on the goods
+        // row, so price/discount_pct above reflect it — here we add the time-boxed extras the
+        // deals surfaces need. The lifecycle scheduler reindexes on every transition and on
+        // urgency/claimed drift. The three queryable fields (Filter/Sort/Score) are emitted on
+        // EVERY document with no-deal defaults — see DealMath.NO_DEAL_END_EPOCH for why a
+        // conditional field silently breaks OCS field resolution after a deal-less full reindex.
+        LitemallSeckill liveDeal = seckillService.findLiveByGoodsId(goods.getId());
+        if (liveDeal != null) {
+            doc.setDealActive(1);
+            doc.setDealEndEpoch(DealMath.toEpochMilli(liveDeal.getStopTime()));
+            doc.setDealClaimedPct(DealMath.claimedPct(liveDeal));
+            doc.setDealUrgency(DealMath.urgencyOf(liveDeal.getStopTime()));
+        } else {
+            doc.setDealActive(0);
+            doc.setDealEndEpoch(DealMath.NO_DEAL_END_EPOCH);
+            doc.setDealUrgency(0); // ln2p(0) = the uniform ~0.69 baseline — scoring unchanged
+        }
 
         if (goods.getBrandId() != null) {
             LitemallBrand brand = brandService.findById(goods.getBrandId());
