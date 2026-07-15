@@ -29,7 +29,10 @@ public final class PageConfigValidator {
     public static final int MAX_COMPONENTS = 30;
     public static final int MAX_CONFIG_BYTES = 65536;
 
-    private static final Set<String> GOODS_LIST_MODES = Set.of("byIds", "byCategory", "hot", "new");
+    // "deals" (palette v1.1): renderer resolves /srv/search?deal_flag=1 — discounted goods,
+    // deepest-and-most-popular first via the searcher's discount_pct scoring. Same degrade
+    // rule R1 as every strip: no resolvable data ⇒ skip, never an error.
+    private static final Set<String> GOODS_LIST_MODES = Set.of("byIds", "byCategory", "hot", "new", "deals");
     private static final Set<String> KNOWN_TYPES = Set.of(
             "banner", "image-row", "goods-list", "coupon-strip", "seckill-strip",
             "article-strip", "rich-text");
@@ -311,8 +314,8 @@ public final class PageConfigValidator {
                                         "itemFields", List.of(
                                                 field("image", "string", true, Map.of()),
                                                 field("link", "string", false, Map.of())))))),
-                        component("goods-list", "Goods rail (byIds|byCategory|hot|new)", List.of(
-                                field("mode", "enum", true, Map.of("values", List.of("byIds", "byCategory", "hot", "new"))),
+                        component("goods-list", "Goods rail (byIds|byCategory|hot|new|deals)", List.of(
+                                field("mode", "enum", true, Map.of("values", List.of("byIds", "byCategory", "hot", "new", "deals"))),
                                 field("goodsIds", "int[]", false, Map.of(
                                         "requiredWhen", "mode=byIds", "minItems", 1, "maxItems", 24)),
                                 field("categoryId", "int", false, Map.of("requiredWhen", "mode=byCategory")),

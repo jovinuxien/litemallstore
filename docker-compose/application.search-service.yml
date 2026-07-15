@@ -83,6 +83,17 @@ ocs:
             MODIFIER: "ln2p"
             MISSING: 0
             FACTOR: 1
+        # Deal-depth boost (Phase A of the deals vertical): discount_pct is the index-time
+        # whole-percent markdown. Same ln2p shape as the quality signals — a non-discounted
+        # product (0) keeps the uniform ~0.69 baseline, a 50%-off product gets ln(52)≈3.95 —
+        # multiplicative, so text relevance still dominates ordering (a weak match never
+        # outranks a strong one on discount alone; Relevant Search §7.4.8 / listing 9.7).
+        - type: field_value_factor
+          field: discount_pct
+          options:
+            MODIFIER: "ln2p"
+            MISSING: 0
+            FACTOR: 1
     query-configuration:
       # AND-match across fields (primary strategy for normal multi-term queries)
       default-query:

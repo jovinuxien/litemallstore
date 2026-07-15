@@ -15,6 +15,7 @@ import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearch
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,13 +70,26 @@ public class LitemallProductIndexingService {
 
         BigDecimal counter = goods.getCounterPrice();
         BigDecimal retail = goods.getRetailPrice();
+        int discountPct = 0;
         if (counter != null && retail != null && counter.compareTo(retail) > 0) {
             doc.setPrice(counter);
             doc.setDiscountPrice(retail);
+            if (counter.signum() > 0) {
+                discountPct = BigDecimal.ONE
+                        .subtract(retail.divide(counter, 4, RoundingMode.HALF_UP))
+                        .multiply(BigDecimal.valueOf(100))
+                        .setScale(0, RoundingMode.HALF_UP)
+                        .intValue();
+            }
         } else {
             doc.setPrice(retail);
             doc.setDiscountPrice(null);
         }
+        // Deal signals: whole-percent markdown + threshold flag. CJ goods carry counter==retail
+        // (suggestSellPrice is a recommendation, not an MSRP) so they naturally index 0/0 —
+        // enrichment-on-view keeps flowing through this same method unchanged.
+        doc.setDiscountPct(discountPct);
+        doc.setDealFlag(discountPct >= properties.getDealMinPct() ? 1 : 0);
 
         if (goods.getBrandId() != null) {
             LitemallBrand brand = brandService.findById(goods.getBrandId());

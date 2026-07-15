@@ -34,6 +34,7 @@ const Footprint = lazy(() => import('app/modules/user/Footprint'));
 const Coupons = lazy(() => import('app/modules/user/Coupons'));
 const Feedback = lazy(() => import('app/modules/user/Feedback'));
 const GoodsListPage = lazy(() => import('app/modules/listing/GoodsListPage'));
+const DealsPage = lazy(() => import('app/modules/listing/DealsPage'));
 const BrandList = lazy(() => import('app/modules/brand/BrandList'));
 const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
 const TopicList = lazy(() => import('app/modules/topic/TopicList'));
@@ -66,6 +67,7 @@ const App: React.FC = () => (
           <Route path='product/:id' element={<ProductDetail />} />
           <Route path='hot' element={<GoodsListPage mode='hot' />} />
           <Route path='new' element={<GoodsListPage mode='new' />} />
+          <Route path='deals' element={<DealsPage />} />
           <Route path='brands' element={<BrandList />} />
           <Route path='brand/:id' element={<BrandDetail />} />
           <Route path='topics' element={<TopicList />} />

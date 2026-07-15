@@ -123,6 +123,14 @@ const GoodsListC: React.FC<{ config: Record<string, unknown> }> = ({ config }) =
         // Preserve the configured order; missing/off-sale ids are absent.
         return ids.map(id => map[String(id)]).filter(Boolean) as IGood[];
       }
+      if (mode === 'deals') {
+        // Search envelope ({goodsList}, NOT {list}) — spec §2.3 v1.1. Scored browse:
+        // deepest-discount × most-popular deals first.
+        const res =
+          (await unwrap<{ goodsList?: IGood[] }>(baseAxios.get(`${SRV}/search`, { params: { deal_flag: 1, size: limit, page: 1 } }))) ??
+          {};
+        return res.goodsList ?? [];
+      }
       const params =
         mode === 'byCategory'
           ? { categoryId: config.categoryId as number, limit, page: 1 }

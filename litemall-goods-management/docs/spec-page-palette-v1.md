@@ -60,7 +60,7 @@ Static — no fetch.
 ### 2.3 `goods-list`
 | config field | type | required | notes |
 |---|---|---|---|
-| `mode` | `byIds` \| `byCategory` \| `hot` \| `new` | YES | |
+| `mode` | `byIds` \| `byCategory` \| `hot` \| `new` \| `deals` | YES | `deals` added in v1.1 |
 | `goodsIds` | int[] (1–24) | when `mode=byIds` | |
 | `categoryId` | int | when `mode=byCategory` | |
 | `limit` | int 1–24 | no (default 8) | ignored for `byIds` |
@@ -75,6 +75,15 @@ Static — no fetch.
   **Envelope: `{errno, data:{list, total, ...}}`.**
 - `hot` → `GET /srv/goods/list?isHot=true&limit={limit}&page=1` — same envelope.
 - `new` → `GET /srv/goods/list?isNew=true&limit={limit}&page=1` — same envelope.
+- `deals` (v1.1) → `GET /srv/search?deal_flag=1&size={limit}&page=1`.
+  **Envelope: `{errno, data:{goodsList, total, ...}}` (the search envelope —
+  NOT `data.list`).** Items carry `discountPct` for the "% off" badge.
+  Ordering is the searcher's scored browse (discount depth × popularity ×
+  rating multiplied into relevance) — deepest/most-popular deals first.
+  Serves local AND CJ goods (unlike `hot`/`new`) — though CJ goods index
+  `discount_pct=0` today, so they appear only if a future CJ markdown
+  source sets one. Degrade rule R1 applies: search down or zero deals ⇒
+  strip skipped, never an error.
 
 > **Documented divergence:** `isHot`/`isNew` are local-DB signals with no OCS
 > index field, so `hot`/`new` modes serve **local goods only** (CJ-sourced

@@ -142,6 +142,9 @@ const Layout: React.FC = () => {
               <Nav.Link as={Link} to='/search'>
                 Products
               </Nav.Link>
+              <Nav.Link as={Link} to='/deals'>
+                Today&rsquo;s Deals
+              </Nav.Link>
               <Nav.Link as={Link} to='/cart'>
                 <i className='bi bi-cart3' /> Cart{' '}
                 {cartCount > 0 && <Badge bg='primary'>{cartCount}</Badge>}
@@ -270,6 +273,9 @@ const Layout: React.FC = () => {
                 <div className='d-flex flex-column gap-2'>
                   <Link to='/search' className='link-light text-decoration-none small'>
                     All products
+                  </Link>
+                  <Link to='/deals' className='link-light text-decoration-none small'>
+                    Today&rsquo;s deals
                   </Link>
                   <Link to='/hot' className='link-light text-decoration-none small'>
                     Hot deals
