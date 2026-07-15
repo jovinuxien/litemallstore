@@ -13,10 +13,6 @@
   margin: 0 auto;
   padding: 18px 14px 32px;
 
-  &__bar {
-    margin-bottom: 16px;
-  }
-
   &__body {
     display: grid;
     grid-template-columns: 1fr;
@@ -27,7 +23,8 @@
     }
   }
 
-  // ── Search box ────────────────────────────────────────────────────────────
+  // ── Search box (used by the RefinementList "search within facet" inputs;
+  //    the page-level query box is the header search bar) ────────────────────
   .ais-SearchBox-form {
     position: relative;
     display: flex;
