@@ -9,8 +9,7 @@ import './user.scss';
  * Profile view/edit against the auth edge (Wave 4 Task A): reads
  * `GET /auth/me`, saves via `POST /auth/profile` (partial update). The avatar
  * is uploaded as a file through `POST /srv/storage/upload` (goods-management
- * Wave 4 — LIVE, verified 2026-07-13; the isMissingEndpoint URL-field
- * fallback was removed).
+ * Wave 4).
  */
 const Profile: React.FC = () => {
   const [nickname, setNickname] = useState('');

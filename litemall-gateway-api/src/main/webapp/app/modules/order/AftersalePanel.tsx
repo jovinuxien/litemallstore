@@ -3,7 +3,7 @@ import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 
 import { Cell, CellGroup } from 'app/components/commonComponents/storefront';
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { orderApi } from 'app/shared/api';
 import { IAftersale } from 'app/shared/model/order/order.model';
 
 const TYPE_LABELS: Record<number, string> = {
@@ -17,7 +17,8 @@ const TYPE_LABELS: Record<number, string> = {
  * litemall-order/docs/aftersale-vertical.md): existing applications with
  * status + cancel-while-requested, and an apply form (type, reason, optional
  * amount + comment, photos via ImageUploader → /srv/storage/upload). errno 730
- * (rule violation) surfaces inline. Endpoint absent → panel hides itself.
+ * (rule violation) surfaces inline. A failed list read degrades to an empty
+ * list — the apply CTA (handleOption-gated) still works.
  */
 const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; onChanged?: () => void }> = ({
   orderId,
@@ -25,7 +26,6 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
   onChanged,
 }) => {
   const [applications, setApplications] = useState<IAftersale[]>([]);
-  const [hidden, setHidden] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState(1);
   const [reason, setReason] = useState('');
@@ -39,9 +39,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
     orderApi
       .aftersaleList(orderId)
       .then(list => setApplications(list ?? []))
-      .catch(e => {
-        if (isMissingEndpoint(e)) setHidden(true);
-      });
+      .catch(() => setApplications([]));
   }, [orderId]);
 
   useEffect(() => {
@@ -50,7 +48,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
 
   const hasOpen = applications.some(a => a.status === 1 || a.status === 2);
 
-  if (hidden || (!canApply && applications.length === 0)) return null;
+  if (!canApply && applications.length === 0) return null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

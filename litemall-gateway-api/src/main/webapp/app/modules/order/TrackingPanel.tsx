@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
 import { Cell, CellGroup } from 'app/components/commonComponents/storefront';
-import { isMissingEndpoint, orderApi } from 'app/shared/api';
+import { orderApi } from 'app/shared/api';
 import { ITracking } from 'app/shared/model/order/order.model';
 
 /**
@@ -13,8 +13,8 @@ import { ITracking } from 'app/shared/model/order/order.model';
  * States: loading (first call may hit live CJ trackInfo before the 1h server
  * cache warms), not-shipped ({shipped:false} — a normal state, not an error),
  * shipped-without-events ("details temporarily unavailable" — CJ unreachable or
- * a hand-shipped local order), and the carrier + event timeline. A 404/501
- * (endpoint not deployed) hides the section entirely.
+ * a hand-shipped local order), and the carrier + event timeline. errno 404
+ * (foreign/unknown order) hides the section entirely.
  */
 const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
   const [tracking, setTracking] = useState<ITracking | null>(null);
@@ -30,10 +30,10 @@ const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
         if (!cancelled) setTracking(t ?? null);
       })
       .catch(e => {
-        // Endpoint absent (pre-Wave-3 order service) or errno 404 (foreign
-        // order) → no section; other failures show the unavailable note.
+        // errno 404 (foreign/unknown order) → no section; other failures show
+        // the unavailable note.
         if (!cancelled) {
-          if (isMissingEndpoint(e) || (e as { errno?: number })?.errno === 404) setHidden(true);
+          if ((e as { errno?: number })?.errno === 404) setHidden(true);
           else setTracking(null);
         }
       })
