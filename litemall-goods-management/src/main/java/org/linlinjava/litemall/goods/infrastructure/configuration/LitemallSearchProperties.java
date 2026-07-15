@@ -30,6 +30,14 @@ public class LitemallSearchProperties {
     private List<String> facetAttributes = List.of(
             "Material", "color", "Origin", "Fabric", "filler", "weight");
 
+    /**
+     * Minimum whole-percent markdown (counter vs retail) for a goods to count as a "deal"
+     * ({@code deal_flag=1} in the index — what /deals and the palette deals strip select on).
+     * Matches Amazon's floor: sub-10% markdowns don't badge. Change requires a reindex to
+     * take effect (the flag is an index-time fact).
+     */
+    private int dealMinPct = 10;
+
     public String getIndexerUrl() {
         return indexerUrl;
     }
@@ -76,5 +84,13 @@ public class LitemallSearchProperties {
 
     public void setFacetAttributes(List<String> facetAttributes) {
         this.facetAttributes = facetAttributes;
+    }
+
+    public int getDealMinPct() {
+        return dealMinPct;
+    }
+
+    public void setDealMinPct(int dealMinPct) {
+        this.dealMinPct = dealMinPct;
     }
 }

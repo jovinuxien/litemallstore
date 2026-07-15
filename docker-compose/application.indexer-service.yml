@@ -120,6 +120,29 @@ ocs:
               - Sort
               - Score
 
+          # Deal signals, computed at index time from the counter/retail price split
+          # (LitemallProductIndexingService). discount_pct: Filter not Facet — the SPA renders
+          # its own labeled discount chips ("25–50%" → discount_pct=25,50 closed-range filter;
+          # OCS filters work on Filter-usage fields), and a Facet would pollute the general
+          # search rail with an auto-interval bucket dominated by 0-discount goods. Sort
+          # (-discount_pct = "deepest discount"); Score (ln2p factor in the searcher's
+          # scoring-configuration). deal_flag: deal_flag=1 scopes every deals surface.
+          discount_pct:
+            name: discount_pct
+            type: number
+            usage:
+              - Result
+              - Sort
+              - Filter
+              - Score
+
+          deal_flag:
+            name: deal_flag
+            type: number
+            usage:
+              - Result
+              - Filter
+
           # Per-SKU variant fields (litemall_goods_product). field-level: variant means OCS indexes
           # them on each variant sub-document, facets/filters across SKUs, and flattens the matched
           # SKU into the hit. variant_price mirrors the SKU price; stock drives an in-stock filter.
@@ -153,14 +176,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag)$).*$'
             usage:
               - Facet
               - Result

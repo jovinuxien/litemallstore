@@ -84,6 +84,19 @@ public class ProductDocument {
     @JsonProperty("created_epoch")
     private Long createdEpoch;
 
+    /**
+     * Deal signals derived from the {@code counter_price}/{@code retail_price} split at index
+     * time (never per-query — Relevant Search: signals must be precise index-time facts).
+     * {@code discountPct} = whole-percent markdown (0 when not discounted); {@code dealFlag} =
+     * 1 when the markdown clears the configured threshold, else 0 — the flat filter key the
+     * deals surfaces select on ({@code deal_flag=1}).
+     */
+    @JsonProperty("discount_pct")
+    private Integer discountPct;
+
+    @JsonProperty("deal_flag")
+    private Integer dealFlag;
+
     /** Curated attribute name→value pairs, emitted as extra flat {@code data} keys. */
     private final Map<String, Object> attributes = new LinkedHashMap<>();
 
@@ -204,6 +217,22 @@ public class ProductDocument {
 
     public void setCreatedEpoch(Long createdEpoch) {
         this.createdEpoch = createdEpoch;
+    }
+
+    public Integer getDiscountPct() {
+        return discountPct;
+    }
+
+    public void setDiscountPct(Integer discountPct) {
+        this.discountPct = discountPct;
+    }
+
+    public Integer getDealFlag() {
+        return dealFlag;
+    }
+
+    public void setDealFlag(Integer dealFlag) {
+        this.dealFlag = dealFlag;
     }
 
     /** Serialized as extra top-level {@code data} keys (one per curated attribute). */

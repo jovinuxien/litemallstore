@@ -114,6 +114,12 @@ public class SearchService {
             // is ONE unified ranked list; CJ hits are identified by their cj_<pid> id. This never
             // splits or default-filters results.
             item.put("source", data.get("source"));
+            // Index-time markdown percent — the SPA renders it as the "X% off" card badge
+            // (badges are data, not client-side price math, so badge and ranking always agree).
+            Object discountPct = data.get("discount_pct");
+            if (discountPct instanceof Number && ((Number) discountPct).intValue() > 0) {
+                item.put("discountPct", ((Number) discountPct).intValue());
+            }
         }
         return item;
     }
