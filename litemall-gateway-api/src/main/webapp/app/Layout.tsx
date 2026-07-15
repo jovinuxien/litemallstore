@@ -256,6 +256,9 @@ const Layout: React.FC = () => {
             <Link to='/hot' className='lm-header__strip-link'>
               Today&rsquo;s Deals
             </Link>
+            <Link to='/summer' className='lm-header__strip-link'>
+              Summer Deals
+            </Link>
             <Link to='/new' className='lm-header__strip-link'>
               New Arrivals
             </Link>

@@ -80,6 +80,9 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
         <Link to='/hot' className='lm-drawer__link d-block' onClick={onHide}>
           Today&rsquo;s Deals
         </Link>
+        <Link to='/summer' className='lm-drawer__link d-block' onClick={onHide}>
+          Summer Deals
+        </Link>
         <Link to='/new' className='lm-drawer__link d-block' onClick={onHide}>
           New Arrivals
         </Link>

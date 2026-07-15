@@ -106,84 +106,206 @@
     }
   }
 
-  // ── channel quick-links strip ───────────────────────────────────────────
-  .lm-channels {
-    // wrap (not horizontal-scroll) so the hover dropdown can escape: a scroll
-    // container clips overflow on both axes and would hide the dropdown.
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end; // keep channels on the right so their hover
-    gap: 18px 22px; //            dropdowns don't fall over the left sidebar menu
-    overflow: visible;
+  // ── category picture-tile nav (above the hero) ──────────────────────────
+  // Column counts mirror .lm-grid's breakpoints so the tiles line up with the
+  // product grids below; Home slices the ranked list to full rows (cols × 2).
+  .lm-catnav {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 14px 0;
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(5, 1fr);
+    }
+    @media (min-width: 1200px) {
+      grid-template-columns: repeat(6, 1fr);
+    }
+  }
+
+  .lm-catnav__tile {
     position: relative;
-    z-index: 4;
+    display: block;
+    height: 110px;
+    border-radius: var(--lm-radius);
+    overflow: hidden;
     background: var(--lm-surface);
     border: 1px solid var(--lm-border);
-    border-radius: var(--lm-radius);
-    padding: 14px 16px;
-    margin: 14px 0;
-  }
-
-  .lm-channel-item {
-    position: relative; // anchor for this channel's dropdown
-  }
-
-  .lm-channel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    text-decoration: none;
-    color: var(--lm-text);
-    font-size: 12px;
-    min-width: 64px;
 
     img {
-      width: 48px;
-      height: 48px;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
-      border-radius: 50%;
-      background: var(--lm-primary-soft);
-      padding: 4px;
+      display: block;
+      transition: transform 0.25s ease, filter 0.25s ease;
     }
 
-    span {
-      max-width: 72px;
+    // Just the name, on hover: dimmed image + centered label overlay.
+    .lm-catnav__name {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      padding: 0 8px;
+      background: rgba(10, 93, 101, 0.72); // --lm-primary-dark tint
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    &:hover img {
+      transform: scale(1.06);
+      filter: brightness(0.9);
+    }
+
+    &:hover .lm-catnav__name {
+      opacity: 1;
     }
   }
 
-  .lm-channel-item:hover .lm-channel {
-    color: var(--lm-primary);
+  .lm-catnav__ph {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--lm-primary-soft);
   }
 
-  // ── top channel-strip hover dropdown ────────────────────────────────────
-  .lm-channel-dropdown {
-    position: absolute;
-    top: 100%; // touches the item's bottom — no gap, so hover bridges across
-    right: 0; // right-anchored: opens leftward, stays inside the right column
-    left: auto;
-    z-index: 60;
-    min-width: 220px;
-    max-width: 340px;
+  // ── hero: sidebar + banner + aside ──────────────────────────────────────
+  .lm-hero {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 14px 0;
+
+    @media (min-width: 992px) {
+      grid-template-columns: 210px 1fr 240px;
+    }
+  }
+
+  // Mobile-only "All categories" toggle; the tree itself is always open on desktop.
+  .lm-hero__menu-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    margin-bottom: 8px;
     background: var(--lm-surface);
     border: 1px solid var(--lm-border);
     border-radius: var(--lm-radius);
+    color: var(--lm-text);
+    font-weight: 600;
+    cursor: pointer;
+
+    .lm-hero__menu-toggle-caret {
+      margin-left: auto;
+      color: var(--lm-muted);
+    }
+
+    @media (min-width: 992px) {
+      display: none;
+    }
+  }
+
+  .lm-hero__menu {
+    display: none;
+    position: relative; // anchor for the flyout; keep the banner column below it
+    z-index: 5;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 8px 0;
+
+    &.is-open {
+      display: block; // opened via the mobile toggle
+    }
+
+    @media (min-width: 992px) {
+      display: block;
+    }
+  }
+
+  // ── left-sidebar mega-flyout ────────────────────────────────────────────
+  .lm-menu-row {
+    position: relative; // anchor for this row's flyout panel
+
+    &__link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      color: var(--lm-text);
+      text-decoration: none;
+
+      img {
+        width: 18px;
+        height: 18px;
+        object-fit: contain;
+        flex: 0 0 auto;
+      }
+
+      span:not(.lm-menu-row__caret) {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    &__caret {
+      flex: 0 0 auto;
+      color: var(--lm-muted);
+      font-weight: 700;
+    }
+
+    // hovering the row highlights it and reveals the flyout
+    &:hover > .lm-menu-row__link {
+      background: var(--lm-primary-soft);
+      color: var(--lm-primary-dark);
+    }
+
+    &:hover > .lm-flyout {
+      visibility: visible;
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .lm-flyout {
+    position: absolute;
+    top: -9px; // align with the row, compensating the menu's 8px top padding
+    left: 100%;
+    z-index: 50;
+    min-width: 460px;
+    max-width: 560px;
+    min-height: calc(100% + 18px);
+    margin-left: 1px;
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: 0 var(--lm-radius) var(--lm-radius) 0;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
-    padding: 10px;
-    // hidden until hover; animate without opening a gap that drops the hover
+    padding: 14px 16px;
+    // hidden until hover; visibility (not display) so opacity/transform animate
     visibility: hidden;
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateX(-6px);
     transition: opacity 0.15s ease, transform 0.15s ease;
 
     &__inner {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 4px 10px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px 12px;
     }
 
     &__item {
@@ -197,8 +319,8 @@
       text-decoration: none;
 
       img {
-        width: 20px;
-        height: 20px;
+        width: 22px;
+        height: 22px;
         object-fit: contain;
         flex: 0 0 auto;
       }
@@ -213,24 +335,6 @@
         background: var(--lm-primary-soft);
         color: var(--lm-primary-dark);
       }
-    }
-  }
-
-  .lm-channel-item:hover .lm-channel-dropdown {
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  // ── hero: banner + aside (the category menu moved to the header drawer) ──
-  .lm-hero {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin: 14px 0;
-
-    @media (min-width: 992px) {
-      grid-template-columns: 1fr 280px;
     }
   }
 
