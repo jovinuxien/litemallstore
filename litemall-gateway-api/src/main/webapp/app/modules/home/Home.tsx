@@ -39,9 +39,7 @@ const HomeView: React.FC = () => {
   const dispatch = useAppDispatch();
   const entities = useAppSelector(state => state.home.homeData);
   const { list } = useAppSelector(state => state.product.data);
-  const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
-  // Mobile: the category tree collapses behind an "All categories" toggle; desktop keeps it open.
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { dataCatalogAll } = useAppSelector(state => state.category.data);
   // DIY home (goods-management Wave 4, spec-page-palette-v1.md): when an admin
   // has activated a home page, render it instead of the legacy home. errno 642
   // (none active), 404/501 (backend not shipped) or any failure ⇒ legacy home,
@@ -80,9 +78,8 @@ const HomeView: React.FC = () => {
   const brands = (entities?.brandList ?? []) as Array<{ id?: number; name?: string; picUrl?: string }>;
   const topics = (entities?.topicList ?? []) as Array<{ id?: number; title?: string; subtitle?: string; picUrl?: string }>;
   const floors = entities?.floorGoodsList ?? [];
-  // Prefer the /catalog/all payload (carries every L1 category AND its
-  // subcategories for the flyout); fall back to /catalog/index's flat list.
-  const menuCategories = (dataCatalogAll?.categoryList?.length ? dataCatalogAll.categoryList : dataCategoryIndex?.categoryList) ?? [];
+  // Subcategories (from /catalog/all) power the channel hover dropdowns; the
+  // full category menu itself moved to the header's "All" drawer.
   const subTree = dataCatalogAll?.allList ?? {};
   const deals = (list ?? []) as IGood[];
 
@@ -121,47 +118,9 @@ const HomeView: React.FC = () => {
           </nav>
         )}
 
-        {/* Hero: category menu + banner carousel + welcome aside */}
+        {/* Hero: banner carousel + welcome aside (the category menu lives in the
+            header's "☰ All" drawer). */}
         <div className="lm-hero">
-          <button
-            type="button"
-            className="lm-hero__menu-toggle"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(open => !open)}
-          >
-            <span className="lm-hero__menu-toggle-icon">☰</span> All categories
-            <span className="lm-hero__menu-toggle-caret">{menuOpen ? '▴' : '▾'}</span>
-          </button>
-          <aside className={`lm-hero__menu${menuOpen ? ' is-open' : ''}`}>
-            {/* categoryList arrives most-promising-first (server orders by on-sale goods count) */}
-            {menuCategories.slice(0, 10).map(category => {
-              const cid = catId(category);
-              // Subcategories keyed by string id (JSON object keys are strings).
-              const subs = (subTree[String(cid)] ?? subTree[cid as any] ?? []) as any[];
-              return (
-                <div key={cid} className="lm-menu-row">
-                  <Link to={`/category/${cid}`} className="lm-menu-row__link">
-                    {catIcon(category) && <img src={catIcon(category)} alt="" loading="lazy" />}
-                    <span>{catName(category)}</span>
-                    {subs.length > 0 && <span className="lm-menu-row__caret">›</span>}
-                  </Link>
-                  {subs.length > 0 && (
-                    <div className="lm-flyout">
-                      <div className="lm-flyout__inner">
-                        {subs.map(sub => (
-                          <Link key={catId(sub)} to={`/category/${catId(sub)}`} className="lm-flyout__item">
-                            {catIcon(sub) && <img src={catIcon(sub)} alt="" loading="lazy" />}
-                            <span>{catName(sub)}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </aside>
-
           <div className="lm-hero__banner">
             {banners.length > 0 ? (
               <Carousel fade>

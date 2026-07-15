@@ -39,8 +39,11 @@ interface Props {
 }
 
 /**
- * Storefront product card (Teal & Coral theme). Layout mirrors a marketplace
- * listing card; colors come from the CSS variables in product-card.scss.
+ * Storefront product card (Teal & Coral theme), laid out like an Amazon deals
+ * (Goldbox) card: image, then a deal row (solid % badge + "Limited time deal"
+ * on hot goods), then the price with a struck-through "List:" price, then the
+ * title/description text. Colors come from the --lm-* variables in
+ * product-card.scss.
  */
 const ProductCard: React.FC<Props> = ({ product }) => {
   const dispatch = useAppDispatch();
@@ -57,7 +60,6 @@ const ProductCard: React.FC<Props> = ({ product }) => {
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
-  const isNew = p.isNew ?? p.new;
   const isHot = p.isHot ?? p.hot;
   const picUrl = p.picUrl;
   const retail = priceNum(p.retailPrice);
@@ -97,25 +99,32 @@ const ProductCard: React.FC<Props> = ({ product }) => {
     <div className="lm-card">
       <Link to={to} className="lm-card__media">
         <img className="lm-card__img" src={picUrl} alt={name} loading="lazy" />
-        {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
-        <div className="lm-card__ribbons">
-          {isNew && <span className="lm-card__ribbon lm-card__ribbon--new">New</span>}
-          {isHot && <span className="lm-card__ribbon lm-card__ribbon--hot">Hot</span>}
-        </div>
       </Link>
 
       <div className="lm-card__body">
-        <Link to={to} className="lm-card__title" title={name}>
-          {name}
-        </Link>
+        {/* Deal row: solid % badge + "Limited time deal" (hot goods = the deals
+            signal; no deal-timer field exists). Rendered even when empty so
+            price rows align across a grid. */}
+        <div className="lm-card__dealrow">
+          {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
+          {isHot && <span className="lm-card__deal-label">Limited time deal</span>}
+        </div>
 
         <div className="lm-card__price-row">
           <span className="lm-card__price">
             <span className="lm-card__cur">US&nbsp;$</span>
             {fmtPrice(retail)}
           </span>
-          {hasDiscount && <span className="lm-card__orig">US&nbsp;${fmtPrice(counter)}</span>}
+          {hasDiscount && (
+            <span className="lm-card__orig">
+              List: <s>US&nbsp;${fmtPrice(counter)}</s>
+            </span>
+          )}
         </div>
+
+        <Link to={to} className="lm-card__title" title={name}>
+          {name}
+        </Link>
 
         <div className="lm-card__meta">
           {rating > 0 && (

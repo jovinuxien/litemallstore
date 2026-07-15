@@ -1,28 +1,54 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Badge, Container, Form, Nav, Navbar, NavDropdown } from 'react-bootstrap';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Container, Form, Nav, Navbar, NavDropdown } from 'react-bootstrap';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { logoutCustomerThunk } from 'app/auth/customerAuthSlice';
+import CategoryDrawer from 'app/components/commonComponents/CategoryDrawer';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
+import './layout-header.scss';
 
 /**
- * Customer storefront shell: top nav with brand, suggest-as-you-type search box
- * (autocomplete via /srv/suggest, submit routes to /search?q=), cart and account
- * links. Renders the active route via <Outlet/>.
+ * Customer storefront shell, laid out like Amazon's two-row header:
+ *  - main bar: text brand, ONE flex-grow search bar (suggest-as-you-type via
+ *    /srv/suggest, submit routes to /search?q= — the /search page has no second
+ *    box, this input is THE search box), then text clusters "Hello, … /
+ *    Account & Lists", "Returns & Orders", "Cart (n)".
+ *  - secondary strip: the "☰ All" toggle opening the category drawer, plus
+ *    text links to the deal/browse pages.
+ * Renders the active route via <Outlet/>.
  */
 const Layout: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
   const [term, setTerm] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cartCount = useAppSelector(state => state.cart.data.cartList.length);
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
+  const nickName = useAppSelector(state => state.customerAuth.data.userInfo?.nickName);
+
+  // Category data for the "All" drawer (no-ops if the home page loaded it first).
+  useEffect(() => {
+    dispatch(getCatalogIndexData());
+    dispatch(getCatalogAllData());
+  }, [dispatch]);
+
+  // Keep the input in sync with the query when landing on /search?q= deep links
+  // (this header box is the only search box, so it should show the active term).
+  useEffect(() => {
+    if (location.pathname === '/search') {
+      const q = new URLSearchParams(location.search).get('q');
+      if (q != null) setTerm(q);
+    }
+  }, [location.pathname, location.search]);
 
   // Debounced autocomplete. /srv/suggest returns a raw JSON array of phrases.
   useEffect(() => {
@@ -35,7 +61,9 @@ const Layout: React.FC = () => {
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const res = await baseAxios.get(`${BASE_URL_CONTEXT}/suggest?q=${encodeURIComponent(q)}`);
+        // NB: the endpoint is /srv/search/suggest (SearchController) — the bare
+        // /srv/suggest path never existed and left this autocomplete dead.
+        const res = await baseAxios.get(`${BASE_URL_CONTEXT}/search/suggest?q=${encodeURIComponent(q)}`);
         const arr: string[] = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
         if (!cancelled) {
           setSuggestions(arr);
@@ -87,22 +115,23 @@ const Layout: React.FC = () => {
 
   return (
     <>
-      <Navbar bg='dark' variant='dark' expand='lg' sticky='top'>
-        <Container fluid>
-          <Navbar.Brand as={Link} to='/'>
-            litemall
-          </Navbar.Brand>
-          <Navbar.Toggle aria-controls='main-nav' />
-          <Navbar.Collapse id='main-nav'>
+      <header className='lm-header sticky-top'>
+        {/* Row 1 — brand · search · account/orders/cart (all text). */}
+        <Navbar variant='dark' className='lm-header__main'>
+          <Container fluid className='flex-wrap gap-2'>
+            <Navbar.Brand as={Link} to='/' className='lm-header__brand'>
+              litemall
+            </Navbar.Brand>
+
             <Form
-              className='d-flex mx-auto position-relative'
-              style={{ minWidth: '40%' }}
+              className='lm-header__search d-flex position-relative order-3 order-lg-2 w-100 flex-grow-1'
               onSubmit={handleSearch}
               role='search'
               autoComplete='off'
             >
               <Form.Control
                 type='search'
+                className='lm-header__search-input'
                 placeholder='Search products…'
                 aria-label='Search'
                 value={term}
@@ -113,6 +142,9 @@ const Layout: React.FC = () => {
                   blurTimer.current = setTimeout(() => setOpen(false), 150);
                 }}
               />
+              <button type='submit' className='lm-header__search-btn' aria-label='Search'>
+                <i className='bi bi-search' />
+              </button>
               {open && suggestions.length > 0 && (
                 <ul
                   className='list-group position-absolute w-100 shadow'
@@ -138,20 +170,16 @@ const Layout: React.FC = () => {
                 </ul>
               )}
             </Form>
-            <Nav className='ms-auto align-items-center'>
-              <Nav.Link as={Link} to='/search'>
-                Products
-              </Nav.Link>
-              <Nav.Link as={Link} to='/cart'>
-                <i className='bi bi-cart3' /> Cart{' '}
-                {cartCount > 0 && <Badge bg='primary'>{cartCount}</Badge>}
-              </Nav.Link>
+
+            <Nav className='lm-header__links ms-auto align-items-center flex-nowrap order-2 order-lg-3'>
               {isAuthenticated ? (
                 <NavDropdown
                   align='end'
+                  className='lm-header__acct'
                   title={
-                    <span>
-                      <i className='bi bi-person' /> Account
+                    <span className='lm-header__stack'>
+                      <small>Hello, {nickName || 'shopper'}</small>
+                      <strong>Account &amp; Lists</strong>
                     </span>
                   }
                   id='account-menu'
@@ -182,19 +210,75 @@ const Layout: React.FC = () => {
                   </NavDropdown.Item>
                 </NavDropdown>
               ) : (
-                <>
-                  <Nav.Link as={Link} to='/login'>
-                    <i className='bi bi-person' /> Sign in
-                  </Nav.Link>
-                  <Nav.Link as={Link} to='/register'>
+                <NavDropdown
+                  align='end'
+                  className='lm-header__acct'
+                  title={
+                    <span className='lm-header__stack'>
+                      <small>Hello, sign in</small>
+                      <strong>Account &amp; Lists</strong>
+                    </span>
+                  }
+                  id='account-menu'
+                >
+                  <NavDropdown.Item as={Link} to='/login'>
+                    Sign in
+                  </NavDropdown.Item>
+                  <NavDropdown.Item as={Link} to='/register'>
                     Register
-                  </Nav.Link>
-                </>
+                  </NavDropdown.Item>
+                </NavDropdown>
               )}
+              <Nav.Link as={Link} to='/orders' className='lm-header__stack d-none d-md-flex'>
+                <small>Returns</small>
+                <strong>&amp; Orders</strong>
+              </Nav.Link>
+              <Nav.Link as={Link} to='/cart' className='lm-header__cart'>
+                <i className='bi bi-cart3' />
+                {cartCount > 0 && <span className='lm-header__cart-count'>{cartCount}</span>}
+                <strong className='ms-1'>Cart</strong>
+              </Nav.Link>
             </Nav>
-          </Navbar.Collapse>
-        </Container>
-      </Navbar>
+          </Container>
+        </Navbar>
+
+        {/* Row 2 — "☰ All" category-drawer toggle + text links. */}
+        <nav className='lm-header__strip'>
+          <Container fluid className='d-flex align-items-center gap-1 flex-nowrap overflow-auto'>
+            <button
+              type='button'
+              className='lm-header__all'
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(v => !v)}
+            >
+              <i className='bi bi-list' /> All
+            </button>
+            <Link to='/hot' className='lm-header__strip-link'>
+              Today&rsquo;s Deals
+            </Link>
+            <Link to='/new' className='lm-header__strip-link'>
+              New Arrivals
+            </Link>
+            <Link to='/search' className='lm-header__strip-link'>
+              All Products
+            </Link>
+            <Link to='/brands' className='lm-header__strip-link'>
+              Brands
+            </Link>
+            <Link to='/topics' className='lm-header__strip-link'>
+              Topics
+            </Link>
+            <Link to='/groupon' className='lm-header__strip-link'>
+              Group Buys
+            </Link>
+            <Link to='/service' className='lm-header__strip-link'>
+              Customer Service
+            </Link>
+          </Container>
+        </nav>
+      </header>
+
+      <CategoryDrawer show={drawerOpen} onHide={() => setDrawerOpen(false)} />
       <main>
         <Outlet />
       </main>
