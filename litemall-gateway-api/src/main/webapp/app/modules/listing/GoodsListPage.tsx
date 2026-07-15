@@ -1,20 +1,31 @@
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
-import ProductCard from 'app/components/userComponents/card/ProductCard';
-import { catalogApi } from 'app/shared/api';
+import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
+import { BASE_URL_CONTEXT } from 'app/config/api';
+import { baseAxios } from 'app/config/axiosinstance';
 import { IGood } from 'app/shared/model/product/product.model';
 import 'app/shared/scss/content.scss';
 
 /**
- * Flat listing page reused by Hot deals and New arrivals, modelled on
- * litemall-vue `items/hot` / `items/new`. Sourced from `/srv/goods/list`
- * (isHot/isNew). For keyword/category faceted browsing the InstantSearch
+ * Flat listing page for the deal/browse strips, sourced from the OCS-ranked
+ * `/srv/search` surface (local + CJ goods, the relevance-boost ranking):
+ *   - hot    → "Today's Deals":  bestsellers, sort=-listed_num
+ *   - new    → "New Arrivals":   newest first, sort=-created_epoch
+ *   - summer → "Summer Deals":   CJ goods matching "summer", relevance-ranked
+ * (The old `/srv/goods/list?isHot|isNew` source was DB-flag-based and
+ * local-only.) For keyword/category faceted browsing the InstantSearch
  * `/search` page is used instead.
  */
 interface Props {
-  mode: 'hot' | 'new';
+  mode: 'hot' | 'new' | 'summer';
 }
+
+const MODES: Record<Props['mode'], { title: string; params: Record<string, string> }> = {
+  hot: { title: 'Today’s Deals', params: { q: '', sort: '-listed_num' } },
+  new: { title: 'New Arrivals', params: { q: '', sort: '-created_epoch' } },
+  summer: { title: 'Summer Deals', params: { q: 'summer', source: 'cj' } },
+};
 
 const GoodsListPage: React.FC<Props> = ({ mode }) => {
   const [goods, setGoods] = useState<IGood[]>([]);
@@ -23,10 +34,11 @@ const GoodsListPage: React.FC<Props> = ({ mode }) => {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    catalogApi
-      .goodsList(mode === 'hot' ? { isHot: true, page: 1, limit: 24 } : { isNew: true, page: 1, limit: 24 })
-      .then((res: any) => {
-        if (!cancelled) setGoods((res?.list ?? res?.goodsList ?? res ?? []) as IGood[]);
+    baseAxios
+      .get(`${BASE_URL_CONTEXT}/search`, { params: { ...MODES[mode].params, page: 1, size: 24 } })
+      .then(res => {
+        const d = res.data?.data ?? res.data ?? {};
+        if (!cancelled) setGoods((d.goodsList ?? []) as IGood[]);
       })
       .catch(() => {
         if (!cancelled) setGoods([]);
@@ -39,7 +51,7 @@ const GoodsListPage: React.FC<Props> = ({ mode }) => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>{mode === 'hot' ? 'Hot deals' : 'New arrivals'}</h1>
+      <h1 className='h4 mb-3'>{MODES[mode].title}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
@@ -49,7 +61,7 @@ const GoodsListPage: React.FC<Props> = ({ mode }) => {
       ) : (
         <div className='lm-grid'>
           {goods.map((g, i) => (
-            <ProductCard key={(g.id ?? i) as React.Key} product={g} />
+            <ProductCard key={(goodId(g) ?? i) as React.Key} product={g} />
           ))}
         </div>
       )}
