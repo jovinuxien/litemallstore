@@ -6,9 +6,7 @@ import { userApi } from 'app/shared/api';
 /**
  * Shared image uploader: file picker → `POST /srv/storage/upload`
  * (goods-management Wave 4 — requires login, 5 MB cap, image-only magic-byte
- * whitelist) with thumbnail previews + remove. The endpoint is LIVE (Wave-4
- * merge, verified 2026-07-13); the old isMissingEndpoint URL-text fallback
- * was removed.
+ * whitelist) with thumbnail previews + remove.
  */
 interface Props {
   value: string[];

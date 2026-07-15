@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
-import { IOrderDetail } from 'app/shared/model/order/order.model';
+import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { QRCodeSVG } from 'qrcode.react';
 
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
@@ -13,6 +13,15 @@ import AftersalePanel from './AftersalePanel';
 import DisputePanel from './DisputePanel';
 import TrackingPanel from './TrackingPanel';
 import './order.scss';
+
+/** verifyTime arrives as a LocalDateTime tuple ([y,m,d,h,min,...]) or an ISO string. */
+const fmtDateTime = (t?: string | number[]): string => {
+  if (Array.isArray(t) && t.length >= 5) {
+    const [y, m, d, h, min] = t;
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  }
+  return typeof t === 'string' ? t.slice(0, 16).replace('T', ' ') : '';
+};
 
 /**
  * Single-order view, modelled on litemall-vue `order/order-detail`: shipping
@@ -28,6 +37,9 @@ const OrderDetailView: React.FC = () => {
   const [pending, setPending] = useState(false);
   // Which goods line has its review form open (handleOption.comment orders).
   const [reviewingGoodsId, setReviewingGoodsId] = useState<number | string | null>(null);
+  // Pickup orders carry only storeId — the store card is fetched separately
+  // (handoff-gateway-api-pickup.md). Fetch failure/hidden store → no card.
+  const [pickupStore, setPickupStore] = useState<IStore | null>(null);
 
   const fetchDetail = useCallback(async () => {
     if (!id) return;
@@ -45,6 +57,17 @@ const OrderDetailView: React.FC = () => {
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    if (order?.deliveryType === 'pickup' && order.storeId != null) {
+      orderApi
+        .storeDetail(order.storeId)
+        .then(s => setPickupStore(s ?? null))
+        .catch(() => setPickupStore(null));
+    } else {
+      setPickupStore(null);
+    }
+  }, [order?.deliveryType, order?.storeId]);
 
   // Run an order action (cancel/confirm/refund/delete) then refresh the detail.
   const act = async (fn: () => Promise<unknown>) => {
@@ -140,31 +163,39 @@ const OrderDetailView: React.FC = () => {
           />
         </CellGroup>
 
-        {/* Pickup order: store card + verify code (Wave 4 — assumed contract,
-            renders only when the order carries pickup fields). */}
+        {/* Pickup order: store card (fetched via /srv/store/detail) + verify
+            code. verifyCode arrives once paid; verifyTime set = collected. */}
         {order.deliveryType === 'pickup' ? (
           <CellGroup title='Store pickup'>
-            {order.pickupStore && (
-              <Cell title={order.pickupStore.name ?? 'Pickup store'}>
+            {pickupStore && (
+              <Cell title={pickupStore.name ?? 'Pickup store'}>
                 <span className='text-muted'>
-                  {order.pickupStore.address}
-                  {order.pickupStore.businessHours ? ` · ${order.pickupStore.businessHours}` : ''}
-                  {order.pickupStore.phone ? ` · ${order.pickupStore.phone}` : ''}
+                  {[pickupStore.address, pickupStore.detailedAddress].filter(Boolean).join(' ')}
+                  {pickupStore.businessHours ? ` · ${pickupStore.businessHours}` : ''}
+                  {pickupStore.phone ? ` · ${pickupStore.phone}` : ''}
                 </span>
               </Cell>
             )}
-            {(order.pickupName || order.pickupMobile) && (
-              <Cell title='Pickup contact' value={[order.pickupName, order.pickupMobile].filter(Boolean).join(' · ')} />
-            )}
-            {order.verifyCode && (
-              <div className='p-3 text-center'>
-                <div className='text-muted small mb-1'>Show this code at the store</div>
-                <div className='fw-bold' style={{ fontSize: '1.8rem', letterSpacing: '0.25em' }}>{order.verifyCode}</div>
-                <div className='mt-2'>
-                  <QRCodeSVG value={order.verifyCode} size={140} />
+            {order.verifyCode &&
+              (order.verifyTime ? (
+                <Cell
+                  title='Collected'
+                  value={
+                    <span className='text-success'>
+                      <i className='bi bi-check-circle me-1' />
+                      {fmtDateTime(order.verifyTime)}
+                    </span>
+                  }
+                />
+              ) : (
+                <div className='p-3 text-center'>
+                  <div className='text-muted small mb-1'>Show this code at the store</div>
+                  <div className='fw-bold' style={{ fontSize: '1.8rem', letterSpacing: '0.25em' }}>{order.verifyCode}</div>
+                  <div className='mt-2'>
+                    <QRCodeSVG value={order.verifyCode} size={140} />
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
           </CellGroup>
         ) : (
           <CellGroup title='Delivery address'>

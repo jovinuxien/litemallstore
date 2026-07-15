@@ -78,15 +78,17 @@ export const orderApi = {
     unwrap<void>(baseAxios.post(`${SRV}/order/${orderId}/aftersale/${aftersaleId}/cancel`, {})),
 
   /**
-   * GET /srv/store/list — pickup stores (order service, Wave 4). ASSUMED
-   * contract (spec pending from the order worktree): tolerates either a
-   * {list,total} wrapper or a bare array. The pickup checkout toggle only
-   * appears when this succeeds with stores.
+   * GET /srv/store/list — visible pickup stores, `{list, total}` envelope
+   * (order service, Wave 4 — handoff-gateway-api-pickup.md). The pickup
+   * checkout toggle only appears when this succeeds with stores.
    */
   storeList: async (): Promise<IStore[]> => {
     const d = await unwrap<{ list?: IStore[] } | IStore[]>(baseAxios.get(`${SRV}/store/list`));
     return Array.isArray(d) ? d : d?.list ?? [];
   },
+
+  /** GET /srv/store/detail — one visible store; hidden/unknown → errno 404. */
+  storeDetail: (id: number) => unwrap<IStore>(baseAxios.get(`${SRV}/store/detail`, { params: { id } })),
 
   // CJ dispute endpoints ("report a problem" on a dropship order). The order service
   // proxies CJ's dispute API with ~1s pacing between CJ calls, so these are SLOW

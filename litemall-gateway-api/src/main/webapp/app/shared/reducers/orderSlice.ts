@@ -64,8 +64,9 @@ export interface PlaceOrderParams {
    */
   countryCode?: string;
   /**
-   * Wave 4 pickup checkout (ASSUMED contract — order worktree spec pending;
-   * the UI only offers pickup when /srv/store/list answers). Local group only.
+   * Wave 4 pickup checkout (litemall-order/docs/handoff-gateway-api-pickup.md:
+   * storeId/pickupName/pickupMobile required for pickup, addressId ignored).
+   * Local group only — CJ lines always ship.
    */
   deliveryType?: 'express' | 'pickup';
   storeId?: number;

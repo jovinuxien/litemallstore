@@ -60,14 +60,15 @@ export interface IOrderDetail {
   /** Logistics line the order ships with (the CJ line chosen at placement). */
   shipChannel?: string;
   /**
-   * Wave 4 pickup fields (ASSUMED contract — order worktree spec pending; the
-   * card renders only when present, so absence is harmless).
+   * Wave 4 pickup fields (litemall-order/docs/handoff-gateway-api-pickup.md).
+   * NON_NULL: express orders carry none of these. verifyCode appears only once
+   * paid (owner-scoped read); verifyTime set = already collected. Store info is
+   * NOT embedded — fetch it via `GET /srv/store/detail?id={storeId}`.
    */
   deliveryType?: string; // 'express' | 'pickup'
+  storeId?: number;
   verifyCode?: string;
-  pickupStore?: IStore | null;
-  pickupName?: string;
-  pickupMobile?: string;
+  verifyTime?: string | number[]; // LocalDateTime tuple on local rows
 }
 
 /**
@@ -116,15 +117,17 @@ export interface ITracking {
 }
 
 /**
- * One pickup store from `GET /srv/store/list` (order service, Wave 4).
- * ASSUMED contract — the order worktree's store/pickup handoff spec hasn't
- * landed yet; the pickup UI is gated on this endpoint answering, so a field
- * rename is a low-risk fixup. Dependency: litemall-order Wave-4 stores task.
+ * One pickup store from `GET /srv/store/{list,detail}` (order service, Wave 4;
+ * contract confirmed against litemall-order/docs/handoff-gateway-api-pickup.md).
+ * Only visible (is_show) stores are served; hidden/unknown detail → errno 404.
  */
 export interface IStore {
   id?: number;
   name?: string;
+  intro?: string;
   address?: string;
+  detailedAddress?: string;
+  logo?: string;
   phone?: string;
   businessHours?: string;
   latitude?: number;

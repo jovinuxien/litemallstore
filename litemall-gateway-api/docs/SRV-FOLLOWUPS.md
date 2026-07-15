@@ -2,13 +2,11 @@
 
 The `litemall-gateway-api` customer SPA was built to **litemall-vue** parity and wired
 **exclusively to `/srv`** (never `/wx`) through the api seam in
-`src/main/webapp/app/shared/api/*.ts`. Several customer features only have a backend on the
-legacy `/wx/**` route today; per the project decision those public/customer endpoints are
-being **moved onto `/srv`** in the owning services. This file is the contract the SPA already
-codes against. Until each lands, the corresponding view renders a graceful empty/error state
-(`isMissingEndpoint` → 404/501) rather than breaking.
-
-Grep the SPA for the open items: `grep -rn "TODO(/srv follow-up" src/main/webapp/app/shared/api`.
+`src/main/webapp/app/shared/api/*.ts`. The legacy `/wx` services are now **deleted**
+(Wave-4 decommission, `a782082fd`) and every endpoint the SPA consumes is live on `/srv` —
+see the Wave-4 close-out at the bottom. The tables below are kept as the contract history;
+the only still-open item is the Stripe CARD stub (tabled under "Discovered during the
+order/user redesign").
 
 ## Owner: litemall-goods-management (`/srv/**` catch-all) — public catalog/content
 | Endpoint | Verb | Used by | Notes |
@@ -216,3 +214,30 @@ below are live on master; the SPA guards were removed 2026-07-10.
   change + email-reset flows; tracking not-shipped payload + owner-scoping
   (foreign order → errno 404 → panel hides); aftersale apply(+pictures) → 730
   double-apply guard → cancel on a PAID order.
+
+## Wave-4 close-out (2026-07-15) — residuals cleared
+
+All Wave-4 backends merged 2026-07-13 (`286b9f070` this SPA, `f54904059` order,
+`d219c88ac` goods-management) and the legacy wx/admin APIs were deleted
+(`a782082fd`); master's `403ff3455` already dropped the storage/content guards.
+This pass cleared the three recorded residuals:
+
+- **Freight-quote legacy-body fallback removed** (`Checkout.tsx`) — the
+  pre-template order service it protected against no longer exists; the
+  enriched `{subtotal, addressId, items}` body is the only quote body.
+- **Pickup contract reconciled** against the committed
+  `litemall-order/docs/handoff-gateway-api-pickup.md` (it landed after the SPA
+  shipped an ASSUMED shape). Real drift fixed: order detail sends
+  `storeId`/`verifyTime` — never an embedded `pickupStore` object or
+  `pickupName`/`pickupMobile` — so the store card on `OrderDetail` was dead.
+  It now fetches `GET /srv/store/detail?id=` (new `orderApi.storeDetail`),
+  renders `address + detailedAddress`, and shows a "Collected" state once
+  `verifyTime` is set (replacing the code/QR block). `IStore` gained
+  `intro`/`detailedAddress`/`logo`. Live-observed: `verifyTime` serialises as
+  a LocalDateTime tuple (`[y,m,d,h,min,s]`, the known Jackson shape) —
+  formatted like the review dates, not rendered raw.
+- **`isMissingEndpoint` retired entirely** — the last two guards
+  (`AftersalePanel`, `TrackingPanel`) protected now-live endpoints. Aftersale
+  list failures degrade to an empty list; the tracking panel hides only on
+  errno 404 (foreign/unknown order). The helper is deleted from
+  `shared/api/http.ts` — nothing consumes it.

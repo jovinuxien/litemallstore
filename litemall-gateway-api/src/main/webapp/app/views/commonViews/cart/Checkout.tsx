@@ -118,10 +118,9 @@ const CheckoutView: React.FC = () => {
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
 
-  // Pickup checkout (Wave 4 — dependency: order-service stores backend; the
-  // toggle only appears when /srv/store/list answers with stores, so this is
-  // inert until that lands/merges). CJ lines always ship — pickup is offered
-  // for all-local carts only.
+  // Pickup checkout (Wave 4 — handoff-gateway-api-pickup.md; the toggle only
+  // appears when /srv/store/list has visible stores). CJ lines always ship —
+  // pickup is offered for all-local carts only.
   const [stores, setStores] = useState<IStore[]>([]);
   const [deliveryType, setDeliveryType] = useState<'express' | 'pickup'>('express');
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
@@ -170,10 +169,7 @@ const CheckoutView: React.FC = () => {
             addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
             items: localItems.map(it => ({ goodsId: it.goodsId, quantity: it.number ?? 1, price: it.price ?? 0 })),
           })
-          // The pre-template order service 402s on the NEW fields (strict
-          // deserialization, verified live) — fall back to the legacy body so
-          // the quote keeps working whichever side deploys first.
-          .catch(() => orderApi.freightQuote({ subtotal: subtotalOf(localItems) }).catch(() => null));
+          .catch(() => null);
       }
       if (cjItems.length > 0) {
         next.cj = await orderApi
@@ -448,7 +444,7 @@ const CheckoutView: React.FC = () => {
                   onClick={() => setSelectedStoreId(s.id ?? null)}
                 >
                   <div className='fw-semibold'>{s.name}</div>
-                  <div className='small text-muted'>{s.address}</div>
+                  <div className='small text-muted'>{[s.address, s.detailedAddress].filter(Boolean).join(' ')}</div>
                   <div className='small text-muted'>
                     {s.businessHours && (
                       <span className='me-3'>

@@ -5,9 +5,8 @@ import { ApiResult } from 'app/config/types';
 /**
  * Customer-SPA api seam. Every `/srv` request the SPA makes lives in one of the
  * sibling `*Api.ts` modules and goes through these helpers — there is NO `/wx`
- * usage anywhere (the legacy wx-api route is deliberately not consumed; the
- * public/catalog endpoints are being moved onto `/srv` in litemall-goods-management
- * and the order/wallet services — tracked in docs/SRV-FOLLOWUPS.md).
+ * usage anywhere (the legacy wx-api is deleted; every consumed endpoint is
+ * live on `/srv` — history in docs/SRV-FOLLOWUPS.md).
  *
  * baseAxios (config/axiosinstance.ts) injects the customer JWT as
  * `Authorization: Bearer` from sessionStorage, which the gateway relays
@@ -25,12 +24,6 @@ export class ApiError extends Error {
     this.errno = errno;
   }
 }
-
-/** True when a `/srv` endpoint replied 404/501 — i.e. a not-yet-built follow-up. */
-export const isMissingEndpoint = (e: unknown): boolean => {
-  const status = (e as { response?: { status?: number } })?.response?.status;
-  return status === 404 || status === 501;
-};
 
 /**
  * Unwrap a `{errno,errmsg,data}` envelope, throwing `ApiError` on a non-zero
