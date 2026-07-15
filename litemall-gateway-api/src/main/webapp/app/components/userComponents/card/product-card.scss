@@ -20,13 +20,10 @@
 }
 
 // ── Deal-card look & feel ─────────────────────────────────────────────────────
-// Visual parity with the gateway-admin storefront "deal-card" (its
-// sass/components/_cards.scss): borderless rounded card, 200px cover image with
-// a hairline divider, scale-on-hover, green/orange "new/hot" badges, terracotta
-// price with a strikethrough original, a green discount pill, and a rounded CTA.
-// Colours are taken verbatim from that admin card so both storefronts match;
-// the storefront-wide --lm-* tokens are intentionally left alone (other views
-// read them), so these values are inlined here only.
+// Amazon-deals (Goldbox) layout on the --lm-* theme: clean 200px cover image,
+// then a deal row (solid accent % badge + accent "Limited time deal" text),
+// then the price line (big dark deal price, small struck "List:" price),
+// then the 2-line title/description, ratings/sold meta, and the CTA.
 .lm-card {
   display: flex;
   flex-direction: column;
@@ -50,7 +47,7 @@
     height: 200px;
     overflow: hidden;
     background: #f1f4f5;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--lm-border);
   }
 
   &__img {
@@ -58,45 +55,6 @@
     height: 100%;
     object-fit: cover;
     display: block;
-  }
-
-  &__discount {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #486f32;
-    color: #fff;
-    font-size: 14px;
-    font-weight: bold;
-    padding: 2px 4px;
-    border-radius: 4px;
-  }
-
-  &__ribbons {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
-  &__ribbon {
-    font-size: 13px;
-    font-weight: bold;
-    color: #fff;
-    padding: 2px 6px;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-
-    &--new {
-      background: #00a87e;
-    }
-    &--hot {
-      background: #f28b00;
-    }
   }
 
   &__body {
@@ -107,46 +65,75 @@
     flex: 1;
   }
 
-  &__title {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.3;
-    min-height: 2.6em;
-    color: #333;
-    text-decoration: none;
+  // Badge + label row under the image (reserves its height so price rows align
+  // across a grid even when a card has neither).
+  &__dealrow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 22px;
+  }
 
-    &:hover {
-      color: #b4593d;
-    }
+  &__discount {
+    background: var(--lm-accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 4px;
+    line-height: 1;
+  }
+
+  &__deal-label {
+    color: var(--lm-accent);
+    font-size: 13px;
+    font-weight: 600;
   }
 
   &__price-row {
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
   }
 
   &__price {
-    color: #b4593d;
-    font-weight: bold;
-    font-size: 18px;
+    color: var(--lm-text);
+    font-weight: 700;
+    font-size: 21px;
     line-height: 1.1;
   }
 
   &__cur {
     font-size: 13px;
-    font-weight: bold;
+    font-weight: 700;
   }
 
   &__orig {
-    color: #595454;
+    color: var(--lm-muted);
+    font-size: 13px;
+
+    s {
+      text-decoration: line-through;
+    }
+  }
+
+  &__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
     font-size: 14px;
-    text-decoration: line-through;
+    font-weight: 400;
+    line-height: 1.35;
+    min-height: 2.7em;
+    color: var(--lm-text);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--lm-primary);
+    }
   }
 
   &__meta {
@@ -186,7 +173,7 @@
     margin-top: 4px;
     border: none;
     border-radius: 20px;
-    background: #a49e9e;
+    background: var(--lm-primary);
     color: #fff;
     font-size: 14px;
     font-weight: 600;
@@ -195,14 +182,14 @@
     transition: background 0.2s ease;
 
     &:hover {
-      background: #3f542b;
+      background: var(--lm-primary-dark);
     }
 
     &--added {
-      background: #486f32;
+      background: var(--lm-success);
 
       &:hover {
-        background: #486f32;
+        background: var(--lm-success);
       }
     }
   }
