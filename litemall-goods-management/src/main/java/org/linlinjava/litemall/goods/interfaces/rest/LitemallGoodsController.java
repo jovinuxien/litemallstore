@@ -9,9 +9,11 @@ import org.linlinjava.litemall.core.util.ApiResponse;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
+import org.linlinjava.litemall.db.domain.LitemallGoodsRelated;
 import org.linlinjava.litemall.db.service.LitemallAdService;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCouponService;
+import org.linlinjava.litemall.db.service.LitemallGoodsRelatedService;
 import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
@@ -71,6 +73,9 @@ public class LitemallGoodsController {
     // Flash deals (price-swap lifecycle): serves the live-deal block for the detail-page countdown.
     @Autowired
     private org.linlinjava.litemall.goods.application.deals.FlashDealService flashDealService;
+    // Item-item co-occurrence rows (litemall_goods_related, nightly batch) behind /related.
+    @Autowired
+    private LitemallGoodsRelatedService goodsRelatedService;
 
     // Home-page marketing data sourced from litemall-db (mirrors the monolith's
     // WxHomeController): banners (ads), channels (channel categories), coupons.
@@ -282,10 +287,14 @@ public class LitemallGoodsController {
     }
 
     /**
-     * Product details page "Everyone is watching" recommended products
+     * Product details page "Everyone is watching" recommended products.
      *
-     * @param id, 商品ID
-     * @return Recommended products on product details page
+     * Co-occurrence first: the nightly batch ({@code RelatedGoodsRefreshTask})
+     * stores each goods' strongest co-purchase/co-view neighbors in
+     * {@code litemall_goods_related}; hits are hydrated in stored order (off-sale
+     * ids drop out at hydration). Any remaining slots — and every goods without a
+     * row — fall back to the legacy same-category query, so sparse signal degrades
+     * to exactly the old behavior (minus self-recommendation).
      */
     @GetMapping("related")
     public Object related(@NotBlank String id) {
@@ -302,13 +311,60 @@ public class LitemallGoodsController {
             return ResponseUtil.badArgumentValue();
         }
 
-        // The current product recommendation algorithm only recommends other products of the same category.
-        LitemallCategoryId cid = new LitemallCategoryId(goods.getCategoryId().getId());
-
-        // Find six related products
         int related = 6;
-        List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getGoodsByCategoryId(cid, 0, related);
-        return ResponseUtil.okList(commentStatsService.withStats(goodsList));
+        List<LitemallGoodsAggregate> picked = new java.util.ArrayList<>(related);
+        Set<Integer> pickedIds = new java.util.HashSet<>();
+        pickedIds.add(goodsId.getId());
+
+        LitemallGoodsRelated row = goodsRelatedService.findByGoodsId(goodsId.getId());
+        if (row != null && row.getRelatedIds() != null && !row.getRelatedIds().isEmpty()) {
+            List<Integer> orderedIds = new java.util.ArrayList<>();
+            for (String token : row.getRelatedIds().split(",")) {
+                try {
+                    Integer rid = Integer.valueOf(token.trim());
+                    if (!pickedIds.contains(rid) && !orderedIds.contains(rid)) {
+                        orderedIds.add(rid);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // machine-written column; a malformed token just skips
+                }
+            }
+            if (!orderedIds.isEmpty()) {
+                // getAllGoodByIds filters is_on_sale + !deleted; reorder to the stored
+                // strongest-first sequence.
+                Map<Integer, LitemallGoodsAggregate> byId = goodsServiceApi
+                        .getAllGoodByIds(orderedIds.stream().map(LitemallGoodsId::new).toList())
+                        .stream()
+                        .collect(Collectors.toMap(a -> a.getGoodsId().getId(), Function.identity(), (a, b) -> a));
+                for (Integer rid : orderedIds) {
+                    LitemallGoodsAggregate hit = byId.get(rid);
+                    if (hit == null) {
+                        continue;
+                    }
+                    picked.add(hit);
+                    pickedIds.add(rid);
+                    if (picked.size() == related) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (picked.size() < related) {
+            LitemallCategoryId cid = new LitemallCategoryId(goods.getCategoryId().getId());
+            // Over-fetch by the picked set so exclusions still leave enough to fill.
+            for (LitemallGoodsAggregate candidate
+                    : goodsServiceApi.getGoodsByCategoryId(cid, 0, related + pickedIds.size())) {
+                if (!pickedIds.add(candidate.getGoodsId().getId())) {
+                    continue;
+                }
+                picked.add(candidate);
+                if (picked.size() == related) {
+                    break;
+                }
+            }
+        }
+        return ResponseUtil.okList(commentStatsService.withStats(picked));
     }
 
 

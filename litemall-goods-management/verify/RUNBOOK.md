@@ -1134,3 +1134,69 @@ Diminishing-returns rule: past ~93% "perfect", corner-case fixes make search MOR
 mid-session (all containers destroyed ~13:06); `ocs_esdata` survives a plain down — brought back
 up from this worktree's compose dir, index generation ocs-123 intact, deal fields verified
 present. If containers are missing, check `docker events` before assuming a crash.
+
+## §24 — Flash deals (price-swap lifecycle) + co-occurrence related items (2026-07-16)
+
+Deals Phases B + C. Design: `docs/adr-flash-deals-price-swap.md` (B),
+`docs/handoff-gateway-admin-flash-deals.md` (admin contract). B reuses the V9
+`litemall_seckill` table; V38 (applied 2026-07-15) adds `original_retail_price` +
+`price_swapped` and creates `litemall_goods_related`. The deal IS the goods row's
+`retail_price` while live — `FlashDealLifecycleTask` (60s tick, `litemall.deals.tick-ms`;
+kill switch `litemall.deals.lifecycle-enabled`) is the only writer. C fills
+`litemall_goods_related` nightly (`RelatedGoodsRefreshTask`, 02:45,
+`litemall.recommend.refresh-cron` / `refresh-enabled`; manual
+`POST /srv/private/admin/recommend/rebuild`) with a co-purchase(×3)+co-view(×1, 90-day)
+blend, top 8; `/srv/goods/related` serves the row in stored order (hydration drops
+off-sale) and tops up / falls back to the legacy same-category query (now self-excluding).
+
+**THE gotcha this session — OCS resolves filter/sort/score fields against the index
+MAPPING, not just the yml field config.** First full reindex ran with no live deal →
+no doc carried `deal_active`/`deal_urgency`/`deal_end_epoch` → searcher logged
+`ScoringCreator - Field deal_urgency ... does not exist` and SILENTLY ignored the
+`deal_active=1` filter (returned all 9042 docs). Fix shipped: the three queryable deal
+fields are emitted on EVERY document (`deal_active:0`, `deal_urgency:0`,
+`deal_end_epoch:4102444800000` = 2100-01-01 sentinel so "ending soon" asc keeps live
+deals first); Result-only `deal_claimed_pct` stays live-only. §22's restart order still
+applies for NEW fields: indexer yml → recreate indexer → reindex → searcher restart.
+
+**Verified LIVE 2026-07-16** — worktree exec jar :8093 (profiles dev,db,core,admin,wx,verify,
+flyway off, tick 15s), OCS indexer+searcher recreated from THIS worktree's compose
+(previous mounts pointed at the MAIN checkout — the §20 gotcha again), full reindex →
+ocs-125 (9042 docs), searcher restart → zero ScoringCreator warnings:
+```
+create 650s: CJ goods → 652; price ≥ retail → 650 (msg names both); past window → 650
+create ok → id 2 {enabled:true, live:false}; overlapping create → 651
+tick ≤15s: goods 1009012 retail 59→41.30 (counter 79 kept — no lift needed),
+   seckill{price_swapped:1, original_retail_price:59}; ES resultData
+   {deal_active:1, deal_end_epoch, deal_claimed_pct:0} + scores{deal_urgency:100, discount_pct:48}
+/srv/search?deal_flag=1&deal_active=1 → total 1, DTO {dealActive,dealEndEpoch,dealClaimedPct}
+sort=deal_end_epoch → live deal FIRST, sentinel docs after; facet rail unchanged (no deal noise)
+live edit price → 651 "disable it before changing price or start"; stop extension → ok
+/srv/goods/deal?id=1009012 → {dealPrice,originalPrice,endEpoch,stock,claimed,claimedPct};
+   dealless/CJ id → data:null
+disable → unwind ≤15s: retail 59.00/counter 79.00 byte-identical, price_swapped:0,
+   ES back to deal_active:0 + sentinel, deal_active=1 search → 0; delete → total drops
+claimed refresh: sales stayed 0 (correct — no paid orders in window); sumPaidQuantityInWindow
+   shape sanity-checked vs manual GROUP BY (goods 1055022 → 13). Sold-out early-unwind NOT
+   exercised e2e (no orderable checkout path this session) — unwind() itself proven via disable.
+related: rebuild → {rows:15}; blend for 1010000 == manual UNION query (ties → id asc);
+   /srv/goods/related?id=1010000 → stored order top 6; id without row → category fallback,
+   self-excluded; cj_* → []; aggregate envelope byte-compatible (nested goodsId{id} as before)
+harness (§23, platform-1.10 console+launcher+ENGINE+COMMONS jars — mixing 1.10 launcher
+   with the module's 1.9.3 platform-engine dies mid-run on TestDescriptor.getAncestors):
+   5/5 green, mean nDCG 0.9286 == pinned baseline (always-emit urgency 0 = uniform ln2p, no shift)
+regression: /srv/search?q=pillow total 236 + filters rail unchanged; suggest live (empty
+   result mid-harvest is the ~30s SuggestionsUpdater window, retry); /srv/goods/index rails 6/6/3
+SPA: gateway-api tsc touched-files clean + prod webpack clean; gateway-admin tsc app-code
+   clean (6 node_modules NoInfer errors pre-existing) + vite prod bundle built via module mvn
+   (root reactor does NOT contain the gateways — build from litemall-gateway-admin/).
+   `webapp:test` phase fails PRE-EXISTING: web-test-runner glob src/**/*.test.js matches zero
+   files — nothing to do with deals; skip test phase or fix upstream.
+```
+
+**Landmines re-confirmed:** `mvn -q ... | tail; echo EXIT=$?` reports TAIL's exit — a
+litemall-db install "succeeded" that way while ~/.m2 kept a jul-13 jar (package then failed
+`cannot find symbol LitemallGoodsRelatedService`). Use `${PIPESTATUS[0]}` or drop -q and
+grep "Installing". In-browser SPA click-through happens post-merge from main (gateways not
+booted here) — countdown chip / claimed bar / DealBanner / admin Deal CRUD are tsc+bundle
+verified only.
