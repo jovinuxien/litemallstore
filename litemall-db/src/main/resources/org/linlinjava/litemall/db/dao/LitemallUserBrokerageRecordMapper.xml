@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_user_brokerage_record (commission ledger, V7).
+  NOT MyBatis-Generator output (CjSourcingRequestMapper pattern). Relies on the
+  global mapUnderscoreToCamelCase=true so resultType columns map snake_case ->
+  camelCase. Status semantics: 0 frozen, 1 valid, -1 invalid; pm: 1 income, 0
+  expenditure.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallUserBrokerageRecordMapper">
+
+  <sql id="columns">
+    id, user_id, link_id, link_type, pm, title, price, balance, mark,
+    `status`, freeze_time, unfreeze_time, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallUserBrokerageRecord"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_user_brokerage_record
+      (user_id, link_id, link_type, pm, title, price, balance, mark,
+       `status`, freeze_time, unfreeze_time, add_time, update_time, deleted)
+    values
+      (#{userId}, #{linkId}, #{linkType}, #{pm}, #{title}, #{price}, #{balance}, #{mark},
+       #{status}, #{freezeTime}, #{unfreezeTime}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallUserBrokerageRecord">
+    select <include refid="columns" />
+    from litemall_user_brokerage_record
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectPageByUserId" resultType="org.linlinjava.litemall.db.domain.LitemallUserBrokerageRecord">
+    select <include refid="columns" />
+    from litemall_user_brokerage_record
+    where user_id = #{userId} and deleted = 0
+    order by add_time desc, id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countByUserId" resultType="long">
+    select count(*) from litemall_user_brokerage_record
+    where user_id = #{userId} and deleted = 0
+  </select>
+
+  <select id="sumByUserAndStatus" resultType="java.math.BigDecimal">
+    select coalesce(sum(price), 0)
+    from litemall_user_brokerage_record
+    where user_id = #{userId} and `status` = #{status} and pm = #{pm} and deleted = 0
+  </select>
+
+  <select id="sumEarnedSince" resultType="java.math.BigDecimal">
+    select coalesce(sum(price), 0)
+    from litemall_user_brokerage_record
+    where user_id = #{userId} and pm = 1 and `status` &gt;= 0
+      and add_time &gt;= #{since} and deleted = 0
+  </select>
+
+  <select id="countReferredOrders" resultType="long">
+    select count(*) from litemall_user_brokerage_record
+    where user_id = #{userId} and pm = 1 and link_type = 'order'
+      and `status` &gt;= 0 and deleted = 0
+  </select>
+
+  <select id="selectUnfreezable" resultType="org.linlinjava.litemall.db.domain.LitemallUserBrokerageRecord">
+    select <include refid="columns" />
+    from litemall_user_brokerage_record
+    where `status` = 0 and unfreeze_time &lt;= #{now} and deleted = 0
+    order by unfreeze_time asc
+    limit #{limit}
+  </select>
+
+  <!-- Guarded transitions: WHERE status pins the source state so a lost race
+       (concurrent sweep, clawback vs unfreeze) surfaces as a 0-row update. -->
+
+  <update id="markValidFromFrozen">
+    update litemall_user_brokerage_record
+    set `status` = 1, update_time = now()
+    where id = #{id} and `status` = 0 and deleted = 0
+  </update>
+
+  <update id="invalidateFrozenByOrder">
+    update litemall_user_brokerage_record
+    set `status` = -1, update_time = now(),
+        mark = concat(coalesce(mark, ''), ' [invalidated: aftersale approved]')
+    where link_id = #{orderSn} and link_type = 'order' and `status` = 0 and deleted = 0
+  </update>
+
+  <select id="selectExtractDebit" resultType="org.linlinjava.litemall.db.domain.LitemallUserBrokerageRecord">
+    select <include refid="columns" />
+    from litemall_user_brokerage_record
+    where link_id = #{extractId} and link_type = 'extract' and pm = 0 and deleted = 0
+    limit 1
+  </select>
+
+  <update id="invalidateExtractDebit">
+    update litemall_user_brokerage_record
+    set `status` = -1, update_time = now(),
+        mark = concat(coalesce(mark, ''), ' [invalidated: extract rejected, balance refunded]')
+    where id = #{id} and pm = 0 and link_type = 'extract' and `status` = 1 and deleted = 0
+  </update>
+
+</mapper>
