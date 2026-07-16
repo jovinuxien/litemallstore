@@ -175,9 +175,15 @@ public class CjDetailEnrichmentService {
         if (fullDescription != null && !fullDescription.isBlank()) {
             row.setDetailHtml(fullDescription);
         }
-        // CJ has no was/now strike-through price (suggestSellPrice is a recommendation, not a discount),
-        // so discount_price stays null — leaving it real rather than fabricating a markdown.
+        // CJ has no was/now strike-through price, so discount_price stays null — leaving it real
+        // rather than fabricating a markdown.
         row.setDiscountPrice(null);
+        // V40: persist CJ's suggested retail (MSRP-style anchor). Converted with usdToCny ONLY —
+        // it is already a retail suggestion, applying our margin would double-mark the anchor.
+        // The promote step lifts counter_price to it when it exceeds our retail, which is what
+        // puts CJ goods on Today's Deals with an HONEST "was" price (we genuinely sell below
+        // CJ's suggested retail); items where it doesn't exceed retail anchor nothing.
+        row.setSuggestPrice(suggestRetail(d.getSuggestSellPrice()));
 
         // V31 ranking signals. listedNum (popularity) + createTime (true creation date) ride the
         // detail response we already fetched — free. The review aggregate needs one more paced CJ
@@ -216,6 +222,26 @@ public class CjDetailEnrichmentService {
             }
         }
         return any ? sum : config.getDefaultStock();
+    }
+
+    /**
+     * CJ {@code suggestSellPrice} (String, possibly a "low -- high" range → lower bound, matching the
+     * sellPrice convention) converted to the local basis with usdToCny only — NO margin: it is already
+     * a retail suggestion. Null when absent/unparseable/non-positive.
+     */
+    private BigDecimal suggestRetail(String suggestSellPrice) {
+        if (suggestSellPrice == null || suggestSellPrice.isBlank()) {
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?").matcher(suggestSellPrice);
+        if (!m.find()) {
+            return null;
+        }
+        BigDecimal usd = new BigDecimal(m.group());
+        if (usd.signum() <= 0) {
+            return null;
+        }
+        return usd.multiply(config.getPricing().getUsdToCny()).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** Retail = wholesale USD × usdToCny × margin in the local CNY basis; null on no cost. */

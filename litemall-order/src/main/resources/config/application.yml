@@ -134,6 +134,19 @@ litemall:
     express:
       provider: none
       cache-minutes: 30
+  # Wave 6 (Phase C): transactional customer email (litemall-core CustomerMailSender
+  # + litemall_mail_outbox sweep). SHIPPED DEFAULT IS DISABLED — listeners write no
+  # rows, the sweep skips, boot is byte-identical. ENABLE VIA ENV VARS (litemall-core's
+  # profile yml outranks service yml — the kdniao precedence lesson — so env is the
+  # only override that always wins):
+  #   LITEMALL_CUSTOMERMAIL_ENABLED=true
+  #   LITEMALL_CUSTOMERMAIL_FROM=noreply@litemall.dev
+  #   LITEMALL_CUSTOMERMAIL_HOST=localhost   LITEMALL_CUSTOMERMAIL_PORT=1025   (MailHog dev defaults)
+  #   LITEMALL_CUSTOMERMAIL_USERNAME= / LITEMALL_CUSTOMERMAIL_PASSWORD=        (blank = no SMTP auth)
+  # Sweep knobs (service-local, safe in this yml):
+  customer-mail:
+    sweep-ms: 60000
+    sweep-batch: 50
 
 # Freight templates (Wave 4, Task A — docs/adr-freight-templates.md). The CODE default
 # is enabled:false (legacy flat litemall_express_freight_min/value rule, byte-identical

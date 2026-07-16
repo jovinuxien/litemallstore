@@ -115,9 +115,37 @@ litemall:
     reset-mail:
       # Forgot-password-by-email flow (V37). Disabled by default:
       # /auth/reset/request and /auth/reset/confirm answer errno 701 and the
-      # SPA hides the "forgot password" tab. Enabling without contributing a
-      # real ResetMailSender bean only LOGS tokens (dev-only no-op sender).
+      # SPA hides the "forgot password" tab. Enabling without also enabling
+      # litemall.customer-mail (below) only LOGS tokens (dev no-op sender).
       enabled: false
+  # Wave-6: shared customer-mail namespace (same ENV keys configure core's
+  # CustomerMailSender on the order side and the edge's SmtpResetMailSender
+  # here — no code is shared, only the contract). Enabled=true binds the real
+  # SMTP sender; user/pass empty = no SMTP auth (MailHog dev default).
+  # Override via ENV: LITEMALL_CUSTOMER_MAIL_ENABLED / _HOST / _PORT / _USER /
+  # _PASS / _FROM (dots and dashes both map to underscores for @Value lookup).
+  customer-mail:
+    enabled: false
+    host: localhost
+    port: 1025
+    user: ""
+    pass: ""
+    from: no-reply@litemall.local
+  # Wave-6 Task A: Matomo tracker bootstrap for the customer SPA, served to
+  # the browser via GET /auth/site-config. BOTH base-url and site-id set ⇒ the
+  # SPA injects the tracker; either blank (the default) ⇒ /auth/site-config
+  # returns nulls and the SPA stays byte-identical (no matomo script).
+  # base-url is the browser-reachable Matomo root, e.g. http://localhost:8095
+  # (promotion's docker-compose.marketing.yml; see its
+  # docs/handoff-matomo-tracker.md for the live values).
+  tracking:
+    matomo:
+      base-url: ""
+      site-id: ""
+      # Matomo custom-dimension index (visit scope "action") that carries the
+      # goods id on product-detail page views. Dimension must be created in
+      # Matomo admin; index 1 is the handoff default.
+      goods-dimension: 1
   jwt:
     issuer: litemall-customer
     audience: litemall-customer-api
