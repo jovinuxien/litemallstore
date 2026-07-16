@@ -10,7 +10,9 @@ import adminGoods from './private/catalogMgn/adminGoodsSlice';
 import adminState from './private/catalogMgn/adminStateSlice';
 import adminUi from './private/adminUiSlice';
 import { adminGoodsApi } from './private/services/admingoodsrv/adminGoodsApi';
+import { adminAffiliateApi } from './private/services/adminAffiliateApi';
 import { adminAftersaleApi } from './private/services/adminAftersaleApi';
+import { affiliateApi } from './private/services/affiliateApi';
 import { adminCatalogApi } from './private/services/adminCatalogApi';
 import { adminContentApi } from './private/services/adminContentApi';
 import { adminDealApi } from './private/services/adminDealApi';
@@ -46,6 +48,8 @@ const rootReducer: ReducersMapObject = {
   [adminContentApi.reducerPath]: adminContentApi.reducer,
   [adminDealApi.reducerPath]: adminDealApi.reducer,
   [adminParityApi.reducerPath]: adminParityApi.reducer,
+  [adminAffiliateApi.reducerPath]: adminAffiliateApi.reducer,
+  [affiliateApi.reducerPath]: affiliateApi.reducer,
   home,
   product,
   category,

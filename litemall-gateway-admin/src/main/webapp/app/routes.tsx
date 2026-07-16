@@ -7,6 +7,7 @@ import { getFirstCategories } from './modules/Category/categorySlice';
 import { getHomeData } from './modules/home/homeSlice';
 import Logout from './modules/login/logout';
 import { AdminRoutes } from './routes/admin-routes';
+import { AffiliateRoutes } from './routes/affiliate-routes';
 import { EntitiesRoutes } from './routes/entities-routes';
 import PrivateRoute from './shared/auth/private-route';
 import ErrorBoundaryRoutes from './shared/error/error-boundary-routes';
@@ -57,6 +58,16 @@ const AppRoutes: React.FC<AppRoutesProps> = ({ categoryListHome, homeData }) => 
           element={
             <PrivateRoute hasAnyAuthorities={[AUTHORITIES.ADMIN]}>
               <AdminRoutes />
+            </PrivateRoute>
+          }
+        />
+        {/* Wave 5: affiliate portal — ROLE_AFFILIATE only; admins are bounced
+            back to /admin by PrivateRoute (and 403'd by the edge regardless). */}
+        <Route
+          path='affiliate/*'
+          element={
+            <PrivateRoute hasAnyAuthorities={[AUTHORITIES.AFFILIATE]}>
+              <AffiliateRoutes />
             </PrivateRoute>
           }
         />
