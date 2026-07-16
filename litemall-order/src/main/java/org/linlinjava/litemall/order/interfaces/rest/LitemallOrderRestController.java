@@ -246,6 +246,14 @@ public class LitemallOrderRestController {
             return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)
                     .body(OrderOperationDtoResponse.fromResult(LitemallOrderOperationResult.submitFailed(
                             "Goods service is unavailable — the order was not placed. Please try again.")));
+        } catch (org.linlinjava.litemall.order.application.util.exception.tax.LitemallTaxUnavailableException e) {
+            // Tax is enabled but could not be computed: the order was NOT placed
+            // (Wave 7, Task C — tax fails CLOSED). 503, because it is transient and
+            // retryable. Deliberately NOT degraded to an untaxed order: that error is
+            // silent, permanent and only surfaces at filing time.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(OrderOperationDtoResponse.fromResult(
+                            LitemallOrderOperationResult.submitFailed(e.getMessage())));
         }
     }
 

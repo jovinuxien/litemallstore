@@ -20,7 +20,12 @@ public interface LitemallOrderRepository {
 
     LitemallOrderAggregate findByIdAndUserId(LitemallUserId userId, LitemallOrderId orderId);
 
-    int countByOrderSn(LitemallUserId userId, String orderSn);
+    /**
+     * Orders carrying this order_sn — GLOBALLY and including soft-deleted rows. Was scoped
+     * per-user + non-deleted, which contradicted both the DB's uk_order_order_sn (V43) and
+     * CJ's merchant-order dedupe (Wave 7, Task E3).
+     */
+    int countByOrderSn(String orderSn);
 
     List<LitemallOrderAggregate> queryByOrderStatus(LitemallUserId userId, List<Short> orderStatus, int page, int limit, String sort, String order);
 

@@ -79,6 +79,11 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.db.dao.StripeEventMapper stripeEventMapper;
 
+    // Server-authoritative checkout totals (Wave 7): shares the submit path's freight
+    // service, coupon facade and tax port so preview and charge cannot disagree.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.CheckoutSummaryService checkoutSummaryService;
+
     @Autowired
     private NotifyService notifyService;
 
@@ -824,6 +829,29 @@ public class LitemallOrderOrchestratorService {
     public LitemallCartAggregate getCartItem(org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId cartId,
                                              org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId) {
         return cartServiceLayer.getCartItem(cartId, userId);
+    }
+
+    /**
+     * Server-authoritative checkout totals (Wave 7, Task D) — backs
+     * {@code GET /srv/cart/checkout}.
+     *
+     * <p>The SPA has been computing its own grand total by reducing over cart-carried
+     * prices ({@code Checkout.tsx:248}), while only freight came from the server. That is
+     * two implementations of the same arithmetic, and they can disagree — a customer can be
+     * shown one number and charged another. This method exists so there is exactly one:
+     * it calls the same freight service, the same coupon facade and the same tax port that
+     * {@code placeOrder} calls. With tax in the picture it stops being a nicety, because a
+     * browser cannot compute a tax-inclusive total at all.
+     *
+     * <p>Read-only preview: it prices what the cart currently holds and reserves nothing.
+     * Submit re-derives everything, so a price that moves in between surfaces there as a
+     * clean 422 rather than being silently absorbed here.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.linlinjava.litemall.order.interfaces.dtos.cart.CheckoutSummaryDto checkoutSummary(
+            org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+            Integer addressId, Integer userCouponId, String countryCode) {
+        return checkoutSummaryService.summarize(userId, addressId, userCouponId, countryCode);
     }
 
     /**

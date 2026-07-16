@@ -55,6 +55,11 @@ public class LitemallOrderAggregate {
     private LitemallMoney actualPrice;
     private LitemallMoney grouponPrice;
 
+    /** Tax collected at checkout (US sales tax / EU VAT); 0.00 when tax is off. (Wave 7) */
+    private LitemallMoney taxPrice;
+    /** Provider per-jurisdiction breakdown JSON, for invoices/audit. Never summed. (Wave 7) */
+    private String taxBreakdown;
+
 
     private String payId;
     /**
