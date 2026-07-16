@@ -43,6 +43,11 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.TaxCalculationPort;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.tax.TaxQuote;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.tax.TaxableOrder;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -108,6 +113,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     // so its template cache is shared with the admin CRUD invalidation path.
     @Autowired
     private FreightCalculationService freightCalculationService;
+
+    // Tax seam (Wave 7): the same port backs GET /srv/cart/checkout, for exactly the
+    // reason freight is shared above. FAILS CLOSED — never catch its exception into a
+    // zero; disabled (default) yields 0.00 via ZeroTaxAdapter.
+    @Autowired
+    private TaxCalculationPort taxCalculationPort;
 
     // Pickup stores (Wave 4, Task B): store existence/visibility checks at submit.
     @Autowired
@@ -327,8 +338,23 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Other money available，For example, user points
         BigDecimal integralPrice = new BigDecimal(0);
 
-        // Order Fee calculation: Adding freightPrice, subtracting couponPrice
-        BigDecimal orderTotalPrice = checkedGoodsPrice.add(freightPrice).subtract(couponPrice).max(new BigDecimal(0));
+        // Tax (Wave 7, Task C): the SAME port GET /srv/cart/checkout previews with, so the
+        // quoted total and the charged total are the same number by construction — the
+        // freight lesson applied to tax. FAILS CLOSED: when tax is enabled and cannot be
+        // computed, LitemallTaxUnavailableException propagates out of this transaction and
+        // the REST layer answers 503. Never caught into a zero — an untaxed order is a
+        // silent, permanent liability, unlike a retryable checkout error.
+        // Disabled (the default) ⇒ ZeroTaxAdapter ⇒ 0.00 and no behaviour change.
+        TaxQuote taxQuote = taxCalculationPort.quote(buildTaxableOrder(
+                cartList, checkedGoodsPrice, couponPrice, freightPrice,
+                command.getCountryCode(), addressAggregate));
+        BigDecimal taxPrice = taxQuote.getAmount();
+
+        // Order Fee calculation: goods − coupon + freight + tax. Tax is computed on the
+        // POST-discount base (see buildTaxableOrder) and added last, so it is never itself
+        // discounted and never charged on money the customer didn't pay.
+        BigDecimal orderTotalPrice = checkedGoodsPrice.add(freightPrice).subtract(couponPrice)
+                .max(new BigDecimal(0)).add(taxPrice);
 
         // Final payment: removing integralPrice from orderTotalPrice
         BigDecimal actualPrice = orderTotalPrice.subtract(integralPrice);
@@ -379,6 +405,9 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         orderAggregate.setFreightPrice(new LitemallMoney(freightPrice));
         orderAggregate.setCouponPrice(new LitemallMoney(couponPrice));
         orderAggregate.setIntegralPrice(new LitemallMoney(integralPrice));
+        orderAggregate.setTaxPrice(new LitemallMoney(taxPrice));
+        // Provider breakdown for invoices/audit; null when nothing was collected.
+        orderAggregate.setTaxBreakdown(taxQuote.getBreakdownJson());
         orderAggregate.setOrderPrice(new LitemallMoney(orderTotalPrice));
         orderAggregate.setActualPrice(new LitemallMoney(actualPrice));
 
@@ -624,6 +653,64 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
+    }
+
+    /**
+     * Build the tax provider's view of a checkout (Wave 7, Task C). Public so
+     * {@code GET /srv/cart/checkout} computes tax from the identical inputs the submit path
+     * uses — preview and charge must agree, and the only way to guarantee that is to share
+     * this code rather than to write it twice.
+     *
+     * <p><b>The coupon is allocated across lines proportionally</b> rather than ignored.
+     * Stripe Tax's Calculation API has no discount concept, so a discount has to reach it
+     * as reduced line amounts; passing full prices would tax a sale larger than the one
+     * that happened and over-collect from the customer. Any rounding remainder lands on the
+     * first line, so the taxable base sums exactly to (goods − coupon) and cannot drift a
+     * cent from what is actually charged.
+     */
+    public TaxableOrder buildTaxableOrder(List<LitemallCartAggregate> cartList,
+                                          BigDecimal checkedGoodsPrice,
+                                          BigDecimal couponPrice,
+                                          BigDecimal freightPrice,
+                                          String countryCode,
+                                          LitemallAddressAggregate address) {
+        BigDecimal discountedGoods = checkedGoodsPrice.subtract(couponPrice).max(BigDecimal.ZERO);
+        boolean discounting = couponPrice.signum() > 0 && checkedGoodsPrice.signum() > 0;
+
+        List<TaxableOrder.Line> lines = new ArrayList<>();
+        BigDecimal allocated = BigDecimal.ZERO;
+        List<LitemallCartAggregate> items = cartList.stream().filter(Objects::nonNull).collect(Collectors.toList());
+
+        for (int i = 0; i < items.size(); i++) {
+            LitemallCartAggregate item = items.get(i);
+            int quantity = item.getNumber() == null ? 0 : item.getNumber();
+            BigDecimal unit = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice().getAmount();
+            BigDecimal lineTotal = unit.multiply(BigDecimal.valueOf(quantity));
+
+            BigDecimal taxableLine = lineTotal;
+            if (discounting) {
+                taxableLine = i == items.size() - 1
+                        // Last line absorbs the remainder so the parts sum to the whole.
+                        ? discountedGoods.subtract(allocated).max(BigDecimal.ZERO)
+                        : lineTotal.multiply(discountedGoods)
+                                .divide(checkedGoodsPrice, 2, java.math.RoundingMode.HALF_UP);
+                allocated = allocated.add(taxableLine);
+            }
+
+            // Re-express the discounted line as a unit price so the provider sees a
+            // consistent (unit x quantity) pair.
+            BigDecimal taxableUnit = quantity == 0
+                    ? BigDecimal.ZERO
+                    : taxableLine.divide(BigDecimal.valueOf(quantity), 2, java.math.RoundingMode.HALF_UP);
+            lines.add(new TaxableOrder.Line(item.getGoodsId().getId(), quantity, taxableUnit));
+        }
+
+        return new TaxableOrder(lines, freightPrice, countryCode,
+                address == null ? null : address.getProvince(),
+                address == null ? null : address.getPostalCode(),
+                address == null ? null : address.getCity(),
+                address == null ? null : address.getAddressDetail(),
+                null);
     }
 
     /** Assign a fresh 10-digit verify code with a bounded dup-key retry (see markOrderPaid). */

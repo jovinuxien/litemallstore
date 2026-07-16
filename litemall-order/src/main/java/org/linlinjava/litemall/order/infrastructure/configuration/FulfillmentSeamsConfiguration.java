@@ -11,9 +11,12 @@ import org.linlinjava.litemall.order.infrastructure.acl.printer.yly.YlyOpenApiCl
 import org.linlinjava.litemall.order.infrastructure.acl.printer.yly.YlyReceiptPrinterAdapter;
 import org.linlinjava.litemall.order.infrastructure.acl.stripe.DisabledPaymentGatewayAdapter;
 import org.linlinjava.litemall.order.infrastructure.acl.stripe.StripePaymentGatewayAdapter;
+import org.linlinjava.litemall.order.infrastructure.acl.stripe.StripeTaxAdapter;
+import org.linlinjava.litemall.order.infrastructure.acl.stripe.ZeroTaxAdapter;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.TaxCalculationPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -72,6 +75,44 @@ public class FulfillmentSeamsConfiguration {
         log.info("Stripe payments ENABLED (currency={})", stripe.getCurrency());
         return new StripePaymentGatewayAdapter(
                 stripe.getSecretKey(), stripe.getWebhookSecret(), stripe.getCurrency());
+    }
+
+    /**
+     * The tax seam (Wave 7). Zero-tax is the default, which is NOT the same shape of
+     * "safe default" as the disabled PSP: it lets checkout proceed untaxed, which is only
+     * correct where you are genuinely not registered to collect.
+     *
+     * <p>Fails fast on the one dangerous combination — {@code enabled=true} with
+     * {@code provider=none} — which would otherwise read as "tax is on" while collecting
+     * nothing at all, the exact silent-liability failure the whole seam exists to prevent.
+     */
+    @Bean
+    @Primary
+    public TaxCalculationPort taxCalculationPort(FulfillmentProperties properties) {
+        FulfillmentProperties.Tax tax = properties.getTax();
+        String provider = normalize(tax.getProvider());
+        if (!tax.isEnabled()) {
+            log.info("Tax collection DISABLED (litemall.order.tax.enabled=false) — tax_price stays 0.00");
+            return new ZeroTaxAdapter();
+        }
+        if ("none".equals(provider)) {
+            throw new IllegalStateException("litemall.order.tax.enabled=true with provider=none "
+                    + "would collect no tax while reporting tax as enabled — set "
+                    + "litemall.order.tax.provider=stripe or disable tax");
+        }
+        if (!"stripe".equals(provider)) {
+            throw new IllegalStateException("Unknown litemall.order.tax.provider=" + provider
+                    + " (supported: none|stripe)");
+        }
+        FulfillmentProperties.Stripe stripe = properties.getStripe();
+        if (isBlank(stripe.getSecretKey())) {
+            throw new IllegalStateException("litemall.order.tax.provider=stripe requires "
+                    + "litemall.order.stripe.secret-key (env LITEMALL_ORDER_STRIPE_SECRET_KEY) "
+                    + "— refusing to boot half-configured");
+        }
+        log.warn("Tax collection ENABLED via Stripe Tax — checkout will be BLOCKED if tax "
+                + "cannot be calculated (fail-closed by design)");
+        return new StripeTaxAdapter(stripe.getSecretKey(), stripe.getCurrency());
     }
 
     @Bean

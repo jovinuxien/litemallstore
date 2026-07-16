@@ -6,6 +6,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.cart.AddCartItemRequest;
+import org.linlinjava.litemall.order.interfaces.dtos.cart.CheckoutSummaryDto;
 import org.linlinjava.litemall.order.interfaces.dtos.cart.LegacyAddToCartRequest;
 import org.linlinjava.litemall.order.interfaces.dtos.cart.LegacyCartIndexDto;
 import org.linlinjava.litemall.order.interfaces.dtos.cart.LegacyCartItemDto;
@@ -71,6 +72,29 @@ public class LitemallCartController {
     public ResponseEntity<Void> clear(@RequestHeader("X-User-Id") Integer userId) {
         orchestrator.clearCart(new LitemallUserId(userId));
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Server-authoritative checkout totals (Wave 7, Task D —
+     * docs/handoff-stripe-checkout.md). {@code cartApi.ts} has called this since Wave 4;
+     * it has never existed, so the SPA fell back to computing the grand total in the
+     * browser from cart-carried prices. The client must never compute money — and with tax
+     * it cannot.
+     *
+     * <p>All params optional: the cart page previews before an address or coupon is
+     * chosen. {@code countryCode} is what tax is sourced from (the address book stores
+     * none — submit takes it from the place-order command for the same reason); without it
+     * taxPrice is 0.00 and the total is not final.
+     *
+     * <p>Tax failures do NOT surface here — a preview never blocks. Submit fails closed.
+     */
+    @GetMapping("/checkout")
+    public ApiResponse<CheckoutSummaryDto> checkout(
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestParam(required = false) Integer addressId,
+            @RequestParam(required = false) Integer couponId,
+            @RequestParam(required = false) String countryCode) {
+        return ok(orchestrator.checkoutSummary(new LitemallUserId(userId), addressId, couponId, countryCode));
     }
 
     // =====================================================================
