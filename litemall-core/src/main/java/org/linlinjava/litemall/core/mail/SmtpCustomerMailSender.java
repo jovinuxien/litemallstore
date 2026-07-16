@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.core.mail;
 
+import org.springframework.mail.MailSender;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 
@@ -11,23 +12,27 @@ import java.util.Properties;
  * (no dependency on {@code spring.mail.*}). SMTP auth is engaged only when a
  * username is configured — MailHog (the dev default) authenticates nobody.
  *
+ * <p>The field is the narrow {@link MailSender} interface, like
+ * {@code NotifyService}: its {@code send(SimpleMailMessage)} never references
+ * {@code MimeMessage}, so core compiles without a mail implementation jar.
+ *
  * <p>Bound by {@link CustomerMailAutoConfiguration} only when
  * {@code litemall.customer-mail.enabled=true}.
  */
 public class SmtpCustomerMailSender implements CustomerMailSender {
 
-    private final JavaMailSenderImpl mailSender;
+    private final MailSender mailSender;
     private final String from;
 
     public SmtpCustomerMailSender(CustomerMailProperties config) {
         this.from = config.getFrom();
-        this.mailSender = new JavaMailSenderImpl();
-        mailSender.setHost(config.getHost());
-        mailSender.setPort(config.getPort());
+        JavaMailSenderImpl sender = new JavaMailSenderImpl();
+        sender.setHost(config.getHost());
+        sender.setPort(config.getPort());
         Properties props = new Properties();
         if (config.getUsername() != null && !config.getUsername().isBlank()) {
-            mailSender.setUsername(config.getUsername());
-            mailSender.setPassword(config.getPassword());
+            sender.setUsername(config.getUsername());
+            sender.setPassword(config.getPassword());
             props.put("mail.smtp.auth", true);
             props.put("mail.smtp.starttls.enable", true);
         }
@@ -36,7 +41,8 @@ public class SmtpCustomerMailSender implements CustomerMailSender {
         props.put("mail.smtp.connectiontimeout", 5000);
         props.put("mail.smtp.timeout", 5000);
         props.put("mail.smtp.writetimeout", 5000);
-        mailSender.setJavaMailProperties(props);
+        sender.setJavaMailProperties(props);
+        this.mailSender = sender;
     }
 
     @Override
