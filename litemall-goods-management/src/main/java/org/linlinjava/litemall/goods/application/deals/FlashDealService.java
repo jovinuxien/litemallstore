@@ -1,13 +1,18 @@
 package org.linlinjava.litemall.goods.application.deals;
 
+import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallSeckill;
+import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
 import org.linlinjava.litemall.db.service.LitemallSeckillService;
 import org.linlinjava.litemall.goods.domain.deals.DealMath;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,11 +29,15 @@ import java.util.Map;
  * {@link FlashDealLifecycleTask}.
  *
  * <p>Design (ADR {@code docs/adr-flash-deals-price-swap.md}): the deal is
- * realized by swapping {@code litemall_goods.retail_price}, so checkout, cart,
- * freight and the Phase-A discount signals all see the deal with ZERO
- * order-service changes — a deliberate deviation from crmeb's separate seckill
- * purchase path (promotion's {@code /seckill/join} stock-reservation flow is
- * bypassed; its read endpoints keep working since they read this same table).
+ * realized by swapping {@code litemall_goods.retail_price} AND every
+ * {@code litemall_goods_product.price} SKU row (checkout money reads the SKU
+ * rows — V40), so checkout, cart, freight and the Phase-A discount signals all
+ * see the deal with ZERO order-service changes — a deliberate deviation from
+ * crmeb's separate seckill purchase path (promotion's {@code /seckill/join}
+ * stock-reservation flow is bypassed; its read endpoints keep working since
+ * they read this same table). CJ goods are allowed since V40, floored at
+ * CJ cost × {@code litemall.deals.cj-min-margin}; the CJ promote path skips
+ * price writes while a swap is live.
  */
 @Service
 public class FlashDealService {
@@ -50,10 +59,23 @@ public class FlashDealService {
 
     private final LitemallSeckillService seckillService;
     private final LitemallGoodsService goodsService;
+    private final LitemallCjProductService cjProductService;
+    private final CJDropshippingConfig cjConfig;
 
-    public FlashDealService(LitemallSeckillService seckillService, LitemallGoodsService goodsService) {
+    /**
+     * CJ deal-price floor as a multiple of CJ cost (snapshot price ÷ pricing.margin):
+     * 1.0 = never below CJ wholesale (default); raise for guaranteed margin, lower
+     * below 1.0 only for deliberate loss-leaders.
+     */
+    @Value("${litemall.deals.cj-min-margin:1.0}")
+    private BigDecimal cjMinMargin;
+
+    public FlashDealService(LitemallSeckillService seckillService, LitemallGoodsService goodsService,
+                            LitemallCjProductService cjProductService, CJDropshippingConfig cjConfig) {
         this.seckillService = seckillService;
         this.goodsService = goodsService;
+        this.cjProductService = cjProductService;
+        this.cjConfig = cjConfig;
     }
 
     public Result create(Integer goodsId, BigDecimal dealPrice, LocalDateTime start, LocalDateTime stop,
@@ -62,8 +84,9 @@ public class FlashDealService {
         if (goods == null) {
             return Result.fail(ERRNO_INVALID, "goods " + goodsId + " not found");
         }
-        if ("cj".equalsIgnoreCase(goods.getSource())) {
-            return Result.fail(ERRNO_CJ, "flash deals are not supported for CJ-sourced goods");
+        Result cjFloorFailure = validateCjFloor(goods, dealPrice);
+        if (cjFloorFailure != null) {
+            return cjFloorFailure;
         }
         String windowError = validateWindow(dealPrice, goods.getRetailPrice(), start, stop);
         if (windowError != null) {
@@ -115,6 +138,12 @@ public class FlashDealService {
         LocalDateTime effStart = start != null ? start : deal.getStartTime();
         LocalDateTime effStop = stop != null ? stop : deal.getStopTime();
         LitemallGoods goods = goodsService.findById(deal.getGoodsId());
+        if (goods != null) {
+            Result cjFloorFailure = validateCjFloor(goods, effPrice);
+            if (cjFloorFailure != null) {
+                return cjFloorFailure;
+            }
+        }
         BigDecimal referenceRetail = live && deal.getOriginalRetailPrice() != null
                 ? deal.getOriginalRetailPrice()
                 : goods != null ? goods.getRetailPrice() : null;
@@ -196,6 +225,36 @@ public class FlashDealService {
         view.put("enabled", deal.getStatus() != null && deal.getStatus() == 1);
         view.put("live", Boolean.TRUE.equals(deal.getPriceSwapped()));
         return view;
+    }
+
+    /**
+     * CJ goods: deal prices are floored at CJ cost × {@code litemall.deals.cj-min-margin}
+     * (CJ bills us wholesale regardless of what we charge — the order replay sends no
+     * price — so a deal spends only our margin, and this guard keeps it from going
+     * below the configured minimum). Cost = snapshot price ÷ pricing.margin (the
+     * snapshot already carries fx × margin). Non-CJ goods pass through; CJ goods with
+     * NO snapshot row keep the historic 652 refusal — the cost basis is unknowable.
+     * Returns null when the price is acceptable.
+     */
+    private Result validateCjFloor(LitemallGoods goods, BigDecimal dealPrice) {
+        if (!"cj".equalsIgnoreCase(goods.getSource()) || dealPrice == null) {
+            return null;
+        }
+        LitemallCjProduct snapshot = goods.getCjPid() == null ? null : cjProductService.findByPid(goods.getCjPid());
+        if (snapshot == null || snapshot.getPrice() == null || snapshot.getPrice().signum() <= 0) {
+            return Result.fail(ERRNO_CJ,
+                    "goods " + goods.getId() + " has no CJ snapshot price — cost basis unknown, deal refused");
+        }
+        BigDecimal margin = cjConfig.getPricing().getMargin();
+        BigDecimal cost = margin != null && margin.signum() > 0
+                ? snapshot.getPrice().divide(margin, 2, RoundingMode.HALF_UP)
+                : snapshot.getPrice();
+        BigDecimal floor = cost.multiply(cjMinMargin).setScale(2, RoundingMode.HALF_UP);
+        if (dealPrice.compareTo(floor) < 0) {
+            return Result.fail(ERRNO_INVALID, "dealPrice " + dealPrice + " is below the CJ floor " + floor
+                    + " (cost " + cost + " × cj-min-margin " + cjMinMargin + ")");
+        }
+        return null;
     }
 
     private static String validateWindow(BigDecimal dealPrice, BigDecimal retail,
