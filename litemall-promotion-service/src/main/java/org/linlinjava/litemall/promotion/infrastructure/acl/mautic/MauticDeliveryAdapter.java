@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.promotion.infrastructure.acl.mautic;
 
 import org.linlinjava.litemall.promotion.application.ports.CampaignDeliveryPort;
+import org.linlinjava.litemall.promotion.application.ports.CustomerContactProvider;
+import org.linlinjava.litemall.promotion.application.ports.CustomerContactProvider.CustomerContact;
 import org.linlinjava.litemall.promotion.infrastructure.acl.mautic.dto.MauticContactResponse;
 import org.linlinjava.litemall.promotion.infrastructure.acl.mautic.dto.MauticSegmentResponse;
 import org.linlinjava.litemall.promotion.infrastructure.configuration.MauticProperties;
@@ -23,6 +25,12 @@ import java.util.Map;
  * and swallowed so a delivery outage never unwinds the committed campaign
  * evaluation. The exact Mautic contract is documented in
  * {@code docs/phase3-marketing-stack-integration.md}.
+ *
+ * <p>Wave 6: the contact upsert carries the user's EMAIL + nickname (resolved
+ * via {@link CustomerContactProvider}) so Mautic campaigns can actually send.
+ * Users without an email are SKIPPED — a contact Mautic cannot email is noise,
+ * and inventing addresses is worse; skips are counted and logged, and never
+ * fail the batch.
  */
 @Component
 public class MauticDeliveryAdapter implements CampaignDeliveryPort {
@@ -31,10 +39,13 @@ public class MauticDeliveryAdapter implements CampaignDeliveryPort {
 
     private final MauticClient mauticClient;
     private final MauticProperties properties;
+    private final CustomerContactProvider contactProvider;
 
-    public MauticDeliveryAdapter(MauticClient mauticClient, MauticProperties properties) {
+    public MauticDeliveryAdapter(MauticClient mauticClient, MauticProperties properties,
+                                 CustomerContactProvider contactProvider) {
         this.mauticClient = mauticClient;
         this.properties = properties;
+        this.contactProvider = contactProvider;
     }
 
     @Override
@@ -57,13 +68,18 @@ public class MauticDeliveryAdapter implements CampaignDeliveryPort {
                 return;
             }
             int delivered = 0;
+            int skippedNoEmail = 0;
             for (Integer userId : audienceUserIds) {
-                if (pushContactToSegment(userId, segmentId, campaignId)) {
+                PushResult result = pushContactToSegment(userId, segmentId, campaignId);
+                if (result == PushResult.DELIVERED) {
                     delivered++;
+                } else if (result == PushResult.SKIPPED_NO_EMAIL) {
+                    skippedNoEmail++;
                 }
             }
-            logger.info("Mautic delivery: campaign {} → segment {}, {}/{} contacts delivered",
-                    campaignId, segmentId, delivered, audienceUserIds.size());
+            logger.info("Mautic delivery: campaign {} → segment {}, {}/{} contacts delivered"
+                            + " ({} skipped without email)",
+                    campaignId, segmentId, delivered, audienceUserIds.size(), skippedNoEmail);
         } catch (Exception e) {
             logger.error("Mautic delivery failed for campaign {}: {}", campaignId, e.getMessage());
         }
@@ -84,25 +100,41 @@ public class MauticDeliveryAdapter implements CampaignDeliveryPort {
         return null;
     }
 
-    private boolean pushContactToSegment(Integer userId, Integer segmentId, Integer campaignId) {
+    private PushResult pushContactToSegment(Integer userId, Integer segmentId, Integer campaignId) {
         if (userId == null || userId <= 0) {
-            return false;
+            return PushResult.FAILED;
         }
         try {
+            // Wave 6: resolve the contact identity — a user Mautic cannot email is
+            // skipped (never fails the batch), so segments only hold sendable contacts.
+            CustomerContact contact = contactProvider.contactOf(userId).orElse(null);
+            if (contact == null || !contact.hasEmail()) {
+                logger.debug("Mautic: litemall user {} has no email — skipped (campaign {})",
+                        userId, campaignId);
+                return PushResult.SKIPPED_NO_EMAIL;
+            }
             Map<String, Object> fields = new HashMap<>();
             fields.put(properties.getUserIdFieldAlias(), userId);
-            fields.put("tags", "litemall-campaign-" + campaignId);
-            MauticContactResponse contact = mauticClient.createOrUpdateContact(fields);
-            if (contact == null || contact.getContact() == null || contact.getContact().getId() == null) {
-                logger.warn("Mautic: no contact id for litemall user {} (campaign {})", userId, campaignId);
-                return false;
+            fields.put("email", contact.email());
+            if (contact.nickname() != null && !contact.nickname().isBlank()) {
+                fields.put("firstname", contact.nickname());
             }
-            mauticClient.addContactToSegment(segmentId, contact.getContact().getId());
-            return true;
+            fields.put("tags", "litemall-campaign-" + campaignId);
+            MauticContactResponse response = mauticClient.createOrUpdateContact(fields);
+            if (response == null || response.getContact() == null || response.getContact().getId() == null) {
+                logger.warn("Mautic: no contact id for litemall user {} (campaign {})", userId, campaignId);
+                return PushResult.FAILED;
+            }
+            mauticClient.addContactToSegment(segmentId, response.getContact().getId());
+            return PushResult.DELIVERED;
         } catch (Exception e) {
             logger.warn("Mautic: failed to deliver litemall user {} to segment {}: {}",
                     userId, segmentId, e.getMessage());
-            return false;
+            return PushResult.FAILED;
         }
+    }
+
+    private enum PushResult {
+        DELIVERED, SKIPPED_NO_EMAIL, FAILED
     }
 }

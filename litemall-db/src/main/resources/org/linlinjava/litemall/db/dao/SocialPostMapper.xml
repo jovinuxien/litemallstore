@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_social_post (social publish ledger, V42).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.SocialPostMapper">
+
+  <sql id="columns">
+    id, goods_id, platform, caption, media_url, link_url, status,
+    external_post_id, error, posted_by, deal_id, auto_active,
+    add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallSocialPost"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_social_post
+      (goods_id, platform, caption, media_url, link_url, status,
+       external_post_id, error, posted_by, deal_id, auto_active,
+       add_time, update_time, deleted)
+    values
+      (#{goodsId}, #{platform}, #{caption}, #{mediaUrl}, #{linkUrl}, #{status},
+       #{externalPostId}, #{error}, #{postedBy}, #{dealId}, #{autoActive},
+       #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallSocialPost">
+    select <include refid="columns" />
+    from litemall_social_post
+    where id = #{id} and deleted = 0
+  </select>
+
+  <select id="selectPage" resultType="org.linlinjava.litemall.db.domain.LitemallSocialPost">
+    select <include refid="columns" />
+    from litemall_social_post
+    where deleted = 0
+    <if test="status != null">and status = #{status}</if>
+    <if test="platform != null">and platform = #{platform}</if>
+    order by id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countPage" resultType="int">
+    select count(*) from litemall_social_post
+    where deleted = 0
+    <if test="status != null">and status = #{status}</if>
+    <if test="platform != null">and platform = #{platform}</if>
+  </select>
+
+  <!-- Guarded transition: a posted row is immutable ledger history. -->
+  <update id="markPosted">
+    update litemall_social_post
+    set status = 'posted', external_post_id = #{externalPostId}, error = null,
+        update_time = now()
+    where id = #{id} and deleted = 0 and status in ('draft', 'failed')
+  </update>
+
+  <update id="markFailed">
+    update litemall_social_post
+    set status = 'failed', error = #{error}, update_time = now()
+    where id = #{id} and deleted = 0 and status in ('draft', 'failed')
+  </update>
+
+  <select id="selectAutoArmed" resultType="org.linlinjava.litemall.db.domain.LitemallSocialPost">
+    select <include refid="columns" />
+    from litemall_social_post
+    where deleted = 0 and posted_by = 'auto' and auto_active = 1
+  </select>
+
+  <update id="disarm">
+    update litemall_social_post
+    set auto_active = 0, update_time = now()
+    where id = #{id} and auto_active = 1
+  </update>
+
+</mapper>
