@@ -1200,3 +1200,63 @@ litemall-db install "succeeded" that way while ~/.m2 kept a jul-13 jar (package 
 grep "Installing". In-browser SPA click-through happens post-merge from main (gateways not
 booted here) — countdown chip / claimed bar / DealBanner / admin Deal CRUD are tsc+bundle
 verified only.
+
+## §25 — CJ Today's Deals: SKU-level swap (charge fix) + CJ flash deals + organic anchors (2026-07-16)
+
+V40 revision of §24's flash deals (strategy: doc/cj-deals-strategy-2026-07-16.pdf; ADR updated in
+place). Three deliverables:
+
+**1. Charge-integrity fix (affects LOCAL deals too).** Every checkout amount reads
+`litemall_goods_product.price` — cart-add snapshots it (`LitemallOrderOrchestratorService:716`),
+submit re-stamps it (`LitemallOrderDomainService:53`) — so §24's goods-row-only swap was
+display-only. The scheduler now swaps EVERY SKU row proportionally (base SKU lands exactly on the
+deal price, floor 0.01) and records `{productId:{"o","s"}}` in V40
+`litemall_seckill.original_sku_prices`; unwind restores per-SKU with the same admin-wins guard as
+the goods row. No order-service change: submit re-reads live SKU prices, so charges self-correct
+at activation AND expiry.
+
+**2. CJ flash deals enabled.** The blanket 652 became a COST FLOOR: `dealPrice ≥ cost ×
+litemall.deals.cj-min-margin` (default 1.0), cost = snapshot price ÷ pricing.margin; violations →
+650 naming the floor; 652 now only = "no snapshot row". All three CJ price writers funnel through
+`CjProductPromotionService.promoteOne`, which withholds retail/counter/matched-SKU price writes
+while `price_swapped=1` (stock/title/variants keep syncing; new variants insert at snapshot
+price). Unwind re-promotes CJ goods from the snapshot, so a mid-deal CJ reprice converges in one
+tick.
+
+**3. Organic CJ anchors.** Enrichment now persists the previously-DISCARDED CJ `suggestSellPrice`
+(lower bound × usdToCny, NO margin — it is already a retail suggestion) into V40
+`litemall_cj_product.suggest_price`; the promote adapter lifts `counter_price` to it when it
+exceeds our retail → real `discount_pct`, `deal_flag=1`, CJ items reach /deals with an honest
+"was" price, zero admin work. Coverage grows with enrichment (nightly batch + on-view).
+
+**Verified LIVE 2026-07-16** — worktree jar :8093 (tick 15s, Flyway ON → V40 applied), main-checkout
+order jar :8086 (`--goods.service.url=http://localhost:8093`, eureka off; `@FeignClient` takes a
+direct URL — no Eureka needed for order↔goods e2e):
+```
+LOCAL MONEY PROOF: deal 41.30 on goods 1009012 (SKU 14 @59) → tick: SKU 30/41.30... sku=41.30,
+  capture {"14":{"o":59.00,"s":41.30}} → cart/add via :8086 → cart line price 41.30 →
+  /srv/order/submit → order 85 goods_price 41.30, item price 41.30 (+8 flat freight) →
+  wallet pay → PAID → next tick: /srv/goods/deal claimed:1 claimedPct:20 (real paid order drives
+  the claimed bar) → disable → SKU+retail restored 59.00 byte-identical
+CJ DEAL: goods 10008726 (snap 51.26, 2 SKUs, cost 25.63): dealPrice 20 → 650 "below the CJ floor
+  25.63 (cost 25.63 × cj-min-margin 1.0)"; dealPrice 30 → tick: retail 30.00, counter 51.26,
+  BOTH SKUs 30.00, capture both
+GUARD PROOF: cj-enrich-one (full enrichment + re-promote) DURING the live deal → enriched_time
+  updated, suggest_price 105.91 landed, prices UNTOUCHED (30.00/51.26/30.00)
+UNWIND: disable → SKUs+retail restored 51.26, swap cleared, auto re-promote applied the organic
+  anchor → counter 105.91
+ORGANIC ON /deals: ES doc 10008726 price 105.91 / discount_price 51.26 / discount_pct 52 /
+  deal_flag 1 → /srv/search?deal_flag=1&source=cj → total 1 — first CJ item on Today's Deals
+regression: deal_active=1 → exactly the live local deal w/ dealClaimedPct 20; q=pillow total 236
+  + facet rail unchanged; §23 harness 5/5, mean nDCG 0.9199 (baseline 0.9286, tol 0.05 — dip =
+  the new 52%-discount item shifting discount_pct scoring, expected); admin tsc app-code clean
+cleanup: both test deals unwound + deleted; 1009012 back to 59/79; 10008726 keeps its honest
+  organic anchor (51.26/105.91)
+```
+
+**Ops notes:** organic anchors light up per-product as enrichment touches them (suggest_price was
+null everywhere before this — the nightly 03:30 batch + on-view enrichment fill it over days;
+`cj-enrich-one` forces singles). A full-catalog reindex is NOT needed — promote→reindex per
+product carries the counter lift into the index incrementally. deal-min-pct (10) still gates
+deal_flag. The nightly promoteBatch regression (8.8k rows through the guard) rides the same
+promoteOne path proven here — spot-check prices after the first 03:00 run.
