@@ -7,20 +7,22 @@ import { fromServerDateTime } from 'app/shared/util/server-datetime';
 // promotion-service under /srv/private/admin/social (routed there by the
 // promotion-service gateway route, machine-token relay + X-User-* downstream).
 //
-// Contract per the Wave-6 block / litemall-promotion-service
-// docs/handoff-social-composer.md:
-// - GET  /compose-preview?goodsId= → templated caption, share URL (UTM
-//   link-builder), candidate images/video, per-platform availability
-//   (enabled flags + TikTok video gate).
-// - POST /post {goodsId, caption, mediaUrl, platforms[]} → one ledger row per
-//   platform; per-platform result in the response envelope (posts what it
-//   can — adapters disabled ⇒ rows land as `failed`, never a 5xx).
-// - GET  /list?page=&limit=[&status=&platform=] → paged ledger.
-// - POST /{id}/retry → failed rows only (guarded).
-// The normalisers below accept the module's known wire variants (bare array
-// vs {list,...} pages, LocalDateTime arrays vs ISO strings) — reconcile
-// against the committed handoff if the promotion worktree's final envelope
-// differs.
+// Contract reconciled against promotion's LitemallSocialAdminController /
+// SocialComposePreviewDtoResponse (WIP at build time; final check against the
+// committed docs/handoff-social-composer.md):
+// - GET  /compose-preview?goodsId= → {goodsId, goodsName, price, dealPrice?,
+//   dealId?, caption, images[], videoUrl?, platforms[{platform, displayName,
+//   enabled, available, reason?, shareUrl}]} — the UTM share URL is
+//   PER-PLATFORM (utm_source differs); 404 on unknown goods.
+// - POST /post {goodsId, caption, mediaUrl?, platforms[]} → 200 {results:
+//   [{platform, postId, status posted|failed, externalPostId?, error?}]} —
+//   fail-soft: disabled adapters still 2xx with failed rows; 400 {error} on
+//   caller mistakes.
+// - GET  /list?page=&limit=[&status=&platform=] → {total, page, limit,
+//   list[]} (no `pages` — pager uses total/heuristic).
+// - POST /{id}/retry → 200 result DTO; 400 {error} on non-failed row; 404.
+// The normalisers stay tolerant of shape drift (bare arrays, LocalDateTime
+// arrays vs ISO strings).
 
 export type SocialPlatform = 'meta_fb' | 'meta_ig' | 'tiktok';
 export type SocialPostStatus = 'draft' | 'posted' | 'failed';
@@ -40,13 +42,19 @@ export interface IPlatformAvailability {
   available?: boolean;
   /** Human-readable reason when unavailable/disabled. */
   reason?: string;
+  /** UTM-tagged share URL this platform's post will carry (utm_source differs per platform). */
+  shareUrl?: string;
 }
 
 export interface IComposePreview {
   goodsId?: number;
   goodsName?: string;
+  /** Current retail price (already the deal price while a deal is live). */
+  price?: number;
+  /** Live flash-deal price, null when no deal is live. */
+  dealPrice?: number;
+  dealId?: number;
   caption?: string;
-  shareUrl?: string;
   images: string[];
   videoUrl?: string;
   platforms: IPlatformAvailability[];
@@ -64,6 +72,8 @@ export interface ISocialPost {
   error?: string;
   /** Admin id/name, or 'auto' for the deal auto-poster. */
   postedBy?: string;
+  /** Flash-deal id for auto-posted rows. */
+  dealId?: number;
   addTime?: string;
   updateTime?: string;
 }
@@ -122,6 +132,7 @@ const toPost = (r: Raw): ISocialPost => ({
   externalPostId: str(r.externalPostId),
   error: str(r.error) ?? str(r.errorMessage),
   postedBy: str(r.postedBy),
+  dealId: num(r.dealId),
   addTime: fromServerDateTime(r.addTime),
   updateTime: fromServerDateTime(r.updateTime),
 });
@@ -135,6 +146,7 @@ const toAvailability = (raw: unknown): IPlatformAvailability[] => {
       enabled: typeof r.enabled === 'boolean' ? r.enabled : undefined,
       available: typeof r.available === 'boolean' ? r.available : undefined,
       reason: str(r.reason) ?? str(r.message),
+      shareUrl: str(r.shareUrl),
     });
   if (Array.isArray(raw)) {
     raw.forEach(r => {
@@ -157,8 +169,10 @@ const toPreview = (r: Raw): IComposePreview => {
   return {
     goodsId: num(r.goodsId),
     goodsName: str(r.goodsName) ?? str(r.name),
+    price: num(r.price),
+    dealPrice: num(r.dealPrice),
+    dealId: num(r.dealId),
     caption: str(r.caption),
-    shareUrl: str(r.shareUrl) ?? str(r.linkUrl),
     images: (images as unknown[]).filter((u): u is string => typeof u === 'string'),
     videoUrl: str(r.videoUrl),
     platforms: toAvailability(r.platforms ?? r.availability),
@@ -227,15 +241,16 @@ export const adminSocialApi = createApi({
   }),
 });
 
-// Normalise a mutation result into an error message (null on success),
-// accepting the promotion {success,message} operation shape.
+// Normalise a mutation result into an error message (null on success). The
+// social controller's 4xx bodies carry {error: "..."}; a 2xx retry answer is
+// a result DTO (no success flag) — treat any 2xx as success.
 export const socialOpMessage = (res: unknown): string | null => {
   const r = res as {
     data?: { success?: boolean; message?: string };
-    error?: { status?: number | string; data?: { success?: boolean; message?: string } };
+    error?: { status?: number | string; data?: { error?: string; message?: string } };
   };
   if (r && 'error' in r && r.error) {
-    return r.error.data?.message || `Request failed (${r.error.status ?? 'network'})`;
+    return r.error.data?.error || r.error.data?.message || `Request failed (${r.error.status ?? 'network'})`;
   }
   if (r && 'data' in r && r.data && typeof r.data.success === 'boolean') {
     return r.data.success ? null : r.data.message || 'Request failed.';

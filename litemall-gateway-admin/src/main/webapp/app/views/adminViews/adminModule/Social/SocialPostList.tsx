@@ -55,7 +55,17 @@ const SocialPostList: React.FC = () => {
     if (post.id == null) return;
     setActionError(null);
     const res = await retryPost(post.id);
-    setActionError(socialOpMessage(res));
+    const msg = socialOpMessage(res);
+    if (msg) {
+      setActionError(msg);
+      return;
+    }
+    // A 2xx retry still reports the publish outcome — surface a re-failure
+    // (e.g. adapter still disabled) instead of looking like a silent success.
+    const outcome = (res as { data?: { status?: string; error?: string } }).data;
+    if (outcome?.status === 'failed') {
+      setActionError(`Retry ran but failed again${outcome.error ? `: ${outcome.error}` : ''}.`);
+    }
   };
 
   return (

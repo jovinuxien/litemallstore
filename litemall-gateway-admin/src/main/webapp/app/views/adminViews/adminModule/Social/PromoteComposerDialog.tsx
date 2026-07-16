@@ -68,8 +68,8 @@ const PromoteComposerDialog: React.FC<Props> = ({ goodsId, goodsName, onClose })
     const res = await postSocial({ goodsId, caption, mediaUrl: mediaUrl || undefined, platforms: selected });
     if ('error' in res && res.error) {
       const status = (res.error as { status?: number | string }).status;
-      const message = (res.error as { data?: { message?: string } }).data?.message;
-      setPostError(message || `Post failed (${status ?? 'network'}).`);
+      const body = (res.error as { data?: { error?: string; message?: string } }).data;
+      setPostError(body?.error || body?.message || `Post failed (${status ?? 'network'}).`);
       return;
     }
     setResults(res.data ?? []);
@@ -78,6 +78,9 @@ const PromoteComposerDialog: React.FC<Props> = ({ goodsId, goodsName, onClose })
   const errStatus = (error as { status?: number | string })?.status;
   const mediaOptions = preview ? preview.images : [];
   const isVideoSelected = !!preview?.videoUrl && mediaUrl === preview.videoUrl;
+  // The UTM share URL is per-platform (utm_source differs); preview the first
+  // selected platform's link.
+  const shareUrl = preview?.platforms.find(p => selected.includes(p.platform))?.shareUrl ?? preview?.platforms.find(p => p.shareUrl)?.shareUrl;
 
   return (
     <Modal show onHide={onClose} size='lg' centered>
@@ -176,12 +179,15 @@ const PromoteComposerDialog: React.FC<Props> = ({ goodsId, goodsName, onClose })
                 <div className='mt-2 small' style={{ whiteSpace: 'pre-wrap' }}>
                   {caption || <span className='text-muted'>Empty caption</span>}
                 </div>
-                {preview.shareUrl && (
+                {shareUrl && (
                   <div className='mt-1 small text-truncate'>
-                    <a href={preview.shareUrl} target='_blank' rel='noreferrer'>
-                      {preview.shareUrl}
+                    <a href={shareUrl} target='_blank' rel='noreferrer'>
+                      {shareUrl}
                     </a>
                   </div>
+                )}
+                {preview.dealPrice != null && (
+                  <div className='mt-1 small text-success'>Live flash deal: {preview.dealPrice}</div>
                 )}
               </div>
             </div>
