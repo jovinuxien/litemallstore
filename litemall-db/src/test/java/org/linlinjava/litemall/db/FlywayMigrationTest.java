@@ -102,6 +102,9 @@ public class FlywayMigrationTest {
             // V38: flash-deal price-swap lifecycle state on the V9 seckill table
             {"litemall_seckill",      "original_retail_price"},
             {"litemall_seckill",      "price_swapped"},
+            // V40: SKU-level swap capture + CJ suggested-retail anchor
+            {"litemall_seckill",      "original_sku_prices"},
+            {"litemall_cj_product",   "suggest_price"},
             // V35: in-store pickup / write-off columns on order
             {"litemall_order",        "delivery_type"},
             {"litemall_order",        "verify_code"},

@@ -44,9 +44,9 @@ always within ~60s, never synchronously with the admin call.
 
 | errno | when | UI treatment |
 |-------|------|--------------|
-| 650 | dealPrice ≤ 0 or ≥ goods retail; start ≥ stop; window entirely past; goods missing | inline form error |
+| 650 | dealPrice ≤ 0 or ≥ goods retail; start ≥ stop; window entirely past; goods missing; **CJ deal price below the cost floor (V40 — message names the computed floor, e.g. "below the CJ floor 25.63 (cost 25.63 × cj-min-margin 1.0)")** | inline form error |
 | 651 | another ENABLED deal overlaps this goods+window; OR editing `dealPrice`/`startTime` while `live` | inline; for the live case the message says "disable it before changing price or start" — offer the disable toggle |
-| 652 | goods is `source='cj'` | disable/grey the deal action for CJ goods in the picker; message if raced |
+| 652 | CJ goods with NO snapshot row — cost basis unknowable (V40: the blanket CJ refusal is GONE; CJ deals are allowed above the floor) | inline form error |
 
 ## Validation rules the form should mirror (server is authoritative)
 
