@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 
 import Layout from 'app/Layout';
 import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
+import MatomoTracker from 'app/shared/tracking/MatomoTracker';
 import { stashInviteCode } from 'app/shared/util/invite';
 
 /**
@@ -72,6 +73,9 @@ const InviteCapture: React.FC = () => {
 const App: React.FC = () => (
   <BrowserRouter>
     <InviteCapture />
+    {/* Wave-6: Matomo page-view tracking. No-op unless /auth/site-config
+        carries a tracker URL + site id (and the browser doesn't send DNT). */}
+    <MatomoTracker />
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path='/' element={<Layout />}>
