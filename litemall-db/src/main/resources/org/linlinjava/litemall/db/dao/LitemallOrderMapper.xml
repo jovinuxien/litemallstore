@@ -48,6 +48,9 @@
     <result column="verify_code" jdbcType="VARCHAR" property="verifyCode" />
     <result column="verify_time" jdbcType="TIMESTAMP" property="verifyTime" />
     <result column="verified_by" jdbcType="VARCHAR" property="verifiedBy" />
+    <result column="payment_intent_id" jdbcType="VARCHAR" property="paymentIntentId" />
+    <result column="tax_price" jdbcType="DECIMAL" property="taxPrice" />
+    <result column="tax_breakdown" jdbcType="LONGVARCHAR" property="taxBreakdown" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <!--
@@ -125,7 +128,8 @@
     order_price, actual_price, pay_id, pay_time, ship_sn, ship_channel, ship_time, refund_amount, 
     refund_type, refund_content, refund_time, confirm_time, comments, end_time, add_time,
     update_time, deleted, address_id, country_code, source, cj_order_id, cj_order_num,
-    cj_order_status, delivery_type, store_id, verify_code, verify_time, verified_by
+    cj_order_status, delivery_type, store_id, verify_code, verify_time, verified_by,
+    payment_intent_id, tax_price, tax_breakdown
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderExample" resultMap="BaseResultMap">
     <!--
@@ -259,7 +263,8 @@
       address_id, country_code, source,
       cj_order_id, cj_order_num, cj_order_status,
       delivery_type, store_id, verify_code,
-      verify_time, verified_by)
+      verify_time, verified_by, payment_intent_id,
+      tax_price, tax_breakdown)
     values (#{userId,jdbcType=INTEGER}, #{orderSn,jdbcType=VARCHAR}, #{orderStatus,jdbcType=SMALLINT}, 
       #{aftersaleStatus,jdbcType=SMALLINT}, #{consignee,jdbcType=VARCHAR}, #{mobile,jdbcType=VARCHAR}, 
       #{address,jdbcType=VARCHAR}, #{message,jdbcType=VARCHAR}, #{goodsPrice,jdbcType=DECIMAL}, 
@@ -273,7 +278,8 @@
       #{addressId,jdbcType=INTEGER}, #{countryCode,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR},
       #{cjOrderId,jdbcType=VARCHAR}, #{cjOrderNum,jdbcType=VARCHAR}, #{cjOrderStatus,jdbcType=VARCHAR},
       #{deliveryType,jdbcType=VARCHAR}, #{storeId,jdbcType=INTEGER}, #{verifyCode,jdbcType=VARCHAR},
-      #{verifyTime,jdbcType=TIMESTAMP}, #{verifiedBy,jdbcType=VARCHAR})
+      #{verifyTime,jdbcType=TIMESTAMP}, #{verifiedBy,jdbcType=VARCHAR}, #{paymentIntentId,jdbcType=VARCHAR},
+      #{taxPrice,jdbcType=DECIMAL}, #{taxBreakdown,jdbcType=LONGVARCHAR})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallOrder">
     <!--
@@ -408,6 +414,15 @@
       <if test="verifiedBy != null">
         verified_by,
       </if>
+      <if test="paymentIntentId != null">
+        payment_intent_id,
+      </if>
+      <if test="taxPrice != null">
+        tax_price,
+      </if>
+      <if test="taxBreakdown != null">
+        tax_breakdown,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="userId != null">
@@ -532,6 +547,15 @@
       </if>
       <if test="verifiedBy != null">
         #{verifiedBy,jdbcType=VARCHAR},
+      </if>
+      <if test="paymentIntentId != null">
+        #{paymentIntentId,jdbcType=VARCHAR},
+      </if>
+      <if test="taxPrice != null">
+        #{taxPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="taxBreakdown != null">
+        #{taxBreakdown,jdbcType=LONGVARCHAR},
       </if>
     </trim>
   </insert>
@@ -678,6 +702,15 @@
       <if test="row.verifiedBy != null">
         verified_by = #{row.verifiedBy,jdbcType=VARCHAR},
       </if>
+      <if test="row.paymentIntentId != null">
+        payment_intent_id = #{row.paymentIntentId,jdbcType=VARCHAR},
+      </if>
+      <if test="row.taxPrice != null">
+        tax_price = #{row.taxPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="row.taxBreakdown != null">
+        tax_breakdown = #{row.taxBreakdown,jdbcType=LONGVARCHAR},
+      </if>
     </set>
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -730,7 +763,10 @@
       store_id = #{row.storeId,jdbcType=INTEGER},
       verify_code = #{row.verifyCode,jdbcType=VARCHAR},
       verify_time = #{row.verifyTime,jdbcType=TIMESTAMP},
-      verified_by = #{row.verifiedBy,jdbcType=VARCHAR}
+      verified_by = #{row.verifiedBy,jdbcType=VARCHAR},
+      payment_intent_id = #{row.paymentIntentId,jdbcType=VARCHAR},
+      tax_price = #{row.taxPrice,jdbcType=DECIMAL},
+      tax_breakdown = #{row.taxBreakdown,jdbcType=LONGVARCHAR}
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -865,6 +901,15 @@
       <if test="verifiedBy != null">
         verified_by = #{verifiedBy,jdbcType=VARCHAR},
       </if>
+      <if test="paymentIntentId != null">
+        payment_intent_id = #{paymentIntentId,jdbcType=VARCHAR},
+      </if>
+      <if test="taxPrice != null">
+        tax_price = #{taxPrice,jdbcType=DECIMAL},
+      </if>
+      <if test="taxBreakdown != null">
+        tax_breakdown = #{taxBreakdown,jdbcType=LONGVARCHAR},
+      </if>
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>
@@ -914,7 +959,10 @@
       store_id = #{storeId,jdbcType=INTEGER},
       verify_code = #{verifyCode,jdbcType=VARCHAR},
       verify_time = #{verifyTime,jdbcType=TIMESTAMP},
-      verified_by = #{verifiedBy,jdbcType=VARCHAR}
+      verified_by = #{verifiedBy,jdbcType=VARCHAR},
+      payment_intent_id = #{paymentIntentId,jdbcType=VARCHAR},
+      tax_price = #{taxPrice,jdbcType=DECIMAL},
+      tax_breakdown = #{taxBreakdown,jdbcType=LONGVARCHAR}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderExample" resultMap="BaseResultMap">
