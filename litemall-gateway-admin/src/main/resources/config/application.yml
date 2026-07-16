@@ -58,13 +58,22 @@ spring:
           uri: lb://promotion-service-app
           predicates:
             - Path=/srv/promotion/**,/srv/private/admin/promotion/**
-        # Admin order + aftersale surfaces live in order-service (not
-        # goods-management), so route those namespaces there explicitly
-        # before the catch-all.
+        # Admin order + aftersale + extract-approval surfaces live in
+        # order-service (not goods-management), so route those namespaces
+        # there explicitly before the catch-all.
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**
+        # Wave 5: affiliate portal API (dashboard/records/team/links/extract)
+        # is owned by order-service. Edge-authenticated (ROLE_AFFILIATE in
+        # SecurityConfig) and relayed with the machine token like the admin
+        # prefix. Must stay BEFORE the goods catch-all; mirrored in the dev
+        # profile below — keep in sync.
+        - id: affiliate-order
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/affiliate/**
         # Wave 4: freight templates + physical stores/write-off admin
         # surfaces are owned by order-service. Must stay BEFORE the goods
         # catch-all. Mirrored in the dev profile below — keep in sync.
@@ -134,7 +143,12 @@ spring:
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**
+        # Wave 5: mirror of the default-profile affiliate route.
+        - id: affiliate-order
+          uri: lb://order-service-app
+          predicates:
+            - Path=/srv/private/affiliate/**
         # Wave 4: mirror of the default-profile freight/store route.
         - id: admin-freight-store
           uri: lb://order-service-app

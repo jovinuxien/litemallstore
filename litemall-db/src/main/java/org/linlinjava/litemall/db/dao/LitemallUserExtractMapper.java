@@ -42,4 +42,30 @@ public interface LitemallUserExtractMapper {
             "</set>" +
             "WHERE id = #{id}</script>")
     int updateByPrimaryKeySelective(LitemallUserExtract extract);
+
+    // ------------------------------------------------------------------
+    // Wave 5 affiliate — admin extract console. Status codes: -1 rejected,
+    // 0 pending, 1 processing, 2 completed. The approve/reject transitions
+    // are GUARDED on status = 0 so a double-click or a raced second admin
+    // surfaces as a 0-row update, never a double refund.
+    // ------------------------------------------------------------------
+
+    @Select("<script>SELECT * FROM litemall_user_extract WHERE deleted = 0" +
+            "<if test='status != null'> AND status = #{status}</if>" +
+            " ORDER BY add_time DESC, id DESC LIMIT #{offset}, #{limit}</script>")
+    List<LitemallUserExtract> selectAdminPage(@Param("status") Byte status,
+                                              @Param("offset") int offset,
+                                              @Param("limit") int limit);
+
+    @Select("<script>SELECT COUNT(*) FROM litemall_user_extract WHERE deleted = 0" +
+            "<if test='status != null'> AND status = #{status}</if></script>")
+    long countAdmin(@Param("status") Byte status);
+
+    @Update("UPDATE litemall_user_extract SET status = 2, update_time = NOW() " +
+            "WHERE id = #{id} AND status = 0 AND deleted = 0")
+    int approveFromPending(@Param("id") Integer id);
+
+    @Update("UPDATE litemall_user_extract SET status = -1, fail_msg = #{failMsg}, fail_time = NOW(), update_time = NOW() " +
+            "WHERE id = #{id} AND status = 0 AND deleted = 0")
+    int rejectFromPending(@Param("id") Integer id, @Param("failMsg") String failMsg);
 }

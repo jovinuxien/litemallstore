@@ -4,7 +4,9 @@ import { loadingBarMiddleware } from 'react-redux-loading-bar';
 
 import sharedReducers from 'app/shared/reducers';
 import { adminGoodsApi } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { adminAffiliateApi } from 'app/shared/reducers/private/services/adminAffiliateApi';
 import { adminAftersaleApi } from 'app/shared/reducers/private/services/adminAftersaleApi';
+import { affiliateApi } from 'app/shared/reducers/private/services/affiliateApi';
 import { adminCatalogApi } from 'app/shared/reducers/private/services/adminCatalogApi';
 import { adminContentApi } from 'app/shared/reducers/private/services/adminContentApi';
 import { adminDealApi } from 'app/shared/reducers/private/services/adminDealApi';
@@ -46,6 +48,8 @@ const store = configureStore({
       adminContentApi.middleware,
       adminDealApi.middleware,
       adminParityApi.middleware,
+      adminAffiliateApi.middleware,
+      affiliateApi.middleware,
     ),
 });
 

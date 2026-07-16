@@ -1,5 +1,6 @@
 export const AUTHORITIES = {
   ADMIN: 'ROLE_ADMIN',
+  AFFILIATE: 'ROLE_AFFILIATE',
   USER: 'ROLE_USER',
 };
 
