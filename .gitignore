@@ -83,3 +83,6 @@ package-lock.json
 
 
 node_modules
+
+# local-only marketing-stack credentials (Wave 6) — never committed
+docker-compose/.env.marketing
