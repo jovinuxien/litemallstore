@@ -19,6 +19,8 @@ export interface RegisterBody {
   nickname?: string;
   email?: string;
   mobile?: string;
+  /** Wave-5 affiliate invite code ("A" + base36 uid). Invalid codes are silently ignored server-side. */
+  inviteCode?: string;
 }
 
 export interface AccountInfo {
