@@ -24,8 +24,9 @@ public class GoodsServiceResponseCode {
     public static final Integer DEAL_INVALID = 650;
     /** An enabled deal already overlaps this goods+window, or the deal is live and immutable. */
     public static final Integer DEAL_CONFLICT = 651;
-    /** Flash deal refused for a CJ goods with NO snapshot row — the cost basis is unknowable
-     *  (V40 lifted the blanket CJ refusal: CJ deals are allowed above the configured cost floor). */
+    /** Flash deals refuse source='cj' goods (CJ price sync would fight the price swap).
+     *  A cost-floor + sync-guard design is PARKED pending an efficiency redesign — see
+     *  doc/cj-deals-strategy-2026-07-16.pdf and commit a82a19e0e. */
     public static final Integer DEAL_CJ_UNSUPPORTED = 652;
 
 }

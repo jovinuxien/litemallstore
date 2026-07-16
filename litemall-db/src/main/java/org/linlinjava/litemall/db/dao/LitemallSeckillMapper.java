@@ -77,10 +77,6 @@ public interface LitemallSeckillMapper {
     @Select("SELECT * FROM litemall_seckill WHERE goods_id = #{goodsId} AND price_swapped = 1 LIMIT 1")
     LitemallSeckill selectLiveByGoodsId(Integer goodsId);
 
-    /** Goods ids with a live price swap — the CJ promote path skips price writes for these (V40). */
-    @Select("SELECT goods_id FROM litemall_seckill WHERE price_swapped = 1")
-    List<Integer> selectLiveSwappedGoodsIds();
-
     /** Enabled deals on the goods whose window overlaps [start, stop), excluding one id (0 = none). */
     @Select("SELECT COUNT(*) FROM litemall_seckill WHERE goods_id = #{goodsId} AND status = 1 " +
             "AND is_del = 0 AND deleted = 0 AND id != #{excludeId} " +

@@ -2,15 +2,12 @@ package org.linlinjava.litemall.goods.application.deals;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallSeckill;
-import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.db.service.LitemallGoodsProductService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
 import org.linlinjava.litemall.db.service.LitemallSeckillService;
-import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.linlinjava.litemall.goods.domain.deals.DealMath;
 import org.slf4j.Logger;
@@ -42,8 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li><b>Expire/unwind</b> swapped deals whose window closed or that were
  *       disabled/deleted: restore the captured retail + per-SKU prices (each
  *       skipped with a WARN if an admin hand-changed it mid-deal), mark swap
- *       off; CJ goods are then re-promoted from the snapshot (CJ may have
- *       repriced mid-deal), reindex.</li>
+ *       off, reindex.</li>
  *   <li><b>Refresh claimed</b> on live capped deals from paid order lines in
  *       the window; a sold-out cap unwinds early exactly like an expiry.</li>
  *   <li><b>Re-score urgency</b>: reindex a live deal when its computed urgency
@@ -65,8 +61,6 @@ public class FlashDealLifecycleTask {
     private final LitemallSeckillService seckillService;
     private final LitemallGoodsService goodsService;
     private final LitemallGoodsProductService productService;
-    private final LitemallCjProductService cjProductService;
-    private final CjProductPromotionService cjPromotionService;
     private final SearchReindexService reindexService;
     private final ObjectMapper json = new ObjectMapper();
     /** Last urgency pushed to the index per deal id (instance-scoped; a restart just re-pushes once). */
@@ -78,14 +72,10 @@ public class FlashDealLifecycleTask {
     public FlashDealLifecycleTask(LitemallSeckillService seckillService,
                                   LitemallGoodsService goodsService,
                                   LitemallGoodsProductService productService,
-                                  LitemallCjProductService cjProductService,
-                                  CjProductPromotionService cjPromotionService,
                                   SearchReindexService reindexService) {
         this.seckillService = seckillService;
         this.goodsService = goodsService;
         this.productService = productService;
-        this.cjProductService = cjProductService;
-        this.cjPromotionService = cjPromotionService;
         this.reindexService = reindexService;
     }
 
@@ -222,21 +212,6 @@ public class FlashDealLifecycleTask {
         patch.setId(deal.getId());
         patch.setPriceSwapped(false);
         seckillService.updateById(patch);
-        // CJ goods: the snapshot is the price authority and CJ may have repriced mid-deal —
-        // re-derive goods + SKU prices from it now that the swap flag is cleared (the promote
-        // path skips price writes only while price_swapped=1). Failure is non-fatal: the
-        // captured originals are already restored and the nightly promote converges anyway.
-        if (goods != null && "cj".equalsIgnoreCase(goods.getSource()) && goods.getCjPid() != null) {
-            try {
-                LitemallCjProduct snapshot = cjProductService.findByPid(goods.getCjPid());
-                if (snapshot != null) {
-                    cjPromotionService.promote(snapshot);
-                }
-            } catch (Exception e) {
-                log.warn("deal {} unwind: CJ re-promote of pid {} failed — nightly promote will converge",
-                        deal.getId(), goods.getCjPid(), e);
-            }
-        }
         lastIndexedUrgency.remove(deal.getId());
         if (goods != null) {
             reindexService.reindexGoods(goods.getId());

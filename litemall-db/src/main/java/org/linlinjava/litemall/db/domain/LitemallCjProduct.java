@@ -19,8 +19,6 @@ public class LitemallCjProduct {
     private String title;
     private BigDecimal price;
     private BigDecimal discountPrice;
-    /** V40: CJ suggestSellPrice (lower bound × usdToCny, no margin) — organic counter_price anchor. */
-    private BigDecimal suggestPrice;
     private String description;
     private String imageUrl;
     private String brand;
@@ -81,14 +79,6 @@ public class LitemallCjProduct {
 
     public void setDiscountPrice(BigDecimal discountPrice) {
         this.discountPrice = discountPrice;
-    }
-
-    public BigDecimal getSuggestPrice() {
-        return suggestPrice;
-    }
-
-    public void setSuggestPrice(BigDecimal suggestPrice) {
-        this.suggestPrice = suggestPrice;
     }
 
     public String getDescription() {

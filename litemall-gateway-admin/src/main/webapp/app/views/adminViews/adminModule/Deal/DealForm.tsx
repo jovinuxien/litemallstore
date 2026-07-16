@@ -14,9 +14,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 // in edit mode). startTime/stopTime are sent as ISO local datetime strings
 // WITHOUT a timezone suffix, e.g. "2026-07-15T18:00:00" (Jackson
 // LocalDateTime). Backend validation errors surface inline via errmsg:
-// errno 650 = invalid (incl. a CJ deal price below the cost floor — the
-// message names the floor), 651 = conflict/overlapping window or
-// live-immutable field, 652 = CJ goods with no snapshot (cost unknowable).
+// errno 650 = invalid, 651 = conflict/overlapping window or live-immutable
+// field, 652 = CJ-sourced goods refused (CJ deals parked pending redesign).
 
 interface DealEdit {
   goodsId: string;
@@ -133,7 +132,7 @@ const DealForm: React.FC = () => {
               onChange={e => set({ goodsId: e.target.value })}
               disabled={isEdit}
             />
-            <div className='form-text'>goods id — CJ goods allowed; their deal price is floored at CJ cost</div>
+            <div className='form-text'>local goods id — CJ-sourced goods are refused</div>
           </div>
           <div className='col-md-6 mb-3'>
             <label className='form-label'>Deal price *</label>

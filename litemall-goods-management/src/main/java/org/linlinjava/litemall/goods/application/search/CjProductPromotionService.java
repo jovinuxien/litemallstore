@@ -7,7 +7,6 @@ import org.linlinjava.litemall.db.dao.LitemallGoodsAttributeMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
 import org.linlinjava.litemall.db.dao.LitemallGoodsSpecificationMapper;
-import org.linlinjava.litemall.db.dao.LitemallSeckillMapper;
 import org.linlinjava.litemall.db.domain.LitemallBrand;
 import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
@@ -75,7 +74,6 @@ public class CjProductPromotionService {
     private final CjProductToNativeAdapter adapter;
     private final CjCategoryTreeSyncService categoryTreeSync;
     private final CJDropshippingConfig config;
-    private final LitemallSeckillMapper seckillMapper;
     private final TransactionTemplate txTemplate;
 
     public CjProductPromotionService(LitemallCjLinkageMapper linkageMapper,
@@ -88,7 +86,6 @@ public class CjProductPromotionService {
                                      CjProductToNativeAdapter adapter,
                                      CjCategoryTreeSyncService categoryTreeSync,
                                      CJDropshippingConfig config,
-                                     LitemallSeckillMapper seckillMapper,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
         this.goodsMapper = goodsMapper;
@@ -100,7 +97,6 @@ public class CjProductPromotionService {
         this.adapter = adapter;
         this.categoryTreeSync = categoryTreeSync;
         this.config = config;
-        this.seckillMapper = seckillMapper;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -192,17 +188,6 @@ public class CjProductPromotionService {
         // have soft-deleted this pid, and uk_goods_source_cjpid makes a blind re-insert collide —
         // the row must be resurrected in place instead.
         Integer existingId = linkageMapper.findAnyGoodsIdByCjPid(goods.getCjPid());
-        // Live flash deal on this goods (V40): the deal scheduler owns retail/counter/SKU prices
-        // while price_swapped=1 — withhold every price write (selective updates skip nulls) so the
-        // nightly promote / enrichment re-promote can't clobber a running deal. Everything else
-        // (stock, title, gallery, variants, signals) keeps syncing. Unwind clears the flag and
-        // immediately re-promotes, so snapshot prices reconverge within one lifecycle tick.
-        boolean priceLocked = existingId != null && seckillMapper.selectLiveByGoodsId(existingId) != null;
-        if (priceLocked) {
-            goods.setRetailPrice(null);
-            goods.setCounterPrice(null);
-            log.debug("CJ promote pid={} goods={}: live flash deal — price fields withheld", row.getPid(), existingId);
-        }
         if (existingId != null) {
             goods.setId(existingId);
             goods.setAddTime(null); // preserve the original creation time on update
@@ -221,16 +206,14 @@ public class CjProductPromotionService {
         linkageMapper.updateGoodsRankingSignals(goodsId, row.getListedNum(), row.getReviewCount(),
                 row.getRating(), row.getCjCreateTime());
 
-        upsertProducts(goodsId, aggregate.getProducts(), priceLocked);
+        upsertProducts(goodsId, aggregate.getProducts());
         regenerateSpecifications(goodsId, aggregate.getSpecifications());
         regenerateAttributes(goodsId, aggregate.getAttributes());
         return goodsId;
     }
 
-    /** Diff SKUs by cj_vid: matched -> update (stable id), new -> insert, vanished -> soft-delete.
-     *  priceLocked (live flash deal): matched/reused rows keep their swapped price (price nulled
-     *  on the selective update); brand-new variants insert at the snapshot price. */
-    private void upsertProducts(Integer goodsId, List<LitemallGoodsProduct> incoming, boolean priceLocked) {
+    /** Diff SKUs by cj_vid: matched -> update (stable id), new -> insert, vanished -> soft-delete. */
+    private void upsertProducts(Integer goodsId, List<LitemallGoodsProduct> incoming) {
         LitemallGoodsProductExample ex = new LitemallGoodsProductExample();
         ex.createCriteria().andGoodsIdEqualTo(goodsId).andDeletedEqualTo(false);
         List<LitemallGoodsProduct> existing = productMapper.selectByExample(ex);
@@ -275,15 +258,9 @@ public class CjProductPromotionService {
             if (match != null) {
                 in.setId(match.getId());
                 in.setAddTime(null); // keep original creation time
-                if (priceLocked) {
-                    in.setPrice(null); // live deal owns this row's price
-                }
                 productMapper.updateByPrimaryKeySelective(in);
             } else if (in.getId() != null) {
                 in.setAddTime(null); // placeholder reuse: update in place, keep row id + creation time
-                if (priceLocked) {
-                    in.setPrice(null); // live deal owns this row's price
-                }
                 productMapper.updateByPrimaryKeySelective(in);
             } else {
                 productMapper.insertSelective(in);
