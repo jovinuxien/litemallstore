@@ -11,11 +11,14 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
+# Wave 7 (production readiness) active worktrees. Parked this wave — re-add to
+# launch them: "goods-management" (CJ deals, awaiting redesign), "promotion" and
+# "gateway-admin" (Wave-6 work merged, no Wave-7 assignment). Each name must have
+# a matching '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "goods-management"
-  "order"
-  "gateway-admin"
-  "gateway-api"
+  "order"        # money path: E0 server-authoritative pricing FIRST, then Stripe
+  "gateway-api"  # edge auth enforcement + Elements + consent/legal
+  "platform"     # NEW: containerize, prod profiles/secrets, TLS, CI
 )
 
 mkdir -p "$WT_BASE"
