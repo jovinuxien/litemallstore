@@ -157,6 +157,8 @@ public class FlywayMigrationTest {
             "litemall_goods_log",
             // V35: physical pickup stores
             "litemall_store",
+            // V41: transactional customer mail outbox (Wave 6)
+            "litemall_mail_outbox",
         };
 
         try (var conn = MYSQL.createConnection("")) {
