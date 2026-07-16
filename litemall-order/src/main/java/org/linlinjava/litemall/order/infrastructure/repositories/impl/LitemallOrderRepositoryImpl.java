@@ -253,7 +253,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int markPaidIfCreated(LitemallOrderId orderId, String payId) {
+    public int markPaidIfCreated(LitemallOrderId orderId, String payId, String paymentIntentId) {
         LocalDateTime now = LocalDateTime.now();
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
@@ -261,6 +261,11 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         patch.setUpdateTime(now);
         if (payId != null && !payId.isBlank()) {
             patch.setPayId(payId);
+        }
+        // Left NULL for wallet/offline tenders: the column is UNIQUE, and many NULLs are
+        // allowed while many ''s would not be. updateByExampleSelective skips nulls anyway.
+        if (paymentIntentId != null && !paymentIntentId.isBlank()) {
+            patch.setPaymentIntentId(paymentIntentId);
         }
 
         LitemallOrderExample example = new LitemallOrderExample();
@@ -490,6 +495,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setActualPrice(orderAggregate.getActualPrice().getAmount());
 
         dataModel.setPayId(orderAggregate.getPayId());
+        dataModel.setPaymentIntentId(orderAggregate.getPaymentIntentId());
         dataModel.setPayTime(orderAggregate.getPayTime());
         dataModel.setShipSn(orderAggregate.getShipSn());
         dataModel.setShipChannel(orderAggregate.getShipChannel());
@@ -558,6 +564,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setOrderPrice(new LitemallMoney(record.getOrderPrice()));
         domainModel.setActualPrice(new LitemallMoney(record.getActualPrice()));
         domainModel.setPayId(record.getPayId());
+        domainModel.setPaymentIntentId(record.getPaymentIntentId());
         domainModel.setPayTime(record.getPayTime());
         domainModel.setShipSn(record.getShipSn());
         domainModel.setShipChannel(record.getShipChannel());

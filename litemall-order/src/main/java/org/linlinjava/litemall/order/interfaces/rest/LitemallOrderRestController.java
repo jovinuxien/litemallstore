@@ -35,6 +35,9 @@ import static org.linlinjava.litemall.order.interfaces.util.LitemallHttpResponse
 @RequestMapping("/srv/order")
 public class LitemallOrderRestController {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(LitemallOrderRestController.class);
+
     private final LitemallOrderOrchestratorService orderOrchestrationService;
     private final CjFreightQuoteService cjFreightQuoteService;
     private final org.linlinjava.litemall.order.application.internal.OrderTrackingService orderTrackingService;
@@ -296,6 +299,55 @@ public class LitemallOrderRestController {
             return buildResponse(
                     LitemallOrderOperationResult.payFailed(orderIdVo,
                             "CJ fulfillment could not be placed: " + e.getMessage()));
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            // The PaymentIntent is already bound to another order: uk_order_payment_intent_id
+            // rejected the write, rolling this transaction back (order still unpaid). This is
+            // the replay defence, and it lives in the DB precisely so it cannot be raced
+            // (Wave 7, Task A2). Caught here, outside the transaction.
+            log.warn("Rejected replayed PaymentIntent on order {}: {}", orderId, e.getMessage());
+            return buildResponse(
+                    LitemallOrderOperationResult.payFailed(orderIdVo,
+                            "This payment has already been used for another order."));
+        } catch (org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException e) {
+            // Stripe disabled/misconfigured/unreachable. Never a fake success, never a 500.
+            return buildResponse(
+                    LitemallOrderOperationResult.payFailed(orderIdVo, e.getMessage()));
+        }
+    }
+
+    /**
+     * Create the order's Stripe PaymentIntent SERVER-SIDE (Wave 7, Task A —
+     * docs/handoff-stripe-checkout.md), returning the client secret for Elements to
+     * confirm. The amount comes from the order, never from the browser.
+     *
+     * <p>Owner-scoped like every other order action: a PaymentIntent is money, so it is
+     * only ever minted for the buyer's own order.
+     *
+     * <p>Stripe disabled ⇒ 402 with a typed message, so the SPA presents card payment as
+     * cleanly unavailable. It must NOT fabricate a placeholder id — that is precisely what
+     * the pre-Wave-7 SPA did (pi_stub_&lt;orderId&gt;) and then showed to the customer.
+     */
+    @PostMapping("/{orderId}/actions/payment-intent")
+    public ResponseEntity<Object> createPaymentIntent(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId) {
+        LitemallOrderAggregate order = orderOrchestrationService.getOrderForUser(
+                new LitemallUserId(userId), new LitemallOrderId(orderId));
+        if (order == null) {
+            // Same not-yours-is-not-found rule the rest of the order surface uses.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(org.linlinjava.litemall.core.util.ResponseUtil.fail(404, "Order not found"));
+        }
+        try {
+            var draft = orderOrchestrationService.createPaymentIntent(order);
+            java.util.Map<String, Object> data = new java.util.HashMap<>();
+            data.put("clientSecret", draft.getClientSecret());
+            data.put("amount", draft.getAmountMinor());
+            data.put("currency", draft.getCurrency());
+            return ResponseEntity.ok(org.linlinjava.litemall.core.util.ResponseUtil.ok(data));
+        } catch (org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.PAYMENT_REQUIRED)
+                    .body(org.linlinjava.litemall.core.util.ResponseUtil.fail(402, e.getMessage()));
         }
     }
 

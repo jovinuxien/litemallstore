@@ -9,7 +9,10 @@ import org.linlinjava.litemall.order.infrastructure.acl.express.onepass.OnePassT
 import org.linlinjava.litemall.order.infrastructure.acl.printer.LoggingReceiptPrinterAdapter;
 import org.linlinjava.litemall.order.infrastructure.acl.printer.yly.YlyOpenApiClient;
 import org.linlinjava.litemall.order.infrastructure.acl.printer.yly.YlyReceiptPrinterAdapter;
+import org.linlinjava.litemall.order.infrastructure.acl.stripe.DisabledPaymentGatewayAdapter;
+import org.linlinjava.litemall.order.infrastructure.acl.stripe.StripePaymentGatewayAdapter;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +39,40 @@ import java.util.Locale;
 public class FulfillmentSeamsConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(FulfillmentSeamsConfiguration.class);
+
+    /**
+     * The PSP seam (Wave 7). Disabled is the DEFAULT and the safe position: the disabled
+     * adapter rejects verification, so no configuration mistake can mint a paid order.
+     *
+     * <p>Fails fast when {@code enabled=true} arrives without a secret key, for the same
+     * reason as the printer: a half-configured money path should never boot. The webhook
+     * secret is checked separately at call time rather than here — an operator may enable
+     * card payments before wiring the webhook endpoint, and the client-confirm path still
+     * works meanwhile (the webhook is the authoritative signal, not the only one).
+     */
+    @Bean
+    @Primary
+    public PaymentGatewayPort paymentGatewayPort(FulfillmentProperties properties) {
+        FulfillmentProperties.Stripe stripe = properties.getStripe();
+        if (!stripe.isEnabled()) {
+            log.info("Stripe payments DISABLED (litemall.order.stripe.enabled=false) — "
+                    + "card pay returns a typed error; wallet checkout is unaffected");
+            return new DisabledPaymentGatewayAdapter();
+        }
+        if (isBlank(stripe.getSecretKey())) {
+            throw new IllegalStateException("litemall.order.stripe.enabled=true requires "
+                    + "secret-key (supply via env var LITEMALL_ORDER_STRIPE_SECRET_KEY) "
+                    + "— refusing to boot half-configured");
+        }
+        if (isBlank(stripe.getWebhookSecret())) {
+            log.warn("Stripe is enabled but litemall.order.stripe.webhook-secret is unset — "
+                    + "the webhook will reject every delivery until it is supplied "
+                    + "(LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET)");
+        }
+        log.info("Stripe payments ENABLED (currency={})", stripe.getCurrency());
+        return new StripePaymentGatewayAdapter(
+                stripe.getSecretKey(), stripe.getWebhookSecret(), stripe.getCurrency());
+    }
 
     @Bean
     @Primary

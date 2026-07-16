@@ -57,6 +57,13 @@ public class LitemallOrderAggregate {
 
 
     private String payId;
+    /**
+     * The verified Stripe PaymentIntent (pi_...). Separate from {@link #payId}, which is an
+     * overloaded tender label and therefore cannot be unique; this one is UNIQUE in the DB,
+     * which is what stops a PaymentIntent being replayed onto a second order. NULL for
+     * wallet/offline tenders. (Wave 7, Task A)
+     */
+    private String paymentIntentId;
     private LocalDateTime payTime;
     private String shipSn;
     private String shipChannel;
