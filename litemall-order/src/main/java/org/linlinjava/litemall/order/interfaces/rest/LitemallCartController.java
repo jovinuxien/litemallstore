@@ -3,9 +3,6 @@ package org.linlinjava.litemall.order.interfaces.rest;
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallCartId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
-import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId;
-import org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsProductId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.ApiResponse;
 import org.linlinjava.litemall.order.interfaces.dtos.cart.AddCartItemRequest;
@@ -29,26 +26,32 @@ public class LitemallCartController {
     }
 
     @GetMapping("/items")
-    public List<LitemallCartAggregate> list(@RequestParam Integer userId) {
+    public List<LitemallCartAggregate> list(@RequestHeader("X-User-Id") Integer userId) {
         return orchestrator.listCartItems(new LitemallUserId(userId));
     }
 
     @GetMapping("/items/{cartItemId}")
     public LitemallCartAggregate get(@PathVariable Integer cartItemId,
-                                     @RequestParam Integer userId) {
+                                     @RequestHeader("X-User-Id") Integer userId) {
         return orchestrator.getCartItem(new LitemallCartId(cartItemId), new LitemallUserId(userId));
     }
 
+    /**
+     * Identifiers + quantity only; the line is built from goods-management, so a
+     * client cannot assert its own price/name/image. Shares the resolution path with
+     * {@code POST /srv/cart/add} — there is exactly one way a cart line is priced.
+     */
     @PostMapping("/items")
-    public ResponseEntity<LitemallCartAggregate> add(@RequestBody AddCartItemRequest req) {
-        LitemallCartAggregate cart = toAggregate(req);
-        LitemallCartAggregate saved = orchestrator.addCartItem(cart);
+    public ResponseEntity<LitemallCartAggregate> add(@RequestHeader("X-User-Id") Integer userId,
+                                                     @RequestBody AddCartItemRequest req) {
+        LitemallCartAggregate saved = orchestrator.addToCart(
+                new LitemallUserId(userId), req.getGoodsId(), req.getProductId(), req.getNumber());
         return ResponseEntity.status(201).body(saved);
     }
 
     @PutMapping("/items/{cartItemId}")
     public LitemallCartAggregate update(@PathVariable Integer cartItemId,
-                                        @RequestParam Integer userId,
+                                        @RequestHeader("X-User-Id") Integer userId,
                                         @RequestBody UpdateCartItemRequest req) {
         return orchestrator.updateCartItem(
                 new LitemallCartId(cartItemId),
@@ -59,22 +62,23 @@ public class LitemallCartController {
 
     @DeleteMapping("/items/{cartItemId}")
     public ResponseEntity<Void> remove(@PathVariable Integer cartItemId,
-                                       @RequestParam Integer userId) {
+                                       @RequestHeader("X-User-Id") Integer userId) {
         orchestrator.removeCartItem(new LitemallCartId(cartItemId), new LitemallUserId(userId));
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/items")
-    public ResponseEntity<Void> clear(@RequestParam Integer userId) {
+    public ResponseEntity<Void> clear(@RequestHeader("X-User-Id") Integer userId) {
         orchestrator.clearCart(new LitemallUserId(userId));
         return ResponseEntity.noContent().build();
     }
 
     // =====================================================================
     // Legacy customer-SPA cart contract (cartSlice.ts): flat {errno,errmsg,data}
-    // envelopes, userId from the trusted gateway header (never the body). These
-    // back the everyday cart page that the SPA hits at /srv/cart/index|add|update;
-    // the RESTful /items endpoints above remain the canonical CRUD surface.
+    // envelopes. These back the everyday cart page that the SPA hits at
+    // /srv/cart/index|add|update; the RESTful /items endpoints above remain the
+    // canonical CRUD surface. Both surfaces now take identity from the trusted
+    // gateway header and resolve cart lines through goods-management.
     // =====================================================================
 
     /** GET /srv/cart/index → the user's active cart lines + totals (SPA cart page). */
@@ -108,22 +112,5 @@ public class LitemallCartController {
         r.setErrmsg("");
         r.setData(data);
         return r;
-    }
-
-    private static LitemallCartAggregate toAggregate(AddCartItemRequest req) {
-        LitemallCartAggregate cart = new LitemallCartAggregate();
-        cart.setUserId(new LitemallUserId(req.getUserId()));
-        cart.setGoodsId(new LitemallGoodsId(req.getGoodsId()));
-        cart.setProductId(new LitemallGoodsProductId(req.getProductId()));
-        cart.setNumber(req.getNumber() != null ? req.getNumber() : 1);
-        cart.setSpecifications(req.getSpecifications());
-        cart.setGoodsSn(req.getGoodsSn());
-        cart.setGoodsName(req.getGoodsName());
-        if (req.getPrice() != null) {
-            cart.setPrice(new LitemallMoney(req.getPrice()));
-        }
-        cart.setPicUrl(req.getPicUrl());
-        cart.setChecked(true);
-        return cart;
     }
 }

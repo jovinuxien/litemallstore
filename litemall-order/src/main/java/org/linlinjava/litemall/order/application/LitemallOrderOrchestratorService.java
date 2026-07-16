@@ -684,15 +684,18 @@ public class LitemallOrderOrchestratorService {
         return cartServiceLayer.getCartItem(cartId, userId);
     }
 
-    public LitemallCartAggregate addCartItem(LitemallCartAggregate cart) {
-        return cartServiceLayer.addCartItem(cart);
-    }
-
     /**
-     * Legacy cart-add ({@code POST /srv/cart/add}): the SPA sends only goodsId/productId/
-     * number, so look up the goods + chosen variant through the goods ACL and build a
-     * fully-populated, checked cart line before persisting. A missing goods/variant is a
-     * clean client error (mapped to a 4xx by the controller), not a later NPE.
+     * The ONE way a cart line is created ({@code POST /srv/cart/add} and
+     * {@code POST /srv/cart/items}): callers send only goodsId/productId/number, so look
+     * up the goods + chosen variant through the goods ACL and build a fully-populated,
+     * checked cart line before persisting. A missing goods/variant is a clean client
+     * error (mapped to a 4xx by the controller), not a later NPE.
+     *
+     * <p>Deliberately there is no overload taking a caller-built aggregate: one used to
+     * exist for the RESTful surface and let the client assert its own price, name and
+     * image (Wave 7, Task E0). Price resolves to whatever goods-management currently
+     * holds, which is also how a live flash deal reaches the cart — the deal price IS
+     * the catalog price while the deal is active (the lifecycle task swaps the SKU rows).
      */
     public LitemallCartAggregate addToCart(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
                                            Integer goodsId, Integer productId, Integer number) {
