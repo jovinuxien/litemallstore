@@ -593,17 +593,22 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
      * @param payId tender record for {@code pay_id}: {@code "WALLET"} or
      *              {@code "<METHOD>:<pspReference>"}; refund settlement routes by it.
      */
-    public void markOrderPaid(LitemallOrderId orderId, String payId) {
+    public void markOrderPaid(LitemallOrderId orderId, String payId, String paymentIntentId) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
         orderAggregate.markAsPaid();
         orderAggregate.setPayId(payId);
+        orderAggregate.setPaymentIntentId(paymentIntentId);
 
         // Conditional CREATED->PAID transition: the UPDATE only matches a row still
         // in CREATED, so a retried or concurrent PAY (which already flipped the row)
         // affects 0 rows. We then abort, rolling back any wallet debit applied in
         // this same transaction — preventing a double charge for one order.
-        int updated = orderRepository.markPaidIfCreated(orderId, payId);
+        //
+        // A PaymentIntent already bound to ANOTHER order trips the UNIQUE index here
+        // instead, raising DuplicateKeyException — this transaction rolls back and the
+        // REST layer answers 402 (Wave 7, Task A2).
+        int updated = orderRepository.markPaidIfCreated(orderId, payId, paymentIntentId);
         if (updated == 0) {
             throw new IllegalStateException(
                     "Order " + orderId.getId() + " is no longer in CREATED state; payment already applied");

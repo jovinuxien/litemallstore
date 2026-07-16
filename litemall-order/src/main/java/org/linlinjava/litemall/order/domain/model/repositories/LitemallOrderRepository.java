@@ -62,7 +62,7 @@ public interface LitemallOrderRepository {
      *              {@code "<METHOD>:<pspReference>"}; refund routing reads it back
      *              (see the orchestrator's refund-to-tender settlement). May be null.
      */
-    int markPaidIfCreated(LitemallOrderId orderId, String payId);
+    int markPaidIfCreated(LitemallOrderId orderId, String payId, String paymentIntentId);
 
     /**
      * Guarded status transitions. Each mirrors {@link #markPaidIfCreated}: the UPDATE
