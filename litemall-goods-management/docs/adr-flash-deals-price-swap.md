@@ -1,24 +1,36 @@
-# ADR — Flash deals via price swap on the goods row (Deals wave, Phase B)
+# ADR — Flash deals via price swap on the goods row (Deals wave, Phase B; V40 SKU + CJ revision)
 
-Status: accepted · 2026-07-16 · owner: `litemall-goods-management`
+Status: accepted · 2026-07-16 (V40 revision same day) · owner: `litemall-goods-management`
 
 ## Decision
 
 Time-boxed flash deals are realized by **swapping the deal price into
-`litemall_goods.retail_price` for the duration of the deal window**, driven by a
-60-second scheduler inside goods-management. No new purchase path, no order-service
-changes, no checkout branching: cart, quote, submit, freight, coupons and the Phase-A
-discount signals (`discount_pct` / `deal_flag`) all see the deal price because it IS
-the retail price while the deal is live.
+`litemall_goods.retail_price` AND, proportionally, into every
+`litemall_goods_product.price` SKU row for the duration of the deal window**, driven
+by a 60-second scheduler inside goods-management. No new purchase path, no
+order-service changes, no checkout branching: cart, quote, submit, freight, coupons
+and the Phase-A discount signals (`discount_pct` / `deal_flag`) all see the deal
+price because it IS the live price.
+
+> **V40 revision — SKU rows are the money.** Post-ship investigation proved every
+> checkout amount reads `litemall_goods_product.price`: cart-add snapshots it
+> (`LitemallOrderOrchestratorService:716`) and submit authoritatively re-stamps it
+> (`LitemallOrderDomainService:53`) before the money math. The original goods-row-only
+> swap was therefore display-only. The scheduler now swaps each SKU with the deal's
+> proportional factor (`dealPrice / pre-deal retail`; the base SKU lands exactly on
+> the deal price, floor 0.01), and records `{productId: {"o": original, "s": swapped}}`
+> in V40 `litemall_seckill.original_sku_prices` for restore. Because submit re-reads
+> live SKU prices, charges self-correct at activation AND at expiry with zero order
+> changes.
 
 Storage **reuses the V9 `litemall_seckill` table** (precedent: Wave-4 freight reused
-the V8 shipping-template tables — never create parallel tables). V38 adds exactly two
-lifecycle columns:
+the V8 shipping-template tables — never create parallel tables). Lifecycle columns:
 
-- `original_retail_price` — `goods.retail_price` captured at swap-on, restored at
-  swap-off;
-- `price_swapped` — 1 while the deal price is live on the goods row. This column is
-  the single source of truth for "deal is live"; `status`/window express only intent.
+- `original_retail_price` (V38) — `goods.retail_price` captured at swap-on, restored
+  at swap-off;
+- `price_swapped` (V38) — 1 while the deal price is live. This column is the single
+  source of truth for "deal is live"; `status`/window express only intent.
+- `original_sku_prices` (V40) — per-SKU `{o,s}` capture driving the per-SKU restore.
 
 ## Key choices (and deviations)
 
@@ -50,9 +62,30 @@ lifecycle columns:
   current price and a mid-flight change would desynchronize charged vs displayed.
   Extending `stopTime`, changing `stock`, or disabling is allowed. Overlapping
   enabled windows per goods are refused at authoring (651).
-- **CJ goods are refused (errno 652):** CJ price sync / demand-driven enrichment
-  rewrites CJ goods rows and would fight the swap. `GET /srv/goods/deal`
-  short-circuits `cj_*` ids to `data:null` for the same reason.
+- **CJ goods are ALLOWED since V40, floored at cost.** CJ bills us wholesale regardless
+  of our charge (the order replay sends vid+quantity only), so a CJ deal spends only our
+  margin. Authoring requires `dealPrice ≥ cost × litemall.deals.cj-min-margin` (default
+  1.0 = never below CJ wholesale; raise for guaranteed margin, drop below 1.0 for
+  deliberate loss-leaders), where cost = snapshot `litemall_cj_product.price ÷
+  pricing.margin` (the snapshot already carries fx × margin). Violations → 650 naming
+  the computed floor. Errno 652 now means only "CJ goods with NO snapshot row" (cost
+  unknowable). `GET /srv/goods/deal` still short-circuits raw `cj_*` (unpromoted,
+  OCS-only) ids to `data:null`.
+- **CJ sync respects live swaps (V40):** all three CJ price writers (nightly 03:00
+  `promoteBatch`, nightly 03:30 enrichment→promote, on-demand enrichment→promote) funnel
+  through `CjProductPromotionService.promoteOne`, which withholds `retail_price`/
+  `counter_price` and matched-SKU `price` writes while the goods is live-swapped —
+  stock/title/gallery/variants keep syncing. A brand-new CJ variant appearing mid-deal
+  inserts at the normal snapshot price (accepted). At unwind the scheduler restores the
+  captured prices, clears the flag, and immediately re-promotes from the snapshot, so a
+  mid-deal CJ reprice converges within one tick instead of waiting for the nightly batch.
+- **Organic CJ anchors (independent of flash deals, V40):** enrichment persists CJ's
+  `suggestSellPrice` (lower bound × usdToCny — NO margin factor: it is already a retail
+  suggestion) into `litemall_cj_product.suggest_price`; the promote adapter lifts
+  `counter_price` to it when it exceeds our retail. CJ items we genuinely sell below
+  CJ's suggested retail thus index a real `discount_pct`, fire `deal_flag`, and appear
+  on Today's Deals with an honest "was" anchor — zero admin work, naturally selective
+  (only items where suggest > margin × cost anchor at all).
 - **Claimed counts are read-only order integration:** the tick recomputes
   `sales` from paid-or-later order lines (`order_status >= 201`,
   `pay_time` inside the window) — no order-service hook. A capped deal
