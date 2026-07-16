@@ -86,15 +86,29 @@ public class LitemallCartController {
      * none — submit takes it from the place-order command for the same reason); without it
      * taxPrice is 0.00 and the total is not final.
      *
-     * <p>Tax failures do NOT surface here — a preview never blocks. Submit fails closed.
+     * <p>The preview degrades softly for coupons (an unreachable promotion service shows no
+     * discount) but NOT for tax: if tax is enabled and cannot be computed for a known
+     * destination, this answers 503 rather than rendering a total that omits it. Quoting a
+     * number we then refuse to charge — or worse, charge past — is the exact divergence this
+     * endpoint exists to remove.
      */
     @GetMapping("/checkout")
-    public ApiResponse<CheckoutSummaryDto> checkout(
+    public ResponseEntity<ApiResponse<CheckoutSummaryDto>> checkout(
             @RequestHeader("X-User-Id") Integer userId,
             @RequestParam(required = false) Integer addressId,
             @RequestParam(required = false) Integer couponId,
             @RequestParam(required = false) String countryCode) {
-        return ok(orchestrator.checkoutSummary(new LitemallUserId(userId), addressId, couponId, countryCode));
+        try {
+            return ResponseEntity.ok(ok(
+                    orchestrator.checkoutSummary(new LitemallUserId(userId), addressId, couponId, countryCode)));
+        } catch (org.linlinjava.litemall.order.application.util.exception.tax.LitemallTaxUnavailableException e) {
+            // Typed 503 (transient/retryable), never the untyped 502 the global handler
+            // would produce, and never a silently untaxed total.
+            ApiResponse<CheckoutSummaryDto> fail = new ApiResponse<>();
+            fail.setErrno(503);
+            fail.setErrmsg(e.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE).body(fail);
+        }
     }
 
     // =====================================================================

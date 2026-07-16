@@ -38,10 +38,14 @@ import java.util.stream.Collectors;
  * <p>Prices come from the cart rows, which are catalog-resolved at add time (Task E0), so
  * nothing here trusts a client figure.
  *
- * <p><b>A preview is not a promise.</b> It degrades where submit refuses: an unreachable
- * coupon service shows no discount rather than an error page, and a missing destination
- * shows no tax. Submit re-derives all of it and fails closed, so the worst a soft preview
- * can do is show a number that submit then declines to charge — never the reverse.
+ * <p><b>Soft where it can be, hard where it must be.</b> A coupon that cannot be priced
+ * shows as no discount rather than an error page — submit re-derives it and 503s there, so
+ * the customer sees a total no LOWER than they will be charged. Tax is the opposite: a
+ * missing destination legitimately means 0.00 (there is nothing to source yet), but an
+ * enabled tax provider that FAILS propagates
+ * {@code LitemallTaxUnavailableException} to the controller as a 503. Swallowing it would
+ * render a total that omits tax — a number the customer is then charged past, which is the
+ * exact preview/charge divergence this class exists to remove.
  */
 @Service
 public class CheckoutSummaryService {
