@@ -1,5 +1,6 @@
 import { useGetAdminGoodsDetailQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
 import { ProductStatus } from 'app/shared/model/enumerations/product-status.model';
+import PromoteComposerDialog from 'app/views/adminViews/adminModule/Social/PromoteComposerDialog';
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -28,6 +29,7 @@ const GoodsDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, isError, error } = useGetAdminGoodsDetailQuery(id as string, { skip: id == null });
+  const [showPromote, setShowPromote] = React.useState(false);
 
   if (isLoading) {
     return (
@@ -57,9 +59,20 @@ const GoodsDetail: React.FC = () => {
 
   return (
     <div className='app-container goods-detail'>
-      <button className='btn btn-link px-0 mb-2' onClick={() => navigate(-1)}>
-        ← Back
-      </button>
+      <div className='d-flex justify-content-between align-items-center mb-2'>
+        <button className='btn btn-link px-0' onClick={() => navigate(-1)}>
+          ← Back
+        </button>
+        {/* Wave 6: social-posting composer (promotion-service) */}
+        {goods?.id != null && (
+          <button className='btn btn-sm btn-outline-success' onClick={() => setShowPromote(true)}>
+            Promote
+          </button>
+        )}
+      </div>
+      {showPromote && goods?.id != null && (
+        <PromoteComposerDialog goodsId={goods.id} goodsName={goods.name ?? undefined} onClose={() => setShowPromote(false)} />
+      )}
 
       <div className='box-card'>
         <div className='box-card-body'>

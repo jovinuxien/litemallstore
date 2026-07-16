@@ -14,8 +14,10 @@ import { adminEngagementApi } from 'app/shared/reducers/private/services/adminEn
 import { adminFreightApi } from 'app/shared/reducers/private/services/adminFreightApi';
 import { adminParityApi } from 'app/shared/reducers/private/services/adminParityApi';
 import { adminStoreApi } from 'app/shared/reducers/private/services/adminStoreApi';
+import { adminMailApi } from 'app/shared/reducers/private/services/adminMailApi';
 import { adminOrderCjApi } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { adminPromotionApi } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { adminSocialApi } from 'app/shared/reducers/private/services/adminSocialApi';
 import { adminStatApi } from 'app/shared/reducers/private/services/adminStatApi';
 import { adminSysApi } from 'app/shared/reducers/private/services/adminSysApi';
 import { adminUsersApi } from 'app/shared/reducers/private/services/adminUsersApi';
@@ -42,6 +44,8 @@ const store = configureStore({
       adminEngagementApi.middleware,
       adminAftersaleApi.middleware,
       adminOrderCjApi.middleware,
+      adminSocialApi.middleware,
+      adminMailApi.middleware,
       adminSysApi.middleware,
       adminFreightApi.middleware,
       adminStoreApi.middleware,
