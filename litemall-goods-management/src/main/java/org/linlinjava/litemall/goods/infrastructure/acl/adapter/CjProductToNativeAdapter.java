@@ -78,8 +78,11 @@ public class CjProductToNativeAdapter {
         goods.setPicUrl(trim(row.getImageUrl(), VARCHAR_MAX));
         goods.setGallery(boundedGallery(parseStringList(row.getImagesJson())));
         goods.setRetailPrice(retail);
-        // CJ exposes no strike-through price, so counter == retail (no implied discount).
-        goods.setCounterPrice(retail);
+        // Counter anchors at CJ's suggested retail when we genuinely sell below it (V40 —
+        // the organic Today's-Deals signal for CJ goods); otherwise counter == retail
+        // (no implied discount — CJ exposes no strike-through of its own).
+        BigDecimal suggest = row.getSuggestPrice();
+        goods.setCounterPrice(suggest != null && suggest.compareTo(retail) > 0 ? suggest : retail);
         goods.setIsOnSale(Boolean.TRUE);
         goods.setIsNew(Boolean.FALSE);
         goods.setIsHot(Boolean.FALSE);

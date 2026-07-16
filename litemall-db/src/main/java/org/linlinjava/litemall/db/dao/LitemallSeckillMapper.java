@@ -50,6 +50,7 @@ public interface LitemallSeckillMapper {
             "<if test='stopTime != null'>stop_time = #{stopTime},</if>" +
             "<if test='originalRetailPrice != null'>original_retail_price = #{originalRetailPrice},</if>" +
             "<if test='priceSwapped != null'>price_swapped = #{priceSwapped},</if>" +
+            "<if test='originalSkuPrices != null'>original_sku_prices = #{originalSkuPrices},</if>" +
             "update_time = NOW()" +
             "</set>" +
             "WHERE id = #{id}</script>")
@@ -75,6 +76,10 @@ public interface LitemallSeckillMapper {
     /** The live (price-swapped) deal for a goods, if any — what the indexer reads. */
     @Select("SELECT * FROM litemall_seckill WHERE goods_id = #{goodsId} AND price_swapped = 1 LIMIT 1")
     LitemallSeckill selectLiveByGoodsId(Integer goodsId);
+
+    /** Goods ids with a live price swap — the CJ promote path skips price writes for these (V40). */
+    @Select("SELECT goods_id FROM litemall_seckill WHERE price_swapped = 1")
+    List<Integer> selectLiveSwappedGoodsIds();
 
     /** Enabled deals on the goods whose window overlaps [start, stop), excluding one id (0 = none). */
     @Select("SELECT COUNT(*) FROM litemall_seckill WHERE goods_id = #{goodsId} AND status = 1 " +

@@ -66,6 +66,11 @@ public class LitemallSeckillService {
         return seckillMapper.selectLiveByGoodsId(goodsId);
     }
 
+    /** Goods ids currently price-swapped — consulted by the CJ promote path to protect live deals. */
+    public List<Integer> queryLiveSwappedGoodsIds() {
+        return seckillMapper.selectLiveSwappedGoodsIds();
+    }
+
     public boolean hasOverlapping(Integer goodsId, LocalDateTime start, LocalDateTime stop, Integer excludeId) {
         return seckillMapper.countOverlapping(goodsId, start, stop, excludeId == null ? 0 : excludeId) > 0;
     }

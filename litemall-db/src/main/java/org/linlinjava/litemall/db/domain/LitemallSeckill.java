@@ -60,6 +60,8 @@ public class LitemallSeckill {
     private BigDecimal    originalRetailPrice;
     /** V38: true while the deal price is live on the goods row (the "deal is live" source of truth). */
     private Boolean       priceSwapped;
+    /** V40: JSON {productId:{"o":original,"s":swapped}} for every SKU row swapped at deal go-live. */
+    private String        originalSkuPrices;
     private LocalDateTime addTime;
     private LocalDateTime updateTime;
     private Boolean       deleted;
