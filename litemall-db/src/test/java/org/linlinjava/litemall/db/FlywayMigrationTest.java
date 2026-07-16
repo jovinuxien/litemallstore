@@ -26,10 +26,12 @@ import static org.junit.Assert.assertTrue;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V35 (store pickup / write-off) is the latest known
-    // migration; the exact-count assertion was replaced with a >= floor so this
-    // test no longer goes stale every time a script lands.
-    private static final int MIN_EXPECTED_MIGRATIONS = 35;
+    // Hand-maintained floor: V43 (order payment/tax + integrity keys) is the latest
+    // known migration; the exact-count assertion was replaced with a >= floor so this
+    // test no longer goes stale every time a script lands. Being a floor it still
+    // passes when it drifts, so it only asserts what it is raised to — bump it when
+    // you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 43;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -108,6 +110,10 @@ public class FlywayMigrationTest {
             // V35: in-store pickup / write-off columns on order
             {"litemall_order",        "delivery_type"},
             {"litemall_order",        "verify_code"},
+            // V43: verified Stripe payment reference + tax at checkout (Wave 7)
+            {"litemall_order",        "payment_intent_id"},
+            {"litemall_order",        "tax_price"},
+            {"litemall_order",        "tax_breakdown"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
@@ -162,6 +168,8 @@ public class FlywayMigrationTest {
             "litemall_store",
             // V41: transactional customer mail outbox (Wave 6)
             "litemall_mail_outbox",
+            // V43: Stripe webhook idempotency ledger (Wave 7)
+            "litemall_stripe_event",
         };
 
         try (var conn = MYSQL.createConnection("")) {
