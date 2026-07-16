@@ -37,7 +37,7 @@ header itself — the gateway already forwards `X-User-Id` for `/srv/cart/**` (t
 ### `POST /srv/cart/items` body shrank to identifiers + quantity
 
 ```jsonc
-// now — anything else is ignored (core JacksonConfig sets failOnUnknownProperties(false))
+// now
 { "goodsId": 1181, "productId": 4506, "number": 1 }
 ```
 
@@ -46,8 +46,18 @@ from `AddCartItemRequest`. The line is resolved from goods-management (same path
 `POST /srv/cart/add`), so the client can no longer assert its own price, name or image.
 Those display fields were previously copied verbatim into permanent `order_goods` rows.
 
-**Compatibility:** an SPA that still sends the old fields keeps working — they are
-ignored, not rejected. So §2 is not a lockstep requirement, but please do it.
+**Compatibility: your current SPA keeps working — extra fields are ignored, not rejected.**
+Verified live: posting `{"goodsId":1181000,"productId":2,"number":1,"price":0.01,
+"goodsName":"HACKED NAME","picUrl":"http://evil/x.png"}` persists the line at the **catalog
+price (1500.00)** with the real name and image, and returns 201.
+
+That leniency is explicit (`@JsonIgnoreProperties(ignoreUnknown = true)` on the DTO), and
+worth knowing why: litemall-core's `JacksonConfig` looks like it already sets
+`failOnUnknownProperties(false)`, but the plain `@Bean ObjectMapper` in that same class
+overrides the builder customizer, so **order actually rejects unknown fields by default**.
+Without the annotation, deleting `price` would have turned your existing checkout mirror
+into a hard 402. If you add a field to any order-service DTO, don't assume core's setting
+protects you.
 
 ### Two new submit-time 422s
 
