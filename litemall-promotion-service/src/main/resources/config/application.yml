@@ -68,6 +68,25 @@ litemall:
       password: ${MAUTIC_PASSWORD:}
       user-id-field-alias: ${MAUTIC_USER_ID_FIELD:litemall_user_id}
       segment-alias-prefix: ${MAUTIC_SEGMENT_PREFIX:litemall-campaign-}
+    # Wave 6 social posting (out). Platform adapters and the deal auto-poster are
+    # ALL disabled by default and every credential comes from env — the service
+    # boots, previews, and writes honest failed ledger rows without any Meta/
+    # TikTok registration (user-side prerequisite, may land mid-wave).
+    social:
+      auto-post-deals: ${SOCIAL_AUTO_POST_DEALS:false}   # opt-in flash-deal auto-poster
+      auto-post-sweep-ms: 60000
+      share-base-url: ${SOCIAL_SHARE_BASE_URL:http://localhost:9000}  # storefront origin for UTM links
+      meta:                                            # ONE app: FB Page + IG business account
+        enabled: ${SOCIAL_META_ENABLED:false}
+        base-url: ${SOCIAL_META_BASE_URL:https://graph.facebook.com/v19.0}
+        page-id: ${SOCIAL_META_PAGE_ID:}
+        page-access-token: ${SOCIAL_META_PAGE_TOKEN:}
+        ig-user-id: ${SOCIAL_META_IG_USER_ID:}
+      tiktok:                                          # Content Posting API (video-only)
+        enabled: ${SOCIAL_TIKTOK_ENABLED:false}
+        base-url: ${SOCIAL_TIKTOK_BASE_URL:https://open.tiktokapis.com}
+        access-token: ${SOCIAL_TIKTOK_ACCESS_TOKEN:}
+        privacy-level: ${SOCIAL_TIKTOK_PRIVACY_LEVEL:SELF_ONLY}  # unaudited apps: SELF_ONLY only
     nutch:                                             # crawl → read model (in)
       enabled: ${NUTCH_ENABLED:false}
       solr-url: ${NUTCH_SOLR_URL:http://localhost}
