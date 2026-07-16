@@ -75,6 +75,12 @@ public class SecurityConfig {
                                 "/srv/cjAuth/**").permitAll()
                         // Admin-only surfaces.
                         .pathMatchers("/srv/private/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                        // Affiliate portal surface (Wave 5). AFFILIATE only —
+                        // ADMIN is deliberately NOT allowed here (symmetric
+                        // privilege separation: the order service self-scopes
+                        // everything to the forwarded X-User-Id, and an admin's
+                        // id would alias a litemall_user id).
+                        .pathMatchers("/srv/private/affiliate/**").hasAuthority(AuthoritiesConstants.AFFILIATE)
                         // Order-module admin surface (e.g. order statistics for the
                         // admin dashboard). Gated to ADMIN so the validated identity
                         // is relayed downstream; the order service owns the logic.

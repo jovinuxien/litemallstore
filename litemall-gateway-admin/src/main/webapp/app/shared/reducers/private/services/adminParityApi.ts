@@ -70,7 +70,7 @@ export interface HistoryListParams {
 
 // ----- System config ------------------------------------------------------
 
-export type ConfigGroup = 'mall' | 'express' | 'order';
+export type ConfigGroup = 'mall' | 'express' | 'order' | 'brokerage';
 export type ConfigMap = Record<string, string>;
 
 // ----- Notice inbox (litemall_notice_admin rows) --------------------------

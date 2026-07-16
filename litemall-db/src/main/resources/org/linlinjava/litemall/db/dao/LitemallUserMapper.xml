@@ -32,12 +32,13 @@
          name the column directly) worked. -->
     <result column="now_money" jdbcType="DECIMAL" property="nowMoney" />
     <result column="brokerage_price" jdbcType="DECIMAL" property="brokeragePrice" />
-    <!-- Wave-5 affiliate columns (schema V2/V7): hand-added like now_money above —
-         a column missing here is silently dropped by every resultMap-based read. -->
+    <!-- Wave 5 affiliate: referral binding + promoter flag — same hand-added rule
+         as email/now_money above: a column missing here is silently dropped. -->
     <result column="spread_uid" jdbcType="INTEGER" property="spreadUid" />
     <result column="spread_time" jdbcType="TIMESTAMP" property="spreadTime" />
-    <result column="spread_count" jdbcType="INTEGER" property="spreadCount" />
     <result column="is_promoter" jdbcType="BIT" property="isPromoter" />
+    <result column="pay_count" jdbcType="INTEGER" property="payCount" />
+    <result column="spread_count" jdbcType="INTEGER" property="spreadCount" />
     <result column="path" jdbcType="VARCHAR" property="path" />
   </resultMap>
   <sql id="Example_Where_Clause">
@@ -113,8 +114,8 @@
     -->
     id, username, `password`, gender, birthday, last_login_time, last_login_ip, user_level,
     nickname, mobile, email, avatar, weixin_openid, session_key, `status`, add_time, update_time,
-    deleted, now_money, brokerage_price, spread_uid, spread_time, spread_count, is_promoter,
-    `path`
+    deleted, now_money, brokerage_price, spread_uid, spread_time, is_promoter,
+    pay_count, spread_count, `path`
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallUserExample" resultMap="BaseResultMap">
     <!--
@@ -300,6 +301,24 @@
       <if test="status != null">
         `status`,
       </if>
+      <if test="spreadUid != null">
+        spread_uid,
+      </if>
+      <if test="spreadTime != null">
+        spread_time,
+      </if>
+      <if test="isPromoter != null">
+        is_promoter,
+      </if>
+      <if test="payCount != null">
+        pay_count,
+      </if>
+      <if test="spreadCount != null">
+        spread_count,
+      </if>
+      <if test="path != null">
+        `path`,
+      </if>
       <if test="addTime != null">
         add_time,
       </if>
@@ -352,6 +371,24 @@
       </if>
       <if test="status != null">
         #{status,jdbcType=TINYINT},
+      </if>
+      <if test="spreadUid != null">
+        #{spreadUid,jdbcType=INTEGER},
+      </if>
+      <if test="spreadTime != null">
+        #{spreadTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="isPromoter != null">
+        #{isPromoter,jdbcType=BIT},
+      </if>
+      <if test="payCount != null">
+        #{payCount,jdbcType=INTEGER},
+      </if>
+      <if test="spreadCount != null">
+        #{spreadCount,jdbcType=INTEGER},
+      </if>
+      <if test="path != null">
+        #{path,jdbcType=VARCHAR},
       </if>
       <if test="addTime != null">
         #{addTime,jdbcType=TIMESTAMP},
@@ -425,6 +462,24 @@
       </if>
       <if test="row.status != null">
         `status` = #{row.status,jdbcType=TINYINT},
+      </if>
+      <if test="row.spreadUid != null">
+        spread_uid = #{row.spreadUid,jdbcType=INTEGER},
+      </if>
+      <if test="row.spreadTime != null">
+        spread_time = #{row.spreadTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="row.isPromoter != null">
+        is_promoter = #{row.isPromoter,jdbcType=BIT},
+      </if>
+      <if test="row.payCount != null">
+        pay_count = #{row.payCount,jdbcType=INTEGER},
+      </if>
+      <if test="row.spreadCount != null">
+        spread_count = #{row.spreadCount,jdbcType=INTEGER},
+      </if>
+      <if test="row.path != null">
+        `path` = #{row.path,jdbcType=VARCHAR},
       </if>
       <if test="row.addTime != null">
         add_time = #{row.addTime,jdbcType=TIMESTAMP},
@@ -516,6 +571,24 @@
       </if>
       <if test="status != null">
         `status` = #{status,jdbcType=TINYINT},
+      </if>
+      <if test="spreadUid != null">
+        spread_uid = #{spreadUid,jdbcType=INTEGER},
+      </if>
+      <if test="spreadTime != null">
+        spread_time = #{spreadTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="isPromoter != null">
+        is_promoter = #{isPromoter,jdbcType=BIT},
+      </if>
+      <if test="payCount != null">
+        pay_count = #{payCount,jdbcType=INTEGER},
+      </if>
+      <if test="spreadCount != null">
+        spread_count = #{spreadCount,jdbcType=INTEGER},
+      </if>
+      <if test="path != null">
+        `path` = #{path,jdbcType=VARCHAR},
       </if>
       <if test="addTime != null">
         add_time = #{addTime,jdbcType=TIMESTAMP},
@@ -613,4 +686,58 @@
     update litemall_user set deleted = 1
     where id = #{id,jdbcType=INTEGER}
   </update>
+
+  <!-- ================================================================
+       Wave 5 affiliate (hand-written, NOT @mbg.generated): atomic
+       brokerage-balance movements + referral lookups. The credit/debit
+       pair mirrors the annotated incrementNowMoney/decrementNowMoney on
+       the interface; the >= guard on debit makes overdraw a 0-row update
+       instead of a negative balance.
+       ================================================================ -->
+
+  <update id="creditBrokerage">
+    update litemall_user
+    set brokerage_price = brokerage_price + #{amount}, update_time = now()
+    where id = #{userId} and deleted = 0
+  </update>
+
+  <update id="debitBrokerage">
+    update litemall_user
+    set brokerage_price = brokerage_price - #{amount}, update_time = now()
+    where id = #{userId} and brokerage_price &gt;= #{amount} and deleted = 0
+  </update>
+
+  <select id="selectBrokeragePriceByUserId" resultType="java.math.BigDecimal">
+    select brokerage_price from litemall_user
+    where id = #{userId} and deleted = 0
+  </select>
+
+  <!-- The buyer's referrer binding; null when the user is unknown/deleted. -->
+  <select id="selectSpreadUidByUserId" resultType="java.lang.Integer">
+    select spread_uid from litemall_user
+    where id = #{userId} and deleted = 0
+  </select>
+
+  <!-- "Live promoter" check collapsed to a null test: a row comes back only
+       for a non-deleted user the admin has granted is_promoter. -->
+  <select id="selectLivePromoter" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from litemall_user
+    where id = #{userId} and is_promoter = 1 and deleted = 0
+  </select>
+
+  <select id="selectTeamBySpreadUid" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from litemall_user
+    where spread_uid = #{spreadUid} and deleted = 0
+    order by add_time desc, id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countBySpreadUid" resultType="long">
+    select count(*) from litemall_user
+    where spread_uid = #{spreadUid} and deleted = 0
+  </select>
 </mapper>

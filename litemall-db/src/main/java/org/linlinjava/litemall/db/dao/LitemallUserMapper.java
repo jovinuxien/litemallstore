@@ -180,9 +180,37 @@ public interface LitemallUserMapper {
     @Update("UPDATE litemall_user SET experience = experience + #{amount}, update_time = NOW() WHERE id = #{userId} AND deleted = 0")
     int incrementExperience(@Param("userId") Integer userId, @Param("amount") Integer amount);
 
+    // gateway-api Wave-5 invite capture: permanent referral binding at
+    // registration (guard spread_uid = 0 — never rebinds) + referral counter
+    // bump, on the annotated wallet pattern above.
     @Update("UPDATE litemall_user SET spread_uid = #{spreadUid}, spread_time = NOW(), `path` = #{path}, update_time = NOW() WHERE id = #{userId} AND spread_uid = 0 AND deleted = 0")
     int bindSpread(@Param("userId") Integer userId, @Param("spreadUid") Integer spreadUid, @Param("path") String path);
 
     @Update("UPDATE litemall_user SET spread_count = spread_count + 1, update_time = NOW() WHERE id = #{userId} AND is_promoter = 1 AND deleted = 0")
     int incrementSpreadCount(@Param("userId") Integer userId);
+
+    // ------------------------------------------------------------------
+    // Wave 5 affiliate — statements live in LitemallUserMapper.xml.
+    // credit/debit are the brokerage twins of incrementNowMoney/
+    // decrementNowMoney above (guarded UPDATE; debit 0-rows on overdraw).
+    // ------------------------------------------------------------------
+
+    int creditBrokerage(@Param("userId") Integer userId, @Param("amount") BigDecimal amount);
+
+    int debitBrokerage(@Param("userId") Integer userId, @Param("amount") BigDecimal amount);
+
+    BigDecimal selectBrokeragePriceByUserId(@Param("userId") Integer userId);
+
+    /** The user's referrer binding (0 = none); null when the user is unknown/deleted. */
+    Integer selectSpreadUidByUserId(@Param("userId") Integer userId);
+
+    /** Non-null only for a live (not deleted) user with {@code is_promoter = 1}. */
+    LitemallUser selectLivePromoter(@Param("userId") Integer userId);
+
+    /** Page of users referred by {@code spreadUid}, newest binding first. */
+    List<LitemallUser> selectTeamBySpreadUid(@Param("spreadUid") Integer spreadUid,
+                                             @Param("offset") int offset,
+                                             @Param("limit") int limit);
+
+    long countBySpreadUid(@Param("spreadUid") Integer spreadUid);
 }
