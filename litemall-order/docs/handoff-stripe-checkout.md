@@ -1,9 +1,12 @@
 # Handoff — Stripe checkout, cart contract, server totals (Wave 7)
 
 **Audience:** `gateway-api` (edge + customer SPA).
-**Owner:** `order`. **Status of this doc:** §1 and §2 are LANDED (branch `fix/order`,
-commit `0ef4198d3`) — build against them now. §3–§5 are the COMMITTED contract for work
-in flight; the shapes are fixed, so you can build against them before the endpoints exist.
+**Owner:** `order`. **Status: everything here is LANDED on `fix/order`** and verified live
+against a booted order service — §1 (cart contract), §3 (Stripe payment + webhook), §4
+(server totals), §5 (tax). Build against it now.
+
+Design rationale, the deviations from the Wave-7 plan, and what still needs real Stripe
+keys: `litemall-order/docs/adr-stripe-payments.md`.
 
 `order` and `gateway-api` **merge together or not at all** (Wave-7 header): verified
 payments behind an unauthenticated edge is still exploitable, and enforced auth without
@@ -97,7 +100,7 @@ Task B (`orderSlice.ts`).
 
 ---
 
-## 3. Stripe payment (CONTRACT — in flight)
+## 3. Stripe payment (LANDED)
 
 Today `processPayment()` accepts **any non-blank string** as proof of payment, and
 `orderSlice.ts:228` fabricates `pi_stub_${orderId}` while `Checkout.tsx:731` discloses the
@@ -156,36 +159,59 @@ flagged to `platform`, not to you.
 
 ---
 
-## 4. `GET /srv/cart/checkout` — server-authoritative totals (CONTRACT — in flight)
+## 4. `GET /srv/cart/checkout` — server-authoritative totals (LANDED)
 
-Implements the `CheckoutSummary` shape already declared in `cartApi.ts:25-35`.
+Live and verified. Roughly the `CheckoutSummary` shape already declared in
+`cartApi.ts:25-35`, with **two deliberate differences** — see below.
 
 ```
-GET /srv/cart/checkout?addressId=&couponId=&cartId=      X-User-Id required
+GET /srv/cart/checkout?addressId=&couponId=&countryCode=      X-User-Id required
 ```
+
+All params optional (the cart page previews before an address is chosen). Verified
+response for a cart holding one line at 1500.00:
 
 ```jsonc
 { "errno": 0, "data": {
-    "goodsTotalPrice": 49.30,   // sum of catalog-priced checked lines
-    "freightPrice": 0.00,
-    "taxPrice": 0.00,           // NEW vs the current type — see §5
+    "goodsTotalPrice": 1500.00,  // sum of catalog-priced checked lines
+    "freightPrice": 0,
+    "taxPrice": 0.00,            // NEW — add it to your type
     "couponPrice": 0.00,
-    "orderTotalPrice": 49.30,
-    "actualPrice": 49.30,       // the number to charge
-    "availableCouponLength": 0,
-    "checkedGoodsList": [ /* ... */ ] } }
+    "orderTotalPrice": 1500.00,  // goods − coupon + freight + tax
+    "actualPrice": 1500.00,      // the number to charge
+    "checkedGoodsList": [ { "cartId": 7, "goodsId": 1181000, "productId": 2,
+                            "goodsName": "Sleep Set", "goodsSn": "1181000",
+                            "picUrl": "…", "specifications": ["1.8m","red"],
+                            "number": 1, "price": 1500.00 } ] } }
 ```
 
-It calls the **same three services submit calls** — `FreightCalculationService.quote`,
-`promotionFacade.findUsableCoupon`, `priceCalculation` — so preview and charge provably
-agree. That is the whole point: today they can't.
+It calls the **same freight service, coupon facade and tax port that submit calls**, so
+preview and charge agree by construction rather than by review. That is the whole point:
+today `Checkout.tsx:248` reduces its own grand total from cart prices while only freight is
+server-side, so the two can silently diverge.
 
-Add `taxPrice` to your `CheckoutSummary` type. It is `0.00` while tax is disabled (the
-default), so you can wire it now.
+**Two changes from the type you declared:**
+
+1. **`countryCode` is a new query param, and tax needs it.** The address book stores no
+   country (submit takes it from the place-order command for the same reason), so without
+   it `taxPrice` is `0.00` **and the total is not final**. Send the same country the
+   customer picks for checkout.
+2. **`availableCouponLength` is NOT served.** Promotion's facade exposes no "list usable
+   coupons" operation — only `findUsableCoupon` for a specific one — and you already fetch
+   the list from `/srv/coupon/selectlist` (`Checkout.tsx:109`). Inventing a count from a
+   call that doesn't exist would be worse than keeping the source you have. Drop the field
+   or keep populating it from selectlist.
+
+**Error contract:** coupons degrade softly (an unreachable promotion service shows no
+discount, so the previewed total is never *lower* than what submit charges). **Tax does
+not:** enabled + failing provider + a known `countryCode` → **HTTP 503**,
+`{"errno":503,"errmsg":"Tax could not be calculated right now…"}`. Render that as a
+retryable "we can't total your cart right now" — do not fall back to your own client-side
+sum, which would show a total we will refuse to charge.
 
 ---
 
-## 5. Tax (CONTRACT — in flight)
+## 5. Tax (LANDED)
 
 US sales tax + EU VAT via Stripe Tax, `litemall.order.tax.enabled: false` by default.
 
