@@ -95,6 +95,10 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/promotion/topic', title: 'Topics', wired: true },
       { path: '/admin/promotion/groupon-rule', title: 'Groupon rules', wired: true },
       { path: '/admin/promotion/groupon-activity', title: 'Groupon activity', wired: true },
+      // Wave 6: social-posting ledger + Phase-2 targeting campaigns
+      // (promotion-service backends).
+      { path: '/admin/promotion/social', title: 'Social posts', wired: true },
+      { path: '/admin/promotion/campaign', title: 'Campaigns', wired: true },
     ],
   },
   {
@@ -107,6 +111,8 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/sys/log', title: 'Logs', wired: true },
       { path: '/admin/sys/role', title: 'Roles', wired: true },
       { path: '/admin/sys/os', title: 'Storage', wired: true },
+      // Wave 6: customer-mail outbox (order-service backend).
+      { path: '/admin/sys/mail', title: 'Mail outbox', wired: true },
       // Reached from the navbar bell, not the sidebar.
       { path: '/admin/profile', title: 'My profile', wired: true, hidden: true },
     ],

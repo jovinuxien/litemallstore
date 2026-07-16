@@ -54,17 +54,20 @@ spring:
         # Promotion admin CRUD (coupon/combination/campaign) lives under
         # /srv/private/admin/promotion/** in promotion-service — see
         # litemall-promotion-service/docs/spec-gateway-routes.md.
+        # Wave 6: the social-posting admin surface
+        # (/srv/private/admin/social/**) is owned by promotion-service too.
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
-            - Path=/srv/promotion/**,/srv/private/admin/promotion/**
+            - Path=/srv/promotion/**,/srv/private/admin/promotion/**,/srv/private/admin/social/**
         # Admin order + aftersale + extract-approval surfaces live in
         # order-service (not goods-management), so route those namespaces
-        # there explicitly before the catch-all.
+        # there explicitly before the catch-all. Wave 6 adds the mail-outbox
+        # admin surface (/srv/private/admin/mail/**), also order-owned.
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**,/srv/private/admin/mail/**
         # Wave 5: affiliate portal API (dashboard/records/team/links/extract)
         # is owned by order-service. Edge-authenticated (ROLE_AFFILIATE in
         # SecurityConfig) and relayed with the machine token like the admin
@@ -136,14 +139,17 @@ spring:
           uri: lb://loyalty-service-app
           predicates:
             - Path=/srv/loyalty/**
+        # Wave 6: social admin surface rides the promotion route (see default
+        # profile) — keep in sync.
         - id: promotion-service
           uri: lb://promotion-service-app
           predicates:
-            - Path=/srv/promotion/**,/srv/private/admin/promotion/**
+            - Path=/srv/promotion/**,/srv/private/admin/promotion/**,/srv/private/admin/social/**
+        # Wave 6: mail-outbox admin surface rides the order route — keep in sync.
         - id: admin-order
           uri: lb://order-service-app
           predicates:
-            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**
+            - Path=/srv/private/admin/order/**,/srv/private/admin/aftersale/**,/srv/private/admin/extract/**,/srv/private/admin/mail/**
         # Wave 5: mirror of the default-profile affiliate route.
         - id: affiliate-order
           uri: lb://order-service-app

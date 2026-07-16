@@ -58,6 +58,9 @@ import PromoterList from 'app/views/adminViews/adminModule/Affiliate/PromoterLis
 import PromoterLedger from 'app/views/adminViews/adminModule/Affiliate/PromoterLedger';
 import ExtractList from 'app/views/adminViews/adminModule/Affiliate/ExtractList';
 import ProfilePage from 'app/views/adminViews/adminModule/Profile/ProfilePage';
+import SocialPostList from 'app/views/adminViews/adminModule/Social/SocialPostList';
+import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
+import MailOutboxList from 'app/views/adminViews/adminModule/Mail/MailOutboxList';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
 import NotAvailable from 'app/shared/layout/admin/NotAvailable';
 import { ALL_LEAVES } from 'app/shared/layout/admin/menu.config';
@@ -149,6 +152,9 @@ export const AdminRoutes = () => (
       <Route path='promotion/topic' element={<TopicList />} />
       <Route path='promotion/topic/create' element={<TopicForm />} />
       <Route path='promotion/topic/:id' element={<TopicForm />} />
+      {/* Wave 6: social-posting ledger + targeting campaigns (promotion-service) */}
+      <Route path='promotion/social' element={<SocialPostList />} />
+      <Route path='promotion/campaign' element={<CampaignList />} />
       {/* System: admins / notices / logs / roles / storage */}
       <Route path='sys/admin' element={<AdminAccountList />} />
       <Route path='sys/admin/create' element={<AdminAccountForm />} />
@@ -161,6 +167,8 @@ export const AdminRoutes = () => (
       <Route path='sys/role/create' element={<RoleForm />} />
       <Route path='sys/role/:id' element={<RoleForm />} />
       <Route path='sys/os' element={<StorageList />} />
+      {/* Wave 6: customer-mail outbox (order-service backend) */}
+      <Route path='sys/mail' element={<MailOutboxList />} />
       {/* Wave 5: affiliate program administration */}
       <Route path='affiliate/promoter' element={<PromoterList />} />
       <Route path='affiliate/promoter/:id/ledger' element={<PromoterLedger />} />

@@ -151,6 +151,42 @@ const toPink = (d: CombinationPinkDto): ICombinationPink => ({
   expireTime: fromServerDateTime(d.expireTime),
 });
 
+// ----- Campaign (promotion-service Phase 2, admin-only) ---------------------
+// CampaignManagerDtoResponse from /srv/private/admin/promotion/campaign:
+// status arrives as the enum display name (kept as a string), datetimes as
+// ISO strings or LocalDateTime arrays.
+export interface ICampaign {
+  id?: number;
+  name?: string;
+  targetSegments?: string[];
+  minRecencyScore?: number;
+  minFrequencyScore?: number;
+  minMonetaryScore?: number;
+  targetGoodsIds?: number[];
+  linkedPromotionType?: string;
+  linkedPromotionId?: number;
+  startTime?: string;
+  endTime?: string;
+  maxAudience?: number;
+  maxSpend?: number;
+  assignedCount?: number;
+  spentBudget?: number;
+  status?: string;
+}
+
+interface CampaignManagerDto extends Omit<ICampaign, 'id' | 'startTime' | 'endTime'> {
+  campaignId?: number;
+  startTime?: unknown;
+  endTime?: unknown;
+}
+
+const toCampaign = (d: CampaignManagerDto): ICampaign => ({
+  ...d,
+  id: d.campaignId,
+  startTime: fromServerDateTime(d.startTime),
+  endTime: fromServerDateTime(d.endTime),
+});
+
 // Promotion's core JacksonConfig only accepts strict ISO-8601 LocalDateTime
 // ('2026-07-10T00:00:00'); pad the 'YYYY-MM-DDTHH:mm' that datetime-local
 // inputs produce, and drop empty strings.
@@ -202,7 +238,7 @@ export const adminPromotionApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Ad', 'Coupon', 'Combination'],
+  tagTypes: ['Ad', 'Coupon', 'Combination', 'Campaign'],
   endpoints: builder => ({
     // ----- Ad (edge-hosted, legacy envelope) ------------------------------
     listAds: builder.query<PagedList<IAd>, AdListParams>({
@@ -289,6 +325,21 @@ export const adminPromotionApi = createApi({
       query: id => ({ url: `/promotion/combination/${id}/expire`, method: 'POST' }),
       invalidatesTags: ['Combination'],
     }),
+    // ----- Campaign (promotion-service Phase 2) ----------------------------
+    listCampaigns: builder.query<BareList<ICampaign>, void>({
+      query: () => ({ url: '/promotion/campaign/list' }),
+      transformResponse: (r: CampaignManagerDto[]) => ({ list: (r ?? []).map(toCampaign) }),
+      providesTags: ['Campaign'],
+    }),
+    activateCampaign: builder.mutation<PromotionOperation, number>({
+      query: id => ({ url: `/promotion/campaign/${id}/activate`, method: 'POST' }),
+      invalidatesTags: ['Campaign'],
+    }),
+    evaluateCampaign: builder.mutation<PromotionOperation, number>({
+      query: id => ({ url: `/promotion/campaign/${id}/evaluate`, method: 'POST' }),
+      invalidatesTags: ['Campaign'],
+    }),
+
     listPinks: builder.query<BareList<ICombinationPink>, { combinationId?: number | string; status?: number }>({
       query: ({ combinationId, status }) => ({
         url: combinationId != null ? `/promotion/combination/${combinationId}/pinks` : '/promotion/combination/pinks',
@@ -335,4 +386,7 @@ export const {
   useActivateCombinationMutation,
   useExpireCombinationMutation,
   useListPinksQuery,
+  useListCampaignsQuery,
+  useActivateCampaignMutation,
+  useEvaluateCampaignMutation,
 } = adminPromotionApi;
