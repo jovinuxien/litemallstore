@@ -11,268 +11,300 @@
 > (CJ API parity, createOrderV2 lifecycle, tracking, admin panels), Wave 4
 > (legacy wx-api/admin-api decommission + crmeb verticals + account
 > self-service), the goods deals wave (flash-deal lifecycle + related items),
-> and Wave 5 (affiliate program: brokerage engine V39, invite capture,
-> affiliate portal + admin-edge auth split) are fully merged to master;
-> their specs live in git history.
+> Wave 5 (affiliate program: brokerage engine V39, invite capture, affiliate
+> portal + admin-edge auth split), and Wave 6 (social promotion V42 +
+> Meta/TikTok ACLs + admin composer, order mail outbox V41 + core `mail`,
+> Matomo tracker + SPA reset mail, admin social/mail panels) are fully merged
+> to master; their specs live in git history.
 >
-> **Wave 6 (2026-07-16) — social promotion + tracking & customer/scheduled
-> email.** Approved design:
-> `doc/social-email-marketing-plan-2026-07-16.pdf` (audit + locked
+> **Wave 7 (2026-07-16) — PRODUCTION READINESS. This wave is different from
+> every prior wave: it ships almost no features. It closes the gap between
+> "works on my machine" and "can take a stranger's money."** Plan:
+> `doc/production-readiness-plan-2026-07-16.md` (six-agent audit + locked
 > decisions; approved by the user 2026-07-16 — implement directly, no
-> per-worktree re-approval unless deviating). Locked: posting platforms =
-> Meta (FB Page + Instagram) AND TikTok; tracking = deploy Matomo + SPA
-> tracker; posting = manual admin composer + OPT-IN auto-post on deal
-> activation; email = in-house transactional (CustomerMailSender + outbox
-> with `send_at`) + Mautic for scheduled/drip campaigns. The promotion
-> service's Phase-3 ACLs (`acl/matomo`, `acl/mautic`, contract doc
-> `litemall-promotion-service/docs/phase3-marketing-stack-integration.md`)
-> are already coded/tested/disabled — this wave deploys their backends and
-> turns them on; do NOT rewrite them.
-> **USER-SIDE PREREQUISITES (may land mid-wave): Meta business-app tokens,
-> TikTok Content-Posting approval, real SMTP creds. Everything must build,
-> boot, and be verifiable WITHOUT them** (adapters disabled by default,
-> failures → failed ledger rows, dev email via MailHog).
-> **Shared contracts:** UTM = `utm_source=facebook|instagram|tiktok`,
-> `utm_medium=social`, `utm_campaign=<slug>` (link-builder shared with the
-> affiliate `?invite=` links). Mail config namespace =
-> `litemall.customer-mail.*` (enabled:false, from, host/port/user/pass via
-> ENV — core config-precedence trap: core profile yml outranks service yml).
-> Template keys: `order-confirmation`, `shipped`, `refund-approved`,
-> `pickup-code`, `password-reset`.
+> per-worktree re-approval unless deviating).
 >
-> **Dependency order:** `promotion` (marketing infra + social vertical),
-> `order` (transactional mail), and `gateway-api` (tracker + reset adapter)
-> are independent — start all three together. `gateway-admin` panels build
-> against promotion's + order's committed `docs/` handoffs. `goods-management`
-> has a SEPARATE pending assignment (CJ-deals fix) — see its block.
+> **Locked:** market = **US and EU** (⇒ sales tax AND VAT/OSS at checkout,
+> cookie consent + privacy policy are LEGAL prerequisites, not polish);
+> deploy = **single VPS via docker-compose** (⇒ 1 replica/service, which is
+> what makes the unguarded @Scheduled jobs survivable — see `platform` Task
+> E); payments = **Stripe only** (delete the dead PayPal/Alipay/WeChat/
+> Apple/Google enums); scope = **minimum safe launch** (the debt register at
+> the bottom of the plan records what was cut and why — read it before
+> proposing extra work).
+>
+> **🔴 THE HEADLINE — read before touching the money path.** The client
+> currently sets the price of the order: SPA checkout mirrors cart lines with
+> `price` (`orderSlice.ts:158-168`) → `LitemallCartController.toAggregate()`
+> trusts it → `LitemallCartServiceLayer.addCartItem()` persists it →
+> `LitemallOrderDomainService.priceCalculation()` sums those rows into the
+> order total. `POST /srv/cart/items {"price":0.01}` + submit = a real 1-cent
+> order, and a correctly-wired Stripe PaymentIntent VERIFIES it. **Fixing
+> Stripe does not fix this** — `order` Task E0 lands FIRST. The correct
+> server-authoritative pattern already exists in the same class
+> (`addToCart():697-723`, backing legacy `/srv/cart/add`).
+>
+> **USER-SIDE PREREQUISITES (block launch, not development): Stripe live keys
+> + webhook secret, Stripe Tax registration (US nexus states + EU OSS),
+> domain + DNS, real SMTP creds, the VPS. Everything must build, boot, and be
+> verifiable WITHOUT them** — adapters disabled by default, honest typed
+> errors, never a 5xx, never a fake success. **One exception to the Wave-6
+> fail-soft habit: TAX FAILS CLOSED.** A tax outage blocks checkout; it never
+> ships an untaxed order.
+>
+> **Dependency order:** `platform` starts NOW and is independent — its TLS +
+> domain work gates the Stripe webhook, so it is the real critical path
+> despite feeling least urgent. `order` and `gateway-api` start together
+> (agree the PaymentIntent-creation contract + publishable-key seam on day
+> one; `order` commits `docs/handoff-stripe-checkout.md`). **`order` and
+> `gateway-api` MERGE TOGETHER OR NOT AT ALL** — verified payments behind an
+> unauthenticated edge is still exploitable, and enforced auth without real
+> payments strands the funnel. `promotion` and `gateway-admin` have NO Wave-7
+> assignment. `goods-management` stays PARKED — see its block.
+>
+> **Verification is inverted this wave.** Prior waves demoed a feature
+> working. Here the deliverable is the ABSENCE of a vulnerability, and
+> absence does not demo. Every security acceptance is written as an
+> ADVERSARIAL check — send the exploit, prove it fails. The five that are
+> live today and must each be dead: cart price tampering; junk
+> `paymentIntentId` → paid; anonymous cart read/write by `userId`; PaymentIntent
+> replay across orders; forged webhook signature.
 >
 > **Cross-cutting landmines (apply to every block):**
-> - **Flyway:** V39 used (brokerage); **V40 is EARMARKED for
->   goods-management's CJ-deals SKU-charge fix — do NOT take it.** Wave-6
->   migrations (promotion social_post, order mail_outbox) claim V41+ after
->   checking `flyway_schema_history` immediately before first boot.
->   `out-of-order: true` is permanent. Never `flyway repair`.
+> - **Flyway:** V42 is the last used (Wave-6 social_post). **V40 remains
+>   EARMARKED** for goods-management's parked CJ-deals SKU-charge fix — do NOT
+>   take it. Wave-7 migrations claim **V43+** after checking
+>   `flyway_schema_history` immediately before first boot. `out-of-order: true`
+>   is permanent. Never `flyway repair`.
 > - **litemall-db is shared and hand-maintained:** never regenerate; hand-edit
 >   entities + mapper XMLs together (the `now_money` silent failures). After
 >   editing: `mvn install` litemall-db, restart EVERY dependent, verify the
 >   nested `BOOT-INF/lib` copy in running exec jars; concurrent `-am` builds
 >   overwrite `~/.m2`.
-> - **litemall-core is shared too** (order edits it this wave): same
->   install/restart-all-dependents discipline; enable core-read config via
->   ENV VARS (the kdniao precedence lesson).
-> - **svcsecurity is deny-by-default:** no new anonymous customer paths
->   expected this wave; admin/social + admin/mail prefixes ride the
->   machine-token relay like the rest of `/srv/private/**`.
+> - **`andLogicalDeleted()` is INVERTED across 33 domain classes** — the
+>   generator's `Boolean.valueOf("0")`/`("1")` makes BOTH enum constants
+>   `false`, so `andLogicalDeleted(false)` returns only DELETED rows. Dormant
+>   only because zero call sites exist. **Do not call it.** Bind the literal,
+>   as `LitemallAftersaleRepositoryImpl:45-60` already does.
+> - **litemall-core is shared:** install/restart-all-dependents discipline;
+>   enable core-read config via ENV VARS (the kdniao precedence trap — core
+>   profile yml outranks service yml).
+> - **svcsecurity is deny-by-default** — but note the Stripe webhook MUST be
+>   anonymous (Stripe cannot present a machine token). It is signature-gated
+>   instead. That is the ONLY new anonymous path this wave.
+> - **Never rebuild a jar under a running JVM** (hung statics). Kill first.
 > - Verify live through the gateways (`:9000`/`:9001`→`:8090`, `:18080`) —
 >   machine-token ~10-min TTL makes direct service curls flaky.
 
 ### Worktree: `goods-management`
-- **Branch:** `fix/goods-management` — no Wave-6 assignment, but carries the
-  PENDING approved CJ-deals work (design `doc/cj-deals-strategy-2026-07-16.pdf`,
-  committed `304c925b8`): the flash-deal checkout SKU-charge fix (**V40
-  earmarked**), CJ flash deals (floor at cost, promote-path guards), organic
-  suggestSellPrice anchors. That assignment predates Wave 6 and proceeds
-  independently of it.
-
-### Worktree: `promotion`
-- **Branch:** `fix/promotion` — FIRST: `git merge master` (branch tip is
-  Wave-2 vintage). · **Scope:** `litemall-promotion-service/` + the
-  `litemall_social_post` litemall-db additions it owns +
-  `docker-compose/docker-compose.marketing.yml` (it OWNS that file — no one
-  else edits it this wave). Un-parked for Wave 6. Existing module
-  conventions: ports in `application/ports`, ACLs in `infrastructure/acl/**`
-  (domain never imports a client), StatsSourceConfiguration @Primary
-  pattern, core JacksonConfig voids spring.jackson yaml (ISO T bodies),
-  Kafka down = 60s blocking mutations, admin endpoints need X-User-Id AND
-  X-User-Roles:ROLE_ADMIN.
-- **Task A — marketing infra (land FIRST, small):**
-  `docker-compose/docker-compose.marketing.yml` with Matomo + its MariaDB,
-  Mautic + its DB, and MailHog (dev SMTP, 1025/8025) — env-configured
-  creds/ports, dedicated volumes, OPT-IN (not started by `dc-local.sh`;
-  document in `README-DOCKER-COMPOSE.md`). Matomo site "litemall
-  storefront"; emit the tracker URL + site id + auth token as env for the
-  other worktrees (record actual values in the handoff).
-- **Task B — social posting vertical:**
-  1. **Migration** `V<next>__social_post.sql` (V41+ — V40 is earmarked, check
-     history first): `litemall_social_post` (goods_id, platform enum
-     `meta_fb|meta_ig|tiktok`, caption text, media_url, link_url, status
-     `draft|posted|failed`, external_post_id varchar, error varchar(511),
-     posted_by varchar — admin id or `'auto'`, add/update_time, deleted).
-     litemall-db mapper trio (CjSourcingRequestMapper pattern): insert,
-     paged list w/ status+platform filters, guarded status transitions.
-  2. **`SocialPublishPort`** (`application/ports`) + adapters:
-     `infrastructure/acl/meta/` — Graph API, ONE app: FB Page photo/feed
-     post + IG business media-container→publish (page token, ig-user-id via
-     env; long-lived-token renewal documented in the ADR);
-     `infrastructure/acl/tiktok/` — Content Posting API, VIDEO required
-     (source = the goods' video URL; Wave-3 `/srv/goods/videos` surfaces
-     which goods have one). Both disabled by default
-     (`litemall.promotion.social.{meta,tiktok}.enabled:false`), fail-soft:
-     any transport/API error → row status `failed` + error message, log
-     WARN, NEVER a 5xx (Mautic adapter conventions exactly). No new
-     RestTemplate bean if one exists — follow the module's Feign/OkHttp
-     precedent.
-  3. **Admin endpoints** `/srv/private/admin/social/`:
-     `GET compose-preview?goodsId=` (templated caption: name, price, deal
-     price when active, share URL from the shared UTM link-builder +
-     candidate images/video + per-platform availability incl. TikTok
-     video-gate + enabled flags), `POST post` {goodsId, caption, mediaUrl,
-     platforms[]} → one ledger row per platform (posts what it can,
-     per-platform result in the response envelope), `GET list?page=`,
-     `POST {id}/retry` (failed rows only — guarded).
-  4. **Auto-post on deals (OPT-IN):**
-     `litemall.promotion.social.auto-post-deals:false`. v1 = @Scheduled poll
-     (1 min) detecting flash-deal activations in the deals tables (NO
-     cross-module edit; state-change detection must be restart-safe — derive
-     from deal state + an existing `litemall_social_post` row, not from
-     in-memory memory), then templated post to all ENABLED platforms, rows
-     `posted_by='auto'`, dedupe = at most one auto row per (goods, platform,
-     deal activation).
-  5. **Mautic enablement (Wave-6 Phase D):** contact upsert gains EMAIL +
-     nickname (today it sends only the litemall user id — small
-     MauticDeliveryAdapter/DTO edit; skip contacts with NULL email,
-     documented); config notes for enabling `mautic.enabled` + pointing
-     `litemall.promotion.stats.source` to composite once Matomo has data
-     (both remain default-off in committed yml).
-  6. **Handoffs under `docs/`:** `handoff-social-composer.md` (envelopes,
-     platform enum, error strings, video-gate rule — for gateway-admin),
-     `handoff-matomo-tracker.md` (tracker URL/site-id env contract, UTM
-     convention — for gateway-api), `adr-social-publishing.md` (token
-     renewal, fail-soft, auto-post dedupe, TikTok video constraint).
-- **Acceptance:**
-  - `mvn -q -o -pl litemall-promotion-service -am compile` clean; boots with
-    everything disabled (zero behavior change); migration applies.
-  - Marketing compose stack starts; Matomo UI reachable; MailHog reachable;
-    none started by default local bring-up.
-  - compose-preview returns caption+media+availability (TikTok greyed for a
-    video-less goods); post with adapters DISABLED → rows `failed` with a
-    clear "disabled" error, response envelope says so, no 5xx; with dummy
-    creds → failed + API error captured; retry re-fires only failed rows.
-    (Real-token posting verified live IF creds arrive mid-wave; otherwise
-    the ADR records the manual verification steps.)
-  - Auto-post: enable flag + activate a flash deal → exactly ONE auto row
-    per enabled platform; restart mid-window → no duplicate; deactivating/
-    re-activating a deal → new row (documented semantics).
-  - Mautic (container up, enabled): campaign evaluation → segment visible in
-    Mautic, contacts carry real emails; NULL-email users skipped without
-    failing the batch. Kafka/campaign/coupon/groupon regression untouched.
+- **PARKED — no Wave-7 assignment.** Carries the approved-but-parked CJ-deals
+  work (design `doc/cj-deals-strategy-2026-07-16.pdf`; reference impl in
+  reverted commit `a82a19e0e`; **V40 stays earmarked for it**). The user parked
+  it 2026-07-16 pending a redesign for efficiency. The SKU-level swap-charge fix
+  from that wave is KEPT and already on master. Do not resume without a new
+  instruction.
+- **Wave-7 note (informational, no action):** `order` Task E0 makes cart pricing
+  server-authoritative. Flash-deal prices must then resolve server-side from the
+  deals tables rather than arriving on the cart line. If E0 surfaces a deal-price
+  regression, `order` files a handoff here — it does NOT edit goods-management.
 
 ### Worktree: `order`
 - **Branch:** `fix/order` — FIRST: `git merge master`. · **Scope:**
-  `litemall-order/` + the `litemall_mail_outbox` migration + mapper it owns
-  + **litemall-core `mail` package** (it owns this shared-module edit — own
-  the install/restart-all consequences; NotifyService/notify package stays
-  untouched). Schedulers/listeners in `application/internal` as before.
-- **Task — transactional customer email with scheduled outbox (Wave-6
-  Phase C):**
-  1. **Migration** `V<next>__mail_outbox.sql` (V41+ — V40 earmarked):
-     `litemall_mail_outbox` (recipient varchar(127), subject varchar(255),
-     body MEDIUMTEXT, template_key varchar(63), status
-     `pending|sent|failed`, attempts int default 0, send_at datetime,
-     last_error varchar(511), add/update_time, deleted; index on
-     (status, send_at)). Hand-written litemall-db mapper trio: insert,
-     `findSendable(now, limit)` (pending AND send_at<=now, id asc), guarded
-     markSent/markFailed/incrementAttempts, paged admin list.
-  2. **litemall-core `core/mail` package:** `CustomerMailSender` interface +
-     `SmtpCustomerMailSender` (JavaMailSender bean built from
-     `litemall.customer-mail.*`; enabled:false default → a no-op logging
-     impl is the @ConditionalOnMissing default so every core dependent
-     still boots unchanged) + `MailTemplates` (English, plain-text v1, the
-     5 shared template keys; DB is de-Chinesed).
-  3. **Enqueue listeners** (`application/internal`, AFTER_COMMIT + small
-     executor + catch-all WARN — the auto-print/brokerage pattern; NEVER
-     block payment): paid → order-confirmation; shipped → shipped(+shipSn/
-     channel); aftersale approved → refund-approved; write-off/pickup pay →
-     pickup-code. Recipient = buyer's email; NULL/blank → silent skip (no
-     row). Rows default `send_at=now` — future `send_at` = the scheduled-
-     send seam (exposed for reuse, e.g. third-party mail).
-  4. **Outbox sweep** `@Scheduled` (CJ-sweep pattern): `findSendable` batch
-     (limit ~50) → per row try send → markSent / incrementAttempts (cap 5 →
-     failed + last_error). One row's failure never aborts the batch.
-  5. **Admin** `/srv/private/admin/mail/{list,resend}`: list pages the
-     outbox w/ status filter; resend = failed→pending reset (guarded),
-     attempts zeroed.
-  6. **Handoff** `docs/handoff-mail-outbox-admin.md` (envelopes for
-     gateway-admin; config-key table; note that gateway-api's
-     ResetMailSender uses the same `litemall.customer-mail.*` keys but its
-     OWN JavaMailSender — no code dependency on core needed edge-side).
-- **Acceptance:**
-  - `mvn -q -o -pl litemall-order -am compile` clean; boots on defaults
-    (mail disabled — byte-identical behavior, listeners skip); migration
-    applies; FlywayMigrationTest green.
-  - With MailHog (`docker run -p 1025:1025 -p 8025:8025 mailhog/mailhog` or
-    promotion's marketing compose) + enabled via env: pay as an
-    email-bearing user → confirmation visible in MailHog within one sweep;
-    email-less user → no row, no error; ship/refund/pickup each produce
-    their template. SMTP down → pay still 2xx, row cycles to failed after
-    5 attempts with last_error; resend after recovery delivers. A row
-    hand-inserted with future send_at goes out ONLY after that time
-    (scheduled-send proof).
-  - Wave-5 brokerage/wallet/pay/aftersale e2e regression unchanged; grep —
-    application/domain import no adapter/mail-impl packages.
+  `litemall-order/` + the migration it owns (**V43+**). Owns the money path end
+  to end. Full spec: `doc/production-readiness-plan-2026-07-16.md` §Worktree
+  `order` — read it; the summary below is not a substitute.
+- **Task E0 — server-authoritative pricing. DO THIS FIRST, BEFORE STRIPE.**
+  Cart-add must resolve price from the catalog via `goodsFacade` (copy
+  `addToCart():697-723`), and **`price` must be DELETED from
+  `AddCartItemRequest`** — not merely ignored; a field that looks authoritative
+  and isn't will be re-trusted by the next reader. Same for `goodsSn`/
+  `goodsName`/`picUrl` (they reach `order_goods` rows via
+  `LitemallOrderServiceImpl:410-416`). Re-validate the subtotal against live
+  catalog prices at submit → mismatch = clean 422 ("prices changed, review your
+  cart"), never a silent recompute. SPA-side: stop sending `price` in the mirror
+  (`orderSlice.ts:158-168`); delete the never-dispatched `remoteAddToCartThunk`.
+  **Watch the flash-deal regression** (deal price must survive server-side
+  resolution).
+- **Task A — real Stripe verification.** `processPayment():494-510` accepts any
+  non-blank string today. `PaymentIntent.retrieve` + assert ALL of: status
+  `succeeded`, `amount_received` == order total (minor units, no float),
+  currency, `metadata.orderId`. Mismatch → reject, order stays CREATED, no CJ
+  placement. Fail CLOSED. UNIQUE index on the payment reference (replay across
+  orders → reject). **Webhook** `POST /srv/stripe/webhook/order-paid`:
+  `Webhook.constructEvent` signature verification, ANONYMOUS in svcsecurity but
+  signature-gated, idempotent on `event.id`, handles `payment_intent.succeeded`/
+  `.payment_failed`. The webhook — not the client call — is the authoritative
+  paid signal. Config `litemall.stripe.*`, `enabled:false`, keys via ENV with NO
+  committed fallback (copy `promotion/application.yml:58`'s `${VAR:}` pattern).
+  Delete the dead PayPal/Alipay/WeChat/Apple/Google enum values.
+- **Task B — real refunds.** `settleRefundToTender():1052-1058` only logs
+  "would reverse". Implement `Refund.create`; on API failure the order must NOT
+  flip to REFUNDED — surface to admin, keep it retryable.
+- **Task C — tax (US + EU).** Migration: `tax_price` on `litemall_order`
+  (+ `tax_breakdown` JSON for invoices/audit). `TaxCalculationPort` in
+  `application/ports` + `infrastructure/acl/stripe/StripeTaxAdapter` (domain
+  never imports the client). **FAILS CLOSED** — disabled or unreachable blocks
+  checkout. Keep IOSS (`CjDropshipOrderFacadeImpl:54-61`) consistent with VAT
+  collected, or EU buyers pay twice at customs.
+- **Task D — server-authoritative totals.** Implement `GET /srv/cart/checkout`
+  (goods total, freight, tax, discounts, grand total). `cartApi.ts:43` already
+  calls it; it has never existed and the SPA falls back to a client-side total.
+  With tax this is mandatory — the client must never compute money.
+- **Task E — cart identity + broken list + order_sn.** Take identity from
+  `@RequestHeader("X-User-Id")`, never `@RequestParam`/body
+  (`LitemallCartController:32,38,44,51,62,68`; the legacy methods at :82-103
+  already do it right). This also fixes `GET /srv/cart/items`, which **400s on
+  every logged-in fetch today** (client sends no `userId`; the param is
+  required). Migration: UNIQUE on `order_sn` + index on `litemall_order.user_id`
+  and `litemall_cart.user_id`; `generateOrderSn():166-176` checks uniqueness
+  PER USER while reconciliation is global. Move
+  `cjFulfillmentService.placeForPaidOrder` (:333) OUT of the class-level
+  `@Transactional` (sync Feign inside a money TX holds row locks + a pooled
+  connection) — use the module's proven AFTER_COMMIT + outbox pattern.
+- **Acceptance:** compile clean; boots with Stripe disabled (card pay → typed
+  error, NOT a fake success); migration applies. **Adversarial, all must be
+  dead:** `POST /srv/cart/items {"price":0.01}` → line persists at CATALOG
+  price and the order charges full price; `POST /srv/order/{id}/actions/pay`
+  `{"paymentIntentId":"x"}` → rejected; PaymentIntent replayed on a 2nd order →
+  rejected; tampered amount → rejected; forged webhook signature → 400, order
+  untouched; webhook replay of the same `event.id` → no double-processing.
+  `GET /srv/cart/items` returns the server cart (today: 400). Refund visible in
+  the Stripe dashboard; forced API failure → order does NOT show REFUNDED. US
+  and EU addresses each produce a correct server-computed total; tax provider
+  down → checkout BLOCKED. Flash-deal line still charges the deal price.
+  Wave-5/6 wallet/brokerage/aftersale/CJ/mail regression green.
 
 ### Worktree: `gateway-api`
 - **Branch:** `fix/gateway-api` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-api/` only (edge + customer SPA). NO migration.
-- **Task A — Matomo tracker + UTM (consumes promotion's
-  `docs/handoff-matomo-tracker.md`; env contract is stable enough to start):**
-  1. SPA: Matomo tracker bootstrap driven by build/runtime config (tracker
-     URL + site id; ABSENT ⇒ no script injected, byte-identical behavior);
-     track SPA route changes as page views; product detail fires a page view
-     carrying the goods id as a custom dimension; honor Do-Not-Track; no
-     tracking of auth pages' form contents (page URL only).
-  2. Shared link-builder util (SPA-side) implementing the UTM convention
-     from the Wave-6 header; ensure `utm_*` params (like `?invite=`) survive
-     landing → routing without breaking any route matching (regression:
-     `?invite=` stash still works when both are present).
-- **Task B — real reset mail:** implement `ResetMailSender` over spring
-  `JavaMailSender` using the SAME `litemall.customer-mail.*` env keys (add
-  spring-boot-starter-mail to this module if absent); keep the no-op logging
-  impl as the disabled default (`litemall.auth.reset-mail.enabled:false`
-  still the outer gate; anti-enumeration semantics unchanged).
-- **Acceptance:** compile + SPA build. Tracker configured → Matomo shows a
-  storefront visit, a `utm_source=facebook` campaign hit, and a
-  product-detail view with the goods dimension; unconfigured → no matomo
-  script tag in the served HTML/bundle behavior. Reset flow with MailHog +
-  both flags enabled → mail arrives, token round-trip works; disabled →
-  701 + SPA hides the tab (regression). `?invite=` + `utm_*` combined on a
-  product URL → both captured, routing normal.
+  `litemall-gateway-api/` (edge + customer SPA). NO migration. Full spec:
+  `doc/production-readiness-plan-2026-07-16.md` §Worktree `gateway-api`.
+- **Task A — actually enforce authentication.** `SecurityConfig.java:29` is
+  `anyExchange().permitAll()` and `IdentityForwardingFilter:28-31` admits
+  authorization "is deliberately not enforced here yet". Because
+  `MachineTokenRelayFilter:44-62` attaches a machine token to EVERY `lb://`
+  route regardless of caller, downstream `authenticated()` passes for anonymous
+  requests. Enumerate public paths explicitly (catalog, search, product detail,
+  `/auth/**`, health, **the Stripe webhook**) and require an authenticated
+  customer for everything else (`/srv/cart/**`, `/srv/order/**`, `/srv/user/**`).
+  **Only relay the machine token for verified-identity or public requests** —
+  the relay is what makes the missing gate exploitable; close both.
+  **RESOLVED, no guest-cart complication:** the guest cart is sessionStorage-only
+  and `fetchCart` short-circuits when logged out (`cartSlice.ts:33-35`), so
+  gating `/srv/cart/**` costs nothing. Regression: anonymous browse/search/PDP
+  and the `?invite=` + `utm_*` capture must still work.
+- **Task B — real Stripe Elements.** `orderSlice.ts:228` fabricates
+  `pi_stub_${orderId}` and `Checkout.tsx:731` DISCLOSES the placeholder to the
+  customer. Create the PaymentIntent server-side, confirm client-side, send the
+  real id; delete the stub path and the disclosure copy. Publishable key via the
+  Wave-6 `/auth/site-config` seam — absent ⇒ card payment cleanly unavailable,
+  never stubbed.
+- **Task C — cookie consent (LEGAL BLOCKER).** Matomo is live
+  (`shared/tracking/matomo.ts`) with NO consent UI. Opt-in banner: no tracker
+  injection before affirmative consent, persisted choice, withdrawal path; keep
+  the existing DNT hard opt-out. Use Matomo's `requireConsent`/`disableCookies`.
+- **Task D — legal pages (LEGAL BLOCKER).** `Layout.tsx:407-423` renders
+  "Conditions of Use", "Privacy Notice", "Cookie Preferences", "Contact Us" —
+  **all four route to `/help` or `/service`**. They are decorative. Add real
+  routed pages: Terms of Sale, Privacy Policy (must name Matomo, Stripe, CJ,
+  Mautic as processors), Cookie Policy (wired to Task C), Returns/Refund policy.
+  **Copy is a legal deliverable, not an engineering one — if no counsel-reviewed
+  text exists, FLAG IT; do not invent legal text.**
+- **Task E — turn the mail on.** `application.yml:114-118` `reset-mail.enabled:
+  false` makes `ResetPassword.tsx:13-17` HIDE the forgot-password tab entirely —
+  a stock deploy locks out anyone who forgets their password. Enable in the prod
+  profile (needs SMTP); verify the tab appears and the token round-trips.
+- **Acceptance:** compile + SPA build clean. **Adversarial:** anonymous
+  `GET /srv/cart/items?userId=2` → 401; authenticated as user 1 requesting user
+  2's cart → 401/403 (both exploitable today). Anonymous browse/search/PDP still
+  200. `?invite=` + `utm_*` on a product URL → both captured, routing normal.
+  Real Elements payment completes; no `pi_stub_` string in the bundle. Fresh
+  visitor → NO Matomo cookie and NO tracker request before consent; accept →
+  tracking starts; withdraw → stops; DNT still hard-opts-out. All four footer
+  links reach real distinct pages. Reset: tab visible, mail arrives, token
+  round-trips.
+
+### Worktree: `platform` (NEW)
+- **Branch:** `fix/platform` — FIRST: `git merge master`. · **Scope:**
+  `docker/`, `docker-compose/`, `.github/workflows/`, `deploy/`, and per-service
+  **`application-prod.yml` (CREATES prod profiles only — does NOT touch default
+  yml**, so it cannot conflict with `order`/`gateway-api`). Full spec:
+  `doc/production-readiness-plan-2026-07-16.md` §Worktree `platform`.
+  **This worktree exists because nothing currently deploys this application.**
+- **Task A — containerize the real architecture.** The only Dockerfile packages
+  the DEPRECATED monolith on EOL `openjdk:8-jre`; `docker-compose-recover.yml`
+  references `litemall/*` images no script ever builds; `deploy/bin/deploy.sh`
+  is `nohup java -jar` on a hardcoded `/home/ubuntu` path. Write a JDK-21
+  Dockerfile per service (9), multi-stage, non-root, `-XX:MaxRAMPercentage`.
+  `docker-compose.prod.yml`: 9 services + MySQL + ES + Kafka, `restart:
+  unless-stopped`, memory limits, **healthchecks** (none exist for any litemall
+  service today). DELETE or fix `docker-compose-recover.yml` and `deploy/` —
+  they describe an architecture that no longer exists. Fix `dc-local.sh:7` /
+  `dc-cloudconfig.sh:7`, which reference **`docker-compose.base.yml` — a file
+  that does not exist** (the documented local bring-up is broken).
+- **Task B — prod profiles + secrets out of the repo.** No `application-prod.yml`
+  exists for ANY service; all ship `active: dev` with DEBUG logging. Real prod
+  profile per service (INFO, no dev seed, prod pool sizing). Every secret via ENV
+  with **no committed fallback** (`${VAR:}` pattern). Covers: DB password
+  (`Calliste_1006`, 6+ files), CJ API keys (**TWO different values committed —
+  resolve the sprawl**), Tencent COS, WeChat, Stripe. **Fail startup in prod when
+  a JWT key is absent** instead of `RsaKeys.from():49-63` silently generating an
+  ephemeral per-boot pair (`JwtService.java:51-56` only WARNs). Rotate the
+  committed RSA keys for both realms (`gateway-api/application.yml:155-183`,
+  `gateway-admin/bootstrap.yml:48-76`) and the machine-client dev secrets
+  (`AuthServerProps.java:16,19`). **Lock down `litemall-config`:**
+  `application.yml:3-11` exposes `include: "*"` PLUS `env.post.enabled: true`
+  with NO Spring Security in the module — a writable, unauthenticated
+  `/actuator/env`. Untrack `backup/*.sql` + `litemall-all/backup/*.sql` (full
+  dumps incl. the bcrypt admin hash); add a generic `.env*` gitignore rule (only
+  `.env.marketing` is covered). Point the config server away from the PUBLIC
+  `jovinuxien/litemall-config` (it holds no secrets today — all files 0 bytes
+  bar a stale dev yml routing to Wave-4-deleted `wx-api`/`admin-api` — but its
+  empty `application-prod.yml` files are a trap: filling them in PUBLISHES prod
+  config).
+- **Task C — TLS + ingress.** No TLS config exists anywhere; the only nginx
+  sample (`doc/conf/nginx.conf`) is a 2018 relic with deprecated TLSv1/1.1
+  proxying to the dead monolith. Caddy (or nginx + certbot) terminating TLS for
+  both gateways, HSTS, HTTP→HTTPS, real CORS origins (hardcoded
+  `http://localhost:9000` today, `application.yml:22-24`). **Gates `order` Task
+  A's webhook** — Stripe needs a public HTTPS URL.
+- **Task D — CI that actually runs.** `.github/workflows/main.yml` builds JDK
+  8/11 (root pom needs **21**) and npm-tests `litemall-admin`/`litemall-vue`,
+  **deleted in Wave 4** — nothing has been verified automatically in months.
+  Rewrite for JDK 21 + the real reactor + both SPAs. **Make the tests RUN:** root
+  `pom.xml:45` sets `maven.test.skip=true` reactor-wide and
+  `litemall-db/pom.xml:218`'s `skipTests=false` does NOT override it
+  (`maven.test.skip` is the master switch and wins). Fix or quarantine
+  `MapperReturnTest` (breaks test compilation). Add gitleaks on PRs.
+- **Task E — enforce the 1-replica constraint.** Single-VPS makes the unguarded
+  schedulers safe, but NOTHING enforces it. No ShedLock/leader election exists:
+  mail sweep, CJ status sync (per-replica external API budget), catalog refresh,
+  `SocialDealAutoPoster` (would double-post to Meta/TikTok), brokerage unfreeze,
+  outbox relay. **Pin `replicas: 1` in compose with a comment pointing at this
+  constraint**, and add it to the plan's debt register. The trap is a future
+  operator scaling out and silently double-charging the CJ API.
+- **Acceptance:** `docker compose -f docker-compose.prod.yml up` brings all 9
+  services healthy from a clean checkout on a fresh host with **zero secrets in
+  the repo** — every credential from env/`.env` (gitignored). Boot with a
+  required secret missing → **fails fast with a clear message**, does not
+  silently generate an ephemeral key. `curl -X POST
+  https://<host>/actuator/env` on the config server → 404/401, not 200. TLS:
+  A-grade handshake on both gateways; HTTP redirects; Stripe reaches the webhook
+  over public HTTPS. CI green on push and **actually running tests** (break one
+  deliberately → CI red). gitleaks clean.
+
+### Worktree: `promotion`
+- **No Wave-7 assignment.** Wave-6 social vertical + marketing infra are merged
+  (`5d21fe11f`). Do not start work here without a new instruction.
+- **Informational:** `platform` Task E pins replicas to 1 partly because
+  `SocialDealAutoPoster` has no leader election and would double-post to
+  Meta/TikTok. If auto-post is ever wanted at scale, ShedLock is the
+  prerequisite (recorded in the plan's debt register).
 
 ### Worktree: `gateway-admin`
-- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-admin/` (edge + admin SPA). Backend gaps = handoff
-  notes, never cross-module edits. Webpack gotcha: delete
-  `target/checksums.csv.old` if the jar ships without `static/index.html`.
-- **Task A — routes:** `/srv/private/admin/social/**` → the promotion
-  service (match the target the existing coupon/groupon admin routes use),
-  BEFORE the `/srv/**` catch-all, in BOTH `routes:` blocks; confirm
-  `/srv/private/admin/mail/**` rides the existing explicit order admin
-  route (add if prefixes are enumerated). Machine-token relay on both
-  (verify via :18080 curls).
-- **Task B — SPA (against promotion's `handoff-social-composer.md` +
-  order's `handoff-mail-outbox-admin.md`):**
-  1. **Promote composer:** "Promote" button on the goods list/detail →
-     dialog from compose-preview (caption editor prefilled, media picker,
-     platform checkboxes — TikTok disabled with a tooltip when the goods has
-     no video or the platform is disabled, preview pane, post → per-platform
-     result toasts from the response envelope).
-  2. **Social posts page:** paged list (platform + status chips, error
-     tooltip on failed, posted_by incl. `auto` badge), Retry button on
-     failed rows, external link-out when external_post_id exists. Route in
-     admin-routes.tsx — no NotAvailable fallthrough.
-  3. **Mail outbox page:** paged list (status filter, template_key,
-     recipient, attempts, last_error tooltip, send_at), Resend on failed
-     rows.
-  4. **Campaign link-out:** on the existing promotion-campaign admin page,
-     a "Segment in Mautic" link-out (env-configured Mautic base URL; hidden
-     when unset).
-- **Acceptance:**
-  - Compile clean; admin SPA prod build green (checksum gotcha).
-  - Through :18080: composer round-trips against a goods with images (post
-    with adapters disabled → failed rows + honest toasts — the UI contract
-    holds without platform creds); TikTok gate visible on a video-less
-    goods; retry works; posts list paginates and filters.
-  - Mail outbox lists rows produced by order's e2e; resend flips failed →
-    pending and the sweep delivers (MailHog).
-  - admin123/mall123 + affiliate portal + Wave-4/5 admin surfaces regress
-    clean; no admin view routes to NotAvailable for a live backend.
+- **No Wave-7 assignment.** Wave-6 social/mail panels are merged (`cca573cf6`).
+  Do not start work here without a new instruction.
+- **Informational:** admin RBAC is FLAT (`AuthController.java:59,88` hardcodes
+  ROLE_ADMIN for every admin login), which the plan's debt register knowingly
+  defers for a small trusted admin team. It bites on the first non-founder admin
+  hire — a support agent can currently drain wallets via
+  `LitemallAdminExtractController`. Promote to a wave when the team grows.
