@@ -4,7 +4,9 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 import org.testcontainers.containers.MySQLContainer;
 
 import static org.junit.Assert.assertTrue;
@@ -18,6 +20,10 @@ import static org.junit.Assert.assertTrue;
  *
  * Run with: mvn test -pl litemall-db -Dtest=FlywayMigrationTest
  */
+// The schema spot-checks assume allMigrationsRunClean already migrated the
+// container; JUnit's DEFAULT (name-hash) order runs them FIRST. Alphabetical
+// order puts allMigrationsRunClean ahead of every spot-check.
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class FlywayMigrationTest {
 
     // Hand-maintained floor: V35 (store pickup / write-off) is the latest known

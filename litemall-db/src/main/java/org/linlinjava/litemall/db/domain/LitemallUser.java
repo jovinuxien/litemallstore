@@ -163,15 +163,17 @@ public class LitemallUser {
     /** V2: consecutive sign-in days — maps to litemall_user.sign_num */
     private Integer signNum;
 
-    /** Wave-5 affiliate: permanent referrer binding (0 = none) — maps to litemall_user.spread_uid */
+    /** Wave 5 affiliate: referrer's user id (0 = none) — maps to litemall_user.spread_uid */
     private Integer spreadUid;
-    /** Wave-5 affiliate: when the referrer binding was made — maps to litemall_user.spread_time */
+    /** Wave 5 affiliate: when the referral was bound — maps to litemall_user.spread_time */
     private LocalDateTime spreadTime;
-    /** Wave-5 affiliate: how many users this account referred — maps to litemall_user.spread_count */
-    private Integer spreadCount;
-    /** Wave-5 affiliate: admin-granted promoter flag — maps to litemall_user.is_promoter */
+    /** Wave 5 affiliate: admin-granted promoter flag — maps to litemall_user.is_promoter */
     private Boolean isPromoter;
-    /** Wave-5 affiliate: referral ancestry, e.g. "/0/7/" — maps to litemall_user.path */
+    /** Wave 5 affiliate: paid-order count — maps to litemall_user.pay_count */
+    private Integer payCount;
+    /** Wave 5 affiliate: direct referral count — maps to litemall_user.spread_count */
+    private Integer spreadCount;
+    /** Wave 5 affiliate: ancestor chain, e.g. "/0/7/" — maps to litemall_user.path */
     private String path;
 
     /**
@@ -561,11 +563,14 @@ public class LitemallUser {
     public LocalDateTime getSpreadTime() { return spreadTime; }
     public void setSpreadTime(LocalDateTime spreadTime) { this.spreadTime = spreadTime; }
 
-    public Integer getSpreadCount() { return spreadCount; }
-    public void setSpreadCount(Integer spreadCount) { this.spreadCount = spreadCount; }
-
     public Boolean getIsPromoter() { return isPromoter; }
     public void setIsPromoter(Boolean isPromoter) { this.isPromoter = isPromoter; }
+
+    public Integer getPayCount() { return payCount; }
+    public void setPayCount(Integer payCount) { this.payCount = payCount; }
+
+    public Integer getSpreadCount() { return spreadCount; }
+    public void setSpreadCount(Integer spreadCount) { this.spreadCount = spreadCount; }
 
     public String getPath() { return path; }
     public void setPath(String path) { this.path = path; }
