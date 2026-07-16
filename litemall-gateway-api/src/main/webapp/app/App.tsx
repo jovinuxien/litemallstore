@@ -1,9 +1,10 @@
-import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import Layout from 'app/Layout';
 import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
+import { stashInviteCode } from 'app/shared/util/invite';
 
 /**
  * Customer storefront routes. The migrated customer modules (home, product
@@ -52,8 +53,25 @@ const Loading: React.FC = () => (
   </div>
 );
 
+/**
+ * Stashes `?invite=<code>` from ANY landing route into sessionStorage so an
+ * affiliate link visitor can browse freely before registering (Wave-5).
+ * Register.tsx consumes and clears the stash.
+ */
+const InviteCapture: React.FC = () => {
+  const location = useLocation();
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get('invite');
+    if (code && code.trim()) {
+      stashInviteCode(code.trim());
+    }
+  }, [location.search]);
+  return null;
+};
+
 const App: React.FC = () => (
   <BrowserRouter>
+    <InviteCapture />
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path='/' element={<Layout />}>

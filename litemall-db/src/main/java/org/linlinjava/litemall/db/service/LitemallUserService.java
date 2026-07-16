@@ -107,4 +107,24 @@ public class LitemallUserService {
     public void deleteById(Integer id) {
         userMapper.logicalDeleteByPrimaryKey(id);
     }
+
+    /**
+     * Wave-5 affiliate: permanent referrer binding at registration. Guarded on
+     * {@code spread_uid = 0} — an already-bound user is never rebound.
+     *
+     * @return true when the binding row was written
+     */
+    public boolean bindSpread(Integer userId, Integer spreadUid, String path) {
+        return userMapper.bindSpread(userId, spreadUid, path) == 1;
+    }
+
+    /**
+     * Wave-5 affiliate: bump a live promoter's referral counter. Guarded on
+     * {@code is_promoter = 1 AND deleted = 0}.
+     *
+     * @return true when the counter was bumped
+     */
+    public boolean incrementSpreadCount(Integer promoterId) {
+        return userMapper.incrementSpreadCount(promoterId) == 1;
+    }
 }

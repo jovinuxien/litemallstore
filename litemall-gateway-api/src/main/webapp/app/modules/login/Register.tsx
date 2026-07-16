@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { registerCustomerThunk } from 'app/auth/customerAuthSlice';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { clearStashedInviteCode, getStashedInviteCode } from 'app/shared/util/invite';
 
 /**
  * Customer registration against the gateway-api edge (`/auth/register`, customer
@@ -27,6 +28,9 @@ const Register: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  // Wave-5: invite code stashed by InviteCapture from a ?invite= landing link.
+  // Dismissing the chip opts out — the code is dropped and never sent.
+  const [inviteCode, setInviteCode] = useState<string | null>(() => getStashedInviteCode());
 
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/';
 
@@ -58,11 +62,18 @@ const Register: React.FC = () => {
         nickname: nickname || undefined,
         email: email || undefined,
         mobile: mobile || undefined,
+        inviteCode: inviteCode || undefined,
       })
     );
     if (registerCustomerThunk.fulfilled.match(result)) {
+      clearStashedInviteCode();
       navigate(from, { replace: true });
     }
+  };
+
+  const dismissInvite = () => {
+    setInviteCode(null);
+    clearStashedInviteCode();
   };
 
   return (
@@ -70,6 +81,11 @@ const Register: React.FC = () => {
       <Card className='shadow-sm'>
         <Card.Body>
           <h3 className='mb-3'>Create your account</h3>
+          {inviteCode && (
+            <Alert variant='info' dismissible onClose={dismissInvite} className='py-2'>
+              🎉 Invited by a friend
+            </Alert>
+          )}
           {generalError && <Alert variant='danger'>{generalError}</Alert>}
           <Form onSubmit={handleSubmit}>
             <Form.Group className='mb-3'>

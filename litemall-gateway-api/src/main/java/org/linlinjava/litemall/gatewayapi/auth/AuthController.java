@@ -67,14 +67,16 @@ public class AuthController {
     /**
      * Register a new customer account and auto-login (returns login's exact
      * {@code {token, refreshToken, userInfo}} shape — the SPA thunk expects it).
-     * Duplicate username → 704; duplicate mobile → 705.
+     * Duplicate username → 704; duplicate mobile → 705. Optional
+     * {@code inviteCode} binds the account to a live promoter; an invite
+     * problem never fails registration (Wave-5).
      */
     @PostMapping("/register")
     public Mono<Map<String, Object>> register(@RequestBody Map<String, String> body) {
         return Mono.fromCallable(() -> {
             LitemallUser user = account.register(
                     body.get("username"), body.get("password"), body.get("nickname"),
-                    body.get("email"), body.get("mobile"));
+                    body.get("email"), body.get("mobile"), body.get("inviteCode"));
             return ApiResponse.ok(loginPayload(user));
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(AccountService.AccountException.class, this::fail);
