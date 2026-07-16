@@ -16,8 +16,12 @@ const Navbar: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const adminInfo = useAppSelector(state => state.adminAuth.adminInfo);
-  const name = adminInfo?.nickName || 'Admin';
-  const { data: unread = 0 } = useUnreadNoticeCountQuery(undefined, { pollingInterval: 60_000 });
+  const authorities = useAppSelector(state => state.adminAuth.authorities);
+  // Affiliate sessions must not poll the admin-only notice inbox: the edge
+  // would 403 it and the axios/RTKQ error handling would nuke the session.
+  const isAffiliate = authorities.includes('ROLE_AFFILIATE');
+  const name = adminInfo?.nickName || (isAffiliate ? 'Affiliate' : 'Admin');
+  const { data: unread = 0 } = useUnreadNoticeCountQuery(undefined, { pollingInterval: 60_000, skip: isAffiliate });
 
   const onLogout = async () => {
     await dispatch(logoutAdmin());
@@ -33,6 +37,7 @@ const Navbar: React.FC = () => {
       <Breadcrumb />
 
       <div className='right-menu'>
+        {!isAffiliate && (
         <button
           type='button'
           className='btn btn-link p-0 me-3 text-secondary'
@@ -62,6 +67,7 @@ const Navbar: React.FC = () => {
             </span>
           )}
         </button>
+        )}
         <Dropdown align='end'>
           <Dropdown.Toggle as='div' className='avatar-wrapper' bsPrefix='avatar-wrapper'>
             {adminInfo?.avatarUrl ? (

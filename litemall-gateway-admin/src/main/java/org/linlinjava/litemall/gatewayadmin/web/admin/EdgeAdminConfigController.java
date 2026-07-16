@@ -80,6 +80,33 @@ public class EdgeAdminConfigController {
         return blocking(() -> doUpdate("litemall_order_", data));
     }
 
+    // ---- brokerage (litemall_brokerage_*, Wave 5) ----
+    // Rows are seeded by order's V<next>__brokerage_config.sql migration.
+    // LitemallSystemConfigService has no listBrokerage(); the group is
+    // filtered from queryAll() so litemall-db stays untouched (order owns
+    // this wave's litemall-db edits). The key-validation guard below applies
+    // unchanged: keys must exist as live rows or the POST is rejected.
+
+    @GetMapping("/brokerage")
+    public Mono<ApiResponse<?>> listBrokerage() {
+        return blocking(() -> ApiResponse.ok(brokerageRows()));
+    }
+
+    @PostMapping("/brokerage")
+    public Mono<ApiResponse<?>> updateBrokerage(@RequestBody Map<String, String> data) {
+        return blocking(() -> doUpdate("litemall_brokerage_", data));
+    }
+
+    private Map<String, String> brokerageRows() {
+        Map<String, String> data = new java.util.HashMap<>();
+        for (Map.Entry<String, String> e : systemConfigService.queryAll().entrySet()) {
+            if (e.getKey() != null && e.getKey().startsWith("litemall_brokerage_")) {
+                data.put(e.getKey(), e.getValue());
+            }
+        }
+        return data;
+    }
+
     // ---- shared ----
 
     private ApiResponse<?> doUpdate(String prefix, Map<String, String> data) {
@@ -114,6 +141,8 @@ public class EdgeAdminConfigController {
                 return systemConfigService.listExpress();
             case "litemall_order_":
                 return systemConfigService.listOrder();
+            case "litemall_brokerage_":
+                return brokerageRows();
             default:
                 throw new IllegalArgumentException("unknown config group " + prefix);
         }

@@ -53,6 +53,10 @@ import HistoryList from 'app/views/adminViews/adminModule/User/HistoryList';
 import ConfigMall from 'app/views/adminViews/adminModule/Sys/ConfigMall';
 import ConfigExpress from 'app/views/adminViews/adminModule/Sys/ConfigExpress';
 import ConfigOrder from 'app/views/adminViews/adminModule/Sys/ConfigOrder';
+import ConfigBrokerage from 'app/views/adminViews/adminModule/Sys/ConfigBrokerage';
+import PromoterList from 'app/views/adminViews/adminModule/Affiliate/PromoterList';
+import PromoterLedger from 'app/views/adminViews/adminModule/Affiliate/PromoterLedger';
+import ExtractList from 'app/views/adminViews/adminModule/Affiliate/ExtractList';
 import ProfilePage from 'app/views/adminViews/adminModule/Profile/ProfilePage';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
 import NotAvailable from 'app/shared/layout/admin/NotAvailable';
@@ -157,10 +161,16 @@ export const AdminRoutes = () => (
       <Route path='sys/role/create' element={<RoleForm />} />
       <Route path='sys/role/:id' element={<RoleForm />} />
       <Route path='sys/os' element={<StorageList />} />
+      {/* Wave 5: affiliate program administration */}
+      <Route path='affiliate/promoter' element={<PromoterList />} />
+      <Route path='affiliate/promoter/:id/ledger' element={<PromoterLedger />} />
+      <Route path='affiliate/extract' element={<ExtractList />} />
       {/* Wave 4: system config (edge-hosted) + own profile/notice inbox */}
       <Route path='config/mall' element={<ConfigMall />} />
       <Route path='config/express' element={<ConfigExpress />} />
       <Route path='config/order' element={<ConfigOrder />} />
+      {/* Wave 5: brokerage settings (rows seeded by order's migration) */}
+      <Route path='config/brokerage' element={<ConfigBrokerage />} />
       <Route path='profile' element={<ProfilePage />} />
       {placeholderLeaves.map(leaf => (
         <Route key={leaf.path} path={leaf.path.slice(ADMIN_PREFIX.length)} element={<NotAvailable />} />

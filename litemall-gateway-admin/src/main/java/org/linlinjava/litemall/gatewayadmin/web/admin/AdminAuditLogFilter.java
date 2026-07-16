@@ -63,6 +63,13 @@ public class AdminAuditLogFilter implements WebFilter, Ordered {
         if (!isAuditedMutation(request)) {
             return chain.filter(exchange);
         }
+        // Affiliate principals (typ=affiliate, Wave 5) never audit here: their
+        // X-User-Id is a litemall_user id and resolveAdminName would write a
+        // wrong-identity litemall_admin row. (They only reach this prefix as
+        // 403s anyway — SecurityConfig runs after this filter.)
+        if ("affiliate".equals(request.getHeaders().getFirst(IdentityForwardingFilter.HDR_USER_TYPE))) {
+            return chain.filter(exchange);
+        }
         String adminId = request.getHeaders().getFirst(IdentityForwardingFilter.HDR_USER_ID);
         String action = request.getMethod() + " " + request.getURI().getPath();
         String ip = clientIp(request);

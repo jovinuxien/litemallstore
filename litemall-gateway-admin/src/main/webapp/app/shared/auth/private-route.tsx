@@ -2,6 +2,7 @@ import React from 'react';
 import { Translate } from 'react-jhipster';
 import { Navigate, PathRouteProps, useLocation } from 'react-router-dom';
 
+import { AUTHORITIES } from 'app/config/constants';
 import { useAppSelector } from 'app/config/store';
 import ErrorBoundary from 'app/shared/error/error-boundary';
 
@@ -31,6 +32,17 @@ export const PrivateRoute = ({ children, hasAnyAuthorities = [], ...rest }: IOwn
   if (isAuthenticated) {
     if (isAuthorized) {
       return <ErrorBoundary>{children}</ErrorBoundary>;
+    }
+
+    // Wrong realm for this route: bounce the principal to their own home
+    // instead of a dead-end 403 (client-side UX only — the edge SecurityConfig
+    // enforces the real boundary). An affiliate deep-linking to /admin/**
+    // lands on /affiliate/dashboard, an admin on /affiliate/** lands on /admin.
+    if (authorities.includes(AUTHORITIES.AFFILIATE)) {
+      return <Navigate to='/affiliate/dashboard' replace />;
+    }
+    if (authorities.includes(AUTHORITIES.ADMIN)) {
+      return <Navigate to='/admin' replace />;
     }
 
     return (

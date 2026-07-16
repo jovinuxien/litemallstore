@@ -5,6 +5,7 @@ import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.notify.NotifyType;
+import org.linlinjava.litemall.order.application.internal.BrokerageService;
 import org.linlinjava.litemall.order.application.internal.LitemallCartServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallGrouponServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
@@ -86,6 +87,12 @@ public class LitemallOrderOrchestratorService {
     // (confirm the CREATED draft + payBalance); the status-sync scheduler self-heals.
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjLifecycleService cjLifecycleService;
+
+    // Brokerage clawback (Wave 5): an approved aftersale invalidates the order's
+    // still-frozen commission inside this same transaction (guarded status=0 → -1;
+    // an already-unfrozen row deliberately stays valid — see the lifecycle ADR).
+    @Autowired
+    private BrokerageService brokerageService;
 
     // Tags/validates the order's fulfillment source from the cart before placement
     // (mixed CJ+local carts are a clean client error, pre-checked outside placeOrder).
@@ -944,6 +951,9 @@ public class LitemallOrderOrchestratorService {
         orderServiceImpl.refundOrder(orderId, refund);
         // Same CJ cleanup as approveRefund: never leave a paid-back order fulfillable at CJ.
         cjFulfillmentService.cancelAtCjIfDeletable(order, "aftersale approved");
+        // Wave 5: claw back the referrer's still-frozen commission in this same
+        // transaction (0 rows when none was awarded or it already matured).
+        brokerageService.invalidateFrozenForOrder(order.getOrderSn());
 
         aftersale.markRefunded();
         aftersaleRepository.update(aftersale);
