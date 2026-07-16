@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_mail_outbox (customer mail outbox, V41).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.MailOutboxMapper">
+
+  <sql id="columns">
+    id, recipient, subject, body, template_key, status, attempts, send_at,
+    last_error, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallMailOutbox"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_mail_outbox
+      (recipient, subject, body, template_key, status, attempts, send_at,
+       last_error, add_time, update_time, deleted)
+    values
+      (#{recipient}, #{subject}, #{body}, #{templateKey}, #{status}, #{attempts}, #{sendAt},
+       #{lastError}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallMailOutbox">
+    select <include refid="columns" />
+    from litemall_mail_outbox
+    where id = #{id} and deleted = 0
+  </select>
+
+  <!-- Sweep batch: rides idx_mail_outbox_status_send_at; id asc so the oldest
+       backlog drains first and no row starves behind newer traffic. -->
+  <select id="findSendable" resultType="org.linlinjava.litemall.db.domain.LitemallMailOutbox">
+    select <include refid="columns" />
+    from litemall_mail_outbox
+    where deleted = 0 and status = 'pending' and send_at &lt;= #{now}
+    order by id asc
+    limit #{limit}
+  </select>
+
+  <update id="markSent">
+    update litemall_mail_outbox
+    set status = 'sent', attempts = attempts + 1, last_error = null, update_time = #{now}
+    where id = #{id} and status = 'pending' and deleted = 0
+  </update>
+
+  <update id="markFailed">
+    update litemall_mail_outbox
+    set status = 'failed', attempts = attempts + 1, last_error = #{lastError}, update_time = #{now}
+    where id = #{id} and status = 'pending' and deleted = 0
+  </update>
+
+  <update id="incrementAttempts">
+    update litemall_mail_outbox
+    set attempts = attempts + 1, last_error = #{lastError}, update_time = #{now}
+    where id = #{id} and status = 'pending' and deleted = 0
+  </update>
+
+  <update id="resetForResend">
+    update litemall_mail_outbox
+    set status = 'pending', attempts = 0, last_error = null, send_at = #{now}, update_time = #{now}
+    where id = #{id} and status = 'failed' and deleted = 0
+  </update>
+
+  <select id="selectPage" resultType="org.linlinjava.litemall.db.domain.LitemallMailOutbox">
+    select <include refid="columns" />
+    from litemall_mail_outbox
+    where deleted = 0
+    <if test="status != null and status != ''">and status = #{status}</if>
+    order by id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countByStatus" resultType="int">
+    select count(*) from litemall_mail_outbox
+    where deleted = 0
+    <if test="status != null and status != ''">and status = #{status}</if>
+  </select>
+
+</mapper>

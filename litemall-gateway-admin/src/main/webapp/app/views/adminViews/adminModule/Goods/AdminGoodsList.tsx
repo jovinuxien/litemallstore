@@ -5,6 +5,7 @@ import { setLimit, setPage, setSort } from 'app/shared/reducers/private/catalogM
 import { useDeleteGoodsMutation, useGetAdminGoodsListQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
 import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import GoodsImportDialog from 'app/views/adminViews/adminModule/Goods/GoodsImportDialog';
+import PromoteComposerDialog from 'app/views/adminViews/adminModule/Social/PromoteComposerDialog';
 import { exportGoods, ExportFormat } from 'app/views/adminViews/adminModule/Goods/goodsExport';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -68,7 +69,12 @@ const Legend: React.FC = () => (
   </div>
 );
 
-const GoodsRow: React.FC<{ good: IGood; onDelete: (good: IGood) => void; deleting: boolean }> = ({ good, onDelete, deleting }) => {
+const GoodsRow: React.FC<{ good: IGood; onDelete: (good: IGood) => void; onPromote: (good: IGood) => void; deleting: boolean }> = ({
+  good,
+  onDelete,
+  onPromote,
+  deleting,
+}) => {
   const stock = good.stock;
   const isLowStock = typeof stock === 'number' && stock < LOW_STOCK_THRESHOLD;
   const sold = good.salesQuantity ?? 0;
@@ -109,6 +115,10 @@ const GoodsRow: React.FC<{ good: IGood; onDelete: (good: IGood) => void; deletin
         <Link to={`/admin/goods/${good.id}/edit`} className='btn btn-sm btn-outline-secondary me-1'>
           Edit
         </Link>
+        {/* Wave 6: social-posting composer (promotion-service) */}
+        <button className='btn btn-sm btn-outline-success me-1' onClick={() => onPromote(good)}>
+          Promote
+        </button>
         <button className='btn btn-sm btn-outline-danger' disabled={deleting} onClick={() => onDelete(good)}>
           Delete
         </button>
@@ -127,6 +137,7 @@ const AdminGoodsList: React.FC = () => {
   const [showImport, setShowImport] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [exportMenuOpen, setExportMenuOpen] = React.useState(false);
+  const [promoteGoods, setPromoteGoods] = React.useState<IGood | null>(null);
 
   const list = data?.list ?? [];
   const total = data?.total ?? 0;
@@ -236,6 +247,9 @@ const AdminGoodsList: React.FC = () => {
       {isError && <div className='alert alert-danger'>Failed to load goods{errStatus ? ` (${errStatus})` : ''}.</div>}
       {actionError && <div className='alert alert-danger'>{actionError}</div>}
       {showImport && <GoodsImportDialog onClose={() => setShowImport(false)} />}
+      {promoteGoods?.id != null && (
+        <PromoteComposerDialog goodsId={promoteGoods.id} goodsName={promoteGoods.name ?? undefined} onClose={() => setPromoteGoods(null)} />
+      )}
 
       <table className='el-table'>
         <thead>
@@ -263,7 +277,7 @@ const AdminGoodsList: React.FC = () => {
               </td>
             </tr>
           ) : (
-            list.map(good => <GoodsRow key={good.id} good={good} onDelete={onDelete} deleting={deleting} />)
+            list.map(good => <GoodsRow key={good.id} good={good} onDelete={onDelete} onPromote={setPromoteGoods} deleting={deleting} />)
           )}
         </tbody>
       </table>

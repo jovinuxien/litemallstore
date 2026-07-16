@@ -143,6 +143,34 @@ evaluation.
 `enabled` · `base-url` · `username` · `password` · `user-id-field-alias` ·
 `segment-alias-prefix`.
 
+### Wave-6 addendum — contact identity + enablement
+
+The contact upsert (step 2) now also carries **`email`** and **`firstname`**
+(the litemall nickname), resolved via the `CustomerContactProvider` port from
+the shared user read model — so a Mautic campaign on the segment can actually
+send. **Users without an email are skipped** (counted + logged, never failing
+the batch): a contact Mautic cannot email is noise. Segments therefore contain
+only sendable contacts; the audience size in the campaign evaluation may exceed
+the segment size by the number of email-less users.
+
+Enablement against the Wave-6 dev stack
+(`docker-compose/docker-compose.marketing.yml`, Mautic on
+`http://localhost:8096`):
+
+```
+MAUTIC_ENABLED=true
+MAUTIC_BASE_URL=http://localhost:8096
+MAUTIC_USERNAME=<api user>          # Mautic: enable the API + Basic auth first
+MAUTIC_PASSWORD=<api password>      # (Configuration → API Settings), then create
+                                    # the litemall_user_id custom field (alias!)
+```
+
+Both `mautic.enabled` and `litemall.promotion.stats.source` stay default-off /
+`order` in committed yml. Point `PROMOTION_STATS_SOURCE=composite` only after
+the gateway-api Matomo tracker has produced data (see
+`docs/handoff-matomo-tracker.md`) — with an empty Matomo population the
+composite merge adds nothing over `order`.
+
 ---
 
 ## Verification

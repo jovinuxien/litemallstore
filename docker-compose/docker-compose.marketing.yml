@@ -1,0 +1,104 @@
+# Wave-6 marketing stack — Matomo (analytics), Mautic (campaign automation) and
+# MailHog (dev SMTP sink). OPT-IN: deliberately NOT wired into dc-local.sh or any
+# default bring-up; the litemall services boot and run with all of these absent
+# (the promotion-service ACLs and the customer-mail sender are disabled by
+# default). Start it only when working on the marketing verticals:
+#
+#   Up:    docker compose -f docker-compose/docker-compose.marketing.yml up -d
+#   Down:  docker compose -f docker-compose/docker-compose.marketing.yml down
+#
+# The litemall services run on the HOST, so everything is reached through the
+# mapped ports (all overridable via environment):
+#
+#   Matomo UI/tracker  http://localhost:${MATOMO_PORT:-8095}   (first run: web installer;
+#                      create site "litemall storefront", then mint an auth token —
+#                      see litemall-promotion-service/docs/handoff-matomo-tracker.md)
+#   Mautic UI/API      http://localhost:${MAUTIC_PORT:-8096}   (first run: web installer;
+#                      create the litemall_user_id + API credentials per
+#                      litemall-promotion-service/docs/phase3-marketing-stack-integration.md)
+#   MailHog SMTP       localhost:${MAILHOG_SMTP_PORT:-1025}    (litemall.customer-mail.* dev target)
+#   MailHog UI         http://localhost:${MAILHOG_UI_PORT:-8025}
+#
+# Databases are internal to this compose network (not mapped to the host) and
+# keep their state on dedicated named volumes, so `down` (without -v) preserves
+# the Matomo/Mautic setup between sessions.
+version: '3.5'
+
+services:
+  matomo-db:
+    image: mariadb:10.11
+    container_name: litemall-matomo-db
+    command: --max-allowed-packet=64MB
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MATOMO_DB_ROOT_PASSWORD:-matomo-root}
+      MARIADB_DATABASE: ${MATOMO_DB_NAME:-matomo}
+      MARIADB_USER: ${MATOMO_DB_USER:-matomo}
+      MARIADB_PASSWORD: ${MATOMO_DB_PASSWORD:-matomo}
+    volumes:
+      - litemall-matomo-db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  matomo:
+    image: matomo:5
+    container_name: litemall-matomo
+    depends_on:
+      - matomo-db
+    ports:
+      - "${MATOMO_PORT:-8095}:80"
+    environment:
+      # Pre-fills the web installer's database step; the remaining setup
+      # (admin user, the "litemall storefront" site) is done once in the UI.
+      MATOMO_DATABASE_HOST: matomo-db
+      MATOMO_DATABASE_DBNAME: ${MATOMO_DB_NAME:-matomo}
+      MATOMO_DATABASE_USERNAME: ${MATOMO_DB_USER:-matomo}
+      MATOMO_DATABASE_PASSWORD: ${MATOMO_DB_PASSWORD:-matomo}
+    volumes:
+      - litemall-matomo-data:/var/www/html
+    restart: unless-stopped
+
+  mautic-db:
+    image: mysql:8.0
+    container_name: litemall-mautic-db
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MAUTIC_DB_ROOT_PASSWORD:-mautic-root}
+      MYSQL_DATABASE: ${MAUTIC_DB_NAME:-mautic}
+      MYSQL_USER: ${MAUTIC_DB_USER:-mautic}
+      MYSQL_PASSWORD: ${MAUTIC_DB_PASSWORD:-mautic}
+    volumes:
+      - litemall-mautic-db-data:/var/lib/mysql
+    restart: unless-stopped
+
+  mautic:
+    image: mautic/mautic:5-apache
+    container_name: litemall-mautic
+    depends_on:
+      - mautic-db
+    ports:
+      - "${MAUTIC_PORT:-8096}:80"
+    environment:
+      MAUTIC_DB_HOST: mautic-db
+      MAUTIC_DB_PORT: "3306"
+      MAUTIC_DB_DATABASE: ${MAUTIC_DB_NAME:-mautic}
+      MAUTIC_DB_USER: ${MAUTIC_DB_USER:-mautic}
+      MAUTIC_DB_PASSWORD: ${MAUTIC_DB_PASSWORD:-mautic}
+      # Mautic's own outbound mail goes to MailHog in dev, so scheduled/drip
+      # campaign sends are observable without real SMTP credentials.
+      MAUTIC_MAILER_DSN: smtp://mailhog:1025
+    volumes:
+      - litemall-mautic-data:/var/www/html
+    restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: litemall-mailhog
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+volumes:
+  litemall-matomo-db-data:
+  litemall-matomo-data:
+  litemall-mautic-db-data:
+  litemall-mautic-data:

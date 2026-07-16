@@ -20,8 +20,10 @@ import { adminEngagementApi } from './private/services/adminEngagementApi';
 import { adminFreightApi } from './private/services/adminFreightApi';
 import { adminParityApi } from './private/services/adminParityApi';
 import { adminStoreApi } from './private/services/adminStoreApi';
+import { adminMailApi } from './private/services/adminMailApi';
 import { adminOrderCjApi } from './private/services/adminOrderCjApi';
 import { adminPromotionApi } from './private/services/adminPromotionApi';
+import { adminSocialApi } from './private/services/adminSocialApi';
 import { adminStatApi } from './private/services/adminStatApi';
 import { adminSysApi } from './private/services/adminSysApi';
 import { adminUsersApi } from './private/services/adminUsersApi';
@@ -42,6 +44,8 @@ const rootReducer: ReducersMapObject = {
   [adminEngagementApi.reducerPath]: adminEngagementApi.reducer,
   [adminAftersaleApi.reducerPath]: adminAftersaleApi.reducer,
   [adminOrderCjApi.reducerPath]: adminOrderCjApi.reducer,
+  [adminSocialApi.reducerPath]: adminSocialApi.reducer,
+  [adminMailApi.reducerPath]: adminMailApi.reducer,
   [adminSysApi.reducerPath]: adminSysApi.reducer,
   [adminFreightApi.reducerPath]: adminFreightApi.reducer,
   [adminStoreApi.reducerPath]: adminStoreApi.reducer,
