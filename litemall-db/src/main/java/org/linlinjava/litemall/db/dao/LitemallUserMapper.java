@@ -180,6 +180,15 @@ public interface LitemallUserMapper {
     @Update("UPDATE litemall_user SET experience = experience + #{amount}, update_time = NOW() WHERE id = #{userId} AND deleted = 0")
     int incrementExperience(@Param("userId") Integer userId, @Param("amount") Integer amount);
 
+    // gateway-api Wave-5 invite capture: permanent referral binding at
+    // registration (guard spread_uid = 0 — never rebinds) + referral counter
+    // bump, on the annotated wallet pattern above.
+    @Update("UPDATE litemall_user SET spread_uid = #{spreadUid}, spread_time = NOW(), `path` = #{path}, update_time = NOW() WHERE id = #{userId} AND spread_uid = 0 AND deleted = 0")
+    int bindSpread(@Param("userId") Integer userId, @Param("spreadUid") Integer spreadUid, @Param("path") String path);
+
+    @Update("UPDATE litemall_user SET spread_count = spread_count + 1, update_time = NOW() WHERE id = #{userId} AND is_promoter = 1 AND deleted = 0")
+    int incrementSpreadCount(@Param("userId") Integer userId);
+
     // ------------------------------------------------------------------
     // Wave 5 affiliate — statements live in LitemallUserMapper.xml.
     // credit/debit are the brokerage twins of incrementNowMoney/
