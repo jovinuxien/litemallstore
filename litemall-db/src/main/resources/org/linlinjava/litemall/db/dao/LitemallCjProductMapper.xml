@@ -4,7 +4,7 @@
 
   <!-- map-underscore-to-camel-case is enabled, so snake_case columns auto-map to camelCase fields. -->
   <sql id="Base_Column_List">
-    pid, source, title, price, discount_price, suggest_price, description, image_url, brand,
+    pid, source, title, price, discount_price, description, image_url, brand,
     category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
     add_time, update_time, deleted, listed_num, review_count, rating, cj_create_time, reviews_synced_time
   </sql>
@@ -77,7 +77,6 @@
     set variants_json = #{variantsJson},
         attributes_json = #{attributesJson},
         discount_price = #{discountPrice},
-        suggest_price = #{suggestPrice},
         images_json = #{imagesJson},
         detail_html = #{detailHtml},
         listed_num = coalesce(#{listedNum}, listed_num),

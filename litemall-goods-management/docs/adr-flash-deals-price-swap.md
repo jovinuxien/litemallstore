@@ -62,30 +62,19 @@ the V8 shipping-template tables — never create parallel tables). Lifecycle col
   current price and a mid-flight change would desynchronize charged vs displayed.
   Extending `stopTime`, changing `stock`, or disabling is allowed. Overlapping
   enabled windows per goods are refused at authoring (651).
-- **CJ goods are ALLOWED since V40, floored at cost.** CJ bills us wholesale regardless
-  of our charge (the order replay sends vid+quantity only), so a CJ deal spends only our
-  margin. Authoring requires `dealPrice ≥ cost × litemall.deals.cj-min-margin` (default
-  1.0 = never below CJ wholesale; raise for guaranteed margin, drop below 1.0 for
-  deliberate loss-leaders), where cost = snapshot `litemall_cj_product.price ÷
-  pricing.margin` (the snapshot already carries fx × margin). Violations → 650 naming
-  the computed floor. Errno 652 now means only "CJ goods with NO snapshot row" (cost
-  unknowable). `GET /srv/goods/deal` still short-circuits raw `cj_*` (unpromoted,
-  OCS-only) ids to `data:null`.
-- **CJ sync respects live swaps (V40):** all three CJ price writers (nightly 03:00
-  `promoteBatch`, nightly 03:30 enrichment→promote, on-demand enrichment→promote) funnel
-  through `CjProductPromotionService.promoteOne`, which withholds `retail_price`/
-  `counter_price` and matched-SKU `price` writes while the goods is live-swapped —
-  stock/title/gallery/variants keep syncing. A brand-new CJ variant appearing mid-deal
-  inserts at the normal snapshot price (accepted). At unwind the scheduler restores the
-  captured prices, clears the flag, and immediately re-promotes from the snapshot, so a
-  mid-deal CJ reprice converges within one tick instead of waiting for the nightly batch.
-- **Organic CJ anchors (independent of flash deals, V40):** enrichment persists CJ's
-  `suggestSellPrice` (lower bound × usdToCny — NO margin factor: it is already a retail
-  suggestion) into `litemall_cj_product.suggest_price`; the promote adapter lifts
-  `counter_price` to it when it exceeds our retail. CJ items we genuinely sell below
-  CJ's suggested retail thus index a real `discount_pct`, fire `deal_flag`, and appear
-  on Today's Deals with an honest "was" anchor — zero admin work, naturally selective
-  (only items where suggest > margin × cost anchor at all).
+- **CJ goods are refused (errno 652):** CJ price sync / demand-driven enrichment
+  rewrites CJ goods rows and would fight the swap. `GET /srv/goods/deal`
+  short-circuits `cj_*` ids to `data:null` for the same reason.
+  > **PARKED (2026-07-16):** a complete CJ-deals design — cost floor
+  > (`dealPrice ≥ snapshot price ÷ margin × cj-min-margin`), live-swap guards in
+  > `CjProductPromotionService.promoteOne` (all three CJ price writers funnel there),
+  > unwind re-promote from the snapshot, and organic `suggestSellPrice` counter anchors —
+  > shipped, was fully live-verified (floor rejection, guard survival against a live
+  > enrichment, honest 52%-off organic anchor on /deals), and was REVERTED the same day
+  > pending an efficiency redesign. Design: `doc/cj-deals-strategy-2026-07-16.pdf`;
+  > working implementation: commit `a82a19e0e`; proofs: RUNBOOK §25. The V40 columns
+  > (`litemall_seckill.original_sku_prices` — still used by the kept SKU-swap charge fix —
+  > and `litemall_cj_product.suggest_price`, now dormant) remain in the schema.
 - **Claimed counts are read-only order integration:** the tick recomputes
   `sales` from paid-or-later order lines (`order_status >= 201`,
   `pay_time` inside the window) — no order-service hook. A capped deal

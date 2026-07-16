@@ -1260,3 +1260,25 @@ null everywhere before this — the nightly 03:30 batch + on-view enrichment fil
 product carries the counter lift into the index incrementally. deal-min-pct (10) still gates
 deal_flag. The nightly promoteBatch regression (8.8k rows through the guard) rides the same
 promoteOne path proven here — spot-check prices after the first 03:00 run.
+
+### §25 addendum — CJ-facing parts REVERTED same day (2026-07-16, user decision)
+
+The CJ enablement was judged not-yet-efficient and PARKED pending a redesign: the blanket 652
+refusal, `counter == retail` in the adapter, and no suggest_price persistence are all back
+(each site carries a PARKED comment pointing at the strategy PDF + commit `a82a19e0e`, which
+remains the working reference implementation with its live proofs above).
+
+**KEPT (not CJ-specific):** the SKU-level swap charge fix — local flash deals continue to
+charge the deal price (the order-85 proof stands). `original_sku_prices` remains active.
+`suggest_price` stays in the schema, dormant: the enrich statement no longer touches the
+column, so already-stored anchors (e.g. 10008726's 105.91) persist unread — free seed data
+for the redesign. Data reset: 10008726 re-promoted → counter back to 51.26, reindexed →
+/deals is local-only again (`deal_flag=1&source=cj → 0`).
+
+**Incident during the revert (2026-07-16 ~13:48):** a full reindex from a STALE goods-management
+build (docs carried price/discount_price but NO deal fields at all — pre-deals-wave schema)
+replaced the alias (ocs-126) mid-session, dropping /deals to 1 hit. Multi-session hazard: any
+concurrently-running old build's refresh-on-startup / nightly refresh reindexes with ITS document
+schema. Recovered by a full reindex from the current build (ocs-127, 9348 docs, searcher
+restarted, 125 local deals back, 0 CJ). If /deals ever empties: check `_cat/indices` creation
+time + a doc's resultData for missing deal fields before suspecting the deals code.
