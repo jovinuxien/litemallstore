@@ -67,6 +67,15 @@
 			<artifactId>spring-boot-starter-oauth2-client</artifactId>
 		</dependency>
 
+		<!-- Wave-6 Task B: real password-reset mail over SMTP. The sender bean
+		     is gated on litemall.customer-mail.enabled (default false), so the
+		     starter is inert out of the box (no JavaMailSender autoconfig — we
+		     build the sender by hand from litemall.customer-mail.*). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<!-- Customer store + V15 refresh tokens + edge JWT toolkit
 		     (org.linlinjava.litemall.db.auth). litemall-db is servlet-free so
 		     it does not break Spring Cloud Gateway. -->
