@@ -206,6 +206,18 @@ public class LitemallOrderRestController {
             // 422 submit-failed envelope instead of a raw 500. Caught HERE (outside
             // the orchestrator's transaction) to dodge the rollback-only trap.
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.product.LitemallPriceChangedException e) {
+            // A checked line's price moved between add-to-cart and submit: rolled back,
+            // no order row, cart untouched. The 422 names the item and the new price so
+            // the customer re-checks out deliberately rather than being charged an
+            // amount they never saw (Wave 7, Task E0).
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.product.LitemallProductNotFoundException e) {
+            // A checked line's variant carries no price in goods-management, so the
+            // authoritative re-stamp could not price it: rolled back, no order row.
+            // Never fall through to the cart-carried price — that is the client's
+            // number (Wave 7, Task E0). Clean 422, same rollback story as above.
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException e) {
             // Coupon rejected (not owned / expired / below threshold / out of scope /
             // redeem refused): rolled back, no order row, coupon untouched. The 422
