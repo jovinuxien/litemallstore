@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.linlinjava.litemall.db.domain.LitemallUser;
@@ -50,6 +51,9 @@ public class AccountService {
 
     private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
+    /** Wave-5 invite code: {@code "A" + base36(uid)} uppercase (shared contract). */
+    private static final Pattern INVITE_CODE = Pattern.compile("^A([0-9A-Z]{1,12})$");
+
     private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final LitemallUserService userService;
@@ -83,9 +87,14 @@ public class AccountService {
      * <p>Duplicate username → 704 (pre-check for the friendly path; the
      * username unique index + {@link DuplicateKeyException} mapping closes the
      * race). Duplicate non-empty mobile → 705.
+     *
+     * <p>Wave-5: an optional invite code binds the new account to a live
+     * promoter (permanent {@code spread_uid}). An invite problem NEVER fails or
+     * delays registration and surfaces no error — the account just registers
+     * with {@code spread_uid = 0}.
      */
     public LitemallUser register(String username, String password, String nickname,
-                                 String email, String mobile) {
+                                 String email, String mobile, String inviteCode) {
         username = trimToNull(username);
         if (username == null) {
             throw new AccountException(ERR_BAD_ARGUMENT, "username is required");
@@ -130,7 +139,51 @@ public class AccountService {
             // Concurrent register with the same username lost the race.
             throw new AccountException(ERR_USERNAME_TAKEN, "username already registered");
         }
+        bindInvite(user, inviteCode);
         return user;
+    }
+
+    /**
+     * Best-effort invite binding (Wave-5): decode {@code "A" + base36(uid)};
+     * the referrer must exist, be a promoter, and not be deleted. Valid ⇒
+     * permanent {@code spread_uid}/{@code spread_time}/{@code path} on the new
+     * account + referrer {@code spread_count} +1. Anything else — absent,
+     * malformed, unknown, or non-promoter code, or a lost race — is silently
+     * ignored: the account stays registered with {@code spread_uid = 0}.
+     */
+    private void bindInvite(LitemallUser user, String inviteCode) {
+        try {
+            Integer referrerId = decodeInviteCode(inviteCode);
+            if (referrerId == null || referrerId.equals(user.getId())) {
+                return;
+            }
+            LitemallUser referrer = userService.findById(referrerId);
+            if (referrer == null || Boolean.TRUE.equals(referrer.getDeleted())
+                    || !Boolean.TRUE.equals(referrer.getIsPromoter())) {
+                return;
+            }
+            String path = (referrer.getPath() == null || referrer.getPath().isBlank()
+                    ? "/0/" : referrer.getPath()) + referrer.getId() + "/";
+            if (userService.bindSpread(user.getId(), referrer.getId(), path)) {
+                userService.incrementSpreadCount(referrer.getId());
+            }
+        } catch (RuntimeException e) {
+            // Invite binding must never break registration.
+            log.warn("invite binding skipped for new user {}", user.getId(), e);
+        }
+    }
+
+    /** @return the referrer uid, or null when the code is absent/malformed. */
+    private Integer decodeInviteCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        Matcher m = INVITE_CODE.matcher(code.trim().toUpperCase());
+        if (!m.matches()) {
+            return null;
+        }
+        long uid = Long.parseLong(m.group(1), 36);
+        return uid <= 0 || uid > Integer.MAX_VALUE ? null : (int) uid;
     }
 
     /** Authenticated password change; wrong old password → 700. */
