@@ -1,21 +1,23 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import { AUTHORITIES } from 'app/config/constants';
 
-// Single source of truth for the admin session.
+// Single source of truth for the admin-edge session (admin OR affiliate).
 //
-// The admin logs in at the edge (`POST /auth/login`, see gateway AuthController),
-// which returns a self-signed admin JWT. We keep that JWT in redux and mirror it
-// in localStorage so a reload restores the session. Every `/srv` call then
-// carries `Authorization: Bearer <jwt>` (RTK Query prepareHeaders +
-// config/axios-interceptor); the edge validates it for `/srv/private/admin/**`
-// and `/srv/order/admin/**` and relays a trusted identity downstream via
-// MachineTokenRelayFilter. The legacy session-stored token + per-request admin
-// header + hardcoded host scheme is fully removed.
+// Two principal types share this edge (Wave 5): admins log in at
+// `POST /auth/login` (litemall_admin), affiliates at `POST /auth/affiliate/login`
+// (litemall_user promoters). Both return a self-signed edge JWT kept in redux
+// and mirrored in localStorage so a reload restores the session; the ROLE is
+// persisted alongside it so `authorities` survives the reload too. Every `/srv`
+// call carries `Authorization: Bearer <jwt>` (RTK Query prepareHeaders +
+// config/axios-interceptor); the edge enforces ROLE_ADMIN on
+// `/srv/private/admin/**` and ROLE_AFFILIATE on `/srv/private/affiliate/**` —
+// the SPA role gating on top of this is UX only, never the boundary.
 
 export const ADMIN_TOKEN_KEY = 'admin-jwt';
 export const ADMIN_REFRESH_KEY = 'admin-refresh';
+export const ADMIN_ROLE_KEY = 'admin-role';
 
 export interface AdminInfo {
   nickName?: string;
@@ -26,6 +28,7 @@ interface LoginPayload {
   token: string;
   refreshToken: string;
   adminInfo: AdminInfo;
+  role: string;
 }
 
 /** Reads the persisted admin JWT (used by the axios interceptor outside React). */
@@ -37,28 +40,45 @@ export const getAdminToken = (): string | null => {
   }
 };
 
-export const loginAdmin = createAsyncThunk<LoginPayload, { username: string; password: string }, { rejectValue: string }>(
-  'adminAuth/login',
-  async (credentials, thunkApi) => {
-    try {
-      // `/auth/**` is permitted at the edge and is NOT under the '/srv' prefix.
-      const response = await axios.post('/auth/login', credentials);
-      const body = response.data;
-      if (!body || body.errno !== 0 || !body.data?.token) {
-        return thunkApi.rejectWithValue(body?.errmsg || 'Login failed');
-      }
-      const data = body.data;
-      return {
-        token: data.token,
-        refreshToken: data.refreshToken,
-        adminInfo: data.adminInfo || {},
-      };
-    } catch (error) {
-      const msg = (error as { response?: { data?: { errmsg?: string } } })?.response?.data?.errmsg;
-      return thunkApi.rejectWithValue(msg || 'Login failed');
-    }
+/** Persisted role for the current session; defaults to ADMIN for pre-Wave-5 sessions. */
+export const getPersistedRole = (): string => {
+  try {
+    const role = localStorage.getItem(ADMIN_ROLE_KEY);
+    return role === AUTHORITIES.AFFILIATE ? AUTHORITIES.AFFILIATE : AUTHORITIES.ADMIN;
+  } catch {
+    return AUTHORITIES.ADMIN;
   }
-);
+};
+
+const loginThunk = (typePrefix: string, url: string, role: string, infoKey: 'adminInfo' | 'affiliateInfo') =>
+  createAsyncThunk<LoginPayload, { username: string; password: string }, { rejectValue: string }>(
+    typePrefix,
+    async (credentials, thunkApi) => {
+      try {
+        // `/auth/**` is permitted at the edge and is NOT under the '/srv' prefix.
+        const response = await axios.post(url, credentials);
+        const body = response.data;
+        if (!body || body.errno !== 0 || !body.data?.token) {
+          return thunkApi.rejectWithValue(body?.errmsg || 'Login failed');
+        }
+        const data = body.data;
+        return {
+          token: data.token,
+          refreshToken: data.refreshToken,
+          adminInfo: data[infoKey] || {},
+          role,
+        };
+      } catch (error) {
+        const msg = (error as { response?: { data?: { errmsg?: string } } })?.response?.data?.errmsg;
+        return thunkApi.rejectWithValue(msg || 'Login failed');
+      }
+    }
+  );
+
+export const loginAdmin = loginThunk('adminAuth/login', '/auth/login', AUTHORITIES.ADMIN, 'adminInfo');
+// Affiliate login: non-promoters come back errno 403 "not an affiliate" — the
+// errmsg is surfaced as-is on the login form.
+export const loginAffiliate = loginThunk('adminAuth/loginAffiliate', '/auth/affiliate/login', AUTHORITIES.AFFILIATE, 'affiliateInfo');
 
 export const logoutAdmin = createAsyncThunk('adminAuth/logout', async (_, thunkApi) => {
   const refreshToken = (() => {
@@ -69,8 +89,10 @@ export const logoutAdmin = createAsyncThunk('adminAuth/logout', async (_, thunkA
     }
   })();
   if (refreshToken) {
+    // Revoke against the realm the session was minted by.
+    const url = getPersistedRole() === AUTHORITIES.AFFILIATE ? '/auth/affiliate/logout' : '/auth/logout';
     try {
-      await axios.post('/auth/logout', { refreshToken });
+      await axios.post(url, { refreshToken });
     } catch {
       // best-effort; we clear local state regardless
     }
@@ -104,17 +126,18 @@ const initialState: AdminAuthState = {
     }
   })(),
   adminInfo: null,
-  authorities: initialToken ? [AUTHORITIES.ADMIN] : [],
+  authorities: initialToken ? [getPersistedRole()] : [],
   isAuthenticated: !!initialToken,
   bootstrapped: true,
   loading: false,
   errorMessage: null,
 };
 
-const persist = (token: string, refreshToken: string) => {
+const persist = (token: string, refreshToken: string, role: string) => {
   try {
     localStorage.setItem(ADMIN_TOKEN_KEY, token);
     if (refreshToken) localStorage.setItem(ADMIN_REFRESH_KEY, refreshToken);
+    localStorage.setItem(ADMIN_ROLE_KEY, role);
   } catch {
     /* storage unavailable — session lives in redux only */
   }
@@ -124,9 +147,20 @@ const clearPersisted = () => {
   try {
     localStorage.removeItem(ADMIN_TOKEN_KEY);
     localStorage.removeItem(ADMIN_REFRESH_KEY);
+    localStorage.removeItem(ADMIN_ROLE_KEY);
   } catch {
     /* noop */
   }
+};
+
+const applyLogin = (state: AdminAuthState, action: PayloadAction<LoginPayload>) => {
+  state.loading = false;
+  state.token = action.payload.token;
+  state.refreshToken = action.payload.refreshToken;
+  state.adminInfo = action.payload.adminInfo;
+  state.authorities = [action.payload.role];
+  state.isAuthenticated = true;
+  persist(action.payload.token, action.payload.refreshToken, action.payload.role);
 };
 
 const adminAuthSlice = createSlice({
@@ -146,24 +180,8 @@ const adminAuthSlice = createSlice({
   },
   extraReducers: builder => {
     builder
-      .addCase(loginAdmin.pending, state => {
-        state.loading = true;
-        state.errorMessage = null;
-      })
-      .addCase(loginAdmin.fulfilled, (state, action) => {
-        state.loading = false;
-        state.token = action.payload.token;
-        state.refreshToken = action.payload.refreshToken;
-        state.adminInfo = action.payload.adminInfo;
-        state.authorities = [AUTHORITIES.ADMIN];
-        state.isAuthenticated = true;
-        persist(action.payload.token, action.payload.refreshToken);
-      })
-      .addCase(loginAdmin.rejected, (state, action) => {
-        state.loading = false;
-        state.isAuthenticated = false;
-        state.errorMessage = action.payload || action.error.message || 'Login failed';
-      })
+      .addCase(loginAdmin.fulfilled, applyLogin)
+      .addCase(loginAffiliate.fulfilled, applyLogin)
       .addCase(logoutAdmin.fulfilled, state => {
         clearPersisted();
         state.token = null;
@@ -171,7 +189,23 @@ const adminAuthSlice = createSlice({
         state.adminInfo = null;
         state.authorities = [];
         state.isAuthenticated = false;
-      });
+      })
+      .addMatcher(
+        action => action.type === loginAdmin.pending.type || action.type === loginAffiliate.pending.type,
+        state => {
+          state.loading = true;
+          state.errorMessage = null;
+        }
+      )
+      .addMatcher(
+        (action): action is ReturnType<typeof loginAdmin.rejected> =>
+          action.type === loginAdmin.rejected.type || action.type === loginAffiliate.rejected.type,
+        (state, action) => {
+          state.loading = false;
+          state.isAuthenticated = false;
+          state.errorMessage = (action.payload as string) || action.error?.message || 'Login failed';
+        }
+      );
   },
 });
 

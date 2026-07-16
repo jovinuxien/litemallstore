@@ -112,6 +112,16 @@ export const ADMIN_MENU: MenuGroup[] = [
     ],
   },
   {
+    key: 'affiliate',
+    title: 'Affiliate',
+    icon: IconTrendingUp,
+    children: [
+      { path: '/admin/affiliate/promoter', title: 'Promoters', wired: true },
+      { path: '/admin/affiliate/promoter/:id/ledger', title: 'Promoter ledger', wired: true, hidden: true },
+      { path: '/admin/affiliate/extract', title: 'Withdrawals', wired: true },
+    ],
+  },
+  {
     key: 'config',
     title: 'Config',
     icon: IconSliders,
@@ -119,6 +129,7 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/config/mall', title: 'Mall config', wired: true },
       { path: '/admin/config/express', title: 'Express config', wired: true },
       { path: '/admin/config/order', title: 'Order config', wired: true },
+      { path: '/admin/config/brokerage', title: 'Brokerage config', wired: true },
       // WeChat is out of scope for this deployment — the wx config group is
       // deliberately not ported (no backend rows). Stays a placeholder.
       { path: '/admin/config/wx', title: 'WeChat config' },
@@ -136,14 +147,40 @@ export const ADMIN_MENU: MenuGroup[] = [
   },
 ];
 
+// Wave 5: the affiliate portal's own menu — rendered for ROLE_AFFILIATE
+// sessions instead of ADMIN_MENU (see menuForAuthorities). Affiliates never
+// see (or reach — PrivateRoute + edge SecurityConfig) the admin tree.
+export const AFFILIATE_MENU: MenuGroup[] = [
+  {
+    key: 'affiliate-portal',
+    title: 'Affiliate',
+    icon: IconTrendingUp,
+    children: [
+      { path: '/affiliate/dashboard', title: 'Dashboard', wired: true },
+      { path: '/affiliate/links', title: 'My links', wired: true },
+      { path: '/affiliate/earnings', title: 'Earnings', wired: true },
+      { path: '/affiliate/team', title: 'Team', wired: true },
+      { path: '/affiliate/withdraw', title: 'Withdraw', wired: true },
+    ],
+  },
+];
+
+// Role filter: which menu tree a session sees. The admin menu is unchanged
+// for admins; affiliates get only their portal group.
+export const menuForAuthorities = (authorities: string[]): MenuGroup[] =>
+  authorities.includes('ROLE_AFFILIATE') ? AFFILIATE_MENU : ADMIN_MENU;
+
 // Flat list of every leaf — used by the router to register routes and by the
 // breadcrumb/tags-view to resolve a path to its title.
 export const ALL_LEAVES: MenuLeaf[] = ADMIN_MENU.flatMap(g => g.children);
+export const AFFILIATE_LEAVES: MenuLeaf[] = AFFILIATE_MENU.flatMap(g => g.children);
 
 export const titleForPath = (pathname: string): string | undefined => {
   // exact match first
-  const exact = ALL_LEAVES.find(l => l.path === pathname);
+  const exact = ALL_LEAVES.find(l => l.path === pathname) || AFFILIATE_LEAVES.find(l => l.path === pathname);
   if (exact) return exact.title;
+  // affiliate admin: per-promoter ledger drill-down
+  if (/^\/admin\/affiliate\/promoter\/[^/]+\/ledger$/.test(pathname)) return 'Promoter ledger';
   // dynamic goods leaves: create/edit forms before the ':id' detail fallback
   if (pathname === '/admin/goods/create') return 'Add goods';
   if (/^\/admin\/goods\/[^/]+\/edit$/.test(pathname)) return 'Edit goods';

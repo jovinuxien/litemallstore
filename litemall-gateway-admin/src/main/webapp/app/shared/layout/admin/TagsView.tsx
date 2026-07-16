@@ -23,7 +23,9 @@ const TagsView: React.FC = () => {
   const onClose = (e: React.MouseEvent, path: string) => {
     e.stopPropagation();
     dispatch(removeVisitedTag(path));
-    if (location.pathname === path) navigate('/admin/dashboard');
+    // Home is realm-relative: affiliate tabs fall back to the affiliate
+    // dashboard, admin tabs to the admin one.
+    if (location.pathname === path) navigate(path.startsWith('/affiliate') ? '/affiliate/dashboard' : '/admin/dashboard');
   };
 
   return (
