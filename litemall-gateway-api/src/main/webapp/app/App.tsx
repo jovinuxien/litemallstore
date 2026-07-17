@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 
 import Layout from 'app/Layout';
 import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
+import CookieBanner from 'app/shared/tracking/CookieBanner';
 import MatomoTracker from 'app/shared/tracking/MatomoTracker';
 import { stashInviteCode } from 'app/shared/util/invite';
 
@@ -47,6 +48,12 @@ const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
 const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
 const Help = lazy(() => import('app/modules/static/Help'));
 const CustomerService = lazy(() => import('app/modules/static/CustomerService'));
+// Wave-7 Task D: real legal pages. The footer linked all four of these at /help or
+// /service until now; they are a launch prerequisite, not decoration.
+const Terms = lazy(() => import('app/modules/static/Terms'));
+const Privacy = lazy(() => import('app/modules/static/Privacy'));
+const Cookies = lazy(() => import('app/modules/static/Cookies'));
+const Returns = lazy(() => import('app/modules/static/Returns'));
 
 const Loading: React.FC = () => (
   <div className='text-center my-5'>
@@ -74,8 +81,10 @@ const App: React.FC = () => (
   <BrowserRouter>
     <InviteCapture />
     {/* Wave-6: Matomo page-view tracking. No-op unless /auth/site-config
-        carries a tracker URL + site id (and the browser doesn't send DNT). */}
+        carries a tracker URL + site id (and the browser doesn't send DNT).
+        Wave-7: and not until the visitor accepts — see CookieBanner. */}
     <MatomoTracker />
+    <CookieBanner />
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path='/' element={<Layout />}>
@@ -102,6 +111,12 @@ const App: React.FC = () => (
           <Route path='groupon' element={<Groupon />} />
           <Route path='help' element={<Help />} />
           <Route path='service' element={<CustomerService />} />
+          <Route path='terms' element={<Terms />} />
+          <Route path='privacy' element={<Privacy />} />
+          <Route path='cookies' element={<Cookies />} />
+          {/* /returns is the POLICY. /refunds (below) is the customer's own refund
+              list and is protected — the two are different pages, not aliases. */}
+          <Route path='returns' element={<Returns />} />
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
           <Route path='register' element={<Register />} />

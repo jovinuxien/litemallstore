@@ -1,10 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { Elements } from '@stripe/react-stripe-js';
+import type { Stripe } from '@stripe/stripe-js';
+// '/pure', NOT the main entry: importing '@stripe/stripe-js' directly INJECTS js.stripe.com
+// as an import side effect, so merely bundling it would hit Stripe (and its
+// m.stripe.network fingerprinting endpoints) on page load — with no publishable key, no
+// card selected, and no consent. '/pure' defers all of that until loadStripe() is called.
+// Verified: with this import the unconfigured checkout makes ZERO requests to stripe.com.
+import { loadStripe } from '@stripe/stripe-js/pure';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { loadSiteConfig } from 'app/shared/config/siteConfig';
+import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
-import { CheckoutPaymentMethod, OrderGroup, PlacedOrder, payOrder, placeOrder, resetOrderState, ShippingInfo } from 'app/shared/reducers/orderSlice';
+import {
+  CheckoutPaymentMethod,
+  CheckoutTotals,
+  OrderGroup,
+  PlacedOrder,
+  payOrder,
+  placeOrder,
+  previewCheckoutTotals,
+  resetOrderState,
+  ShippingInfo,
+  TaxUnavailableError,
+} from 'app/shared/reducers/orderSlice';
 import { IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
@@ -36,6 +57,35 @@ const COUNTRIES: Array<{ name: string; code: string }> = [
 
 const isCjItem = (it: { source?: string; goodsId?: string }) =>
   it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
+
+/**
+ * Stripe.js is loaded once per page, lazily, and ONLY when a publishable key exists —
+ * an unconfigured deployment must make no Stripe request at all, the same discipline the
+ * Matomo tracker follows. Cached because loadStripe() must not run per render.
+ */
+let stripeJs: Promise<Stripe | null> | null = null;
+const stripePromiseFor = (publishableKey: string): Promise<Stripe | null> => {
+  stripeJs = stripeJs ?? loadStripe(publishableKey);
+  return stripeJs;
+};
+
+/**
+ * Must match `litemall.order.stripe.currency` (order's default). A mismatch is safe rather
+ * than silent: the server asserts the PaymentIntent's currency at pay time and rejects.
+ */
+const STRIPE_CURRENCY = 'usd';
+
+/**
+ * Render a server-computed amount. `undefined` shows a placeholder rather than $0.00 —
+ * "we haven't been told yet" and "it's free" must never look the same on a checkout.
+ */
+const money = (v?: number): string => (v == null ? '—' : `$${v.toFixed(2)}`);
+
+/** Pull a readable message out of an axios/envelope error. */
+const messageOf = (error: unknown, fallback: string): string => {
+  const data = (error as { response?: { data?: { message?: string; errmsg?: string } } })?.response?.data;
+  return data?.message ?? data?.errmsg ?? (error as { errmsg?: string })?.errmsg ?? fallback;
+};
 
 const EMPTY_SHIPPING: ShippingInfo = {
   name: '',
@@ -101,6 +151,21 @@ const CheckoutView: React.FC = () => {
   // pays the SAME order(s) and never re-submits an already-placed group.
   const [placed, setPlaced] = useState<{ local?: PlacedOrder; cj?: PlacedOrder }>({});
   const [addrError, setAddrError] = useState<string | null>(null);
+
+  // Server-computed money (order Wave-7 §4). The client no longer totals anything: with
+  // tax it provably cannot, and without tax it merely disagreed silently.
+  const [totals, setTotals] = useState<CheckoutTotals | null>(null);
+  const [totalsLoading, setTotalsLoading] = useState(false);
+  // Set when the server refuses to total the cart (tax fails CLOSED). Blocks checkout —
+  // never fall back to a client-side sum the server has said it will not charge.
+  const [totalsBlocked, setTotalsBlocked] = useState<string | null>(null);
+
+  // Stripe publishable key from /auth/site-config. null ⇒ card payment is cleanly
+  // unavailable (never stubbed) and the UI falls back to wallet.
+  const [publishableKey, setPublishableKey] = useState<string | null>(null);
+  const [siteConfigLoaded, setSiteConfigLoaded] = useState(false);
+  const [cardError, setCardError] = useState<string | null>(null);
+  const cardRef = useRef<StripeCardHandle>(null);
 
   // Address book (graceful when /srv/address isn't reachable).
   const [addresses, setAddresses] = useState<IAddress[]>([]);
@@ -198,7 +263,65 @@ const CheckoutView: React.FC = () => {
   // Quote failure / endpoint missing → fee 0 (today's behavior); the server still charges
   // its rule at submit, so this is display-best-effort, never a checkout blocker.
   // Pickup: no shipping — freight is 0 by contract.
+  // NOTE: the quotes now drive only the per-template BREAKDOWN detail rows. The charged
+  // freight comes from `totals.freightPrice` below, which the server computed with this
+  // same freight service — one number, one source.
   const shippingFee = isPickup ? 0 : (quotes.local?.freightPrice ?? 0) + (quotes.cj?.freightPrice ?? 0);
+
+  /**
+   * Server-authoritative totals. Mirrors each cart group into the server cart and prices
+   * it — the same sequence submit runs, so preview and charge agree by construction.
+   *
+   * Keyed on everything the server prices against: the lines, the destination (address +
+   * country, which is what makes tax resolvable), and the coupon. Debounced like the
+   * freight quote — qty steppers re-render often and this writes the server cart.
+   */
+  useEffect(() => {
+    if (cartList.length === 0) {
+      setTotals(null);
+      setTotalsBlocked(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setTotalsLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        // Local first, then CJ — the same order handlePlaceOrder submits in, so the
+        // coupon lands on the same group in the preview as it will on the charge.
+        const groups = [cartList.filter(it => !isCjItem(it)), cartList.filter(isCjItem)];
+        const next = await previewCheckoutTotals(groups, {
+          addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
+          couponId: selectedCouponId ?? undefined,
+          countryCode: country.code || undefined,
+        });
+        if (cancelled) return;
+        setTotals(next);
+        setTotalsBlocked(null);
+      } catch (error) {
+        if (cancelled) return;
+        setTotals(null);
+        setTotalsBlocked(
+          error instanceof TaxUnavailableError
+            ? error.message
+            : "We can't total your cart right now — please try again.",
+        );
+      } finally {
+        if (!cancelled) setTotalsLoading(false);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartSignature, country.code, selectedAddressId, selectedCouponId, isPickup]);
+
+  useEffect(() => {
+    loadSiteConfig().then(cfg => {
+      setPublishableKey(cfg.stripePublishableKey);
+      setSiteConfigLoaded(true);
+    });
+  }, []);
 
   useEffect(() => {
     dispatch(fetchCart());
@@ -244,18 +367,42 @@ const CheckoutView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coupons]);
 
-  const cartTotalAmount = useMemo(
+  /**
+   * Display-only, and NOT money we charge: this drives the coupon picker's "spend $X more"
+   * hint and the CJ/local group split. The charged figures all come from `totals`.
+   */
+  const cartLinesSubtotal = useMemo(
     () => cartList.reduce((sum, item) => sum + (item.price ?? 0) * (item.number ?? 0), 0),
     [cartList]
   );
 
   const selectedCoupon = useMemo(() => coupons.find(c => c.id === selectedCouponId) ?? null, [coupons, selectedCouponId]);
-  const couponDiscount = useMemo(() => {
-    if (!selectedCoupon) return 0;
-    if ((selectedCoupon.min ?? 0) > cartTotalAmount) return 0;
-    return Math.min(selectedCoupon.discount ?? 0, cartTotalAmount);
-  }, [selectedCoupon, cartTotalAmount]);
-  const grandTotal = Math.max(0, cartTotalAmount - couponDiscount + shippingFee);
+
+  /** Card payment needs a publishable key. Absent ⇒ unavailable, never stubbed. */
+  const cardAvailable = !!publishableKey;
+
+  /**
+   * Deferred-intent Elements: the amount is declared up front so the card form can mount
+   * before an order exists, and the intent is created only once the order does. Amount is
+   * in minor units and comes from the SERVER total — the browser never decides it.
+   *
+   * Null while the total is unknown: mounting Elements with a guessed amount would show
+   * the customer a figure we might not charge.
+   */
+  const stripeElementsOptions = useMemo(
+    () =>
+      totals && totals.actualPrice > 0
+        ? { mode: 'payment' as const, amount: Math.round(totals.actualPrice * 100), currency: STRIPE_CURRENCY }
+        : null,
+    [totals],
+  );
+
+  // A deployment without Stripe must not strand the customer on a dead radio.
+  useEffect(() => {
+    if (siteConfigLoaded && !cardAvailable && paymentMethod === 'CARD') {
+      setPaymentMethod('WALLET');
+    }
+  }, [siteConfigLoaded, cardAvailable, paymentMethod]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -286,12 +433,32 @@ const CheckoutView: React.FC = () => {
   const checkoutValid = isPickup ? pickupValid : addressValid;
 
   const couponCellValue =
-    couponDiscount > 0 ? `−$${couponDiscount.toFixed(2)}` : coupons.length > 0 ? `${coupons.length} available` : 'None available';
+    (totals?.couponPrice ?? 0) > 0
+      ? `−$${totals!.couponPrice.toFixed(2)}`
+      : coupons.length > 0
+        ? `${coupons.length} available`
+        : 'None available';
 
   // Place each cart group (once) then pay, so a retry never creates a second order.
   const handlePlaceOrder = async () => {
     setAddrError(null);
     setCouponError(null);
+    setCardError(null);
+
+    // 0. Tax fails CLOSED: without a server total there is no number we are allowed to
+    //    charge, so the order is not placed at all.
+    if (totalsBlocked || !totals) {
+      setCardError(totalsBlocked ?? "We can't total your cart right now — please try again.");
+      return;
+    }
+
+    // 0b. Validate the card BEFORE creating an order. Stripe requires elements.submit()
+    //     ahead of confirmation, and a customer with a typo'd card should not be left with
+    //     a placed-but-unpaid order.
+    if (paymentMethod === 'CARD' && !anyPlaced) {
+      const ok = await cardRef.current?.validate();
+      if (!ok) return; // reason rendered inline by StripeCardForm
+    }
 
     // 1. Resolve a saved addressId for the local order, persisting a typed address.
     //    Pickup orders need no delivery address — the store is the destination.
@@ -362,13 +529,47 @@ const CheckoutView: React.FC = () => {
       setPlaced({ ...next });
     }
 
-    // 3. Pay each placed, still-unpaid order (WALLET debit / CARD stub). Paying a CJ
-    //    order also places it at CJ — orderSlice stretches that request's timeout.
+    // 3. Pay each placed, still-unpaid order. WALLET debits server-side. CARD creates a
+    //    PaymentIntent for THIS order (server-side, from the server's own total), confirms
+    //    it with Elements, and reports the real id — the server then re-retrieves it and
+    //    asserts status/amount/currency/metadata.orderId before marking the order paid.
+    //    Paying a CJ order also places it at CJ — orderSlice stretches that timeout.
+    //
+    //    The intent is created per order, after that order exists: a charge must never
+    //    exist without an order behind it. A mixed cart therefore confirms the card once
+    //    per group, which is why each group's amount is its own intent.
     for (const group of ['local', 'cj'] as const) {
       const ord = next[group];
       if (!ord || ord.paid) continue;
+
+      let paymentIntentId: string | undefined;
+      if (paymentMethod === 'CARD') {
+        let intent: { clientSecret: string };
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          intent = await orderApi.paymentIntent(ord.orderId);
+        } catch (error) {
+          // Stripe disabled or failing ⇒ a typed error. The order stays placed and
+          // unpaid, and the customer is told — we do not invent a payment.
+          setCardError(
+            messageOf(error, 'Card payment is unavailable right now. Your order is saved but not paid.'),
+          );
+          setPlaced(next);
+          return;
+        }
+        // eslint-disable-next-line no-await-in-loop
+        const confirmedId = await cardRef.current?.confirm(intent.clientSecret);
+        // null ⇒ StripeCardForm has rendered the reason inline; the order stays unpaid
+        // and the customer can retry, which pays this same order rather than re-placing.
+        if (!confirmedId) {
+          setPlaced(next);
+          return;
+        }
+        paymentIntentId = confirmedId;
+      }
+
       // eslint-disable-next-line no-await-in-loop
-      const res = await dispatch(payOrder({ orderId: ord.orderId, paymentMethod, group }));
+      const res = await dispatch(payOrder({ orderId: ord.orderId, paymentMethod, paymentIntentId, group }));
       if (!payOrder.fulfilled.match(res)) return; // error shown from order state; retry pays only unpaid orders
       next[group] = { ...ord, paid: true };
       setPlaced({ ...next });
@@ -612,7 +813,7 @@ const CheckoutView: React.FC = () => {
               >
                 <option value=''>No coupon ({couponCellValue})</option>
                 {coupons.map(c => (
-                  <option key={c.id} value={c.id} disabled={(c.min ?? 0) > cartTotalAmount}>
+                  <option key={c.id} value={c.id} disabled={(c.min ?? 0) > cartLinesSubtotal}>
                     {c.name ? `${c.name} — ` : ''}−${c.discount} {c.min ? `(over $${c.min})` : ''}
                   </option>
                 ))}
@@ -671,10 +872,10 @@ const CheckoutView: React.FC = () => {
         <CellGroup>
           <OrderSummary
             rows={[
-              { label: 'Goods total', value: `$${cartTotalAmount.toFixed(2)}` },
+              { label: 'Goods total', value: money(totals?.goodsTotalPrice) },
               {
                 label: 'Shipping',
-                value: quoteLoading ? '…' : shippingFee > 0 ? `$${shippingFee.toFixed(2)}` : 'Free',
+                value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : 'Free',
                 variant: 'muted' as const,
               },
               // Wave-4 template breakdown: detail rows only — the charged figure
@@ -697,8 +898,11 @@ const CheckoutView: React.FC = () => {
                     },
                   ]
                 : []),
-              ...(couponDiscount > 0 ? [{ label: 'Coupon', value: `−$${couponDiscount.toFixed(2)}`, variant: 'success' as const }] : []),
-              { label: 'Total', value: `$${grandTotal.toFixed(2)}`, variant: 'total' },
+              ...((totals?.taxPrice ?? 0) > 0 ? [{ label: 'Tax', value: money(totals?.taxPrice) }] : []),
+              ...((totals?.couponPrice ?? 0) > 0
+                ? [{ label: 'Coupon', value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
+                : []),
+              { label: 'Total', value: money(totals?.actualPrice), variant: 'total' },
             ]}
           />
         </CellGroup>
@@ -712,8 +916,16 @@ const CheckoutView: React.FC = () => {
               name='paymentMethod'
               label='Credit / debit card'
               checked={paymentMethod === 'CARD'}
+              disabled={!cardAvailable}
               onChange={() => setPaymentMethod('CARD')}
             />
+            {siteConfigLoaded && !cardAvailable && (
+              // No publishable key ⇒ card payment is honestly unavailable. It is NOT
+              // stubbed, and the customer is not told a placeholder authorisation "runs".
+              <div className='small text-muted ms-4'>
+                Card payment is unavailable right now — please use your wallet balance.
+              </div>
+            )}
           </Cell>
           <Cell>
             <Form.Check
@@ -726,11 +938,13 @@ const CheckoutView: React.FC = () => {
             />
           </Cell>
           <div className='px-3 pb-3'>
-            {paymentMethod === 'CARD' && (
-              <Alert variant='light' className='border mb-0'>
-                Card payment runs when you place the order. Real Stripe card capture is a pending integration, so a placeholder
-                authorisation is used for now.
-              </Alert>
+            {paymentMethod === 'CARD' && cardAvailable && stripeElementsOptions && (
+              <Elements stripe={stripePromiseFor(publishableKey!)} options={stripeElementsOptions}>
+                <StripeCardForm ref={cardRef} disabled={submitting} />
+              </Elements>
+            )}
+            {paymentMethod === 'CARD' && cardAvailable && !stripeElementsOptions && (
+              <div className='text-muted small'>Preparing secure card payment…</div>
             )}
             {paymentMethod === 'WALLET' && (
               <Alert variant='light' className='border mb-0'>
@@ -756,10 +970,21 @@ const CheckoutView: React.FC = () => {
         )}
         {addrError && <Alert variant='danger'>{addrError}</Alert>}
         {orderError && <Alert variant='danger'>{orderError}</Alert>}
+        {cardError && <Alert variant='danger'>{cardError}</Alert>}
+        {/* Tax fails closed: we cannot price the cart, so we do not let it be ordered.
+            Retryable — the provider being down is usually transient. */}
+        {totalsBlocked && (
+          <Alert variant='warning'>
+            {totalsBlocked}{' '}
+            <button type='button' className='btn btn-link p-0 align-baseline' onClick={() => dispatch(fetchCart())}>
+              Retry
+            </button>
+          </Alert>
+        )}
       </div>
 
       <SubmitBar
-        total={grandTotal}
+        total={totals?.actualPrice ?? 0}
         buttonText={
           submitting
             ? phase === 'paying'
@@ -772,7 +997,8 @@ const CheckoutView: React.FC = () => {
               : 'Place order'
         }
         onSubmit={handlePlaceOrder}
-        disabled={!checkoutValid}
+        // No server total ⇒ nothing we are allowed to charge (tax fails closed).
+        disabled={!checkoutValid || !totals || !!totalsBlocked || totalsLoading}
         loading={submitting}
       />
     </Page>

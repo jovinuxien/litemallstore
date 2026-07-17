@@ -21,13 +21,19 @@ interface RemoteIndexCartApiResult
     cartList: IItemCart[];
   }> {}
 
-interface RemoteAddToCartParams {
-  goodsId: number;
-  productId: number;
-  number: number;
-}
-
 const isLoggedIn = (): boolean => !!sessionStorage.getItem('customerToken');
+
+/**
+ * Is this the same cart line? A cart line is a SKU (productId), not a product (goodsId):
+ * matching on goodsId alone collapses "red / 1.8m" and "blue / 2.0m" of one product into
+ * a single line and loses one of them.
+ *
+ * <p>goodsId is compared as a string on purpose — a CJ line's id is `cj_<pid>` and its
+ * vid exceeds JS's safe-integer range, so it must never be Number()-coerced (see
+ * cart.models.ts).
+ */
+const sameLine = (a: IItemCart, b: IItemCart): boolean =>
+  String(a.goodsId) === String(b.goodsId) && a.productId === b.productId;
 
 export const fetchCart = createAsyncThunk<RemoteIndexCartApiResult, void, { rejectValue: ApiResult<null> }>('cart/fetchCart', async (_, thunkApi) => {
   // Anonymous customers have only the local cart; skip the server round-trip.
@@ -41,17 +47,6 @@ export const fetchCart = createAsyncThunk<RemoteIndexCartApiResult, void, { reje
     return thunkApi.rejectWithValue(toReject(error));
   }
 });
-
-export const remoteAddToCartThunk = createAsyncThunk<unknown, RemoteAddToCartParams, { rejectValue: ApiResult<null> }>(
-  'cart/addToCart',
-  async ({ goodsId, productId, number }, thunkApi) => {
-    try {
-      return await cartApi.add({ goodsId, productId, number });
-    } catch (error) {
-      return thunkApi.rejectWithValue(toReject(error));
-    }
-  }
-);
 
 export const updateCartItem = createAsyncThunk<IItemCart, IItemCart, { rejectValue: ApiResult<null> }>(
   'cart/updateCartItem',
@@ -133,9 +128,22 @@ const cartSlice = createSlice({
         const localCart: IItemCart[] = JSON.parse(sessionStorage.getItem('cart') || '[]');
         const mergedCart = [...localCart];
         serverCart.forEach(serverItem => {
-          const idx = mergedCart.findIndex(item => item.goodsId === serverItem.goodsId);
+          const idx = mergedCart.findIndex(item => sameLine(item, serverItem));
           if (idx > -1) {
-            mergedCart[idx].number = (mergedCart[idx].number ?? 0) + (serverItem.number ?? 0);
+            // The server line WINS; quantities are not summed.
+            //
+            // This used to be `local + server`, which was unreachable only because
+            // GET /srv/cart/items 400d on every fetch (the client sent no userId and the
+            // param was required), so serverCart was always empty. order's Wave-7 fix
+            // makes that endpoint work — which would have armed the bug: fetchCart runs on
+            // every Cart and Checkout mount, so a surviving server line (e.g. from a
+            // failed submit, whose mirror leaves the cart populated) would re-add its
+            // quantity on each visit and silently inflate the basket.
+            //
+            // Summing is wrong regardless of reachability: the mirror COPIES the local
+            // cart to the server, so a matching pair is the same line counted twice, not
+            // two additions.
+            mergedCart[idx] = { ...mergedCart[idx], ...serverItem };
           } else {
             mergedCart.push(serverItem);
           }

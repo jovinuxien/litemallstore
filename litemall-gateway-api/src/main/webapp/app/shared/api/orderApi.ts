@@ -57,6 +57,21 @@ export const orderApi = {
    */
   pay: (orderId: number | string, body: { paymentMethod: string; paymentIntentId?: string }) =>
     unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/pay`, body)),
+  /**
+   * POST /srv/order/{id}/actions/payment-intent — create the Stripe PaymentIntent
+   * server-side (order Wave-7, handoff §3).
+   *
+   * The amount is derived from the order's actualPrice and the intent carries
+   * metadata.orderId; both are asserted again at pay time. Never create an intent
+   * client-side — an amount that originates in the browser is the bug this replaces.
+   *
+   * Stripe disabled (the dev default) ⇒ a typed error, never a fake success. The caller
+   * must present card payment as unavailable rather than inventing an id.
+   */
+  paymentIntent: (orderId: number | string) =>
+    unwrap<{ clientSecret: string; amount: number; currency: string; publishableKey?: string }>(
+      baseAxios.post(`${SRV}/order/${orderId}/actions/payment-intent`, {}),
+    ),
   // TODO(/srv follow-up: order) — list/detail/ops not implemented yet.
   list: (params: OrderListParams) => unwrap<{ list: IOrderListItem[]; total: number }>(baseAxios.get(`${SRV}/order/list`, { params })),
   detail: (orderId: number | string) => unwrap<IOrderDetail>(baseAxios.get(`${SRV}/order/detail?orderId=${encodeURIComponent(String(orderId))}`)),
