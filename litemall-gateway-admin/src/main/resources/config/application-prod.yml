@@ -1,0 +1,32 @@
+# Profile: prod — litemall-gateway-admin (admin edge).
+# Activated by SPRING_PROFILES_ACTIVE (docker-compose.prod.yml).
+#
+# SCOPE NOTE: `platform` CREATES prod profiles only; it does not edit this
+# module's default application.yml. Everything here is an override.
+
+logging:
+  level:
+    root: INFO
+    org.linlinjava.litemall: INFO
+    # The default config sets org.springframework.web: DEBUG. In prod that logs
+    # request/response detail — including auth and payment payloads — straight
+    # into container logs, which are plain text on the host and go to anyone with
+    # `docker logs`. INFO here.
+    org.springframework.web: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # health only — the compose healthcheck's sole requirement. Never "*":
+        # /env and /configprops dump every resolved secret.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+server:
+  # Caddy terminates TLS; without this the edge emits http:// redirects.
+  forward-headers-strategy: framework

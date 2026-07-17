@@ -185,7 +185,7 @@
                 <configuration>
                     <url>jdbc:mysql://localhost:3306/litemall?useUnicode=true&amp;characterEncoding=UTF-8&amp;serverTimezone=Asia/Shanghai&amp;allowPublicKeyRetrieval=true&amp;useSSL=false</url>
                     <user>litemall</user>
-                    <password>Calliste_1006</password>
+                    <password>${env.MYSQL_PASSWORD}</password>
                     <locations>
                         <location>filesystem:src/main/resources/db/migration</location>
                     </locations>

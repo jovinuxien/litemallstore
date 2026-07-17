@@ -38,8 +38,11 @@ spring:
   cjdropship:
     api:
       auth:
-        cj-email: "bimeni89@gmail.com"
-        cj-apiKey: "9520bc6b70fe45019688c5ae62be331b"
+        # Wave 7: env, no committed fallback. This was one of TWO different CJ
+        # keys committed for the same account (the other, 8696a1…, lived in
+        # litemall-core) — one variable now, set once in .env.
+        cj-email: ${CJ_EMAIL:}
+        cj-apiKey: ${CJ_API_KEY:}
         access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
         refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
       category:
@@ -132,7 +135,7 @@ spring:
 #  datasource:
 #    url: jdbc:mysql://localhost:3306/litemall
 #    username: root
-#    password: Calliste_1006
+#    password: ${MYSQL_PASSWORD:}   # Wave 7: never commit a real password, even commented out
 #    driver-class-name: com.mysql.cj.jdbc.Driver
 
 

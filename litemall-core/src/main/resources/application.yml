@@ -7,8 +7,13 @@ spring:
   cjdropship:
       api:
         auth:
-          cj-email: "bimeni89@gmail.com"
-          cj-apiKey: "8696a1e060b64e1ab99e3f16cac7a87a"
+          # Wave 7: env, no committed fallback.
+          # THE CJ KEY SPRAWL: two DIFFERENT keys were committed for the same
+          # account — this one (8696a1…) and 9520bc… in goods-management, order
+          # and goodsapi-analytic. Whichever a service loaded decided which key
+          # it authenticated with. One variable now, set once in .env.
+          cj-email: ${CJ_EMAIL:}
+          cj-apiKey: ${CJ_API_KEY:}
           access-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/getAccessToken"
           refresh-url: "https://developers.cjdropshipping.com/api2.0/v1/authentication/refreshAccessToken"
         category:

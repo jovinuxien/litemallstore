@@ -1,0 +1,75 @@
+# gitleaks config — Wave-7 `platform` Task D.
+#
+# Wave 7 removed every committed secret it could reach (Tencent COS, WeChat,
+# Stripe, two divergent CJ keys, both realms' RSA signing keys, the machine-client
+# secrets, the DB password). This config is what stops them coming back: CI fails
+# the PR that reintroduces one.
+#
+# Scope note: this scans FULL HISTORY, and the user's locked decision (2026-07-16)
+# was NO history rewrite — the old values are still in old commits and are being
+# rotated at the provider instead. The allowlist therefore has to tolerate those
+# historical hits without blinding the scanner to NEW ones. Paths are allowlisted
+# only where a match is provably a placeholder or documentation.
+
+title = "litemall gitleaks config"
+
+[extend]
+# Start from gitleaks' maintained rule set (Stripe, AWS, private keys, JWTs, …)
+# rather than hand-rolling regexes that will rot.
+useDefault = true
+
+[allowlist]
+description = "Placeholders, templates and documentation — not credentials"
+
+paths = [
+  # The env template ships deliberately EMPTY values plus instructions.
+  '''docker-compose/\.env\.prod\.example''',
+
+  # Wave-7 docs quote key NAMES and truncated prefixes (e.g. "8696a1…") so a
+  # reader can find them; they contain no usable secret.
+  '''docs/handoff-secrets-wave7\.md''',
+  '''doc/production-readiness-plan-2026-07-16\.md''',
+  '''CLAUDE\.md''',
+
+  # API reference: sample request/response bodies. The "token" values are
+  # illustrative fakes — the JWT decodes to the literal string
+  # "this is litemall token", and the other is a random UUID. Verified, not
+  # assumed. NOTE doc/project.md is deliberately NOT allowlisted: it contained a
+  # REAL WeChat app-secret (fixed in Wave 7), and docs are exactly where a
+  # credential gets pasted "just as an example".
+  '''doc/api\.md''',
+
+  # Historical dumps: untracked in Wave 7 and gitignored, but still present in
+  # history. They are the reason the seeded credentials are being rotated.
+  '''backup/.*\.sql''',
+  '''litemall-all/backup/.*\.sql''',
+
+  # Frontend lockfiles/vendored trees: hashes and integrity strings trip the
+  # entropy rules constantly and hold no secrets.
+  '''.*/node_modules/.*''',
+  '''.*package-lock\.json''',
+
+  # Build output — never committed (.gitignore), and full of high-entropy
+  # checksums/bundle hashes. Present only in a local working tree.
+  '''.*/target/.*''',
+  '''.*\.min\.js''',
+  '''.*\.map''',
+]
+
+regexes = [
+  # The ${VAR:} / ${VAR:?} no-fallback pattern IS the fix — never a finding.
+  '''\$\{[A-Z_]+:[^}]*\}''',
+  # Maven/ant style placeholders left in generator + schema files.
+  '''\$\{env\.[A-Z_]+\}''',
+  '''__MYSQL_PASSWORD__''',
+  # Obvious non-secrets that remain in upstream sample config.
+  '''(?i)(xxxxxx|111111|your-?secret|changeme|example\.com)''',
+  # Test doubles introduced by Wave 7 in place of real keys.
+  '''test-cj-api-key''',
+]
+
+stopwords = [
+  "example",
+  "placeholder",
+  "dummy",
+]

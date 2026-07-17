@@ -1,0 +1,85 @@
+# litemall TLS ingress — Wave-7 `platform` Task C.
+#
+# There was NO TLS config anywhere in this repo. The only sample
+# (doc/conf/nginx.conf) is a 2018 relic offering TLSv1/TLSv1.1 — both long
+# broken and rejected by modern browsers — and it proxies to the deprecated
+# monolith, which no longer exists.
+#
+# Caddy over nginx+certbot: automatic Let's Encrypt issuance AND renewal, modern
+# TLS defaults, and HSTS + HTTP->HTTPS with no hand-written cipher lists to get
+# wrong. Everything below is ~15 lines of intent rather than 200 of boilerplate.
+#
+# Caddy is the ONLY container publishing ports to the host. Both gateways, all
+# domain services, MySQL, Kafka, ES, Redis and RabbitMQ stay on the internal
+# docker network and are unreachable from outside.
+#
+#   SHOP_DOMAIN  -> customer storefront  (gateway-api  :8090)
+#   ADMIN_DOMAIN -> admin console        (gateway-admin:8080)
+#
+# LOCAL/STAGING: set SHOP_DOMAIN=localhost. Caddy then issues its own internal
+# CA cert — TLS works end to end with no public DNS, so the whole config is
+# exercisable before the real domain exists.
+
+{
+	# Cert notifications + expiry warnings. Not optional in prod: a silently
+	# failed renewal is a total outage 90 days later.
+	email {$ACME_EMAIL}
+
+	# Uncomment to use the Let's Encrypt STAGING CA while testing DNS/rate
+	# limits (staging certs are untrusted by browsers — that is the point).
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# ---------------------------------------------------------------------------
+# Customer storefront
+# ---------------------------------------------------------------------------
+{$SHOP_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# 2 years + preload: the value browsers require for HSTS preloading.
+		# Note this is a COMMITMENT — the domain must stay HTTPS-only.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Don't advertise the server.
+		-Server
+	}
+
+	# The Stripe webhook (order Task A) MUST be reachable here over public HTTPS
+	# — Stripe will not deliver to a self-signed or plaintext endpoint. It is
+	# anonymous by necessity (Stripe cannot present a machine token) and is
+	# gated by signature verification instead, not by network position.
+	# It needs no special rule: it is a normal /srv path proxied below. This
+	# comment exists so nobody "hardens" the edge by blocking it.
+	reverse_proxy gateway-api:8090 {
+		# Let the app distinguish real client IPs and know it is behind TLS,
+		# so redirects/links are https:// and rate limits see real addresses.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Admin console
+# ---------------------------------------------------------------------------
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy gateway-admin:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# HTTP->HTTPS is automatic in Caddy: any site defined with a hostname gets a
+# port-80 redirect for free. No explicit block needed, and no way to forget it.
