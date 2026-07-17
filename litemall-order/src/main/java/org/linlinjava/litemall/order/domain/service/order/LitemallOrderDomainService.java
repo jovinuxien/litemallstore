@@ -3,6 +3,8 @@ import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.order.application.util.exception.product.LitemallInsufficientStockException;
+import org.linlinjava.litemall.order.application.util.exception.product.LitemallPriceChangedException;
+import org.linlinjava.litemall.order.application.util.exception.product.LitemallProductNotFoundException;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallGrouponRulesAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsProductAggregate;
@@ -29,8 +31,20 @@ public class LitemallOrderDomainService {
     }
 
     /**
+     * Authoritative stock + price gate for a checkout, run against goods-management
+     * immediately before {@link #priceCalculation}.
      *
-     * @param checkedCartItems
+     * <p>Despite the name this is the money path's guard, not just a stock check: it is
+     * what makes the order total independent of the cart row, and therefore of the
+     * client. Anything that weakens it (a null price falling through, a mismatch being
+     * silently absorbed) puts the client back in charge of the price — so both are
+     * hard failures. Callers must invoke it BEFORE pricing; today
+     * {@code LitemallOrderServiceImpl.placeOrder} is the only caller.
+     *
+     * @param checkedCartItems the checked cart lines; priced in place on success
+     * @throws LitemallInsufficientStockException variant missing, or not enough stock
+     * @throws LitemallProductNotFoundException   variant carries no price
+     * @throws LitemallPriceChangedException      cart price disagrees with the catalog
      */
     public void validateProductStock(List<LitemallCartAggregate> checkedCartItems, LitemallGoodsFacade goodsFacade) {
         for(LitemallCartAggregate cartItem : checkedCartItems){
@@ -49,10 +63,27 @@ public class LitemallOrderDomainService {
             // Stamp the authoritative current price from goods-management onto the
             // cart line, so downstream price calculation and the persisted
             // order-goods price come from the source of truth rather than a stale
-            // or tampered cart row.
-            if(goodsProduct.getPrice() != null){
-                cartItem.setPrice(goodsProduct.getPrice());
+            // or tampered cart row. This is the last line of defence for the order
+            // total, so a variant we cannot price must fail the checkout: falling
+            // through would charge whatever the cart row happens to carry.
+            if (goodsProduct.getPrice() == null) {
+                throw new LitemallProductNotFoundException(
+                        "goods-management returned no price for product " + cartItem.getProductId().getId()
+                                + " — it cannot be ordered right now");
             }
+
+            // The cart line is priced from the catalog at add time, so a disagreement
+            // here means the price moved while the cart sat (or the row predates
+            // server-authoritative cart-add). Recomputing silently would charge an
+            // amount the customer never saw — surface it and let them re-check out.
+            if (cartItem.getPrice() == null || !cartItem.getPrice().equals(goodsProduct.getPrice())) {
+                throw new LitemallPriceChangedException(
+                        "The price of \"" + cartItem.getGoodsName() + "\" changed to "
+                                + goodsProduct.getPrice().getAmount()
+                                + " — review your cart and place the order again.");
+            }
+
+            cartItem.setPrice(goodsProduct.getPrice());
         }
     }
 

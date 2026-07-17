@@ -33,16 +33,20 @@
 > the bottom of the plan records what was cut and why — read it before
 > proposing extra work).
 >
-> **🔴 THE HEADLINE — read before touching the money path.** The client
-> currently sets the price of the order: SPA checkout mirrors cart lines with
-> `price` (`orderSlice.ts:158-168`) → `LitemallCartController.toAggregate()`
-> trusts it → `LitemallCartServiceLayer.addCartItem()` persists it →
-> `LitemallOrderDomainService.priceCalculation()` sums those rows into the
-> order total. `POST /srv/cart/items {"price":0.01}` + submit = a real 1-cent
-> order, and a correctly-wired Stripe PaymentIntent VERIFIES it. **Fixing
-> Stripe does not fix this** — `order` Task E0 lands FIRST. The correct
-> server-authoritative pattern already exists in the same class
-> (`addToCart():697-723`, backing legacy `/srv/cart/add`).
+> **🔴 THE HEADLINE — CORRECTED 2026-07-16, and now FIXED (`order`, merged).**
+> The audit claimed `POST /srv/cart/items {"price":0.01}` + submit = a real
+> 1-cent order. **It never did.** `validateProductStock():49-55` already
+> re-stamped the catalog price onto every checked line, 11 lines before
+> `priceCalculation()` — the order total was always server-derived. The audit
+> traced the cart-write→total path but stopped short of the re-stamp, which
+> hides inside a method named for a stock check.
+> **What was real, and is now closed by Task E0:** the cart IDOR (all six
+> `/items` endpoints took `userId` from a param/body), `goodsSn`/`goodsName`/
+> `picUrl` injected verbatim into permanent `order_goods` rows, a null catalog
+> price falling through to the client's value, and the tampered price still
+> being what the cart page *displayed* (display vs charge divergence).
+> Consequence: E0 did NOT gate Stripe, and the two shipped independently.
+> Full write-up: `litemall-order/docs/adr-stripe-payments.md` §1.
 >
 > **USER-SIDE PREREQUISITES (block launch, not development): Stripe live keys
 > + webhook secret, Stripe Tax registration (US nexus states + EU OSS),

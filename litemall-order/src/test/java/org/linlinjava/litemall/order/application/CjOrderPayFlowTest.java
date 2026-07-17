@@ -111,7 +111,7 @@ class CjOrderPayFlowTest {
 
         assertTrue(result.isSuccess());
         verify(walletService).debit(any());
-        verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString());
+        verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString(), any());
         verify(cjFulfillmentService).placeForPaidOrder(order, lines);
     }
 
@@ -156,6 +156,6 @@ class CjOrderPayFlowTest {
 
         assertTrue(result.isSuccess());
         verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
-        verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString());
+        verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString(), any());
     }
 }

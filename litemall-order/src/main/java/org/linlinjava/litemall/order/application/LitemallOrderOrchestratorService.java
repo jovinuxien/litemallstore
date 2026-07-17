@@ -5,6 +5,9 @@ import org.linlinjava.litemall.db.domain.*;
 
 import org.linlinjava.litemall.core.notify.NotifyService;
 import org.linlinjava.litemall.core.notify.NotifyType;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentVerification;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome;
+import org.linlinjava.litemall.order.application.util.exception.payment.LitemallRefundFailedException;
 import org.linlinjava.litemall.order.application.internal.BrokerageService;
 import org.linlinjava.litemall.order.application.internal.LitemallCartServiceLayer;
 import org.linlinjava.litemall.order.application.internal.LitemallGrouponServiceLayer;
@@ -64,6 +67,22 @@ public class LitemallOrderOrchestratorService {
     // {goodsId, productId, number} (legacy /srv/cart/add) with name/sn/price/specs/image.
     @Autowired
     private org.linlinjava.litemall.order.infrastructure.services.acl.facades.LitemallGoodsFacade goodsFacade;
+
+    // PSP seam (Wave 7): server-side PaymentIntent verification + refunds. Disabled by
+    // default, and the disabled adapter REJECTS — a card payment can never be recorded
+    // on the client's say-so.
+    @Autowired
+    private org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort paymentGatewayPort;
+
+    // Webhook idempotency ledger (Wave 7): Stripe retries deliveries, so event.id is
+    // claimed via INSERT IGNORE against a UNIQUE key before anything is acted on.
+    @Autowired
+    private org.linlinjava.litemall.db.dao.StripeEventMapper stripeEventMapper;
+
+    // Server-authoritative checkout totals (Wave 7): shares the submit path's freight
+    // service, coupon facade and tax port so preview and charge cannot disagree.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.CheckoutSummaryService checkoutSummaryService;
 
     @Autowired
     private NotifyService notifyService;
@@ -311,17 +330,20 @@ public class LitemallOrderOrchestratorService {
             debitWalletForOrder(order, orderId);
         }
 
-        // Process payment. WALLET is settled by the debit above; CARD is recorded
-        // from the client-confirmed Stripe PaymentIntent (see processPayment).
-        boolean paymentSuccess = processPayment(order, paymentCommand);
+        // Process payment. WALLET is settled by the debit above; CARD is VERIFIED against
+        // Stripe server-side (see processPayment) — the client's id is a claim, not proof.
+        PaymentVerification verification = processPayment(order, paymentCommand);
 
-        if (paymentSuccess) {
+        if (verification.isVerified()) {
             // Transition the order to PAID and persist it within this transaction,
             // so a wallet debit (above) and the paid status are atomic — either both
             // commit or both roll back. Emits LitemallOrderPaidEvent. pay_id records
             // the tender ("WALLET" or "<METHOD>:<reference>") so a later refund can
-            // be routed back to the channel that paid (see settleRefundToTender).
-            orderServiceImpl.markOrderPaid(orderId, tenderPayId(paymentCommand));
+            // be routed back to the channel that paid (see settleRefundToTender);
+            // payment_intent_id records the VERIFIED Stripe reference on its own column,
+            // where a UNIQUE index makes replaying it onto a second order impossible.
+            orderServiceImpl.markOrderPaid(orderId, tenderPayId(paymentCommand),
+                    verifiedPaymentIntentId(paymentCommand));
 
             // Pay-first CJ fulfillment: replay a source='cj' order to CJ createOrder
             // now that the money is captured, BEFORE any post-payment notification or
@@ -367,9 +389,128 @@ public class LitemallOrderOrchestratorService {
                     order.getOrderStatus(),
                     LitemallOrderHandleOption.forStatus(LitemallOrderStatus.PAID));
         } else {
+            log.warn("Payment REJECTED for order {} via {}: {}",
+                    orderId.getId(), paymentCommand.getPaymentMethod(), verification.getReason());
             return LitemallOrderOperationResult.payFailed(
-                    orderId, "Payment processing failed");
+                    orderId, "Payment was not accepted: " + verification.getReason());
         }
+    }
+
+    /**
+     * Handle a Stripe webhook delivery (Wave 7, Task A3). The authoritative paid signal.
+     *
+     * <p>Order of operations matters:
+     * <ol>
+     *   <li><b>Verify the signature first</b> — the endpoint is anonymous, so nothing is
+     *       trusted until this passes. Throws {@link LitemallPaymentGatewayException} → 400.</li>
+     *   <li><b>Claim the event id</b> — an INSERT IGNORE against the UNIQUE key. 0 rows
+     *       means another delivery already handled it, so we stop. This is what makes a
+     *       Stripe retry (or two concurrent deliveries) safe.</li>
+     *   <li><b>Re-verify against the order</b> — metadata is only as good as what we wrote,
+     *       so the amount/currency/status are asserted through the same path the client
+     *       call uses. The webhook is authoritative about WHETHER Stripe says it is paid,
+     *       not about how much the order costs.</li>
+     * </ol>
+     *
+     * <p>Not annotated {@code @Transactional} beyond the class default; the claim commits
+     * with the paid flip, so a crash mid-processing leaves the event claimed but the order
+     * unpaid — recoverable via Stripe's dashboard resend, whereas double-paying is not.
+     */
+    public void handleStripeWebhook(String payload, String signatureHeader) {
+        var event = paymentGatewayPort.parseWebhook(payload, signatureHeader);
+
+        if (stripeEventMapper.claim(event.getEventId(), event.getType(), LocalDateTime.now()) == 0) {
+            log.info("Stripe event {} already processed — ignoring duplicate delivery", event.getEventId());
+            return;
+        }
+
+        if (!LitemallStripeEvent.TYPE_PAYMENT_SUCCEEDED.equals(event.getType())) {
+            // payment_intent.payment_failed and everything else: recorded (so it is not
+            // reprocessed) but not acted on — the order simply stays CREATED and the
+            // unpaid sweep eventually cancels it. There is no failed state to move to.
+            log.info("Stripe event {} of type {} recorded, no action taken",
+                    event.getEventId(), event.getType());
+            return;
+        }
+
+        Integer orderIdValue = event.getOrderId();
+        if (orderIdValue == null) {
+            log.warn("Stripe event {} (intent {}) carries no usable orderId metadata — ignoring",
+                    event.getEventId(), event.getPaymentIntentId());
+            return;
+        }
+        stripeEventMapper.attachOrder(event.getEventId(), orderIdValue, LocalDateTime.now());
+
+        LitemallOrderId orderId = new LitemallOrderId(orderIdValue);
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            log.warn("Stripe event {} references unknown order {}", event.getEventId(), orderIdValue);
+            return;
+        }
+
+        if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
+            // Overwhelmingly the normal case: the client-confirm path already paid it and
+            // the webhook is just confirming. Not an error.
+            log.info("Stripe event {}: order {} is already {} — nothing to do",
+                    event.getEventId(), orderIdValue, order.getOrderStatus());
+            return;
+        }
+
+        PaymentVerification verification = paymentGatewayPort.verify(
+                event.getPaymentIntentId(), orderIdValue, order.getActualPrice());
+        if (!verification.isVerified()) {
+            log.error("Stripe event {} claims order {} was paid, but verification REJECTED it: {}",
+                    event.getEventId(), orderIdValue, verification.getReason());
+            return;
+        }
+
+        log.info("Stripe event {}: marking order {} paid from the webhook (intent {})",
+                event.getEventId(), orderIdValue, event.getPaymentIntentId());
+        orderServiceImpl.markOrderPaid(orderId,
+                PaymentMethod.CREDIT_CARD.name() + ":" + event.getPaymentIntentId(),
+                event.getPaymentIntentId());
+
+        // Same pay-first CJ placement the client path performs, so a webhook-paid order is
+        // fulfilled identically rather than sitting paid-but-unplaced.
+        if (order.isCjFulfilled()) {
+            cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
+        }
+        domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
+                orderId, order.getActualPrice(), LocalDateTime.now()));
+    }
+
+    /**
+     * Mint a Stripe PaymentIntent for an order the caller already owns (Wave 7, Task A).
+     *
+     * <p>The amount is read from the ORDER, not from the request, which is what makes the
+     * later {@code amount_received} assertion meaningful: both sides of the comparison
+     * originate server-side. Only a payable order qualifies — minting an intent for an
+     * already-paid or cancelled order would let a customer be charged twice.
+     *
+     * @throws org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException
+     *         Stripe disabled/refused/unreachable. Never returns a stub.
+     */
+    public org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft
+            createPaymentIntent(LitemallOrderAggregate order) {
+        if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
+            throw new org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException(
+                    "Order " + order.getOrderId().getId() + " is " + order.getOrderStatus()
+                    + " and cannot be paid.");
+        }
+        return paymentGatewayPort.createIntent(order.getOrderId().getId(), order.getActualPrice());
+    }
+
+    /**
+     * The verified PaymentIntent id to persist, or null for wallet/offline tenders (which
+     * have no PSP reference and must stay NULL so they don't collide under the UNIQUE index).
+     * Only ever called after {@link #processPayment} accepted.
+     */
+    private String verifiedPaymentIntentId(LitemallOrderPaymentCommand command) {
+        if (command.getPaymentMethod() == null || command.getPaymentMethod() == PaymentMethod.WALLET) {
+            return null;
+        }
+        String reference = command.getPaymentReference();
+        return reference == null || reference.isBlank() ? null : reference;
     }
 
     /**
@@ -402,7 +543,9 @@ public class LitemallOrderOrchestratorService {
 
         // CREATED→PAID with the 0-row race guard (throws IllegalStateException when
         // the order left CREATED between the controller pre-check and here).
-        orderServiceImpl.markOrderPaid(orderId, payId);
+        // No payment_intent_id: an offline tender has no Stripe reference, and NULL keeps
+        // these rows out of the UNIQUE index entirely.
+        orderServiceImpl.markOrderPaid(orderId, payId, null);
 
         // Same-status audit marker on the single timeline (aftersale-marker pattern).
         statusHistoryRepository.record(new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange(
@@ -477,36 +620,40 @@ public class LitemallOrderOrchestratorService {
    }
 
     /**
-     * Settle the non-wallet portion of a payment.
+     * Settle the non-wallet portion of a payment (Wave 7, Task A —
+     * docs/adr-stripe-payments.md).
      *
-     * <p>Boundary (accepted — see {@code docs/handoff-gateway-api-order-payment.md}):
      * <ul>
-     *   <li><b>WALLET</b> — already debited server-side in {@link #debitWalletForOrder};
-     *       nothing more to do here, so this returns {@code true}.</li>
-     *   <li><b>CARD / digital</b> — <i>client-confirmed Stripe</i>: the SPA confirms the
-     *       PaymentIntent and passes its id as {@code paymentReference}; we record that
-     *       confirmed result rather than charging Stripe server-side. A missing reference
-     *       means the client never confirmed, so the payment fails (no paid order).</li>
+     *   <li><b>WALLET</b> — already debited server-side in {@link #debitWalletForOrder}
+     *       within this transaction; nothing more to settle.</li>
+     *   <li><b>CARD / digital</b> — the SPA confirms the PaymentIntent with Elements and
+     *       passes its id; the server then asks STRIPE what happened. The client's word is
+     *       not evidence.</li>
      * </ul>
-     * The server-side Stripe capture remains a deliberate seam: wiring a server-side
-     * charge would read the token from {@link LitemallPaymentInfo} here instead.
+     *
+     * <p>Until Wave 7 this method accepted any non-blank string, so
+     * {@code {"paymentIntentId":"x"}} produced a paid order. The verification now lives
+     * behind {@link PaymentGatewayPort} and fails CLOSED: a rejection — including "Stripe
+     * is disabled" and "Stripe is unreachable" — means the order stays CREATED and no CJ
+     * placement fires. The only safe answer to "did this get paid?" when we cannot tell
+     * is no.
+     *
+     * <p>Replay across orders is NOT checked here: the UNIQUE index on
+     * {@code litemall_order.payment_intent_id} decides it at write time, which is race-free
+     * where a read-then-write check would not be.
      */
-    private boolean processPayment(LitemallOrderAggregate order, LitemallOrderPaymentCommand command) {
+    private PaymentVerification processPayment(LitemallOrderAggregate order, LitemallOrderPaymentCommand command) {
         PaymentMethod method = command.getPaymentMethod();
+        if (method == null) {
+            // Jackson leaves this null for an absent/unknown name; it used to fall through
+            // to the card branch, where any non-blank reference passed.
+            return PaymentVerification.rejected("no payment method supplied");
+        }
         if (method == PaymentMethod.WALLET) {
-            // Wallet debit already committed within this transaction.
-            return true;
+            return PaymentVerification.accepted();
         }
-        // CARD / digital wallet: require the client-confirmed PaymentIntent id.
-        String reference = command.getPaymentReference();
-        if (reference == null || reference.isBlank()) {
-            log.warn("Payment for order {} via {} has no client-confirmed reference; rejecting",
-                    order.getOrderId().getId(), method);
-            return false;
-        }
-        log.info("Recording client-confirmed payment for order {} via {} (ref={})",
-                order.getOrderId().getId(), method, reference);
-        return true;
+        return paymentGatewayPort.verify(
+                command.getPaymentReference(), order.getOrderId().getId(), order.getActualPrice());
     }
 
     /**
@@ -684,15 +831,41 @@ public class LitemallOrderOrchestratorService {
         return cartServiceLayer.getCartItem(cartId, userId);
     }
 
-    public LitemallCartAggregate addCartItem(LitemallCartAggregate cart) {
-        return cartServiceLayer.addCartItem(cart);
+    /**
+     * Server-authoritative checkout totals (Wave 7, Task D) — backs
+     * {@code GET /srv/cart/checkout}.
+     *
+     * <p>The SPA has been computing its own grand total by reducing over cart-carried
+     * prices ({@code Checkout.tsx:248}), while only freight came from the server. That is
+     * two implementations of the same arithmetic, and they can disagree — a customer can be
+     * shown one number and charged another. This method exists so there is exactly one:
+     * it calls the same freight service, the same coupon facade and the same tax port that
+     * {@code placeOrder} calls. With tax in the picture it stops being a nicety, because a
+     * browser cannot compute a tax-inclusive total at all.
+     *
+     * <p>Read-only preview: it prices what the cart currently holds and reserves nothing.
+     * Submit re-derives everything, so a price that moves in between surfaces there as a
+     * clean 422 rather than being silently absorbed here.
+     */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public org.linlinjava.litemall.order.interfaces.dtos.cart.CheckoutSummaryDto checkoutSummary(
+            org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
+            Integer addressId, Integer userCouponId, String countryCode) {
+        return checkoutSummaryService.summarize(userId, addressId, userCouponId, countryCode);
     }
 
     /**
-     * Legacy cart-add ({@code POST /srv/cart/add}): the SPA sends only goodsId/productId/
-     * number, so look up the goods + chosen variant through the goods ACL and build a
-     * fully-populated, checked cart line before persisting. A missing goods/variant is a
-     * clean client error (mapped to a 4xx by the controller), not a later NPE.
+     * The ONE way a cart line is created ({@code POST /srv/cart/add} and
+     * {@code POST /srv/cart/items}): callers send only goodsId/productId/number, so look
+     * up the goods + chosen variant through the goods ACL and build a fully-populated,
+     * checked cart line before persisting. A missing goods/variant is a clean client
+     * error (mapped to a 4xx by the controller), not a later NPE.
+     *
+     * <p>Deliberately there is no overload taking a caller-built aggregate: one used to
+     * exist for the RESTful surface and let the client assert its own price, name and
+     * image (Wave 7, Task E0). Price resolves to whatever goods-management currently
+     * holds, which is also how a live flash deal reaches the cart — the deal price IS
+     * the catalog price while the deal is active (the lifecycle task swaps the SKU rows).
      */
     public LitemallCartAggregate addToCart(org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
                                            Integer goodsId, Integer productId, Integer number) {
@@ -1049,12 +1222,36 @@ public class LitemallOrderOrchestratorService {
             return new LitemallMoney(java.math.BigDecimal.ZERO);
         }
 
-        // External charge (CARD / digital wallet): the money sits at the PSP, so the
-        // wallet must NOT be credited. The server-side reversal is the same deliberate
-        // seam as the charge itself (client-confirmed Stripe — see processPayment);
-        // the LitemallOrderRefundedEvent raised by the aggregate carries the signal.
-        log.info("Refund for order {}: would reverse {} charge {} for {} at the PSP (no wallet credit)",
-                orderId.getId(), tender, externalReference(order), actual.getAmount());
+        // External charge (CARD / digital wallet): the money sits at the PSP, so the wallet
+        // must NOT be credited — the reversal has to happen at Stripe (Wave 7, Task B).
+        //
+        // An order with no recorded PaymentIntent cannot be reversed automatically. That is
+        // the OFFLINE tender ("OFFLINE:<ref>", written by adminOfflinePay): paidTender
+        // cannot parse it back to an enum constant, so it arrives here as a card-ish tender
+        // with a null intent. Refuse rather than invent a refund — an admin who took the
+        // money out of band returns it out of band, and the order stays retryable/visible
+        // instead of silently reading REFUNDED with money that never moved.
+        String intentId = order.getPaymentIntentId();
+        if (intentId == null || intentId.isBlank()) {
+            throw new LitemallRefundFailedException(
+                    "Order " + orderId.getId() + " was paid via " + tender + " with no reversible "
+                    + "payment reference (pay_id=" + order.getPayId() + "). Refund it in the "
+                    + "payment provider or the original channel, then record it there — the "
+                    + "order has been left in REFUND_REQUEST.");
+        }
+
+        RefundOutcome outcome = paymentGatewayPort.refund(intentId, actual, orderId.getId());
+        if (!outcome.isOk()) {
+            // Rolls this transaction back: no REFUNDED flip, no refund_amount, aftersale
+            // stays open. Deliberately fails loudly to the admin rather than fail-soft.
+            throw new LitemallRefundFailedException(
+                    "Refund of " + actual.getAmount() + " for order " + orderId.getId()
+                    + " was REJECTED by the payment provider: " + outcome.getFailureReason()
+                    + ". The order has been left in REFUND_REQUEST — retry once resolved.");
+        }
+
+        log.info("Refund for order {}: reversed {} on PaymentIntent {} (refund {}); no wallet credit",
+                orderId.getId(), actual.getAmount(), intentId, outcome.getRefundId());
         return actual;
     }
 

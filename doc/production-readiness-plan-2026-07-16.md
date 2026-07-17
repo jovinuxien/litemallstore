@@ -60,7 +60,32 @@ Everything below must build, boot, and be verifiable **without** these. Same dis
 
 ## 🔴 P0 DISCOVERED — client-controlled pricing (supersedes the IDOR finding)
 
+> ### ⚠️ CORRECTION (2026-07-16, `order` worktree — this section was WRONG)
+>
+> **The 1-cent order does not reproduce, and never did.** `LitemallOrderDomainService`
+> `.validateProductStock():49-55` already re-stamped the authoritative catalog price onto
+> every checked cart line, and `LitemallOrderServiceImpl` calls it at **:258 — eleven lines
+> before** `priceCalculation()` at :269. One call site each, unconditional loop over the
+> same `cartList`, `LitemallGoodsProductId.equals()` implemented. **The order total was
+> always server-derived.** The chain below is accurate up to step 4 but stops one method
+> short of the re-stamp; the re-stamp hides inside something named "validateProductStock".
+>
+> **Therefore the "land E0 FIRST, before Stripe" rationale — "amount-matching compares
+> against an already-poisoned order total" — does not hold.** E0 and Task A were
+> implemented independently (user-approved 2026-07-16).
+>
+> **What WAS real here, and is what E0 fixed:** the cart IDOR (every `/items` endpoint took
+> `userId` from a param/body); `goodsSn`/`goodsName`/`picUrl` copied verbatim into permanent
+> `order_goods` rows; a null catalog price falling through to the cart-carried value; and
+> the tampered price persisting in `litemall_cart` and being what the cart page *displays*
+> — so display and charge could diverge.
+>
+> Verified live post-fix: `POST /srv/cart/items {"goodsId":1181000,"productId":2,
+> "price":0.01,"goodsName":"HACKED NAME"}` persists at the **catalog price 1500.00** with
+> the real name. See `litemall-order/docs/adr-stripe-payments.md` §1.
+
 **The client sets the price of the order. Fixing Stripe does not fix this.**
+*(Superseded — see the correction above.)*
 
 Verified chain:
 

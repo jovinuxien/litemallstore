@@ -81,9 +81,14 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int countByOrderSn(LitemallUserId userId, String orderSn) {
+    /**
+     * Orders carrying this order_sn, across ALL users and INCLUDING soft-deleted rows —
+     * the scope the DB's uk_order_order_sn enforces and that CJ's merchant-order dedupe
+     * assumes. See {@link #generateOrderSn}.
+     */
+    public int countByOrderSn(String orderSn) {
         LitemallOrderExample example = new LitemallOrderExample();
-        example.or().andUserIdEqualTo(userId.getId()).andOrderSnEqualTo(orderSn).andDeletedEqualTo(false);
+        example.or().andOrderSnEqualTo(orderSn);
         return (int) litemallOrderMapper.countByExample(example);
     }
 
@@ -164,16 +169,33 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         litemallOrderMapper.logicalDeleteByPrimaryKey(orderId.getId());
     }
 
-    // TODO This should generate a unique order, but in fact there is still the possibility that two orders are the same.
+    /**
+     * A fresh order_sn: {@code yyyyMMdd} + 6 random digits.
+     *
+     * <p>The pre-check is GLOBAL and includes soft-deleted rows (Wave 7, Task E3). It used
+     * to be scoped per-user and to non-deleted rows, which did not match how the value is
+     * consumed: reconciliation treats order_sn as globally unique, and CJ dedupes the
+     * merchant orderNumber on it — so two users could legitimately hold the same sn on one
+     * day and CJ would silently treat the second order as a duplicate of the first. A
+     * soft-deleted row's sn could also be reissued while CJ still remembered it.
+     *
+     * <p>The loop is now a courtesy, not the guarantee: {@code uk_order_order_sn} (V43) is
+     * what actually enforces uniqueness, since any SELECT-then-INSERT can be raced. Bounded
+     * so a pathological collision streak fails loudly instead of spinning forever — with
+     * 10^6 values per day it should never be reached.
+     */
     @Override
     public String generateOrderSn(LitemallUserId userId) {
         DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyyMMdd");
         String now = df.format(LocalDate.now());
-        String orderSn = now + getRandomNum(6);
-        while (countByOrderSn(userId, orderSn) != 0) {
-            orderSn = now + getRandomNum(6);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            String orderSn = now + getRandomNum(6);
+            if (countByOrderSn(orderSn) == 0) {
+                return orderSn;
+            }
         }
-        return orderSn;
+        throw new IllegalStateException(
+                "Could not generate a unique order_sn for " + now + " after 20 attempts");
     }
 
     @Override
@@ -253,7 +275,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
-    public int markPaidIfCreated(LitemallOrderId orderId, String payId) {
+    public int markPaidIfCreated(LitemallOrderId orderId, String payId, String paymentIntentId) {
         LocalDateTime now = LocalDateTime.now();
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.PAID.getCode());
@@ -261,6 +283,11 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         patch.setUpdateTime(now);
         if (payId != null && !payId.isBlank()) {
             patch.setPayId(payId);
+        }
+        // Left NULL for wallet/offline tenders: the column is UNIQUE, and many NULLs are
+        // allowed while many ''s would not be. updateByExampleSelective skips nulls anyway.
+        if (paymentIntentId != null && !paymentIntentId.isBlank()) {
+            patch.setPaymentIntentId(paymentIntentId);
         }
 
         LitemallOrderExample example = new LitemallOrderExample();
@@ -485,11 +512,18 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setFreightPrice(orderAggregate.getFreightPrice().getAmount());
         dataModel.setCouponPrice(orderAggregate.getCouponPrice().getAmount());
         dataModel.setIntegralPrice(orderAggregate.getIntegralPrice().getAmount());
+        // Wave 7. Null-guarded because tax_price is NOT NULL DEFAULT 0.00: orders built by
+        // paths that predate the tax seam must land as 0.00, not blow up on insert.
+        dataModel.setTaxPrice(orderAggregate.getTaxPrice() == null
+                ? java.math.BigDecimal.ZERO.setScale(2)
+                : orderAggregate.getTaxPrice().getAmount());
+        dataModel.setTaxBreakdown(orderAggregate.getTaxBreakdown());
         dataModel.setGrouponPrice(orderAggregate.getGrouponPrice().getAmount());
         dataModel.setOrderPrice(orderAggregate.getOrderPrice().getAmount());
         dataModel.setActualPrice(orderAggregate.getActualPrice().getAmount());
 
         dataModel.setPayId(orderAggregate.getPayId());
+        dataModel.setPaymentIntentId(orderAggregate.getPaymentIntentId());
         dataModel.setPayTime(orderAggregate.getPayTime());
         dataModel.setShipSn(orderAggregate.getShipSn());
         dataModel.setShipChannel(orderAggregate.getShipChannel());
@@ -554,10 +588,17 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setFreightPrice(new LitemallMoney(record.getFreightPrice()));
         domainModel.setCouponPrice(new LitemallMoney(record.getCouponPrice()));
         domainModel.setIntegralPrice(new LitemallMoney(record.getIntegralPrice()));
+        // Rows written before V43 read back as 0.00 rather than a null that would NPE the
+        // money chain (LitemallMoney rejects null).
+        domainModel.setTaxPrice(new LitemallMoney(record.getTaxPrice() == null
+                ? java.math.BigDecimal.ZERO
+                : record.getTaxPrice()));
+        domainModel.setTaxBreakdown(record.getTaxBreakdown());
         domainModel.setGrouponPrice(new LitemallMoney(record.getGrouponPrice()));
         domainModel.setOrderPrice(new LitemallMoney(record.getOrderPrice()));
         domainModel.setActualPrice(new LitemallMoney(record.getActualPrice()));
         domainModel.setPayId(record.getPayId());
+        domainModel.setPaymentIntentId(record.getPaymentIntentId());
         domainModel.setPayTime(record.getPayTime());
         domainModel.setShipSn(record.getShipSn());
         domainModel.setShipChannel(record.getShipChannel());

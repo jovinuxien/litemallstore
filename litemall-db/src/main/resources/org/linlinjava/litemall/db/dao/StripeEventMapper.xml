@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_stripe_event (Stripe webhook idempotency, V43).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.StripeEventMapper">
+
+  <sql id="columns">
+    id, event_id, event_type, order_id, add_time, update_time
+  </sql>
+
+  <!--
+    INSERT IGNORE against uk_stripe_event_id: 1 = this delivery claimed the event,
+    0 = some earlier delivery already did. The DB decides, so two concurrent
+    deliveries of the same event can never both proceed (a SELECT-then-INSERT
+    could). No soft delete here on purpose — see the domain class.
+  -->
+  <insert id="claim">
+    insert ignore into litemall_stripe_event
+      (event_id, event_type, add_time, update_time)
+    values
+      (#{eventId}, #{eventType}, #{now}, #{now})
+  </insert>
+
+  <update id="attachOrder">
+    update litemall_stripe_event
+    set order_id = #{orderId}, update_time = #{now}
+    where event_id = #{eventId}
+  </update>
+
+  <select id="selectByEventId" resultType="org.linlinjava.litemall.db.domain.LitemallStripeEvent">
+    select <include refid="columns" />
+    from litemall_stripe_event
+    where event_id = #{eventId}
+  </select>
+
+</mapper>
