@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
+import { cartApi, CheckoutSummary } from 'app/shared/api/cartApi';
 import { IItemCart } from 'app/shared/model/cart/cart.models';
 
 /**
@@ -86,7 +87,10 @@ export interface PlacedOrder {
 export interface PayOrderParams {
   orderId: number;
   paymentMethod: CheckoutPaymentMethod;
-  /** CARD path: the client-confirmed Stripe PaymentIntent id (stubbed for now). */
+  /**
+   * CARD path: the REAL client-confirmed Stripe PaymentIntent id. Required for CARD —
+   * optional only because WALLET carries none. The server verifies it against Stripe.
+   */
   paymentIntentId?: string;
   /**
    * Which lastOrders slot this order belongs to; defaults to 'local' (the
@@ -119,20 +123,119 @@ interface OrderOperationResponse {
 const PAY_TIMEOUT_MS = 45000;
 
 /**
- * Numeric customer id from the JWT `sub` claim (the customer edge issues sub = userId).
- * The cart endpoints take userId in the body/param, unlike /order/submit which reads it
- * from the gateway-forwarded X-User-Id header.
+ * Wave-7: every /srv/cart endpoint now takes the buyer from the gateway-forwarded
+ * X-User-Id header, like /order/submit always has — so the SPA no longer decodes the JWT
+ * to assert who it is. (It never should have: a userId the client supplies is a request
+ * to be believed, not proof. Sending it was the cart IDOR.)
  */
-const customerUserId = (): number | null => {
-  try {
-    const token = sessionStorage.getItem('customerToken');
-    if (!token) return null;
-    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    const id = Number(payload.sub);
-    return Number.isFinite(id) ? id : null;
-  } catch {
-    return null;
+const isSignedIn = (): boolean => !!sessionStorage.getItem('customerToken');
+
+/**
+ * Replace the server cart with ONE group's lines. Returns how many lines were mirrored.
+ *
+ * <p>Shared by submit and the checkout preview deliberately: `GET /srv/cart/checkout`
+ * prices the SERVER cart, so a preview that didn't mirror first would price whatever was
+ * left over from last time — or, for a fresh session, nothing at all. Routing both through
+ * this is what makes "preview == charge" true by construction rather than by hope.
+ *
+ * <p>Lines whose goodsId isn't numeric (stale `cj_<pid>` keys from an old session cart)
+ * are skipped, not sent.
+ */
+const mirrorGroupToServerCart = async (items: IItemCart[]): Promise<number> => {
+  await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`);
+  let mirrored = 0;
+  for (const it of items) {
+    const goodsId = Number(it.goodsId);
+    if (!Number.isFinite(goodsId)) continue;
+    // Identifiers + quantity ONLY (order Wave-7, handoff §1/§2). price, goodsSn,
+    // goodsName, picUrl, specifications and userId are gone from AddCartItemRequest: the
+    // line is re-resolved from the catalog server-side, and identity comes from the
+    // gateway's X-User-Id. The server ignores extra fields rather than rejecting them, so
+    // this could have been left alone — but a `price` the server discards still reads as
+    // authoritative, and those display fields used to be copied verbatim into permanent
+    // order_goods rows.
+    // eslint-disable-next-line no-await-in-loop
+    await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
+      goodsId,
+      productId: it.productId,
+      number: it.number,
+    });
+    mirrored += 1;
   }
+  return mirrored;
+};
+
+/** Server-computed money for the whole checkout. Every field comes from the server. */
+export interface CheckoutTotals {
+  goodsTotalPrice: number;
+  freightPrice: number;
+  taxPrice: number;
+  couponPrice: number;
+  actualPrice: number;
+}
+
+/** A 503 from `/srv/cart/checkout`: tax is enabled and its provider is unreachable. */
+export class TaxUnavailableError extends Error {}
+
+/**
+ * Server-authoritative totals for the checkout (order Wave-7, handoff §4).
+ *
+ * <p>Mirrors each group then prices it, summing across groups — the same sequence, in the
+ * same order, that submit will run, so the previewed total is the total charged. Groups
+ * exist because the order service rejects a cart mixing CJ and local goods: each becomes
+ * its own order with its own freight, and the customer sees one combined number.
+ *
+ * <p>The coupon rides the FIRST group only, matching submit (`handlePlaceOrder` sends it
+ * with the first submitted order). Previewing it against every group would over-state the
+ * discount.
+ *
+ * <p>Throws {@link TaxUnavailableError} on 503. Callers MUST NOT fall back to a
+ * client-side sum: tax fails closed by design, and a total we invent is one the server has
+ * already said it will refuse to charge.
+ */
+export const previewCheckoutTotals = async (
+  groups: IItemCart[][],
+  params: { addressId?: number; couponId?: number; countryCode?: string },
+): Promise<CheckoutTotals> => {
+  const totals: CheckoutTotals = {
+    goodsTotalPrice: 0,
+    freightPrice: 0,
+    taxPrice: 0,
+    couponPrice: 0,
+    actualPrice: 0,
+  };
+  let couponApplied = false;
+  for (const items of groups) {
+    if (items.length === 0) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const mirrored = await mirrorGroupToServerCart(items);
+    if (mirrored === 0) continue;
+    let summary: CheckoutSummary;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      summary = await cartApi.checkout({
+        addressId: params.addressId,
+        couponId: couponApplied ? undefined : params.couponId,
+        countryCode: params.countryCode,
+      });
+    } catch (error) {
+      const status = (error as { response?: { status?: number } })?.response?.status
+        ?? (error as { errno?: number })?.errno;
+      if (status === 503) {
+        throw new TaxUnavailableError(
+          messageFromError(error, "We can't total your cart right now — please try again."),
+        );
+      }
+      throw error;
+    }
+    totals.goodsTotalPrice += summary.goodsTotalPrice ?? 0;
+    totals.freightPrice += summary.freightPrice ?? 0;
+    totals.taxPrice += summary.taxPrice ?? 0;
+    totals.couponPrice += summary.couponPrice ?? 0;
+    totals.actualPrice += summary.actualPrice ?? 0;
+    couponApplied = true;
+  }
+  return totals;
 };
 
 /**
@@ -144,30 +247,11 @@ const customerUserId = (): number | null => {
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
   async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, deliveryType, storeId, pickupName, pickupMobile }, thunkApi) => {
-    const userId = customerUserId();
-    if (userId == null) {
+    if (!isSignedIn()) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
     }
     try {
-      await baseAxios.delete(`${BASE_URL_CONTEXT}/cart/items`, { params: { userId } });
-      let mirrored = 0;
-      for (const it of items) {
-        const goodsId = Number(it.goodsId);
-        if (!Number.isFinite(goodsId)) continue;
-        // eslint-disable-next-line no-await-in-loop
-        await baseAxios.post(`${BASE_URL_CONTEXT}/cart/items`, {
-          userId,
-          goodsId,
-          productId: it.productId,
-          number: it.number,
-          specifications: it.specifications,
-          goodsSn: it.goodsSn,
-          goodsName: it.goodsName,
-          price: it.price,
-          picUrl: it.picUrl,
-        });
-        mirrored += 1;
-      }
+      const mirrored = await mirrorGroupToServerCart(items);
       if (mirrored === 0) {
         // e.g. stale cj_<pid> lines from an old session cart — never submit an empty cart.
         return thunkApi.rejectWithValue({
@@ -212,10 +296,14 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
 );
 
 /**
- * Step 2 — pay a placed order. WALLET debits server-side (insufficient balance ->
- * 402, order left unpaid); CARD carries a Stripe PaymentIntent id (stubbed until real
- * Stripe Elements land). On success the order is PAID; for a source='cj' order the
- * pay also placed it at CJ (a CJ rejection rolled the payment back and rejects here).
+ * Step 2 — pay a placed order. WALLET debits server-side (insufficient balance -> 402,
+ * order left unpaid); CARD carries a real PaymentIntent id that Checkout has already
+ * confirmed with Stripe Elements. On success the order is PAID; for a source='cj' order
+ * the pay also placed it at CJ (a CJ rejection rolled the payment back and rejects here).
+ *
+ * Wave-7: the client call is a latency optimisation, NOT the authority. Stripe's webhook
+ * (POST /srv/order/webhook/stripe/order-paid) is what ultimately marks the order paid, so
+ * a customer who closes the tab mid-confirm still gets a paid order.
  */
 export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectValue: ApiResult<null> }>(
   'order/pay',
@@ -225,9 +313,19 @@ export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectVa
         paymentMethod: toBackendPaymentMethod(paymentMethod),
       };
       if (paymentMethod === 'CARD') {
-        // STUB: no Stripe Elements/keys wired yet, so hand the order service a placeholder
-        // confirmed PaymentIntent id. Replace with a real client-confirmed intent later.
-        payload.paymentIntentId = paymentIntentId ?? `pi_stub_${orderId}`;
+        // A real, client-confirmed PaymentIntent id — Checkout confirms with Stripe
+        // Elements before dispatching. There is deliberately no fallback: the server now
+        // retrieves the intent and asserts status/amount/currency/metadata.orderId, so a
+        // fabricated id is rejected. Reaching here without one is a bug, not a state to
+        // paper over with a placeholder.
+        if (!paymentIntentId) {
+          return thunkApi.rejectWithValue({
+            errno: 400,
+            errmsg: 'Card payment was not completed — please try again.',
+            data: null,
+          });
+        }
+        payload.paymentIntentId = paymentIntentId;
       }
       const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/${orderId}/actions/pay`, payload, { timeout: PAY_TIMEOUT_MS });
       const body = response.data as OrderOperationResponse;

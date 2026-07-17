@@ -1,13 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { initMatomo, trackPageView } from 'app/shared/tracking/matomo';
+import { loadSiteConfig } from 'app/shared/config/siteConfig';
+import { consentSnapshot, subscribeConsent } from 'app/shared/tracking/consent';
+import { applyConsent, initMatomo, trackPageView } from 'app/shared/tracking/matomo';
 
 /**
  * Route-change page-view tracking (Wave-6 Task A). Mounted once inside
  * BrowserRouter (next to InviteCapture). On mount it fetches
  * `/auth/site-config` and hands the decision to `initMatomo` — unconfigured
  * or Do-Not-Track ⇒ everything below is a no-op.
+ *
+ * <p>Wave-7: also relays consent changes into the tracker. Nothing is tracked
+ * until the visitor accepts (see matomo.ts); this component only reports views
+ * and lets matomo.ts decide what to do with them.
  *
  * - Every location change is one page view (views fired before the config
  *   fetch resolves are buffered by matomo.ts).
@@ -25,13 +31,20 @@ const PRODUCT_PATH = /^\/product\/([^/]+)$/;
 
 const MatomoTracker: React.FC = () => {
   const location = useLocation();
+  const { choice } = useSyncExternalStore(subscribeConsent, consentSnapshot);
 
   useEffect(() => {
-    fetch('/auth/site-config')
-      .then(res => res.json())
-      .then(env => initMatomo(env?.data ?? { matomoUrl: null, matomoSiteId: null }))
-      .catch(() => initMatomo({ matomoUrl: null, matomoSiteId: null }));
+    // Shared with Checkout's Stripe key — one /auth/site-config fetch, not two.
+    // loadSiteConfig never rejects: a failure resolves to "nothing configured".
+    loadSiteConfig().then(initMatomo);
   }, []);
+
+  // Accepting from the banner (or withdrawing on /cookies) takes effect immediately,
+  // without a reload. initMatomo applies any stored choice itself, so this only
+  // carries later changes.
+  useEffect(() => {
+    applyConsent(choice);
+  }, [choice]);
 
   useEffect(() => {
     const { pathname, search } = location;

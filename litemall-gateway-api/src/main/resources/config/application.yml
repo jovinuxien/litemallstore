@@ -45,6 +45,10 @@ spring:
         # the address book all live on the order service (LitemallAddressController
         # is mounted at /srv/address there); they MUST be claimed here so they do
         # not fall through to the goods catch-all (/srv/**) below.
+        # Wave-7: this route also carries POST /srv/order/webhook/stripe/order-paid.
+        # Stripe cannot present a customer JWT, so PublicPaths exempts that ONE path
+        # from the edge's authenticated-by-default rule; litemall-order gates it on the
+        # Stripe-Signature instead. No separate route is needed — it already matches.
         - id: customer-order
           uri: lb://order-service-app
           predicates:
@@ -138,6 +142,18 @@ litemall:
   # base-url is the browser-reachable Matomo root, e.g. http://localhost:8095
   # (promotion's docker-compose.marketing.yml; see its
   # docs/handoff-matomo-tracker.md for the live values).
+  # Wave-7 Task B: Stripe PUBLISHABLE key, served to the browser via
+  # GET /auth/site-config so the SPA can mount Stripe Elements. Blank (the
+  # default) ⇒ card payment presents as cleanly unavailable and the SPA falls
+  # back to wallet — never a stubbed PaymentIntent. Environment-specific, so no
+  # committed fallback: override via ENV (LITEMALL_STRIPE_PUBLISHABLE_KEY).
+  #
+  # The SECRET key is NOT here and must never be: it belongs to litemall-order
+  # (litemall.order.stripe.secret-key, ENV only). This is also deliberately not
+  # litemall-core's legacy `litemall.stripe.publishedKey` block, which ships
+  # committed pk_test_/sk_test_ values — see SiteConfigController's javadoc.
+  stripe:
+    publishable-key: ""
   tracking:
     matomo:
       base-url: ""

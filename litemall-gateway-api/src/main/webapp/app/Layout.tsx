@@ -416,7 +416,9 @@ const Layout: React.FC = () => {
                   <Link to='/orders' className='link-light text-decoration-none small'>
                     Track an order
                   </Link>
-                  <Link to='/refunds' className='link-light text-decoration-none small'>
+                  {/* The policy, not /refunds — that is the signed-in refund list, and a
+                      logged-out visitor following a help link should not hit a login wall. */}
+                  <Link to='/returns' className='link-light text-decoration-none small'>
                     Returns &amp; refunds
                   </Link>
                   <Link to='/user/feedback' className='link-light text-decoration-none small'>
@@ -437,13 +439,13 @@ const Layout: React.FC = () => {
                 are subject to change.
               </small>
               <div className='d-flex flex-wrap gap-3'>
-                <Link to='/help' className='link-secondary text-decoration-none small'>
+                <Link to='/terms' className='link-secondary text-decoration-none small'>
                   Conditions of Use
                 </Link>
-                <Link to='/help' className='link-secondary text-decoration-none small'>
+                <Link to='/privacy' className='link-secondary text-decoration-none small'>
                   Privacy Notice
                 </Link>
-                <Link to='/service' className='link-secondary text-decoration-none small'>
+                <Link to='/cookies' className='link-secondary text-decoration-none small'>
                   Cookie Preferences
                 </Link>
                 <Link to='/service' className='link-secondary text-decoration-none small'>
