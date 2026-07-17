@@ -38,7 +38,12 @@
         <jdbcConnection driverClass="com.mysql.cj.jdbc.Driver"
                         connectionURL="jdbc:mysql://127.0.0.1:3306/litemall?useUnicode=true&amp;characterEncoding=UTF-8&amp;serverTimezone=UTC&amp;verifyServerCertificate=false&amp;useSSL=false&amp;nullCatalogMeansCurrent=true&amp;allowPublicKeyRetrieval=true"
                         userId="litemall"
-                        password="Calliste_1006"/>
+                        password="${env.MYSQL_PASSWORD}"/>
+        <!-- Wave 7: password read from the environment, not committed.
+             NOTE: litemall-db's entities and mapper XMLs are HAND-MAINTAINED.
+             Do NOT re-run this generator — it overwrites hand-edits and has
+             silently dropped mapper columns before (the `now_money` failures). -->
+
 
        <!-- <typeHandlers>
             <typeHanlder handler="org.linlinjava.litemall.db.typehandler.BigDecimalTypeHandler" />

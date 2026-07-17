@@ -1,0 +1,480 @@
+# litemall — production stack (single VPS).
+#
+#   docker compose -f docker-compose/docker-compose.prod.yml --env-file .env up -d
+#
+# Wave-7 `platform` Task A. This is the FIRST artifact that deploys the real
+# 10-service architecture; everything that came before it (docker/litemall,
+# deploy/, docker-compose-recover.yml) packaged the deprecated monolith.
+#
+# ---------------------------------------------------------------------------
+# SECRETS: every credential below is ${VAR:?} — no committed fallback, and the
+# `:?` form makes compose ABORT with a named variable rather than start a
+# service with an empty password. Copy .env.prod.example -> .env and fill it in.
+# .env is gitignored.
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# ⚠ replicas: 1 IS LOAD-BEARING — DO NOT SCALE ANY litemall SERVICE. ⚠
+#
+# 14 @Scheduled jobs across order / goods-management / promotion / analytic have
+# NO ShedLock and NO leader election. A second replica runs every one of them a
+# second time, concurrently:
+#   order:      MailOutboxSweepScheduler      -> duplicate customer emails
+#               CjOrderStatusSyncScheduler    -> 2x the CJ external API budget
+#               OrderEventOutboxRelay         -> duplicate domain events
+#               BrokerageUnfreezeScheduler    -> double commission unfreeze
+#               AutoConfirmOrderScheduler / UnpaidOrderTaskScheduler
+#   promotion:  SocialDealAutoPoster          -> double-posts to Meta + TikTok
+#               PromotionExpirySweeper
+#   goods:      CjCatalogRefreshTask (x2), FlashDealLifecycleTask,
+#               RelatedGoodsRefreshTask
+#   analytic:   ProductCacheReaderService, CJProductService, CacheFileDataProcessingConfig
+#
+# Scaling out is silent — nothing errors, you just pay the CJ API twice and mail
+# your customers twice. ShedLock is the prerequisite for >1 replica and is
+# recorded in the Wave-7 debt register
+# (doc/production-readiness-plan-2026-07-16.md).
+# ---------------------------------------------------------------------------
+
+name: litemall-prod
+
+# ---------------------------------------------------------------------------
+# YAML anchors — shared shape for the ten Spring services.
+# ---------------------------------------------------------------------------
+x-litemall-build: &litemall-build
+  context: ..
+  dockerfile: docker/Dockerfile
+
+x-litemall-common: &litemall-common
+  restart: unless-stopped
+  deploy:
+    # Declares the intent and is the default. NOTE it is not a hard gate:
+    # `docker compose up --scale order=2` still overrides it. The banner above
+    # is the real control — there is no technical enforcement until ShedLock
+    # lands, which is exactly why the trap is worth reading.
+    replicas: 1
+  networks: [litemall]
+  logging:
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+# Wiring every service needs: discovery, config server, machine-token issuer.
+# These live in bootstrap.yml (legacy bootstrap context), which application-prod.yml
+# CANNOT override — the bootstrap context is built before profile YAML loads.
+# Environment variables outrank both, so this is the only correct seam for them.
+x-litemall-discovery: &litemall-discovery
+  SPRING_CLOUD_CONFIG_URI: http://config:8888
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka:8761/eureka/
+  SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHSERVER_TOKEN_URI: http://authserver:8089/oauth2/token
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://authserver:8089/oauth2/jwks
+
+# serverTimezone=UTC, deliberately. The committed default is Asia/Shanghai
+# (litemall-db/application-db.yml:9) — wrong for a US/EU store and a silent
+# corrupter of order timestamps, tax periods and scheduler windows.
+x-litemall-db: &litemall-db
+  SPRING_DATASOURCE_DRUID_URL: &jdbc jdbc:mysql://mysql:3306/litemall?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&allowPublicKeyRetrieval=true&verifyServerCertificate=false&useSSL=false
+  SPRING_DATASOURCE_DRUID_USERNAME: ${MYSQL_USER:?set MYSQL_USER in .env}
+  SPRING_DATASOURCE_DRUID_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+  SPRING_FLYWAY_URL: *jdbc
+  SPRING_FLYWAY_USER: ${MYSQL_USER:?set MYSQL_USER in .env}
+  SPRING_FLYWAY_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+
+# Timing only — each service supplies its own `test` against its own port.
+# start_period is generous because a cold JVM + Eureka registration is slow, and
+# a healthcheck that fires too early turns a healthy boot into a restart loop.
+x-healthcheck: &litemall-healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 20
+  start_period: 90s
+
+services:
+
+  # =========================================================================
+  # Ingress — the ONLY service published to the host (Task C).
+  # Everything else is reachable only on the internal `litemall` network.
+  # =========================================================================
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      gateway-api: {condition: service_healthy}
+      gateway-admin: {condition: service_healthy}
+    ports:
+      - "80:80"     # ACME HTTP-01 challenge + the HTTPS redirect
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    environment:
+      SHOP_DOMAIN: ${SHOP_DOMAIN:?set SHOP_DOMAIN in .env (use localhost for a local/staging run)}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Named volumes, deliberately: these hold the issued certificates and ACME
+      # account key. Losing them on every `down` means re-issuing certs and
+      # burning Let's Encrypt rate limits (5 certs/domain/week — easy to hit).
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 256m
+    networks: [litemall]
+
+  # =========================================================================
+  # Data plane
+  # =========================================================================
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00      # UTC; the dev my.cnf pinned +8:00.
+      - --max-allowed-packet=100M
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: litemall
+      MYSQL_USER: ${MYSQL_USER:?set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    mem_limit: 1g
+    networks: [litemall]
+
+  elasticsearch:
+    build:
+      context: ../docker/elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      # NO jdwp. The dev stack ships a debug agent on *:8000
+      # (docker-compose/docker-compose.yml:64) — a remote code execution port.
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    ulimits:
+      memlock: {soft: -1, hard: -1}
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    mem_limit: 2g
+    networks: [litemall]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 512m
+    networks: [litemall]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    mem_limit: 512m
+    networks: [litemall]
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep -q imok"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    networks: [litemall]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    restart: unless-stopped
+    depends_on:
+      zookeeper: {condition: service_healthy}
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 45s
+    mem_limit: 1g
+    networks: [litemall]
+
+  # ---- OCS search tier (fronts Elasticsearch; goods-management talks to these)
+  indexer:
+    image: commerceexperts/ocs-indexer-service:latest
+    restart: unless-stopped
+    depends_on:
+      elasticsearch: {condition: service_healthy}
+    environment:
+      ES_HOSTS: http://elasticsearch:9200
+    mem_limit: 768m
+    networks: [litemall]
+
+  searcher:
+    image: commerceexperts/ocs-search-service:latest
+    restart: unless-stopped
+    depends_on:
+      elasticsearch: {condition: service_healthy}
+    environment:
+      ES_HOSTS: http://elasticsearch:9200
+    mem_limit: 768m
+    networks: [litemall]
+
+  suggest:
+    image: commerceexperts/ocs-suggest-service:searchhub-latest
+    restart: unless-stopped
+    depends_on:
+      elasticsearch: {condition: service_healthy}
+    environment:
+      # searchhub-latest refuses to start without an API key (SearchHub is unused
+      # here and self-skips litemall_index); it also defaults ES to its own
+      # localhost:9200 and silently degrades to a NoopQuerySuggester.
+      SH_API_KEY: disabled
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SUGGEST_INDEX_DEFAULT_SOURCEFIELDS: title,brand,category_names
+    mem_limit: 768m
+    networks: [litemall]
+
+  # =========================================================================
+  # Platform services
+  # =========================================================================
+
+  eureka:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-eureka}
+    image: litemall/eureka:${LITEMALL_TAG:-latest}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8761
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]}
+    mem_limit: 512m
+
+  config:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-config}
+    image: litemall/config:${LITEMALL_TAG:-latest}
+    depends_on:
+      eureka: {condition: service_healthy}
+    environment:
+      <<: *litemall-discovery
+      # `composite` is NOT optional and NOT decoration: it is what wires the
+      # config server's native+git repositories (application.yml:36-46). Setting
+      # SPRING_PROFILES_ACTIVE=prod alone REPLACES it, leaving a config server
+      # with no backing repository. It must be listed alongside prod.
+      SPRING_PROFILES_ACTIVE: composite,prod
+    # NOT published to the host. The config server actuator is at base-path
+    # /admin with include:"*" AND endpoint.env.post.enabled — i.e. a writable,
+    # unauthenticated POST /admin/env. application-prod.yml closes it; keeping
+    # the port off the host is defence in depth.
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8888/actuator/health"]}
+    mem_limit: 512m
+
+  authserver:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-authserver}
+    image: litemall/authserver:${LITEMALL_TAG:-latest}
+    depends_on:
+      eureka: {condition: service_healthy}
+      config: {condition: service_healthy}
+    environment:
+      <<: *litemall-discovery
+      SPRING_PROFILES_ACTIVE: prod
+      # This service signs EVERY machine token and serves the JWKS both gateways
+      # validate against. Its committed config sets private-key-pem:"" — so today
+      # RsaKeys.from() silently generates an EPHEMERAL pair on every boot and all
+      # tokens die on restart. Task B makes prod fail fast when these are absent.
+      LITEMALL_JWT_PRIVATE_KEY_PEM: ${AUTHSERVER_JWT_PRIVATE_KEY_PEM:?set AUTHSERVER_JWT_PRIVATE_KEY_PEM in .env}
+      LITEMALL_JWT_PUBLIC_KEY_PEM: ${AUTHSERVER_JWT_PUBLIC_KEY_PEM:?set AUTHSERVER_JWT_PUBLIC_KEY_PEM in .env}
+      LITEMALL_AUTHSERVER_GATEWAY_API_SECRET: ${GATEWAY_API_CLIENT_SECRET:?set GATEWAY_API_CLIENT_SECRET in .env}
+      LITEMALL_AUTHSERVER_GATEWAY_ADMIN_SECRET: ${GATEWAY_ADMIN_CLIENT_SECRET:?set GATEWAY_ADMIN_CLIENT_SECRET in .env}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8089/actuator/health"]}
+    mem_limit: 768m
+
+  # =========================================================================
+  # Edge gateways — the only services Caddy (Task C) fronts.
+  # =========================================================================
+
+  gateway-api:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-gateway-api}
+    image: litemall/gateway-api:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHSERVER_CLIENT_SECRET: ${GATEWAY_API_CLIENT_SECRET:?set GATEWAY_API_CLIENT_SECRET in .env}
+      LITEMALL_JWT_PRIVATE_KEY_PEM: ${GATEWAY_API_JWT_PRIVATE_KEY_PEM:?set GATEWAY_API_JWT_PRIVATE_KEY_PEM in .env}
+      LITEMALL_JWT_PUBLIC_KEY_PEM: ${GATEWAY_API_JWT_PUBLIC_KEY_PEM:?set GATEWAY_API_JWT_PUBLIC_KEY_PEM in .env}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]}
+    mem_limit: 1g
+
+  gateway-admin:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-gateway-admin}
+    image: litemall/gateway-admin:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHSERVER_CLIENT_SECRET: ${GATEWAY_ADMIN_CLIENT_SECRET:?set GATEWAY_ADMIN_CLIENT_SECRET in .env}
+      LITEMALL_JWT_PRIVATE_KEY_PEM: ${GATEWAY_ADMIN_JWT_PRIVATE_KEY_PEM:?set GATEWAY_ADMIN_JWT_PRIVATE_KEY_PEM in .env}
+      LITEMALL_JWT_PUBLIC_KEY_PEM: ${GATEWAY_ADMIN_JWT_PUBLIC_KEY_PEM:?set GATEWAY_ADMIN_JWT_PUBLIC_KEY_PEM in .env}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]}
+    mem_limit: 1g
+
+  # =========================================================================
+  # Domain services
+  # =========================================================================
+
+  order:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-order}
+    image: litemall/order:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
+      LITEMALL_KAFKA_BROKERS: kafka:9092
+      # Stripe + CJ + mail land here in Task B / order's Wave-7 work. Blank ⇒
+      # the adapter stays disabled and returns a typed error — never a fake success.
+      LITEMALL_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      LITEMALL_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
+    mem_limit: 1g
+
+  goods-management:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-goods-management}
+    image: litemall/goods-management:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      elasticsearch: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db,core,admin,wx
+      LITEMALL_KAFKA_BROKERS: kafka:9092
+      LITEMALL_SEARCH_INDEXER_URL: http://indexer:8535
+      LITEMALL_SEARCH_SEARCH_URL: http://searcher:8534
+      LITEMALL_SEARCH_SUGGEST_URL: http://suggest:8081
+      REDIS_SERVER_HOST: redis
+      REDIS_SERVER_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:?set RABBITMQ_USER in .env}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
+      LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
+    mem_limit: 1536m
+
+  promotion-service:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-promotion-service}
+    image: litemall/promotion-service:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
+      LITEMALL_KAFKA_BROKERS: kafka:9092
+      # Wave-6 marketing ACLs: absent ⇒ disabled, which is the safe default.
+      MATOMO_AUTH_TOKEN: ${MATOMO_AUTH_TOKEN:-}
+      MAUTIC_USERNAME: ${MAUTIC_USERNAME:-}
+      MAUTIC_PASSWORD: ${MAUTIC_PASSWORD:-}
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8088/actuator/health"]}
+    mem_limit: 1g
+
+  loyalty-service:
+    <<: *litemall-common
+    build: {<<: *litemall-build, target: litemall-loyalty-service}
+    image: litemall/loyalty-service:${LITEMALL_TAG:-latest}
+    depends_on:
+      mysql: {condition: service_healthy}
+      authserver: {condition: service_healthy}
+    environment:
+      <<: [*litemall-discovery, *litemall-db]
+      SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
+    healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8087/actuator/health"]}
+    mem_limit: 768m
+
+  # litemall-goodsapi-analytic is intentionally ABSENT — 9 services, not 10.
+  # It does not compile (javax.* under Boot 3), no gateway routes to it, and its
+  # bootstrap.yml registers in Eureka as "litemall-goods-management", so running
+  # it would hijack the real service's registrations. Excluded from the reactor
+  # in pom.xml; re-add here only once both are fixed.
+
+networks:
+  litemall:
+    driver: bridge
+
+volumes:
+  caddy-data:      # issued TLS certs + ACME account key — do NOT discard casually
+  caddy-config:
+  mysql-data:
+  es-data:
+  redis-data:
+  rabbitmq-data:
+  kafka-data:
+  zookeeper-data:
+  zookeeper-log:
