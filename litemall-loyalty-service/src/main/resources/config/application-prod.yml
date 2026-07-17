@@ -1,0 +1,47 @@
+# Profile: prod — litemall-loyalty-service.
+# Activated by SPRING_PROFILES_ACTIVE (docker-compose.prod.yml).
+#
+# SCOPE NOTE: `platform` CREATES prod profiles only; it does not edit this
+# module's default application.yml. Everything here is an override.
+
+spring:
+  datasource:
+    druid:
+      # Prod pool sizing. Single VPS, 1 replica/service: 9 services x max-active
+      # must stay under MySQL's max_connections (default 151). The dev default is
+      # max-active 50 — five services alone would exhaust the server.
+      initial-size: 5
+      max-active: 15
+      min-idle: 5
+      max-wait: 10000
+      test-while-idle: true
+      time-between-eviction-runs-millis: 60000
+      # Druid's built-in monitoring servlet/filter: unauthenticated pages that
+      # expose executed SQL and connection details. Off.
+      webStatFilter:
+        enabled: false
+      statViewServlet:
+        enabled: false
+
+logging:
+  level:
+    root: INFO
+    org.linlinjava.litemall: INFO
+    # The default config sets org.springframework.web: DEBUG. In prod that logs
+    # request/response detail — including auth and payment payloads — straight
+    # into container logs, which are plain text on the host and go to anyone with
+    # `docker logs`. INFO here.
+    org.springframework.web: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # health only — the compose healthcheck's sole requirement. Never "*":
+        # /env and /configprops dump every resolved secret.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true

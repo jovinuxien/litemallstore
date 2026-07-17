@@ -9,8 +9,14 @@ spring:
     druid:
       url:  jdbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&verifyServerCertificate=false&useSSL=false
       driver-class-name:  com.mysql.cj.jdbc.Driver
-      username:  litemall
-      password:  Calliste_1006
+      username:  ${MYSQL_USER:litemall}
+      # Wave 7: env, NO committed fallback. This password was committed in 6+
+      # files (and is in git history — treat as burned, rotate it).
+      #
+      # LOCAL DEV: export MYSQL_PASSWORD=<your local password> before starting
+      # any service, or put it in a gitignored .env. There is deliberately no
+      # default — a default here is how the credential spread to 6 files.
+      password:  ${MYSQL_PASSWORD:}
       initial-size:  10
       max-active:  50
       min-idle:  10
@@ -84,8 +90,9 @@ spring:
     # Flyway uses its own JDBC connection independent of Druid.
     # Mirror the same coordinates used by the Druid pool above.
     url: jdbc:mysql://localhost:3306/litemall?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&verifyServerCertificate=false&useSSL=false
-    user: litemall
-    password: Calliste_1006
+    # Same credential as the Druid pool above — Flyway opens its own connection.
+    user: ${MYSQL_USER:litemall}
+    password: ${MYSQL_PASSWORD:}
 mybatis:
   type-aliases-package: org.linlinjava.litemall.db.domain
   mapper-locations:

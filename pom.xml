@@ -42,7 +42,17 @@
         <spring-boot-devtools.version>${spring-boot.version}</spring-boot-devtools.version>
 
 
-        <maven.test.skip>true</maven.test.skip>
+        <!-- Wave 7 (Task D): was `true`, reactor-wide, for a long time.
+             `maven.test.skip` is the master switch — it skips test COMPILATION as
+             well as execution, so litemall-db/pom.xml's `<skipTests>false</skipTests>`
+             never overrode it (skipTests only governs execution, and the tests
+             were never even compiled). The effect was that nothing was verified
+             automatically for months, and two test classes rotted until they no
+             longer compiled (MapperReturnTest's missing imports; DbUtilTest's
+             hardcoded password) — both fixed alongside this change.
+             Override per-invocation with -Dmaven.test.skip=true when you want a
+             fast local package; CI must never set it. -->
+        <maven.test.skip>false</maven.test.skip>
         <jhipster-dependencies.version>7.9.2</jhipster-dependencies.version>
         <frontend-maven-plugin.version>1.14.1</frontend-maven-plugin.version>
         <node.version>v20.16.0</node.version>
@@ -105,7 +115,19 @@
         <module>litemall-order</module>
         <module>litemall-loyalty-service</module>
         <module>litemall-goods-management</module>
-        <module>litemall-goodsapi-analytic</module>
+        <!-- litemall-goodsapi-analytic excluded (Wave 7, 2026-07-16). It does NOT
+             compile: 8 files still import javax.* (e.g. javax.annotation.Resource)
+             which does not exist under Spring Boot 3 / JDK 21 — the Jakarta
+             migration left this module behind. Its presence here broke every
+             full-reactor build, which is why nothing has been built or CI-verified
+             end to end; individual services are built with -pl/-am and never hit it.
+             It is also unrouted (neither gateway has a route to it) and its
+             bootstrap.yml registers in Eureka as "litemall-goods-management" — the
+             REAL service's name — so starting it would poison that service's
+             registrations and silently swallow load-balanced traffic.
+             The code is untouched on disk; re-enable this line once it compiles and
+             the Eureka name collision is fixed. -->
+        <!--<module>litemall-goodsapi-analytic</module>-->
 
         <module>litemall-promotion-service</module>
         <module>litemall-eureka</module>

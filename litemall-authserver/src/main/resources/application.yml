@@ -25,13 +25,19 @@ litemall:
     issuer: litemall-authserver
     audience: litemall-services
     access-ttl-seconds: 600
-    private-key-pem: ""
-    public-key-pem: ""
+    # Wave 7: these were EMPTY, so RsaKeys.from() generated an ephemeral pair
+    # on every boot — this service signs every machine token and serves the
+    # JWKS both gateways verify against. JwtKeyGuard now fails prod startup.
+    private-key-pem: ${LITEMALL_JWT_PRIVATE_KEY_PEM:}
+    public-key-pem: ${LITEMALL_JWT_PUBLIC_KEY_PEM:}
   authserver:
     # Dev plaintext client_credentials secrets (NoOpPasswordEncoder).
     # Override via config-server / env for non-dev.
-    gateway-admin-secret: gateway-admin-dev-secret
-    gateway-api-secret: gateway-api-dev-secret
+    # Wave 7: env, no committed fallback. These are plaintext by design
+    # (NoOpPasswordEncoder) — a committed value is a usable credential for
+    # anyone with repo access. JwtKeyGuard fails startup in prod if unset.
+    gateway-admin-secret: ${LITEMALL_AUTHSERVER_GATEWAY_ADMIN_SECRET:}
+    gateway-api-secret: ${LITEMALL_AUTHSERVER_GATEWAY_API_SECRET:}
 
 management:
   endpoints:

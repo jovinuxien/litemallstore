@@ -6,8 +6,17 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
+// Wave 7: a Stripe SECRET key (sk_test_…) was hardcoded here and shipped into
+// the browser bundle. It was also used WHERE A PAYMENTINTENT CLIENT SECRET
+// BELONGS — the fetched clientSecret was discarded in favour of it — so this
+// form could never have worked. The secret key is gone; the real client secret
+// fetched from the backend is used instead.
+//
+// The publishable key (pk_… is safe to expose by design) should still come from
+// config rather than source. That seam is `/auth/site-config`, owned by
+// gateway-api's Wave-7 Task B; this module has no Wave-7 assignment, so it is
+// left inline and flagged rather than half-migrated here.
 const stripePromise = loadStripe('pk_test_7ZlwiqEnPTuI80hU5JPBHnX5');
-const defaultSecret = 'sk_test_3Li1wcFBsz0AeFTSHBOGm5Yb';
 
 interface StripePaymentComponentProps {
   amount: number;
@@ -153,9 +162,8 @@ const StripePaymentComponent: React.FC<StripePaymentComponentProps> = ({ amount,
         );
 
         const { clientSecret } = response.data;
-        console.log('Client secret:', clientSecret);
         if (!clientSecret) throw new Error('Client secret not found');
-        setClientSecret(defaultSecret);
+        setClientSecret(clientSecret);
       } catch (error) {
         console.error('Error fetching client secret:', error);
       }
@@ -168,7 +176,7 @@ const StripePaymentComponent: React.FC<StripePaymentComponentProps> = ({ amount,
     return <div>Loading..</div>;
   }
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret: defaultSecret }}>
+    <Elements stripe={stripePromise} options={{ clientSecret }}>
       <StripePaymentForm />;
     </Elements>
   );
