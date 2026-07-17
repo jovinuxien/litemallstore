@@ -1,10 +1,14 @@
 litemall:
   # Developers should set it to their own wx related information
   wx:
-    app-id: wxa5b486c6b918ecfb
-    app-secret: e04004829d4c383b4db7769d88dfbca1
-    mch-id: 111111
-    mch-key: xxxxxx
+    # Wave 7: secrets moved to env with NO committed fallback (`${VAR:}`), the
+    # pattern established by litemall-promotion-service/application.yml:58.
+    # A real app-secret was committed here and is in git history — treat it as
+    # burned and rotate in the WeChat console before any non-dev use.
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
+    mch-id: ${WECHAT_MCH_ID:}
+    mch-key: ${WECHAT_MCH_KEY:}
     notify-url: http://www.example.com/wx/order/pay-notify
     # Merchant certificate file path
     # Please refer to "Merchant Certificate"
@@ -17,8 +21,13 @@ litemall:
 
   # Info for Stripe Payment
   stripe:
-    publishedKey: pk_test_7ZlwiqEnPTuI80hU5JPBHnX5
-    secretKey: sk_test_3Li1wcFBsz0AeFTSHBOGm5Yb
+    # Wave 7: env, no committed fallback. The publishable key (pk_) is safe to
+    # expose by design; the SECRET key was committed here AND shipped into the
+    # admin browser bundle (StripeComponent.tsx) — rotate it in the Stripe
+    # dashboard. Absent ⇒ the payment adapter stays disabled and returns a typed
+    # error; it must never fall back to a fake success.
+    publishedKey: ${STRIPE_PUBLISHABLE_KEY:}
+    secretKey: ${STRIPE_SECRET_KEY:}
     webhook-url: https://www.example.com/stripe/webhook/order-paid
 
   #通知相关配置
@@ -110,8 +119,11 @@ litemall:
     # 腾讯对象存储配置信息
     # 请参考 https://cloud.tencent.com/document/product/436/6249
     tencent:
-      secretId: AKIDOccMr856uoU1Tsa2MQL5aqseBUWRrb5i
-      secretKey: XqtgEhIdrupTs4ygaWlkUUXv3w3FiwuD
+      # Wave 7: env, no committed fallback. A real Tencent COS credential pair
+      # was committed here and is in git history — rotate it in the Tencent
+      # console; it can read/write the bucket below.
+      secretId: ${TENCENT_COS_SECRET_ID:}
+      secretKey: ${TENCENT_COS_SECRET_KEY:}
       region: ap-shanghai
       bucketName: vytech-1300096589
     # 七牛云对象存储配置信息

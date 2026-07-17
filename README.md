@@ -57,31 +57,41 @@ Litemall = Spring Boot backend + Vue admin frontend + WeChat mini-program user f
 # Statistics and reporting
 
 
-## Build and packaging each module or service
-mvn clean package -pl litemall-core -am
-mvn clean package -pl litemall-wx-api -am
-mvn clean package -pl litemall-admin-api -am
-mvn clean package -pl litemall-all-react-war -am
+## Build and packaging
+
+The reactor builds every service, and binds both SPAs in via frontend-maven-plugin.
+
+```
+mvn clean package                        # everything
+mvn clean package -pl litemall-order -am # one service + its deps
+```
 
 ## with docker
-# Build Docker images for each module
 
-mvn compile jib:dockerBuild -pl litemall-core -Ddocker.image.prefix=litemall
-mvn compile jib:dockerBuild -pl litemall-db -Ddocker.image.prefix=litemall
-mvn compile jib:dockerBuild -pl litemall-wx-api -Ddocker.image.prefix=litemall
-mvn compile jib:dockerBuild -pl litemall-admin-api -Ddocker.image.prefix=litemall
-mvn compile jib:dockerBuild -pl litemall-all-react-war -Ddocker.image.prefix=litemall
-mvn compile jib:dockerBuild -pl litemall-all -Ddocker.image.prefix=litemall
+Images are built from the single multi-stage `docker/Dockerfile` — one shared
+reactor build, one thin runtime stage per service (`--target <module>`):
 
+```
+docker build -f docker/Dockerfile --target litemall-order -t litemall/order .
+```
 
-# For publishing docker image to dockerHub, we should make sure that the docker registry has
-# login credential informations
+Production stack (all 10 services + MySQL, Elasticsearch, the OCS search tier,
+Redis, RabbitMQ and Kafka):
+
+```
+cp docker-compose/.env.prod.example .env    # then fill it in; .env is gitignored
+docker compose -f docker-compose/docker-compose.prod.yml --env-file .env up -d
+```
+
+⚠ **Do not scale any litemall service past 1 replica.** 14 unguarded `@Scheduled`
+jobs would run twice — duplicate customer email, double social posts, and double
+CJ API spend. See the banner in `docker-compose.prod.yml`.
 
 ## Quick Start
 
 1. Set up the minimum development environment:
     * [MySQL](https://dev.mysql.com/downloads/mysql/)
-    * [JDK 1.8 or higher](http://www.oracle.com/technetwork/java/javase/overview/index.html)
+    * [JDK 21](https://adoptium.net/) — the reactor sets `<java.version>21</java.version>`; JDK 8/11 will not compile it
     * [Maven](https://maven.apache.org/download.cgi)
     * [Node.js](https://nodejs.org/en/download/)
     * [WeChat Developer Tools](https://developers.weixin.qq.com/miniprogram/dev/devtools/download.html)

@@ -1,0 +1,57 @@
+# Profile: prod — litemall-config (Spring Cloud Config Server).
+# Activate with SPRING_PROFILES_ACTIVE=composite,prod (composite is required —
+# it wires the config repositories; see docker-compose.prod.yml).
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# The default application.yml exposes, with NO Spring Security on the classpath
+# (litemall-config/pom.xml has no security starter):
+#
+#   management.endpoints.web.base-path: "/admin"
+#   management.endpoints.web.exposure.include: "*"     <- every endpoint
+#   management.endpoint.env.post.enabled: true         <- WRITABLE /admin/env
+#
+# That is an unauthenticated, writable property endpoint on the service that
+# holds configuration for every other service:
+#   GET  /admin/env  -> dumps every resolved property, including DB password,
+#                       CJ keys, COS/WeChat secrets and JWT signing keys
+#   POST /admin/env  -> injects arbitrary properties into the running server
+#
+# base-path stays "/admin" deliberately — the default application.yml wires
+# Eureka's statusPageUrlPath/healthCheckUrlPath to /admin/info and /admin/health
+# (:20-21). Moving it would silently break Eureka health reporting. Restricting
+# `include` achieves the same result: /admin/env 404s, and /actuator/env 404s
+# too because that base-path does not exist here.
+
+management:
+  endpoints:
+    web:
+      base-path: "/admin"
+      exposure:
+        # health + info ONLY. Never "*" — see above.
+        include: health,info
+  endpoint:
+    env:
+      # Explicitly off even though `include` already hides it: two independent
+      # gates, so re-widening `include` alone cannot resurrect a writable /env.
+      post:
+        enabled: false
+    health:
+      show-details: never
+
+spring:
+  cloud:
+    config:
+      server:
+        composite:
+          # Native only in prod. The git repository points at the PUBLIC
+          # github.com/jovinuxien/litemall-config, whose empty application-prod.yml
+          # files are a trap: filling them in publishes production config to a
+          # public repo. Prod config comes from this jar + environment variables.
+          - type: native
+            search-locations: classpath:/config
+
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.config: INFO

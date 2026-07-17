@@ -38,33 +38,43 @@ one or remove it and re-run `up -d`.
 
 ---
 
-# JHipster generated Docker-Compose configuration
+# Production stack (`docker-compose.prod.yml`)
 
-## Usage
+The real deployment artifact — all 10 services plus their data plane. See the
+repo README for the quick start, and the banner at the top of the file for the
+**1-replica constraint** (it is a correctness constraint, not a tuning knob).
 
-Launch all your infrastructure by running: `docker compose up -d`.
+```
+cp docker-compose/.env.prod.example .env   # fill in; .env is gitignored
+docker compose -f docker-compose/docker-compose.prod.yml --env-file .env up -d
+```
 
-## Configured Docker services
+Every credential is `${VAR:?}` — a missing one aborts the run naming the
+variable rather than starting a service with an empty password.
 
-### Service registry and configuration server:
+## Search stack (`docker-compose.yml` + `dc-local.sh`)
 
-- [JHipster Registry](http://localhost:8761)
+The OCS tier (indexer / searcher / suggest) and Elasticsearch used for local
+development. `dc-local.sh` overlays `docker-compose.local.yml` (Querqy rules,
+custom profiles); `dc-cloudconfig.sh` overlays the config-server variants.
 
-### Applications and dependencies:
+```
+./docker-compose/dc-local.sh up -d
+```
 
-- gateway (gateway application)
-- gateway's postgresql database
-- gateway's elasticsearch search engine
-- announceService (microservice application)
-- announceService's postgresql database
-- announceService's elasticsearch search engine
-- orderService (microservice application)
-- orderService's postgresql database
-- catalogService (microservice application)
-- catalogService's postgresql database
+> Both scripts referenced `docker-compose.base.yml` — a file that has never
+> existed here (it was renamed `docker-compose.yml` upstream) — so the documented
+> bring-up failed outright until Wave 7. Fixed.
 
-### Additional Services:
+---
 
-- Kafka
-- Zookeeper
-- [Keycloak server](http://localhost:9080)
+## Removed in Wave 7
+
+`docker-compose-recover.yml`, `deploy/`, and `docker/litemall/` are gone. They
+described the deprecated monolith (`openjdk:8-jre`, a `litemall.jar` no build
+produces, `nohup java -jar` on a hardcoded `/home/ubuntu` path) and referenced
+`litemall/*` images no script ever built. Anything you need from them lives in
+`docker/Dockerfile` and `docker-compose.prod.yml` now.
+
+The original JHipster boilerplate section previously sat here. It documented a
+PostgreSQL/Keycloak/`announceService` topology that this project has never run.

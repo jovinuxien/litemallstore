@@ -524,8 +524,11 @@ spring:
 ```bash
 litemall:
   wx:
-    app-id: wxa5b486c6b918ecfb
-    app-secret: e04004829d4c383b4db7769d88dfbca1
+    # Wave 7: the real app-id/app-secret were pasted here verbatim. Documentation
+    # is not a safe place for a credential — this doc leaked the same secret that
+    # application-core.yml did. Both now come from the environment:
+    app-id: ${WECHAT_APP_ID:}
+    app-secret: ${WECHAT_APP_SECRET:}
 ```
 
 这里的`app-id`和`app-secret`需要开发者在[微信公众平台](https://mp.weixin.qq.com/)注册获取。
@@ -1182,10 +1185,12 @@ http://www.example.com
     ```
     litemall:
         wx:
-            app-id: wxa5b486c6b918ecfb
-            app-secret: e04004829d4c383b4db7769d88dfbca1
-            mch-id: 111111
-            mch-key: xxxxxx
+            # Wave 7: real credentials were pasted here. Env only — see
+            # docker-compose/.env.prod.example.
+            app-id: ${WECHAT_APP_ID:}
+            app-secret: ${WECHAT_APP_SECRET:}
+            mch-id: ${WECHAT_MCH_ID:}
+            mch-key: ${WECHAT_MCH_KEY:}
             notify-url: http://www.example.com/wx/order/pay-notify
     ```
     

@@ -1,0 +1,37 @@
+# Build context hygiene. Without this the context ships ~40MB of SQL dumps,
+# every target/ dir and every node_modules/ into the builder.
+
+# Build output
+**/target/
+**/node_modules/
+**/dist/
+**/.next/
+
+# The builder resolves its own dependencies; never seed it from a host cache.
+.m2/
+
+# VCS / IDE
+.git/
+.github/
+.idea/
+*.iml
+.vscode/
+
+# Secrets must arrive as env at RUN time, never baked into a layer.
+.env
+.env.*
+!.env.example
+
+# Database dumps — large, and they contain seed credentials.
+backup/
+litemall-all/backup/
+**/*.sql.gz
+
+# Deprecated monolith modules, not part of the deployed reactor.
+litemall-all/
+litemall-all-war/
+
+# Docs and local tooling
+doc/
+*.md
+!README.md

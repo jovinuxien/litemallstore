@@ -86,3 +86,23 @@ node_modules
 
 # local-only marketing-stack credentials (Wave 6) — never committed
 docker-compose/.env.marketing
+
+# Database dumps. Untracked in Wave 7: 20 files / 40MB of full production-shaped
+# dumps were committed, including the bcrypt admin hash and the seed accounts.
+# They stay on disk locally; they must never re-enter the repo. Flyway
+# (litemall-db/src/main/resources/db/migration) is the authoritative schema.
+backup/
+litemall-all/backup/
+
+# Environment files hold real credentials — ignore them ALL, everywhere.
+# Wave 7: the rule above only covered ONE path, so any other .env (including the
+# prod one at the repo root) would have been committed silently.
+.env
+.env.*
+**/.env
+**/.env.*
+# ...except the checked-in templates, which must contain no real values.
+!.env.example
+!**/.env.example
+!.env.prod.example
+!**/.env.prod.example

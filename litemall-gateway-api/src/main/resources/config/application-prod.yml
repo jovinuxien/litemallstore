@@ -1,0 +1,60 @@
+# Profile: prod — litemall-gateway-api (customer edge).
+# Activated by SPRING_PROFILES_ACTIVE=prod,db (docker-compose.prod.yml).
+#
+# SCOPE NOTE: `platform` CREATES prod profiles only and does not edit this
+# module's default application.yml — the `gateway-api` worktree owns that for
+# Wave 7 (auth enforcement, Stripe Elements, consent, legal pages). Everything
+# here is an override that cannot collide with their work.
+
+spring:
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            # The default config hardcodes the SPA dev server
+            # (http://localhost:9000 + 127.0.0.1:9000). In prod the SPA is
+            # served BY this gateway from its own jar, i.e. same-origin, so the
+            # only legitimate origin is the public site itself.
+            #
+            # allowCredentials stays true (the customer session rides cookies),
+            # and CORS forbids credentials with a wildcard origin — so a
+            # misconfigured SHOP_ORIGIN here fails closed (browser blocks) rather
+            # than opening the edge to every origin on the internet.
+            #
+            # A YAML list REPLACES rather than merges, so localhost is gone in prod.
+            allowedOrigins:
+              - ${SHOP_ORIGIN:?set SHOP_ORIGIN, e.g. https://shop.example.com}
+            allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+server:
+  # Caddy terminates TLS and forwards X-Forwarded-Proto/X-Real-IP. Without this
+  # the gateway believes it is serving plain HTTP and will emit http:// redirects
+  # and absolute links — which browsers then block as mixed content.
+  forward-headers-strategy: framework
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # health only. `info` and `gateway` are dropped: the gateway endpoint
+        # enumerates every route and filter, which is a free map of the internal
+        # topology for anyone who reaches it.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    org.linlinjava.litemall: INFO
+    # DEBUG here logs full request/response bodies — i.e. credentials at
+    # /auth/login and payment payloads at checkout — into plain container logs.
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
