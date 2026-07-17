@@ -55,8 +55,20 @@ public class LitemallOrderAggregate {
     private LitemallMoney actualPrice;
     private LitemallMoney grouponPrice;
 
+    /** Tax collected at checkout (US sales tax / EU VAT); 0.00 when tax is off. (Wave 7) */
+    private LitemallMoney taxPrice;
+    /** Provider per-jurisdiction breakdown JSON, for invoices/audit. Never summed. (Wave 7) */
+    private String taxBreakdown;
+
 
     private String payId;
+    /**
+     * The verified Stripe PaymentIntent (pi_...). Separate from {@link #payId}, which is an
+     * overloaded tender label and therefore cannot be unique; this one is UNIQUE in the DB,
+     * which is what stops a PaymentIntent being replayed onto a second order. NULL for
+     * wallet/offline tenders. (Wave 7, Task A)
+     */
+    private String paymentIntentId;
     private LocalDateTime payTime;
     private String shipSn;
     private String shipChannel;

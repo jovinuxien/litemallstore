@@ -83,13 +83,13 @@ class LitemallOrderPaidCancelTest {
         LitemallOrderId orderId = new LitemallOrderId(7);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(7)));
         // Conditional CREATED->PAID transition applied exactly one row.
-        when(orderRepository.markPaidIfCreated(orderId, "WALLET")).thenReturn(1);
+        when(orderRepository.markPaidIfCreated(orderId, "WALLET", null)).thenReturn(1);
 
-        service.markOrderPaid(orderId, "WALLET");
+        service.markOrderPaid(orderId, "WALLET", null);
 
         // The tender is persisted alongside the status flip so refund settlement
         // can route the money back to the channel that paid.
-        verify(orderRepository).markPaidIfCreated(orderId, "WALLET");
+        verify(orderRepository).markPaidIfCreated(orderId, "WALLET", null);
 
         ArgumentCaptor<LitemallDomainEvent> event = ArgumentCaptor.forClass(LitemallDomainEvent.class);
         verify(domainEventPublisher).publish(event.capture());
@@ -103,9 +103,9 @@ class LitemallOrderPaidCancelTest {
         // debit in the same transaction) and publish no paid event.
         LitemallOrderId orderId = new LitemallOrderId(8);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(createdOrder(8)));
-        when(orderRepository.markPaidIfCreated(orderId, "WALLET")).thenReturn(0);
+        when(orderRepository.markPaidIfCreated(orderId, "WALLET", null)).thenReturn(0);
 
-        assertThrows(IllegalStateException.class, () -> service.markOrderPaid(orderId, "WALLET"));
+        assertThrows(IllegalStateException.class, () -> service.markOrderPaid(orderId, "WALLET", null));
 
         verify(domainEventPublisher, never()).publish(org.mockito.ArgumentMatchers.any());
     }

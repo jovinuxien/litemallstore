@@ -106,11 +106,18 @@ litemall:
     # Anonymous paths served by THIS service (svcsecurity is deny-by-default and
     # this list REPLACES the starter's defaults — which only cover goods-side
     # paths anyway). /srv/store/** is the customer store directory (Wave 4,
-    # pickup): browsing stores needs no identity. Everything else (incl. all
-    # /srv/order/**) keeps requiring the gateway's machine token.
+    # pickup): browsing stores needs no identity. Everything else (incl. the rest
+    # of /srv/order/**) keeps requiring the gateway's machine token.
+    #
+    # The Stripe webhook (Wave 7) is the ONLY other anonymous path: Stripe cannot
+    # present a machine token, so it is authenticated by its Stripe-Signature
+    # instead — StripeWebhookController verifies it and 400s otherwise. Being
+    # public it receives NO X-User-* identity, so the handler resolves the order
+    # from the (signed) payload.
     public-paths:
       - /actuator/health/**
       - /srv/store/**
+      - /srv/order/webhook/stripe/**
   order:
     # Wave 4 (Task B): in-store pickup kill-switch. Flipping to false 422s NEW
     # pickup submits; existing pickup orders still read/write-off normally.
@@ -134,6 +141,34 @@ litemall:
     express:
       provider: none
       cache-minutes: 30
+    # Wave 7 (Task A): Stripe card payments. SHIPPED DEFAULT IS DISABLED — the disabled
+    # adapter REJECTS verification, so card pay returns a typed 402 and never a fake
+    # success; wallet checkout is untouched. Secrets are ENV ONLY, with NO committed
+    # fallback (the ${VAR:} pattern) — a key in git is a key that has leaked:
+    #   LITEMALL_ORDER_STRIPE_ENABLED=true
+    #   LITEMALL_ORDER_STRIPE_SECRET_KEY=sk_test_...      (boot FAILS if enabled without it)
+    #   LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET=whsec_...    (webhook rejects everything without it)
+    #
+    # NOT litemall-core's litemall.stripe.* (application-core.yml), which ships committed
+    # test keys, binds no webhook field and is read by nothing but a global Stripe.apiKey
+    # assignment. order is Stripe's only consumer, so it owns this namespace; retiring the
+    # core block + rotating those keys is platform's (Wave-7 Task B).
+    stripe:
+      enabled: ${LITEMALL_ORDER_STRIPE_ENABLED:false}
+      secret-key: ${LITEMALL_ORDER_STRIPE_SECRET_KEY:}
+      webhook-secret: ${LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET:}
+      currency: ${LITEMALL_ORDER_STRIPE_CURRENCY:usd}
+    # Wave 7 (Task C): tax (US sales tax + EU VAT) via Stripe Tax.
+    # UNLIKE every other seam here, tax FAILS CLOSED: when enabled and the provider is
+    # unreachable, checkout is BLOCKED rather than shipping an untaxed order. A missed
+    # receipt is recoverable; an untaxed sale is a liability. Default-off keeps dev and
+    # wallet checkout at taxPrice 0.00 with no behaviour change.
+    tax:
+      provider: ${LITEMALL_ORDER_TAX_PROVIDER:none}
+      enabled: ${LITEMALL_ORDER_TAX_ENABLED:false}
+      origin-country: ${LITEMALL_ORDER_TAX_ORIGIN_COUNTRY:US}
+      origin-postal-code: ${LITEMALL_ORDER_TAX_ORIGIN_POSTAL_CODE:}
+      origin-state: ${LITEMALL_ORDER_TAX_ORIGIN_STATE:}
   # Wave 6 (Phase C): transactional customer email (litemall-core CustomerMailSender
   # + litemall_mail_outbox sweep). SHIPPED DEFAULT IS DISABLED — listeners write no
   # rows, the sweep skips, boot is byte-identical. ENABLE VIA ENV VARS (litemall-core's

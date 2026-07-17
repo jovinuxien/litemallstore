@@ -44,11 +44,29 @@ public class LitemallCartServiceLayer {
         return item;
     }
 
+    /**
+     * Add a line, merging into the existing one for the same variant.
+     *
+     * <p>The caller is expected to have resolved every field from goods-management
+     * (see {@code LitemallOrderOrchestratorService.addToCart}) — this layer persists
+     * what it is handed and is not a validation boundary.
+     *
+     * <p>On merge the freshly-resolved price and display fields are carried onto the
+     * existing row rather than just bumping the quantity: the row's price would
+     * otherwise keep whatever the catalog said when the line was FIRST added, and the
+     * submit-time price check would then reject the checkout on every attempt with no
+     * way for the customer to clear it (Wave 7, Task E0).
+     */
     public LitemallCartAggregate addCartItem(LitemallCartAggregate cart) {
         LitemallCartAggregate existing = cartRepository.findByUserIdAndGoodsId(
                 cart.getUserId(), cart.getGoodsId(), cart.getProductId());
         if (existing != null) {
             existing.setNumber(existing.getNumber() + cart.getNumber());
+            existing.setPrice(cart.getPrice());
+            existing.setGoodsName(cart.getGoodsName());
+            existing.setGoodsSn(cart.getGoodsSn());
+            existing.setPicUrl(cart.getPicUrl());
+            existing.setSpecifications(cart.getSpecifications());
             cartRepository.update(existing);
             return existing;
         }
