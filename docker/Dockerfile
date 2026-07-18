@@ -112,6 +112,16 @@ RUN apt-get update \
 # platform reassigns it.
 RUN useradd --uid 1001 --gid 0 --shell /usr/sbin/nologin --create-home litemall
 WORKDIR /app
+
+# Writable log dir owned by the runtime user. goods-management's
+# logback-spring.xml writes ${log.path}/log.log with log.path="logs" (a plain
+# <property>, not overridable from yaml), which resolves to /app/logs. Without
+# this the service dies at startup — FileNotFoundException: logs/error.log —
+# because /app is root-owned and uid 1001 cannot create the dir. Harmless for the
+# services that log only to stdout. goods-management is a parked module, so the
+# fix lives here rather than in its source.
+RUN mkdir -p /app/logs && chown 1001:0 /app/logs && chmod 775 /app/logs
+
 USER 1001
 
 # MaxRAMPercentage makes the JVM honour the compose mem_limit. Without it the
@@ -128,6 +138,23 @@ ENTRYPOINT ["/usr/bin/tini", "--", "sh", "-c", "exec java $JAVA_OPTS -jar /app/a
 #
 # Ports are the service's own configured server.port (see each application.yml);
 # EXPOSE is documentation — compose does the actual publishing.
+#
+# WHY SOME COPY *-exec.jar AND OTHERS DON'T — do not "tidy" this into one glob.
+#
+# order, goods-management, promotion-service and loyalty-service bind
+# spring-boot-maven-plugin with <classifier>exec</classifier> (a JHipster
+# convention). Those four modules emit TWO jars:
+#
+#   litemall-<mod>-0.0.1-SNAPSHOT.jar        ~0.5MB  plain library jar, NO Main-Class
+#   litemall-<mod>-0.0.1-SNAPSHOT-exec.jar   ~110MB  the bootable fat jar
+#
+# A `litemall-<mod>-*.jar` glob matches BOTH and lands the plain one on /app/app.jar,
+# so the container starts and dies instantly with:
+#
+#   no main manifest attribute, in /app/app.jar
+#
+# eureka, config, authserver and both gateways use no classifier and emit a single
+# bootable jar, so their plain glob is correct. Adding -exec there would break them.
 # ---------------------------------------------------------------------------
 
 FROM runtime AS litemall-eureka
@@ -151,19 +178,19 @@ COPY --from=builder --chown=1001:0 /build/litemall-gateway-admin/target/litemall
 EXPOSE 8080
 
 FROM runtime AS litemall-order
-COPY --from=builder --chown=1001:0 /build/litemall-order/target/litemall-order-*.jar /app/app.jar
+COPY --from=builder --chown=1001:0 /build/litemall-order/target/litemall-order-*-exec.jar /app/app.jar
 EXPOSE 8085
 
 FROM runtime AS litemall-goods-management
-COPY --from=builder --chown=1001:0 /build/litemall-goods-management/target/litemall-goods-management-*.jar /app/app.jar
+COPY --from=builder --chown=1001:0 /build/litemall-goods-management/target/litemall-goods-management-*-exec.jar /app/app.jar
 EXPOSE 8082
 
 FROM runtime AS litemall-promotion-service
-COPY --from=builder --chown=1001:0 /build/litemall-promotion-service/target/litemall-promotion-service-*.jar /app/app.jar
+COPY --from=builder --chown=1001:0 /build/litemall-promotion-service/target/litemall-promotion-service-*-exec.jar /app/app.jar
 EXPOSE 8088
 
 FROM runtime AS litemall-loyalty-service
-COPY --from=builder --chown=1001:0 /build/litemall-loyalty-service/target/litemall-loyalty-service-*.jar /app/app.jar
+COPY --from=builder --chown=1001:0 /build/litemall-loyalty-service/target/litemall-loyalty-service-*-exec.jar /app/app.jar
 EXPOSE 8087
 
 # NOTE: there is deliberately no litemall-goodsapi-analytic stage. That module is

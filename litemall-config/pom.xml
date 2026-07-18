@@ -16,10 +16,26 @@
 
 
 	<properties>
-		<java.version>17</java.version>
 		<mapstruct.version>1.5.2.Final</mapstruct.version>
 		<jaxb-runtime.version>4.0.0</jaxb-runtime.version>
-		<spring-cloud.version>2021.0.9</spring-cloud.version>
+		<!--
+		  java.version and spring-cloud.version are DELIBERATELY inherited from the
+		  root pom (21 / 2022.0.5) — do not re-pin them here.
+
+		  This module used to override them to 17 / 2021.0.9. Spring Cloud 2021.0.x
+		  is the Spring Boot 2.6/2.7 line; the reactor is on Boot 3.1.6, which needs
+		  the 2022.0.x line. The mismatch made the config server unbootable:
+
+		    Unable to instantiate factory class
+		      [org.springframework.cloud.config.client.ConfigServerConfigDataLocationResolver]
+		    Caused by: Log types cannot be injected, please use DeferredLogFactory
+
+		  (the 2021.0.x resolver takes a Log constructor arg; Boot 3 rejects it).
+
+		  It went unnoticed because dev boots every service from its own local
+		  application.yml — nothing exercised the config server until Wave-7's
+		  docker-compose.prod.yml made it a healthcheck-gated dependency.
+		-->
 
 		<jib-maven-plugin.version>3.4.0</jib-maven-plugin.version>
 		<jib-maven-plugin.image>eclipse-temurin:17-jre-focal</jib-maven-plugin.image>
