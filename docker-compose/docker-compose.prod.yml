@@ -63,10 +63,47 @@ x-litemall-common: &litemall-common
 # CANNOT override — the bootstrap context is built before profile YAML loads.
 # Environment variables outrank both, so this is the only correct seam for them.
 x-litemall-discovery: &litemall-discovery
-  SPRING_CLOUD_CONFIG_URI: http://config:8888
+  # Config CLIENT is OFF, deliberately. The comment above ("Environment variables
+  # outrank both") is not true against a config server: Spring Cloud Config's
+  # remote property sources outrank env by default
+  # (spring.cloud.config.overrideSystemProperties defaults true).
+  #
+  # It bit exactly that way. litemall-config's native repo is
+  #   spring.cloud.config.server.composite[0].search-locations: classpath:/config
+  # i.e. THE CONFIG SERVER'S OWN packaged config dir. So it served its own
+  # application.yml — including `spring.application.name: config-server` and a
+  # localhost:8761 Eureka URL — to every client that asked. authserver duly
+  # registered itself as CONFIG-SERVER and dialled localhost:8761, ignoring the
+  # correct EUREKA_CLIENT_SERVICEURL_DEFAULTZONE below.
+  #
+  # No per-service config exists in that repo (or in the git backend — the public
+  # jovinuxien/litemall-config is empty scaffolding). Every service already ships
+  # a complete application.yml + application-prod.yml, so the config server adds
+  # nothing here and only corrupts client identity. Turning the client off is the
+  # smallest correct fix; the server itself stays up and healthy.
+  #
+  # To re-enable it properly: point composite[0] at a directory of per-service
+  # files (NOT classpath:/config), then drop this flag.
+  SPRING_CLOUD_CONFIG_ENABLED: "false"
   EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka:8761/eureka/
   SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHSERVER_TOKEN_URI: http://authserver:8089/oauth2/token
   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://authserver:8089/oauth2/jwks
+  # THE one svcsecurity actually reads. litemall-svcsecurity binds
+  # litemall.svcsecurity.jwk-set-uri (SvcSecurityProperties), NOT the standard
+  # spring.security.oauth2.resourceserver line above — so without this every
+  # downstream service fell back to its yaml default http://localhost:8089,
+  # which inside a container is the service itself. Result: the JWKS fetch fails,
+  # EVERY machine token is rejected, and all admin + authenticated service-to-
+  # service calls 401. Public storefront browsing still works (no token needed),
+  # which is exactly why it looked fine until the first admin call (reindex).
+  LITEMALL_SVCSECURITY_JWK_SET_URI: http://authserver:8089/oauth2/jwks
+  # Register in Eureka by IP, not hostname. Several services hardcode
+  # eureka.instance.hostname: localhost (e.g. goods-management application.yml:231),
+  # so they register as hostName=localhost — and lb:// clients (the gateways) then
+  # dial their OWN localhost:<port> and get Connection refused. preferIpAddress
+  # makes the load balancer use the container IP, which is routable on this
+  # network. Universal fix; no per-service hostname needed.
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
 
 # serverTimezone=UTC, deliberately. The committed default is Asia/Shanghai
 # (litemall-db/application-db.yml:9) — wrong for a US/EU store and a silent
@@ -213,11 +250,16 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+      # cp-zookeeper ships with only `srvr` in the four-letter-word whitelist.
+      # Setting this env to add `ruok` did NOT take effect on 7.5.0 (the running
+      # server still rejects ruok), so the healthcheck below uses `srvr` instead
+      # — which is whitelisted by default and needs no env at all. Kept for intent.
+      ZOOKEEPER_4LW_COMMANDS_WHITELIST: "srvr,ruok"
     volumes:
       - zookeeper-data:/var/lib/zookeeper/data
       - zookeeper-log:/var/lib/zookeeper/log
     healthcheck:
-      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 | grep -q imok"]
+      test: ["CMD-SHELL", "echo srvr | nc -w 2 localhost 2181 | grep -q Zookeeper"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -257,6 +299,17 @@ services:
       elasticsearch: {condition: service_healthy}
     environment:
       ES_HOSTS: http://elasticsearch:9200
+      # `custom` LOADS the mounted application-custom.yml (the field mapping);
+      # `preset` is OCS's relevance preset. Mounting the file WITHOUT activating
+      # the custom profile does nothing — Spring never reads it — which is why the
+      # index came back empty even after the volume was added.
+      SPRING_PROFILES_ACTIVE: preset,custom
+    volumes:
+      # The OCS field mapping — WITHOUT this the indexer has no field-configuration
+      # for litemall_index, so it stores documents as empty shells (id + empty
+      # resultData) and the whole catalog renders blank. Delivered as
+      # application-custom.yml exactly as docker-compose.local.yml does for dev.
+      - ./application.indexer-service.yml:/app/resources/application-custom.yml:ro
     mem_limit: 768m
     networks: [litemall]
 
@@ -267,6 +320,11 @@ services:
       elasticsearch: {condition: service_healthy}
     environment:
       ES_HOSTS: http://elasticsearch:9200
+      SPRING_PROFILES_ACTIVE: preset,custom   # same as indexer — loads the mounted config
+    volumes:
+      # Search-side field config + relevance preset; the searcher must agree with
+      # the indexer's mapping or queries return nothing usable.
+      - ./application.search-service.yml:/app/resources/application-custom.yml:ro
     mem_limit: 768m
     networks: [litemall]
 
@@ -403,6 +461,11 @@ services:
   goods-management:
     <<: *litemall-common
     build: {<<: *litemall-build, target: litemall-goods-management}
+    # goods-management is the only service with a file-logging logback-spring.xml
+    # (writes /app/logs). tmpfs gives it a writable, ephemeral dir without a
+    # rebuild; the permanent fix (mkdir in docker/Dockerfile) applies next clean build.
+    tmpfs:
+      - /app/logs
     image: litemall/goods-management:${LITEMALL_TAG:-latest}
     depends_on:
       mysql: {condition: service_healthy}

@@ -47,17 +47,42 @@
 		-Server
 	}
 
+	# --- CJ image proxy ------------------------------------------------------
+	# Product images live on CJ Dropshipping's CDN (cf/oss-cf.cjdropshipping.com).
+	# Many client browsers can't load them directly — ad-blockers and privacy
+	# shields treat cjdropshipping.com as a third-party tracker, and some networks
+	# / regions block it outright — so the catalog renders imageless even though
+	# the page itself is fine. These routes serve those images SAME-ORIGIN: the
+	# server (which can reach CJ) fetches them and hands them back from this
+	# domain, so the browser never talks to CJ. Image URLs in the DB are rewritten
+	# to the relative paths /_cdn/cf/… and /_cdn/oss/… (portable across domains).
+	# handle_path strips the prefix, so /_cdn/cf/x.jpg → https://cf.cj…/x.jpg.
+	handle_path /_cdn/cf/* {
+		reverse_proxy https://cf.cjdropshipping.com {
+			header_up Host cf.cjdropshipping.com
+		}
+		header Cache-Control "public, max-age=86400"
+	}
+	handle_path /_cdn/oss/* {
+		reverse_proxy https://oss-cf.cjdropshipping.com {
+			header_up Host oss-cf.cjdropshipping.com
+		}
+		header Cache-Control "public, max-age=86400"
+	}
+
 	# The Stripe webhook (order Task A) MUST be reachable here over public HTTPS
 	# — Stripe will not deliver to a self-signed or plaintext endpoint. It is
 	# anonymous by necessity (Stripe cannot present a machine token) and is
 	# gated by signature verification instead, not by network position.
 	# It needs no special rule: it is a normal /srv path proxied below. This
 	# comment exists so nobody "hardens" the edge by blocking it.
-	reverse_proxy gateway-api:8090 {
-		# Let the app distinguish real client IPs and know it is behind TLS,
-		# so redirects/links are https:// and rate limits see real addresses.
-		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-Proto {scheme}
+	handle {
+		reverse_proxy gateway-api:8090 {
+			# Let the app distinguish real client IPs and know it is behind TLS,
+			# so redirects/links are https:// and rate limits see real addresses.
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
 	}
 }
 

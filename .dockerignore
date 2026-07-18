@@ -7,6 +7,12 @@
 **/dist/
 **/.next/
 
+# Runtime logs — 1.5GB on a dev box, and COPY . . baked every byte of it into
+# the builder layer on every build. Nothing in the reactor reads them.
+logs/
+**/logs/
+*.log
+
 # The builder resolves its own dependencies; never seed it from a host cache.
 .m2/
 
