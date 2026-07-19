@@ -522,6 +522,11 @@ services:
       MATOMO_AUTH_TOKEN: ${MATOMO_AUTH_TOKEN:-}
       MAUTIC_USERNAME: ${MAUTIC_USERNAME:-}
       MAUTIC_PASSWORD: ${MAUTIC_PASSWORD:-}
+      # Feign clients dial by DIRECT url; committed defaults are localhost with
+      # ports that don't even match the real services (8083/8084). goods-service
+      # → /srv/goods/videos on goods-management:8082; order-statistics → order:8085.
+      GOODS_SERVICE_URL: http://goods-management:8082
+      ORDER_SERVICE_URL: http://order:8085
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8088/actuator/health"]}
     mem_limit: 1g
 
@@ -535,6 +540,9 @@ services:
     environment:
       <<: [*litemall-discovery, *litemall-db]
       SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
+      # wallet-service (/srv/wallet/{userId}/credit) lives in the ORDER service,
+      # not a separate container; committed default is localhost:8088.
+      WALLET_SERVICE_URL: http://order:8085
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8087/actuator/health"]}
     mem_limit: 768m
 
