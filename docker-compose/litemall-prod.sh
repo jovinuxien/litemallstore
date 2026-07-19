@@ -19,6 +19,7 @@
 #   ./litemall-prod.sh seed        # copy the dev catalog into prod + reindex
 #   ./litemall-prod.sh logs <svc>  # tail one service
 #   ./litemall-prod.sh smoke       # curl the storefront end-to-end
+#   ./litemall-prod.sh smoke-checkout # full money path: login→cart→total→place→wallet-pay
 #   ./litemall-prod.sh down        # stop the stack (keeps volumes)
 #   ./litemall-prod.sh restart <svc>
 #
@@ -309,6 +310,96 @@ smoke() {
   info "add to /etc/hosts if not already:  127.0.0.1  $shop $(grep '^ADMIN_DOMAIN=' "$ENV_FILE" | cut -d= -f2)"
 }
 
+# End-to-end checkout smoke: login -> add-to-cart -> assert total>0 -> place ->
+# pay by WALLET -> assert the balance was debited. This exercises the full
+# money path across gateway-api, order, goods-management, promotion and the
+# authserver machine-token relay — the exact chain where NINE of this stack's
+# ten prod bugs hid (config, JWKS, Eureka host, OCS index, goods-token-uri, the
+# Feign urls). "compose validates" would have caught none of them; this catches
+# all but the pure-infra one. Built for CI: exits non-zero on any failure.
+#
+# Test creds default to the demo customer (pw == username); override with
+# SMOKE_USER / SMOKE_PASS. It places a REAL order for the cheapest in-stock item
+# and tops the wallet up first, so run it against a throwaway/staging DB.
+smoke_checkout() {
+  # Tolerant of expected non-zero exits (a grep with no match is normal in the
+  # happy path); the explicit `|| { err; return 1; }` guards below are what decide
+  # pass/fail, so the CI exit code stays meaningful. `local -` restores errexit on
+  # return; clearing ERR stops the launch trap firing on those inner greps.
+  local -; set +e; trap - ERR
+  step "Checkout smoke (login → cart → total → place → wallet-pay)"
+  local shop user pass
+  shop="$(grep '^SHOP_DOMAIN=' "$ENV_FILE" | cut -d= -f2)"
+  user="${SMOKE_USER:-user123}"; pass="${SMOKE_PASS:-$user}"
+  local R=(curl -sk --resolve "$shop:443:127.0.0.1" --max-time 25)
+  local mysql_q='mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e'
+
+  # 1. login
+  local tok; tok="$("${R[@]}" -X POST "https://$shop/auth/login" -H 'Content-Type: application/json' \
+        -d "{\"username\":\"$user\",\"password\":\"$pass\"}" 2>/dev/null | grep -oE '"token":"[^"]+"' | head -1 | cut -d'"' -f4)"
+  [[ -n "$tok" ]] || { err "login failed for $user"; fix "seed accounts ($0 seed-accounts) or check auth ($0 doctor → Accounts & login)"; return 1; }
+  ok "logged in as $user"
+  local auth=(-H "Authorization: Bearer $tok")
+
+  # 2. pick the cheapest in-stock LOCAL SKU + make sure the wallet can cover it.
+  # LOCAL (cj_pid NULL), deliberately: a CJ line adds a fulfillment-availability +
+  # country-code path that is a different test — this smoke targets the money path.
+  local row gid pid price
+  row="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT g.id,p.id,p.price FROM litemall.litemall_goods g JOIN litemall.litemall_goods_product p ON p.goods_id=g.id WHERE g.deleted=0 AND g.is_on_sale=1 AND (g.cj_pid IS NULL OR g.cj_pid=\"\") ORDER BY p.price ASC LIMIT 1;' 2>/dev/null" 2>/dev/null)"
+  read -r gid pid price <<<"$row"
+  [[ -n "$gid" ]] || { err "no in-stock goods to test with — is the catalog seeded/indexed?"; fix "$0 seed ; $0 reindex"; return 1; }
+  docker exec -i "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" litemall 2>/dev/null' \
+      <<<"UPDATE litemall_user SET now_money = now_money + 100000 WHERE username='"'"'$user'"'"';" >/dev/null 2>&1
+  info "test SKU goods=$gid sku=$pid price=$price (wallet topped up for the run)"
+
+  # 3. ensure a delivery address exists
+  local aid; aid="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT a.id FROM litemall.litemall_address a JOIN litemall.litemall_user u ON u.id=a.user_id WHERE u.username=\"$user\" AND a.deleted=0 ORDER BY a.id DESC LIMIT 1;' 2>/dev/null" 2>/dev/null)"
+  if [[ -z "$aid" ]]; then
+    "${R[@]}" "${auth[@]}" -X POST "https://$shop/srv/address/save" -H 'Content-Type: application/json' \
+      -d '{"name":"Smoke Test","tel":"5551234567","province":"California","city":"Los Angeles","county":"LA","addressDetail":"1 Test St","postalCode":"90001","isDefault":true}' -o /dev/null 2>/dev/null
+    aid="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT a.id FROM litemall.litemall_address a JOIN litemall.litemall_user u ON u.id=a.user_id WHERE u.username=\"$user\" ORDER BY a.id DESC LIMIT 1;' 2>/dev/null" 2>/dev/null)"
+  fi
+  [[ -n "$aid" ]] || { err "could not obtain a delivery address"; fix "$0 logs order (address save)"; return 1; }
+
+  # 4. add to cart  (catches the goods-token / Feign-url gaps: this 502s when order can't reach goods)
+  "${R[@]}" "${auth[@]}" -X DELETE "https://$shop/srv/cart/items" -o /dev/null 2>/dev/null
+  local code; code="$("${R[@]}" "${auth[@]}" -X POST "https://$shop/srv/cart/items" -H 'Content-Type: application/json' \
+        -d "{\"goodsId\":$gid,\"productId\":$pid,\"number\":1}" -o /dev/null -w '%{http_code}' 2>/dev/null)"
+  [[ "$code" =~ ^20 ]] || { err "add-to-cart HTTP $code"; fix "order can't reach goods to re-resolve price — $0 logs order (look for 'goods machine token' or 'localhost:8082')"; return 1; }
+  ok "added item to cart ($code)"
+
+  # 5. THE assertion that catches the \$0-total class of bug
+  local total; total="$("${R[@]}" "${auth[@]}" "https://$shop/srv/cart/checkout" 2>/dev/null \
+        | grep -oE '"actualPrice":[0-9.]+' | head -1 | cut -d: -f2)"
+  if [[ -z "$total" || "$total" == 0 || "$total" == 0.0 ]]; then
+    err "checkout total is ${total:-null} — the money path is broken"
+    fix "usually order↔goods wiring: $0 logs order ; $0 doctor"; return 1
+  fi
+  ok "checkout total = \$$total (server-computed, > 0)"
+
+  # 6. place the order
+  local submit oid; submit="$("${R[@]}" "${auth[@]}" -X POST "https://$shop/srv/order/submit" -H 'Content-Type: application/json' \
+        -d "{\"cartId\":0,\"addressId\":$aid,\"couponId\":0,\"userCouponId\":0,\"message\":\"smoke\",\"grouponRulesId\":0,\"grouponLinkId\":0}" 2>/dev/null)"
+  oid="$(grep -oE '"orderId":[0-9]+' <<<"$submit" | head -1 | grep -oE '[0-9]+')"
+  [[ -n "$oid" ]] || { err "order submit failed: $(grep -oE '"errmsg":"[^"]*"' <<<"$submit" | head -1)"; fix "$0 logs order"; return 1; }
+  ok "order placed (id=$oid)"
+
+  # 7. pay from wallet + assert the debit actually happened
+  local before after
+  before="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT now_money FROM litemall.litemall_user WHERE username=\"$user\";' 2>/dev/null" 2>/dev/null)"
+  "${R[@]}" "${auth[@]}" -X POST "https://$shop/srv/order/$oid/actions/pay" -H 'Content-Type: application/json' -d '{"paymentMethod":"WALLET"}' -o /dev/null 2>/dev/null
+  after="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT now_money FROM litemall.litemall_user WHERE username=\"$user\";' 2>/dev/null" 2>/dev/null)"
+  if awk "BEGIN{exit !($after < $before)}"; then
+    ok "wallet debited $before → $after — WALLET payment works end to end"
+  else
+    err "wallet not debited (before=$before after=$after) — payment did not settle"
+    fix "$0 logs order (WALLET debit)"; return 1
+  fi
+
+  "${R[@]}" "${auth[@]}" -X DELETE "https://$shop/srv/cart/items" -o /dev/null 2>/dev/null
+  echo; ok "CHECKOUT SMOKE PASSED — the full money path is healthy"
+}
+
 # ---------------------------------------------------------------------------
 # doctor — map every known failure signature to its fix.
 # ---------------------------------------------------------------------------
@@ -507,6 +598,7 @@ ${C_BOLD}litemall-prod.sh${C_0} — launch & operate the litemall production sta
   seed-accounts copy dev user + admin logins into prod          (needs DEV_DB_PASSWORD)
   reindex       rebuild the Elasticsearch product index
   smoke         curl the storefront end-to-end through TLS
+  smoke-checkout full money-path test (login→cart→total→place→wallet-pay); CI-ready
   status        one-line health of every container
   doctor        full diagnostic; prints the fix for each known failure
   logs <svc>    tail one service
@@ -535,7 +627,8 @@ main() {
     seed)          seed ;;
     seed-accounts) seed_accounts ;;
     reindex)       reindex ;;
-    smoke)    smoke ;;
+    smoke)          smoke ;;
+    smoke-checkout) smoke_checkout ;;
     status)   status ;;
     doctor)   doctor ;;
     logs)     logs "${1:-}" ;;
