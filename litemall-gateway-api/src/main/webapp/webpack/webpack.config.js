@@ -31,7 +31,12 @@ module.exports = {
       { test: /\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp)$/, type: 'asset/resource' },
     ],
   },
-  plugins: [new HtmlWebpackPlugin({ template: path.resolve(__dirname, '../public/index.html') })],
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, '../public/index.html'),
+      favicon: path.resolve(__dirname, '../public/favicon.ico'),
+    }),
+  ],
   devServer: {
     port: 9000,
     historyApiFallback: true,
