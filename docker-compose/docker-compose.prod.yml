@@ -455,6 +455,23 @@ services:
       LITEMALL_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       LITEMALL_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
+      # order mints its OWN machine token (GoodsMachineTokenProvider) to call
+      # goods-management when it re-resolves a cart line's price server-side. It
+      # reads litemall.goods.auth.* — NOT the standard spring.security.oauth2
+      # property the discovery anchor sets — so without these it fell back to the
+      # baked defaults: token-uri http://localhost:8089 (nothing there inside the
+      # order container → ConnectException "Unable to obtain goods machine token")
+      # and client-secret gateway-api-dev-secret (wrong for prod). The visible
+      # symptom was add-to-cart 502 → empty server cart → $0 checkout total.
+      LITEMALL_GOODS_AUTH_TOKEN_URI: http://authserver:8089/oauth2/token
+      LITEMALL_GOODS_AUTH_CLIENT_ID: gateway-api
+      LITEMALL_GOODS_AUTH_CLIENT_SECRET: ${GATEWAY_API_CLIENT_SECRET:?set GATEWAY_API_CLIENT_SECRET in .env}
+      # order's Feign clients dial these by DIRECT url (not lb://Eureka), and the
+      # committed defaults are http://localhost:{8082,8088} — nothing there inside
+      # the order container. Same class of gap as the token-uri above; without them
+      # add-to-cart/checkout 502s (goods price re-resolve) and coupons fail.
+      GOODS_SERVICE_URL: http://goods-management:8082
+      PROMOTION_SERVICE_URL: http://promotion-service:8088
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 

@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Form } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 
+import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
@@ -206,7 +207,7 @@ const CheckoutView: React.FC = () => {
   const [quotes, setQuotes] = useState<{ local?: IFreightQuote | null; cj?: IFreightQuote | null }>({});
   const [quoteLoading, setQuoteLoading] = useState(false);
   const cartSignature = useMemo(
-    () => cartList.map(it => `${it.goodsId}:${it.productId ?? ''}:${it.number ?? 0}:${it.price ?? 0}`).join('|'),
+    () => cartList.map(it => `${it.goodsId}:${it.productId ?? ''}:${it.number ?? 0}:${priceNum(it.price)}`).join('|'),
     [cartList]
   );
 
@@ -222,7 +223,7 @@ const CheckoutView: React.FC = () => {
     const timer = setTimeout(async () => {
       const localItems = cartList.filter(it => !isCjItem(it));
       const cjItems = cartList.filter(isCjItem);
-      const subtotalOf = (items: typeof cartList) => items.reduce((s, it) => s + (it.price ?? 0) * (it.number ?? 0), 0);
+      const subtotalOf = (items: typeof cartList) => items.reduce((s, it) => s + priceNum(it.price) * (it.number ?? 0), 0);
       const next: { local?: IFreightQuote | null; cj?: IFreightQuote | null } = {};
       // Pickup charges no freight — skip the local quote entirely.
       if (localItems.length > 0 && !isPickup) {
@@ -232,7 +233,7 @@ const CheckoutView: React.FC = () => {
             // Wave 4 freight templates: the selected address resolves the region
             // rule; cart lines drive per-template pricing.
             addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
-            items: localItems.map(it => ({ goodsId: it.goodsId, quantity: it.number ?? 1, price: it.price ?? 0 })),
+            items: localItems.map(it => ({ goodsId: it.goodsId, quantity: it.number ?? 1, price: priceNum(it.price) })),
           })
           .catch(() => null);
       }
@@ -350,7 +351,7 @@ const CheckoutView: React.FC = () => {
       setCoupons([]);
       return;
     }
-    const amount = cartList.reduce((sum, it) => sum + (it.price ?? 0) * (it.number ?? 0), 0);
+    const amount = cartList.reduce((sum, it) => sum + priceNum(it.price) * (it.number ?? 0), 0);
     const goodsIds = cartList.map(it => Number(it.goodsId)).filter(id => Number.isFinite(id));
     userApi
       .couponSelectList(Number(amount.toFixed(2)), goodsIds)
@@ -372,7 +373,7 @@ const CheckoutView: React.FC = () => {
    * hint and the CJ/local group split. The charged figures all come from `totals`.
    */
   const cartLinesSubtotal = useMemo(
-    () => cartList.reduce((sum, item) => sum + (item.price ?? 0) * (item.number ?? 0), 0),
+    () => cartList.reduce((sum, item) => sum + priceNum(item.price) * (item.number ?? 0), 0),
     [cartList]
   );
 
@@ -846,7 +847,7 @@ const CheckoutView: React.FC = () => {
               name={item.goodsName}
               to={item.goodsId ? `/product/${item.goodsId}` : undefined}
               specs={item.specifications}
-              price={(item.price ?? 0) * (item.number ?? 0)}
+              price={priceNum(item.price) * (item.number ?? 0)}
               qty={item.number ?? 0}
             />
           ))}
