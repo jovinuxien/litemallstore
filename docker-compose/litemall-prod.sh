@@ -15,6 +15,7 @@
 #   ./litemall-prod.sh doctor      # diagnose a running/broken stack, print fixes
 #   ./litemall-prod.sh status      # one-line health of every container
 #   ./litemall-prod.sh reindex     # rebuild the Elasticsearch product index
+#   ./litemall-prod.sh seed-accounts # copy dev user+admin logins into prod
 #   ./litemall-prod.sh seed        # copy the dev catalog into prod + reindex
 #   ./litemall-prod.sh logs <svc>  # tail one service
 #   ./litemall-prod.sh smoke       # curl the storefront end-to-end
@@ -240,6 +241,28 @@ seed() {
   reindex
 }
 
+# Copy the user + admin accounts from dev into prod. Kept SEPARATE from `seed`
+# (catalog) on purpose: a real prod DB should not carry dev logins by default, so
+# this is opt-in. Without it every login returns "account not found".
+ACCOUNT_TABLES="litemall_user litemall_admin"
+seed_accounts() {
+  step "Seed user + admin accounts from dev DB -> prod"
+  local devpw="${DEV_DB_PASSWORD:-}"
+  [[ -z "$devpw" ]] && { warn "set DEV_DB_PASSWORD to your dev MySQL password to enable account seeding"; return 1; }
+  local dump; dump="$(mktemp)"
+  docker run --rm --network host mysql:8.0 sh -c \
+    "mysqldump -h$DEV_DB_HOST -P$DEV_DB_PORT -u$DEV_DB_USER -p'$devpw' --no-create-info --single-transaction --complete-insert --default-character-set=utf8mb4 --skip-add-locks litemall $ACCOUNT_TABLES 2>/dev/null" > "$dump"
+  [[ -s "$dump" ]] || { rm -f "$dump"; die "could not read accounts from dev (check DEV_DB_PASSWORD / dev MySQL on :$DEV_DB_PORT)."; }
+  local trunc; trunc="$(for t in $ACCOUNT_TABLES; do echo "TRUNCATE TABLE $t;"; done)"
+  { echo "SET FOREIGN_KEY_CHECKS=0; USE litemall; $trunc SET NAMES utf8mb4;"; cat "$dump"; echo "SET FOREIGN_KEY_CHECKS=1;"; } | \
+    docker exec -i "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --force 2>&1' | grep -i error && die "load had errors (see above)."
+  rm -f "$dump"
+  local u a; u="$(docker exec "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "SELECT COUNT(*) FROM litemall.litemall_user WHERE deleted=0;" 2>/dev/null' 2>/dev/null)"
+  a="$(docker exec "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "SELECT COUNT(*) FROM litemall.litemall_admin WHERE deleted=0;" 2>/dev/null' 2>/dev/null)"
+  ok "prod now has $u users, $a admins (demo logins: user123/user123, admin123/admin123)"
+  warn "dev demo credentials are PUBLICLY KNOWN — remove/rotate them before a real launch"
+}
+
 # Mint a machine token exactly the way the gateway does, then trigger reindex.
 machine_token() {
   local secret; secret="$(grep '^GATEWAY_API_CLIENT_SECRET=' "$ENV_FILE" | cut -d= -f2-)"
@@ -410,12 +433,40 @@ for a in apps:
     else err "no product index in Elasticsearch — the storefront will 500 on catalog calls"; fix "$0 reindex"; fi
   else warn "elasticsearch not healthy"; fi
 
-  # 6. end-to-end
+  # 6. accounts seeded + the customer login path actually works
+  step "Accounts & login"
+  if [[ "$(cstate mysql)" != healthy ]]; then warn "mysql not healthy — cannot check accounts"
+  else
+    local ucount acount
+    ucount="$(docker exec "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "SELECT COUNT(*) FROM litemall.litemall_user WHERE deleted=0;" 2>/dev/null' 2>/dev/null)"
+    acount="$(docker exec "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "SELECT COUNT(*) FROM litemall.litemall_admin WHERE deleted=0;" 2>/dev/null' 2>/dev/null)"
+    if [[ "${ucount:-0}" -eq 0 || "${acount:-0}" -eq 0 ]]; then
+      err "no accounts seeded (users=${ucount:-?}, admins=${acount:-?}) — every login returns \"account not found\""
+      fix "seed the demo accounts:  $0 seed-accounts   (or register a customer on the storefront)"
+    else
+      ok "accounts present (users=$ucount, admins=$acount)"
+      # Live login smoke through the edge IF the demo customer exists (pw == name).
+      # Catches a broken auth path even when the accounts are fine.
+      local has123; has123="$(docker exec "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "SELECT 1 FROM litemall.litemall_user WHERE username=\"user123\" AND deleted=0 LIMIT 1;" 2>/dev/null' 2>/dev/null)"
+      if [[ "$has123" == 1 ]]; then
+        local lr; lr="$(curl -sk --resolve "$shop:443:127.0.0.1" --max-time 15 -X POST "https://$shop/auth/login" -H 'Content-Type: application/json' -d '{"username":"user123","password":"user123"}' 2>/dev/null)"
+        if grep -q '"errno":0' <<<"$lr"; then ok "customer login works end-to-end (user123)"
+        else
+          err "customer login FAILED for user123: $(grep -oE '"errmsg":"[^"]*"' <<<"$lr" | head -1)"
+          fix "\"account not found\" → reseed; \"invalid password\" → seeded hash differs; 401/500 → $0 logs gateway-api"
+        fi
+      else
+        info "demo user user123 not present — skipping live login test (accounts exist, so logins should work)"
+      fi
+    fi
+  fi
+
+  # 7. end-to-end
   step "End-to-end"
   local code; code="$(curl -sk --resolve "$shop:443:127.0.0.1" -o /dev/null -w '%{http_code}' --max-time 15 "https://$shop/srv/goods/list?page=1&limit=3" 2>/dev/null || echo 000)"
   [[ "$code" == 200 ]] && ok "storefront catalog 200 — healthy end to end" || { err "storefront catalog HTTP $code"; fix "resolve the items flagged above, in order (config → eureka → auth → index)"; }
 
-  # 7. disk
+  # 8. disk
   local a; a="$(df -BG --output=avail / | tail -1 | tr -dc '0-9')"
   (( a < 10 )) && { err "disk critically low: ${a}G free"; fix "docker builder prune -af && docker volume prune -f"; } || ok "disk: ${a}G free"
   echo; ((anybroken)) && warn "some services are down — see per-service FIX lines above" || ok "no dead containers"
@@ -453,6 +504,7 @@ ${C_BOLD}litemall-prod.sh${C_0} — launch & operate the litemall production sta
   start         compose up + wait for health
   wait          wait for all services to become healthy
   seed          copy the dev catalog into prod, then reindex   (needs DEV_DB_PASSWORD)
+  seed-accounts copy dev user + admin logins into prod          (needs DEV_DB_PASSWORD)
   reindex       rebuild the Elasticsearch product index
   smoke         curl the storefront end-to-end through TLS
   status        one-line health of every container
@@ -480,8 +532,9 @@ main() {
     build)    preflight; build ;;
     start)    preflight; start ;;
     wait)     wait_healthy ;;
-    seed)     seed ;;
-    reindex)  reindex ;;
+    seed)          seed ;;
+    seed-accounts) seed_accounts ;;
+    reindex)       reindex ;;
     smoke)    smoke ;;
     status)   status ;;
     doctor)   doctor ;;
