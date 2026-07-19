@@ -1,0 +1,170 @@
+# litemall — CONTINUOUS DEPLOYMENT (sketch / template).
+#
+# This is the CD half your pipeline is missing. Today .github/workflows/main.yml
+# does CI (build + test + validate) but nothing DEPLOYS. This workflow:
+#   1. builds all 9 service images and pushes them to GHCR, tagged by commit SHA
+#   2. SSHes to the prod host, points it at that tag, recreates the stack
+#   3. runs `litemall-prod.sh smoke-checkout` — and ROLLS BACK if it fails
+#
+# It is deliberately `workflow_dispatch` (manual button) ONLY, so it cannot fire
+# half-configured. Flip to the `push: [master]` trigger below once the four
+# PREREQUISITES are done. Nothing here runs until you press the button.
+#
+# ── PREREQUISITES (do these first) ────────────────────────────────────────────
+# 1. A prod host you control (VPS) with Docker + this repo checked out and a
+#    filled-in docker-compose/.env.prod already on it (secrets NEVER travel
+#    through CI — they live only on the host).
+# 2. Repo secrets (Settings → Secrets and variables → Actions):
+#      DEPLOY_HOST      e.g. 203.0.113.10
+#      DEPLOY_USER      e.g. deploy
+#      DEPLOY_SSH_KEY   a private key whose public half is in the host's authorized_keys
+#      DEPLOY_PATH      absolute path to the repo on the host, e.g. /opt/litemall
+#    (GHCR needs no extra secret — the built-in GITHUB_TOKEN can push to it.)
+# 3. ONE small compose change so the host can PULL registry images instead of
+#    building them. In docker-compose.prod.yml change each service's image line
+#      image: litemall/<svc>:${LITEMALL_TAG:-latest}
+#    to
+#      image: ${LITEMALL_REGISTRY:-litemall}/litemall-<svc>:${LITEMALL_TAG:-latest}
+#    and on the host set LITEMALL_REGISTRY=ghcr.io/<owner> in .env.prod.
+#    (Without a registry you can instead build ON the host — see "Model B" at the
+#    bottom — simpler, but the host does the ~15-min reactor build every deploy.)
+# 4. Make CI a required check on master so only green commits can reach here.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Deploy (prod)
+
+on:
+  workflow_dispatch: {}          # manual button — the safe default while wiring this up
+  # push:                        # ← uncomment when prerequisites are met
+  #   branches: [master]
+
+concurrency:                     # never let two deploys race the same host
+  group: deploy-prod
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # <owner>/litemall-<svc>. github.repository_owner is your GitHub user/org.
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/litemall
+  TAG: ${{ github.sha }}         # immutable per-commit tag = deterministic rollbacks
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Build + push all 9 service images to GHCR, tagged by commit SHA.
+  #    One shared Dockerfile, one target per service — the reactor+SPA builder
+  #    stage is cached and reused across targets (cache-from/to: gha).
+  # ---------------------------------------------------------------------------
+  build-push:
+    name: Build & push image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write            # push to GHCR
+    strategy:
+      fail-fast: true            # if any image fails to build, deploy nothing
+      matrix:
+        service: [eureka, config, authserver, gateway-api, gateway-admin,
+                  order, goods-management, promotion-service, loyalty-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build & push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: litemall-${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ env.TAG }}
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:latest
+          # Shared builder layer cache across all 9 matrix jobs — the whole point
+          # of the single-Dockerfile design (the reactor + both SPAs build once).
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # 2) Deploy to the host, verify with smoke-checkout, roll back on failure.
+  #    The host already holds .env.prod; we only tell it which TAG to run and
+  #    let its own litemall-prod.sh do the health-gating we built.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy + smoke-verify + auto-rollback
+    needs: build-push
+    runs-on: ubuntu-latest
+    # environment: production    # add a GitHub Environment to require manual approval
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 30m       # first pull of 9 images can be slow
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+
+            # Remember the tag we're on now, so we can roll back to it.
+            PREV_TAG="$(grep -E '^LITEMALL_TAG=' docker-compose/.env.prod | cut -d= -f2 || echo latest)"
+            echo "current tag: ${PREV_TAG:-<none>}  ->  new tag: ${{ env.TAG }}"
+
+            # Pull the exact source for this commit + the new image tag.
+            git fetch --quiet origin
+            git checkout --quiet ${{ github.sha }}
+
+            # Authenticate the host to GHCR (read-only pull). Store a GHCR PAT on
+            # the host as ~/.ghcr-token, or make the packages public to skip this.
+            if [ -f "$HOME/.ghcr-token" ]; then
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin < "$HOME/.ghcr-token"
+            fi
+
+            # Point compose at the new registry + tag (see prerequisite #3).
+            set_env() { grep -q "^$1=" docker-compose/.env.prod \
+              && sed -i "s|^$1=.*|$1=$2|" docker-compose/.env.prod \
+              || echo "$1=$2" >> docker-compose/.env.prod; }
+            set_env LITEMALL_REGISTRY "ghcr.io/${{ github.repository_owner }}"
+            set_env LITEMALL_TAG      "${{ env.TAG }}"
+
+            # Pull + recreate, health-gated. `up` waits for every container to be
+            # healthy and refuses to proceed otherwise (that logic is the script's).
+            docker compose -f docker-compose/docker-compose.prod.yml --env-file docker-compose/.env.prod pull
+            ./docker-compose/litemall-prod.sh up
+
+            # THE GATE: prove the money path works on the freshly-deployed stack.
+            # A green build that can't complete a checkout is exactly the failure
+            # mode this whole branch was about — so a failed smoke rolls back.
+            if ./docker-compose/litemall-prod.sh smoke-checkout; then
+              echo "✓ smoke-checkout passed — deploy ${{ env.TAG }} is live"
+            else
+              echo "✗ smoke-checkout FAILED — rolling back to ${PREV_TAG}"
+              set_env LITEMALL_TAG "${PREV_TAG}"
+              docker compose -f docker-compose/docker-compose.prod.yml --env-file docker-compose/.env.prod pull || true
+              ./docker-compose/litemall-prod.sh up
+              exit 1                 # fail the workflow so you get notified
+            fi
+
+# ── Model B (simpler, no registry) ────────────────────────────────────────────
+# If you don't want a registry yet, delete the build-push job and replace the
+# deploy script's pull/recreate with a build-on-host:
+#     git checkout ${{ github.sha }}
+#     ./docker-compose/litemall-prod.sh up      # builds locally, then health-gates
+#     ./docker-compose/litemall-prod.sh smoke-checkout || { <rollback>; exit 1; }
+# Trade-off: the host runs the full ~15-min reactor build every deploy and needs
+# the whole toolchain; you lose fast, immutable, rollback-able image tags.
+#
+# ── Notes ─────────────────────────────────────────────────────────────────────
+# • Zero-downtime: this is a recreate, so expect a short blip. True rolling
+#   deploys need >1 replica, which needs ShedLock first (see the Wave-7 debt
+#   register) — the @Scheduled jobs are not yet safe to double-run.
+# • DB migrations: Flyway runs on each service's boot; on a single shared DB that
+#   is fine additively, but a destructive migration + rollback is NOT covered by
+#   the image rollback above. Treat schema changes as forward-only.
+# • Secrets never touch CI: they live only in the host's .env.prod. This workflow
+#   only ever sets LITEMALL_REGISTRY / LITEMALL_TAG there.
