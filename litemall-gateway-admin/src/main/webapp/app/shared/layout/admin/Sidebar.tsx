@@ -4,6 +4,8 @@ import { AUTHORITIES } from 'app/config/constants';
 import { useAppSelector } from 'app/config/store';
 import { menuForAuthorities } from './menu.config';
 import SidebarItem from './SidebarItem';
+import TrovemoWordmark from 'app/shared/brand/trovemo-wordmark-dark.svg';
+import TrovemoMark from 'app/shared/brand/trovemo-mark.svg';
 
 // The dark fixed sidebar (mirrors upstream views/layout/components/Sidebar).
 // Logo on top, then the data-driven menu tree from ADMIN_MENU.
@@ -17,7 +19,11 @@ const Sidebar: React.FC = () => {
   return (
     <div className='sidebar-container'>
       <div className='sidebar-logo'>
-        <span>{isAffiliate ? 'litemall affiliate' : 'litemall admin'}</span>
+        <span className='sidebar-brand'>
+          <TrovemoWordmark className='sidebar-brand-wordmark' aria-label='Trovemo' />
+          <span className='sidebar-brand-realm'>{isAffiliate ? 'affiliate' : 'admin'}</span>
+        </span>
+        <TrovemoMark className='sidebar-brand-mark' aria-label='Trovemo' />
       </div>
       <ul className='el-menu'>
         {menu.map(group => (
