@@ -155,7 +155,9 @@ GATEWAY_ADMIN_JWT_PRIVATE_KEY_PEM=$(b64 "$tmp/gwadmin.pem")
 GATEWAY_ADMIN_JWT_PUBLIC_KEY_PEM=$(b64 "$tmp/gwadmin.pub")
 GATEWAY_API_CLIENT_SECRET=$(pw)
 GATEWAY_ADMIN_CLIENT_SECRET=$(pw)
+STRIPE_ENABLED=false
 STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 CJ_API_KEY=
 MATOMO_AUTH_TOKEN=
@@ -298,7 +300,17 @@ smoke() {
   local base=(curl -sk --resolve "$shop:443:127.0.0.1" --max-time 20)
   local html; html="$("${base[@]}" "https://$shop/" 2>/dev/null || true)"
   echo "$html" | grep -q 'id="root"' && ok "SPA shell served at https://$shop/" || { err "storefront did not serve the SPA shell"; fix "$0 logs gateway-api ; $0 doctor"; return 1; }
-  local code; code="$("${base[@]}" -o /dev/null -w '%{http_code}' "https://$shop/srv/goods/list?page=1&limit=3" 2>/dev/null || true)"
+  # 503 right after boot = gateway hasn't fetched the goods-management Eureka
+  # registration yet (~20-30s after "healthy") — retry that, fail fast on the rest.
+  local code tries=0
+  while :; do
+    code="$("${base[@]}" -o /dev/null -w '%{http_code}' "https://$shop/srv/goods/list?page=1&limit=3" 2>/dev/null || true)"
+    [ "$code" != 503 ] && break
+    tries=$((tries+1))
+    [ "$tries" -ge 9 ] && break
+    [ "$tries" -eq 1 ] && info "catalog 503 — waiting for gateway route convergence (Eureka, up to 80s)"
+    sleep 10
+  done
   case "$code" in
     200) ok "catalog endpoint 200 — goods are being served" ;;
     500) err "catalog 500 — the store is up but the search index or a downstream is broken."

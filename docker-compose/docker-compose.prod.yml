@@ -415,6 +415,10 @@ services:
       SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHSERVER_CLIENT_SECRET: ${GATEWAY_API_CLIENT_SECRET:?set GATEWAY_API_CLIENT_SECRET in .env}
       LITEMALL_JWT_PRIVATE_KEY_PEM: ${GATEWAY_API_JWT_PRIVATE_KEY_PEM:?set GATEWAY_API_JWT_PRIVATE_KEY_PEM in .env}
       LITEMALL_JWT_PUBLIC_KEY_PEM: ${GATEWAY_API_JWT_PUBLIC_KEY_PEM:?set GATEWAY_API_JWT_PUBLIC_KEY_PEM in .env}
+      # Stripe PUBLISHABLE key (public by design), served to the SPA via
+      # /auth/site-config so it can mount Stripe Elements. Blank ⇒ the card
+      # option is hidden and checkout offers wallet only.
+      LITEMALL_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]}
     mem_limit: 1g
 
@@ -451,9 +455,12 @@ services:
       SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
       LITEMALL_KAFKA_BROKERS: kafka:9092
       # Stripe + CJ + mail land here in Task B / order's Wave-7 work. Blank ⇒
-      # the adapter stays disabled and returns a typed error — never a fake success.
-      LITEMALL_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      LITEMALL_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # the adapter stays disabled and returns a typed 402 — never a fake success.
+      # Property names are order's litemall.order.stripe.* (application.yml:156-160);
+      # boot FAILS if ENABLED=true without a secret key.
+      LITEMALL_ORDER_STRIPE_ENABLED: ${STRIPE_ENABLED:-false}
+      LITEMALL_ORDER_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
       # order mints its OWN machine token (GoodsMachineTokenProvider) to call
       # goods-management when it re-resolves a cart line's price server-side. It
