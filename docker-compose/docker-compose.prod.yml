@@ -56,7 +56,9 @@ x-litemall-common: &litemall-common
   networks: [litemall]
   logging:
     driver: json-file
-    options: {max-size: "10m", max-file: "3"}
+    options:
+      max-size: "10m"
+      max-file: "3"
 
 # Wiring every service needs: discovery, config server, machine-token issuer.
 # These live in bootstrap.yml (legacy bootstrap context), which application-prod.yml
@@ -150,9 +152,10 @@ services:
       SHOP_DOMAIN: ${SHOP_DOMAIN:?set SHOP_DOMAIN in .env (use localhost for a local/staging run)}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in .env}
       ACME_EMAIL: ${ACME_EMAIL:-}
-      # Zone.DNS:Edit token for the DNS-01 challenge; blank until the operator
-      # creates one. The Caddyfile's acme_dns line stays commented while blank.
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      # Whole `acme_dns cloudflare <token>` directive, injected into the
+      # Caddyfile's global options (empty ⇒ the line vanishes and staging runs
+      # tokenless on the internal CA). See the Caddyfile comment.
+      CADDY_ACME_DNS: ${CADDY_ACME_DNS:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Named volumes, deliberately: these hold the issued certificates and ACME

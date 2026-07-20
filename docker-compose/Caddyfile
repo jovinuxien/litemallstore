@@ -30,12 +30,15 @@
 	# can no longer reach this origin, so renewals would silently fail and the
 	# site would go dark when the cert expires. Needs (a) the caddy image built
 	# with the cloudflare module (docker/caddy/Dockerfile) and (b) a token with
-	# Zone.DNS:Edit on the zone in .env.prod. The prod token is IP-restricted to
-	# the VPS; the caddy container is IPv4-only, so API calls leave as the
-	# server's IPv4 — keep that IP on the token's allowlist. Local/staging
-	# (*.localhost) uses Caddy's internal CA: ACME — and this token — are never
-	# exercised there, so a blank token is harmless.
-	acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	# Zone.DNS:Edit on the zone in .env.prod. The whole directive is injected via
+	# env because `acme_dns` hard-errors on an empty token, which would break the
+	# tokenless local/staging bring-up (*.localhost uses Caddy's internal CA and
+	# never exercises ACME). Prod .env.prod sets:
+	#   CADDY_ACME_DNS=acme_dns cloudflare <token>
+	# staging leaves it blank and the line vanishes. NOTE the prod token is
+	# IP-restricted to the VPS; the caddy container is IPv4-only, so API calls
+	# leave as the server's IPv4 — keep that IP on the token's allowlist.
+	{$CADDY_ACME_DNS}
 
 	# Uncomment to use the Let's Encrypt STAGING CA while testing DNS/rate
 	# limits (staging certs are untrusted by browsers — that is the point).

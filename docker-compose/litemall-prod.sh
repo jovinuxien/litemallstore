@@ -141,7 +141,7 @@ ensure_env() {
 SHOP_DOMAIN=shop.localhost
 ADMIN_DOMAIN=admin.localhost
 ACME_EMAIL=admin@localhost
-CLOUDFLARE_API_TOKEN=
+CADDY_ACME_DNS=
 SHOP_ORIGIN=https://shop.localhost
 MYSQL_ROOT_PASSWORD=$(pw)
 MYSQL_USER=litemall
