@@ -49,14 +49,19 @@ class LitemallOrderRefundTenderTest {
     private LitemallGrouponServiceLayer grouponServiceLayer;
     @Mock
     private LitemallIWalletService walletService;
+    @Mock
+    private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
 
     @InjectMocks
     private LitemallOrderOrchestratorService orchestrator;
 
     @BeforeEach
     void wireFieldInjectedDeps() {
-        // walletService is field-injected (@Autowired), not a constructor arg.
+        // walletService + cjFulfillmentService are field-injected (@Autowired), not
+        // constructor args. approveRefund calls cancelAtCjIfDeletable (a no-op for the
+        // local orders used here) since Wave 3.
         ReflectionTestUtils.setField(orchestrator, "walletService", walletService);
+        ReflectionTestUtils.setField(orchestrator, "cjFulfillmentService", cjFulfillmentService);
     }
 
     private LitemallOrderAggregate refundRequestedOrder(int id, String payId, String actualPrice) {
@@ -79,10 +84,20 @@ class LitemallOrderRefundTenderTest {
     @Test
     void cardPaidOrder_refundDoesNotCreditWallet_butRecordsRefundAmount() {
         LitemallOrderId orderId = new LitemallOrderId(31);
-        when(orderRepository.findById(orderId))
-                .thenReturn(Optional.of(refundRequestedOrder(31, "CREDIT_CARD:pi_123", "80.00")));
+        LitemallOrderAggregate order = refundRequestedOrder(31, "CREDIT_CARD:pi_123", "80.00");
+        // Wave 7: a card refund is a real PSP reversal keyed on the VERIFIED PaymentIntent
+        // recorded at pay time (its own column), not the pay_id string.
+        order.setPaymentIntentId("pi_123");
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
         // No wallet debit was ever taken for a card charge.
         when(walletService.findOrderPaymentDebit(42, "31")).thenReturn(Optional.empty());
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort gateway =
+                org.mockito.Mockito.mock(
+                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort.class);
+        when(gateway.refund(eq("pi_123"), any(), eq(31))).thenReturn(
+                org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome
+                        .succeeded("re_123"));
+        ReflectionTestUtils.setField(orchestrator, "paymentGatewayPort", gateway);
 
         orchestrator.approveRefund(orderId);
 

@@ -55,7 +55,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -140,6 +140,14 @@ class LitemallOrderPlaceCouponPathTest {
         ReflectionTestUtils.setField(service, "statusHistoryRepository", statusHistoryRepository);
         ReflectionTestUtils.setField(service, "orderSourceResolver", orderSourceResolver);
         ReflectionTestUtils.setField(service, "cjOrderAvailabilityChecker", cjOrderAvailabilityChecker);
+        // Wave 7: placeOrder prices tax through the fail-closed TaxCalculationPort.
+        // Zero-tax stub keeps these coupon assertions about coupons, not tax.
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.TaxCalculationPort taxPort =
+                org.mockito.Mockito.mock(
+                        org.linlinjava.litemall.order.infrastructure.services.acl.facades.TaxCalculationPort.class);
+        org.mockito.Mockito.when(taxPort.quote(org.mockito.ArgumentMatchers.any())).thenReturn(
+                org.linlinjava.litemall.order.infrastructure.services.acl.facades.tax.TaxQuote.zero());
+        ReflectionTestUtils.setField(service, "taxCalculationPort", taxPort);
 
         // Freight config: subtotal 100 ≥ min 88 → free shipping, keeps totals simple.
         Map<String, String> configs = new HashMap<>();
@@ -272,6 +280,8 @@ class LitemallOrderPlaceCouponPathTest {
         assertThrows(NoSuchElementException.class,
                 () -> service.placeOrder(command(0, -1)));
 
-        verifyNoInteractions(promotionFacade);
+        // verifyNoMoreInteractions: Mockito-2-compatible equivalent (nothing was verified
+        // on this mock, so it asserts zero interactions).
+        verifyNoMoreInteractions(promotionFacade);
     }
 }

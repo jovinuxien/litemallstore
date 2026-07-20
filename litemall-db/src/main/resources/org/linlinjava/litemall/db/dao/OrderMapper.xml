@@ -192,6 +192,26 @@
     </select>
 
     <!--
+      Hand-maintained (Wave 8): CJ placement candidates — PAID (201) CJ orders that have no
+      cj_order_id yet. This predicate IS the durable placement job (no outbox row): it never
+      expires, so an order paid while CJ was disabled/unreachable is placed automatically
+      once CJ is back. 'PLACEMENT_REJECTED' is a LOCAL sentinel in cj_order_status (only ever
+      set while cj_order_id is null, so it can't collide with real CJ statuses or leak into
+      the sync sweep above, which requires cj_order_id): a terminal CJ business rejection
+      parks the order for ops — clear the sentinel (set NULL) to requeue.
+    -->
+    <select id="selectPlaceableCjOrderIds" resultType="java.lang.Integer">
+        select id from litemall_order
+        where source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and (cj_order_status is null or cj_order_status &lt;&gt; 'PLACEMENT_REJECTED')
+        order by update_time asc
+        limit #{limit}
+    </select>
+
+    <!--
       Hand-maintained (V35): stamp a pickup write-off code at pay time, exactly once
       (verify_code is null guard makes replays no-ops).
     -->

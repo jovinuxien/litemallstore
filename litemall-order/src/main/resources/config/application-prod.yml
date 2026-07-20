@@ -46,9 +46,10 @@ management:
       probes:
         enabled: true
 
-# NOTE for the `order` worktree: Stripe/CJ/tax config belongs in YOUR Wave-7
-# work. `platform` only supplies the seam — docker-compose.prod.yml passes
+# NOTE (Wave 7 seam, wired in Wave 8): docker-compose.prod.yml passes
 # LITEMALL_STRIPE_SECRET_KEY / LITEMALL_STRIPE_WEBHOOK_SECRET / LITEMALL_CJ_API_KEY
-# through as env with no committed fallback. Absent ⇒ adapter disabled ⇒ typed
-# error, never a fake success. Tax must FAIL CLOSED (blocks checkout), which is
-# the one deliberate exception to the fail-soft habit.
+# / CJ_EMAIL through as env with no committed fallback; application.yml's
+# spring.cjdropship.api.auth.* placeholders consume them. Absent ⇒ adapter
+# disabled ⇒ typed error, never a fake success (CJ: paid orders retained +
+# auto-placed when the pair appears). Tax must FAIL CLOSED (blocks checkout),
+# which is the one deliberate exception to the fail-soft habit.

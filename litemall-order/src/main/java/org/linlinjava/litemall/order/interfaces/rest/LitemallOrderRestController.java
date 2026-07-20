@@ -301,9 +301,10 @@ public class LitemallOrderRestController {
             return buildResponse(
                     LitemallOrderOperationResult.payFailed(orderIdVo, e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException e) {
-            // CJ refused the pay-first fulfillment placement: the transaction rolled
-            // back (debit undone, order still unpaid). Same clean envelope as above,
-            // carrying CJ's message so the customer/support can act on it.
+            // Defence-in-depth only since Wave 8: CJ placement no longer runs inside the
+            // pay transaction (it is queued after commit and can't fail the pay), so this
+            // path should be dead. Kept so a regression still yields a clean envelope,
+            // never a 500.
             return buildResponse(
                     LitemallOrderOperationResult.payFailed(orderIdVo,
                             "CJ fulfillment could not be placed: " + e.getMessage()));

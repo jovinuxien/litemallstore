@@ -56,18 +56,22 @@ class LitemallOrderPaidCancelTest {
     private LitemallGoodsFacade goodsFacade;
     @Mock
     private LitemallOrderStatusHistoryRepository statusHistoryRepository;
+    @Mock
+    private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
 
     @InjectMocks
     private LitemallOrderServiceImpl service;
 
     @BeforeEach
     void wireFieldInjectedDeps() {
-        // goodsFacade + statusHistoryRepository are field-injected (@Autowired), not
-        // constructor args, so @InjectMocks (which uses constructor injection here)
-        // does not set them. Wire them explicitly so the write-paths can restore
-        // stock and persist the status-history timeline.
+        // goodsFacade + statusHistoryRepository + cjFulfillmentService are field-injected
+        // (@Autowired), not constructor args, so @InjectMocks (which uses constructor
+        // injection here) does not set them. Wire them explicitly so the write-paths can
+        // restore stock, persist the status-history timeline, and run the Wave-3 CJ-side
+        // delete hook (a no-op for the local orders used here).
         ReflectionTestUtils.setField(service, "goodsFacade", goodsFacade);
         ReflectionTestUtils.setField(service, "statusHistoryRepository", statusHistoryRepository);
+        ReflectionTestUtils.setField(service, "cjFulfillmentService", cjFulfillmentService);
     }
 
     private LitemallOrderAggregate createdOrder(int id) {
