@@ -75,6 +75,18 @@ public interface LitemallCjLinkageMapper {
                                   @Param("rating") java.math.BigDecimal rating,
                                   @Param("createTime") java.time.LocalDateTime createTime);
 
-    /** Distinct local goods ids carrying at least one visible product review (type 0). */
+    /**
+     * Distinct LOCAL goods ids carrying at least one visible product review (type 0).
+     * CJ-sourced goods are excluded (V44): their review_count/rating are enrichment-owned
+     * CJ-side totals, and recomputing them from the ingested litemall_comment subset
+     * (capped at ~60 rows) would clobber the true totals.
+     */
     List<Integer> selectReviewedGoodsIds();
+
+    /**
+     * Stamp {@code cj_reviews_ingested_time} (V44) on a goods row — the demand-driven marker
+     * that its CJ review bodies have been landed in {@code litemall_comment}. Written outside
+     * the generated insert/update (which don't carry the column), same as the ranking signals.
+     */
+    int markCjReviewsIngested(@Param("goodsId") Integer goodsId);
 }
