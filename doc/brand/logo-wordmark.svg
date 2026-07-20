@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" width="900" height="280">
+  <!-- Trovemo wordmark: the last "o" opens like a trove, a spark escaping -->
+  <rect x="0" y="0" width="900" height="280" fill="#FFFFFF"/>
+  <text x="64" y="196" font-family="Verdana, DejaVu Sans, sans-serif" font-weight="bold" font-size="124" fill="#23272E" textLength="590" lengthAdjust="spacingAndGlyphs">trovem</text>
+  <!-- custom open "o" -->
+  <circle cx="716" cy="152" r="38" fill="none" stroke="#F09000" stroke-width="24" stroke-linecap="round" stroke-dasharray="196 43" transform="rotate(-55 716 152)"/>
+  <!-- spark at the opening -->
+  <path d="M754 92 L762 116 L786 124 L762 132 L754 156 L746 132 L722 124 L746 116 Z" fill="#FFC24B"/>
+</svg>
