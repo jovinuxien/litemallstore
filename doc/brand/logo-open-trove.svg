@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Trovemo "Open Trove" mark: a parcel opening to reveal a find -->
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="#FFF7EC"/>
+  <!-- spark (the find) -->
+  <path d="M256 92 L273 148 L328 166 L273 184 L256 240 L239 184 L184 166 L239 148 Z" fill="#F09000"/>
+  <circle cx="330" cy="120" r="9" fill="#FFC24B"/>
+  <circle cx="182" cy="110" r="6" fill="#FFC24B"/>
+  <!-- open lid -->
+  <g transform="rotate(-16 150 268)">
+    <rect x="140" y="228" width="224" height="42" rx="14" fill="#C86F00"/>
+  </g>
+  <!-- box body -->
+  <rect x="150" y="268" width="212" height="152" rx="22" fill="#F09000"/>
+  <!-- packing tape -->
+  <rect x="240" y="268" width="32" height="152" fill="#FFD79A"/>
+  <!-- smile notch on box front -->
+  <path d="M196 358 Q256 392 316 358" stroke="#FFF7EC" stroke-width="14" stroke-linecap="round" fill="none"/>
+</svg>

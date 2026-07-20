@@ -11,14 +11,15 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 7 (production readiness) active worktrees. Parked this wave — re-add to
-# launch them: "goods-management" (CJ deals, awaiting redesign), "promotion" and
-# "gateway-admin" (Wave-6 work merged, no Wave-7 assignment). Each name must have
-# a matching '### Worktree: `<short>`' block in CLAUDE.md.
+# Wave 8 (CJ commerce completeness + Trovemo branding) active worktrees.
+# Parked this wave — re-add to launch them: "platform" (Wave-7 deployed),
+# "promotion" (no assignment). Each name must have a matching
+# '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "order"        # money path: E0 server-authoritative pricing FIRST, then Stripe
-  "gateway-api"  # edge auth enforcement + Elements + consent/legal
-  "platform"     # NEW: containerize, prod profiles/secrets, TLS, CI
+  "order"             # CJ fulfilment + payment path walked end to end, gaps fixed
+  "goods-management"  # CJ product reviews: fill the empty PDP reviews section
+  "gateway-api"       # Trovemo wordmark + favicon on the storefront
+  "gateway-admin"     # Trovemo wordmark + favicon on the admin console
 )
 
 mkdir -p "$WT_BASE"
