@@ -27,7 +27,7 @@ const CustomerService: React.FC = () => (
         <i className='bi bi-envelope fs-4 text-primary' />
         <div>
           <div className='fw-semibold'>Email</div>
-          <div className='text-muted small'>support@litemall.example</div>
+          <div className='text-muted small'>support@trovemo.com</div>
         </div>
       </li>
     </ul>

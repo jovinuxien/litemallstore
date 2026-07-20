@@ -2,6 +2,7 @@
 // to litemall-gateway-api (:8090) so there is no CORS and the SPA ships from
 // its own edge in prod.
 const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
@@ -36,6 +37,18 @@ module.exports = {
       template: path.resolve(__dirname, '../public/index.html'),
       favicon: path.resolve(__dirname, '../public/favicon.ico'),
     }),
+    // Trovemo icon set + webmanifest, referenced by absolute path from
+    // index.html (index.html is the template, favicon.ico is emitted by
+    // HtmlWebpackPlugin above — both excluded to avoid double emission).
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../public'),
+          to: '.',
+          globOptions: { ignore: ['**/index.html', '**/favicon.ico'] },
+        },
+      ],
+    }),
   ],
   devServer: {
     port: 9000,
@@ -45,6 +58,22 @@ module.exports = {
         context: ['/auth', '/srv'],
         target: 'http://localhost:8090',
         changeOrigin: true,
+      },
+      // Dev mirror of the prod Caddy /_cdn image proxy (docker-compose/
+      // Caddyfile handle_path blocks): the gateway rewrites CJ image URLs to
+      // /_cdn/… since c96c73d6f, so without these routes every product image
+      // 404s on :9000.
+      {
+        context: ['/_cdn/cf'],
+        target: 'https://cf.cjdropshipping.com',
+        changeOrigin: true,
+        pathRewrite: { '^/_cdn/cf': '' },
+      },
+      {
+        context: ['/_cdn/oss'],
+        target: 'https://oss-cf.cjdropshipping.com',
+        changeOrigin: true,
+        pathRewrite: { '^/_cdn/oss': '' },
       },
     ],
   },
