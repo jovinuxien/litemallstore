@@ -47,7 +47,25 @@ public class LitemallOrderDomainService {
      * @throws LitemallPriceChangedException      cart price disagrees with the catalog
      */
     public void validateProductStock(List<LitemallCartAggregate> checkedCartItems, LitemallGoodsFacade goodsFacade) {
+        // Sale-status gate. A cart line can predate a good being taken off sale
+        // (e.g. the legacy non-CJ catalog, deactivated 2026-07-20 because no
+        // inventory backs it), and cart-add's own gate cannot help a row that is
+        // already persisted — so submit re-checks against the catalog.
+        java.util.Map<org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallGoodsId,
+                org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate> goodsById =
+                goodsFacade.batchGetGoods(checkedCartItems.stream()
+                        .map(c -> c.getGoodsId().getId())
+                        .collect(java.util.stream.Collectors.toSet()));
+
         for(LitemallCartAggregate cartItem : checkedCartItems){
+
+            org.linlinjava.litemall.order.domain.model.agregates.goods.LitemallGoodsAggregate goods =
+                    goodsById.get(cartItem.getGoodsId());
+            if (goods == null || !goods.isOnSale()) {
+                throw new LitemallProductNotFoundException(
+                        "\"" + cartItem.getGoodsName() + "\" is no longer available for sale"
+                                + " — remove it from your cart and place the order again.");
+            }
 
             // goods-management exposes products per goods (not per product id), so
             // fetch the goods' variants and pick the one this cart line references.

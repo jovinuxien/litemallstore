@@ -884,6 +884,13 @@ public class LitemallOrderOrchestratorService {
             throw new LitemallOrderServiceException(
                     "Cannot add to cart: goods " + goodsId + " / product " + productId + " not found in goods-management");
         }
+        // Off-sale goods stay readable on their detail URL but must not enter a
+        // cart — the legacy non-CJ catalog was deactivated (is_on_sale=0) because
+        // no inventory backs it, and nothing upstream gates this path.
+        if (!goods.isOnSale()) {
+            throw new LitemallOrderServiceException(
+                    "Cannot add to cart: \"" + goods.getGoodsName() + "\" is not available for sale");
+        }
 
         LitemallCartAggregate cart = new LitemallCartAggregate();
         cart.setUserId(userId);
