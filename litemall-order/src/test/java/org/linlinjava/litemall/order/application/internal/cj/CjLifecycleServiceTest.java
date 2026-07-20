@@ -44,10 +44,12 @@ class CjLifecycleServiceTest {
     private LitemallOrderServiceImpl orderServiceImpl;
     @Mock
     private CjDropshipOrderFacade cjOrderFacade;
+    @Mock
+    private CjOpsNotifier opsNotifier;
 
     private CjLifecycleService service(boolean autoPayBalance) {
         return new CjLifecycleService(orderRepository, statusHistoryRepository, orderServiceImpl,
-                cjOrderFacade, autoPayBalance);
+                cjOrderFacade, opsNotifier, autoPayBalance);
     }
 
     private LitemallOrderAggregate cjOrder(LitemallOrderStatus localStatus, String lastSeenCjStatus) {
