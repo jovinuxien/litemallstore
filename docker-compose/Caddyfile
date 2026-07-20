@@ -30,9 +30,12 @@
 	# can no longer reach this origin, so renewals would silently fail and the
 	# site would go dark when the cert expires. Needs (a) the caddy image built
 	# with the cloudflare module (docker/caddy/Dockerfile) and (b) a token with
-	# Zone.DNS:Edit on the zone in .env.prod. Uncomment ONLY when the token is
-	# set — an empty token breaks issuance outright.
-	# acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+	# Zone.DNS:Edit on the zone in .env.prod. The prod token is IP-restricted to
+	# the VPS; the caddy container is IPv4-only, so API calls leave as the
+	# server's IPv4 — keep that IP on the token's allowlist. Local/staging
+	# (*.localhost) uses Caddy's internal CA: ACME — and this token — are never
+	# exercised there, so a blank token is harmless.
+	acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
 
 	# Uncomment to use the Let's Encrypt STAGING CA while testing DNS/rate
 	# limits (staging certs are untrusted by browsers — that is the point).
@@ -118,6 +121,14 @@
 			header_up X-Forwarded-Proto {scheme}
 		}
 	}
+}
+
+# www → apex. Also serves as the live proof that DNS-01 issuance works: this
+# hostname's cert is issued through the Cloudflare API (the apex/admin certs
+# predate the switch), so if this site comes up with a valid cert, renewals of
+# the other two will work behind the proxy as well.
+www.{$SHOP_DOMAIN} {
+	redir https://{$SHOP_DOMAIN}{uri} permanent
 }
 
 # ---------------------------------------------------------------------------
