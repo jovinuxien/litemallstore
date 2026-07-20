@@ -43,6 +43,14 @@ public class LitemallGoodsRepositoryImplTest {
         dbGoods.setId(goodsIdValue);
         dbGoods.setName("Test Product");
         dbGoods.setDeleted(false);
+        // The aggregate mapping unboxes these; the original fixture predates them.
+        dbGoods.setIsOnSale(true);
+        dbGoods.setIsNew(false);
+        dbGoods.setIsHot(false);
+        dbGoods.setSortOrder((short) 1);
+        dbGoods.setCategoryId(1);
+        dbGoods.setBrandId(1);
+        dbGoods.setCounterPrice(new BigDecimal("120.00"));
         dbGoods.setRetailPrice(new BigDecimal("99.99"));
         dbGoods.setAddTime(LocalDateTime.now());
         dbGoods.setUpdateTime(LocalDateTime.now());

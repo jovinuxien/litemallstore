@@ -70,6 +70,20 @@ public class LitemallCommentService {
         return commentMapper.insertSelective(comment);
     }
 
+    /**
+     * Insert preserving the caller-set add/update times — the CJ review ingest lands external
+     * reviews with {@code add_time} = the ORIGINAL CJ comment date, so the merged newest-first
+     * ordering interleaves them honestly with customer-posted rows instead of stamping them all
+     * "now". Throws {@code DuplicateKeyException} on a (source, external_id) collision, which
+     * the ingest treats as already-landed (idempotent re-ingest).
+     */
+    public int saveRetainingTimes(LitemallComment comment) {
+        if (comment.getUpdateTime() == null) {
+            comment.setUpdateTime(LocalDateTime.now());
+        }
+        return commentMapper.insertSelective(comment);
+    }
+
     public List<LitemallComment> querySelective(String userId, String valueId, Integer page, Integer size, String sort, String order) {
         LitemallCommentExample example = new LitemallCommentExample();
         LitemallCommentExample.Criteria criteria = example.createCriteria();
