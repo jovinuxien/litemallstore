@@ -13,16 +13,22 @@
     padding: 0 14px;
   }
 
+  // Header surfaces wear the Trovemo brand charcoal (#23272E) so the orange
+  // wordmark sits on-brand; body accents keep the teal tokens.
   &__main {
-    background: var(--lm-primary-dark, #0a5d65);
+    background: #23272e;
     padding-top: 6px;
     padding-bottom: 6px;
   }
 
   &__brand {
-    font-weight: 700;
-    font-size: 1.35rem;
-    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    color: #fff;
+
+    svg {
+      display: block;
+    }
   }
 
   // Search: attached input + accent button, Amazon-style pill.
@@ -111,7 +117,7 @@
 
   // Secondary strip: slightly lighter than the main bar, like Amazon's.
   &__strip {
-    background: var(--lm-primary, #0e7c86);
+    background: #31363b;
     padding: 4px 0;
     // hide the horizontal scrollbar the overflow-auto utility can show
     scrollbar-width: none;
@@ -165,7 +171,7 @@
   max-width: 340px;
 
   &__head {
-    background: var(--lm-primary-dark, #0a5d65);
+    background: #23272e;
     color: #fff;
 
     .offcanvas-title {

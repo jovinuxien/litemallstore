@@ -206,7 +206,7 @@ const HomeView: React.FC = () => {
 
           <div className="lm-hero__aside">
             <div className="lm-welcome">
-              <h4>Welcome to litemall</h4>
+              <h4>Welcome to Trovemo</h4>
               <p>Sign in for member prices, coupons and faster checkout.</p>
               {/* <Link to="/login" className="lm-welcome__btn">
                 Sign in / Register

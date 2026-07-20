@@ -62,9 +62,9 @@ public class SmtpResetMailSender {
             msg.setFrom(from);
             msg.setTo(email);
             // Template key: password-reset (Wave-6 shared template contract).
-            msg.setSubject("Your litemall password reset code");
+            msg.setSubject("Your Trovemo password reset code");
             msg.setText("Hello,\n\n"
-                    + "We received a request to reset the password of the litemall account "
+                    + "We received a request to reset the password of the Trovemo account "
                     + "registered to this address.\n\n"
                     + "Your reset code (valid for 30 minutes, single use):\n\n"
                     + "    " + rawToken + "\n\n"

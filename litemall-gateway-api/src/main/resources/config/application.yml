@@ -134,7 +134,7 @@ litemall:
     port: 1025
     user: ""
     pass: ""
-    from: no-reply@litemall.local
+    from: no-reply@trovemo.com
   # Wave-6 Task A: Matomo tracker bootstrap for the customer SPA, served to
   # the browser via GET /auth/site-config. BOTH base-url and site-id set ⇒ the
   # SPA injects the tracker; either blank (the default) ⇒ /auth/site-config

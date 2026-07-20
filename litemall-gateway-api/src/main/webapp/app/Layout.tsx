@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { logoutCustomerThunk } from 'app/auth/customerAuthSlice';
 import CategoryDrawer from 'app/components/commonComponents/CategoryDrawer';
+import TrovemoWordmark from 'app/components/commonComponents/TrovemoWordmark';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
@@ -120,7 +121,7 @@ const Layout: React.FC = () => {
         <Navbar variant='dark' className='lm-header__main'>
           <Container fluid className='flex-wrap gap-2'>
             <Navbar.Brand as={Link} to='/' className='lm-header__brand'>
-              litemall
+              <TrovemoWordmark height={30} />
             </Navbar.Brand>
 
             <Form
@@ -291,7 +292,7 @@ const Layout: React.FC = () => {
         <button
           type='button'
           className='w-100 border-0 text-white text-center py-3'
-          style={{ background: '#0a5d65', fontSize: '0.85rem', letterSpacing: '0.02em' }}
+          style={{ background: '#31363B', fontSize: '0.85rem', letterSpacing: '0.02em' }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <i className='bi bi-chevron-up me-2' />
@@ -339,7 +340,9 @@ const Layout: React.FC = () => {
           <Container>
             <div className='row g-4'>
               <div className='col-12 col-md-3'>
-                <div className='fw-bold fs-5 mb-2'>litemall</div>
+                <div className='mb-2 text-white'>
+                  <TrovemoWordmark height={26} />
+                </div>
                 <p className='text-muted small mb-3'>
                   Your everyday marketplace — thousands of products across home, lifestyle, and
                   more, brought together with curated deals, trusted brands, and a checkout that
@@ -435,7 +438,7 @@ const Layout: React.FC = () => {
           <Container>
             <div className='d-flex flex-wrap justify-content-between align-items-center gap-2'>
               <small>
-                © {new Date().getFullYear()} litemall. All rights reserved. Prices and availability
+                © {new Date().getFullYear()} Trovemo. All rights reserved. Prices and availability
                 are subject to change.
               </small>
               <div className='d-flex flex-wrap gap-3'>

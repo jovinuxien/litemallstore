@@ -1,5 +1,6 @@
 // Customer SPA — production bundle into the gateway-api jar static assets.
 const path = require('path');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
@@ -33,6 +34,18 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '../public/index.html'),
       favicon: path.resolve(__dirname, '../public/favicon.ico'),
+    }),
+    // Trovemo icon set + webmanifest, referenced by absolute path from
+    // index.html (index.html is the template, favicon.ico is emitted by
+    // HtmlWebpackPlugin above — both excluded to avoid double emission).
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../public'),
+          to: '.',
+          globOptions: { ignore: ['**/index.html', '**/favicon.ico'] },
+        },
+      ],
     }),
   ],
 };
