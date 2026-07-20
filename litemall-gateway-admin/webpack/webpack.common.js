@@ -136,6 +136,7 @@ module.exports = async options => {
             // jhipster-needle-add-assets-to-webpack - JHipster will add/remove third-party resources in this array
             { from: path.resolve(__dirname, '../src/main/webapp/robots.txt'), to: 'robots.txt' },
             { from: path.resolve(__dirname, '../src/main/webapp/favicon.ico'), to: 'favicon.ico' },
+            { from: path.resolve(__dirname, '../src/main/webapp/apple-touch-icon.png'), to: 'apple-touch-icon.png' },
           ],
         }),
         new HtmlWebpackPlugin({

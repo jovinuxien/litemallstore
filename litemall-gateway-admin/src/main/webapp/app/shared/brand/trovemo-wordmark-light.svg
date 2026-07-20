@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="52 70 760 150">
+  <!-- Trovemo wordmark, light-surface variant: transparent background, dark text;
+       the orange open-"o" + spark are the brand-locked originals. -->
+  <text x="64" y="196" font-family="Verdana, DejaVu Sans, sans-serif" font-weight="bold" font-size="124" fill="#23272E" textLength="590" lengthAdjust="spacingAndGlyphs">trovem</text>
+  <circle cx="716" cy="152" r="38" fill="none" stroke="#F09000" stroke-width="24" stroke-linecap="round" stroke-dasharray="196 43" transform="rotate(-55 716 152)"/>
+  <path d="M754 92 L762 116 L786 124 L762 132 L754 156 L746 132 L722 124 L746 116 Z" fill="#FFC24B"/>
+</svg>

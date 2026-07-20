@@ -2,6 +2,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'app/sass/adminSass/litemall/admin-theme.scss';
 
 import React, { lazy } from 'react';
+import TrovemoWordmark from 'app/shared/brand/trovemo-wordmark-light.svg';
 const SignInForm = lazy(() => import('../../../components/userComponents/account/SignInForm'));
 
 // Admin sign-in, styled to the upstream litemall-admin login: a centered card on
@@ -11,7 +12,9 @@ const SignInForm = lazy(() => import('../../../components/userComponents/account
 const SignInView: React.FC = () => (
   <div className='lm-login'>
     <div className='lm-login-card'>
-      <h4 className='lm-login-title'>litemall admin</h4>
+      <h4 className='lm-login-title'>
+        <TrovemoWordmark className='lm-login-wordmark' aria-label='Trovemo' />
+      </h4>
       <div className='lm-login-sub'>Sign in to the management console</div>
       <React.Suspense fallback={<div className='text-center text-muted'>Loading…</div>}>
         <SignInForm />

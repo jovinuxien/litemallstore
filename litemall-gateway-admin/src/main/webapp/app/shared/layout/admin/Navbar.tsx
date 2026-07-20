@@ -79,9 +79,6 @@ const Navbar: React.FC = () => {
           </Dropdown.Toggle>
           <Dropdown.Menu>
             <Dropdown.Item onClick={() => navigate('/')}>Home</Dropdown.Item>
-            <Dropdown.Item href='https://github.com/linlinjava/litemall' target='_blank' rel='noreferrer'>
-              GitHub
-            </Dropdown.Item>
             <Dropdown.Divider />
             <Dropdown.Item onClick={onLogout}>Logout</Dropdown.Item>
           </Dropdown.Menu>
