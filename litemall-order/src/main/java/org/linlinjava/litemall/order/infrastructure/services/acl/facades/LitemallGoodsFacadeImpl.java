@@ -138,6 +138,12 @@ public class LitemallGoodsFacadeImpl implements LitemallGoodsFacade {
         if (categoryId > 0) {
             goods.setCategoryId(new org.linlinjava.litemall.order.domain.model.valueobjects.goods.LitemallCategoryId(categoryId));
         }
+        // On-sale is a sale gate: deactivated goods (e.g. the legacy non-CJ set,
+        // taken off sale 2026-07-20) must not be addable or orderable. Jackson
+        // serialises the boolean as "onSale"; a missing field maps to TRUE so an
+        // older goods-management payload cannot brick every add-to-cart.
+        JsonNode onSale = node.path("onSale");
+        goods.setOnSale(onSale.isMissingNode() || onSale.isNull() || onSale.asBoolean(true));
         return goods;
     }
 

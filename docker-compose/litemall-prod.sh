@@ -360,7 +360,11 @@ smoke_checkout() {
   local row gid pid price
   row="$(docker exec "$(cn mysql)" sh -c "$mysql_q 'SELECT g.id,p.id,p.price FROM litemall.litemall_goods g JOIN litemall.litemall_goods_product p ON p.goods_id=g.id WHERE g.deleted=0 AND g.is_on_sale=1 AND (g.cj_pid IS NULL OR g.cj_pid=\"\") ORDER BY p.price ASC LIMIT 1;' 2>/dev/null" 2>/dev/null)"
   read -r gid pid price <<<"$row"
-  [[ -n "$gid" ]] || { err "no in-stock goods to test with — is the catalog seeded/indexed?"; fix "$0 seed ; $0 reindex"; return 1; }
+  [[ -n "$gid" ]] || { err "no LOCAL in-stock goods to test with — is the catalog seeded/indexed?"
+    fix "$0 seed ; $0 reindex"
+    fix "NOTE: the legacy local catalog was deactivated 2026-07-20 (doc/ops/2026-07-20-deactivate-legacy-goods.sql)."
+    fix "To run this smoke: re-activate ONE local good (UPDATE litemall_goods SET is_on_sale=1 WHERE id=<id>), reindex, test, revert."
+    return 1; }
   docker exec -i "$(cn mysql)" sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" litemall 2>/dev/null' \
       <<<"UPDATE litemall_user SET now_money = now_money + 100000 WHERE username='"'"'$user'"'"';" >/dev/null 2>&1
   info "test SKU goods=$gid sku=$pid price=$price (wallet topped up for the run)"

@@ -143,7 +143,11 @@ const ProductDetailView: React.FC = () => {
   const hasDiscount = counter > retail && retail > 0;
   const discountPct = hasDiscount ? Math.round(((counter - retail) / counter) * 100) : 0;
   const stock = selectedSku?.number ?? products.reduce((s, p) => s + (p.number ?? 0), 0);
-  const inStock = stock > 0;
+  // Off-sale goods (e.g. the deactivated legacy catalog) stay reachable by
+  // direct URL but must not be buyable — the order service rejects them anyway;
+  // this keeps the UI honest. Missing field ⇒ treat as on sale.
+  const onSale = (goods as { onSale?: boolean }).onSale !== false;
+  const inStock = onSale && stock > 0;
 
   const pickVariant = (name: string, value: string, picUrl?: string) => {
     setSelected(prev => ({ ...prev, [name]: value }));
@@ -263,7 +267,11 @@ const ProductDetailView: React.FC = () => {
         <aside className='lm-pdp__buybox'>
           <div className='lm-pdp__buyprice'>US&nbsp;${fmt(retail)}</div>
           <div className={`lm-pdp__stock${inStock ? ' in' : ' out'}`}>
-            {inStock ? `In stock${selectedSku ? ` · ${stock} available` : ''}` : 'Out of stock'}
+            {!onSale
+              ? 'Currently unavailable'
+              : inStock
+                ? `In stock${selectedSku ? ` · ${stock} available` : ''}`
+                : 'Out of stock'}
           </div>
 
           <div className='lm-pdp__qty'>
