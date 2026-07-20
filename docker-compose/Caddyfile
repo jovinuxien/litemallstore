@@ -25,6 +25,15 @@
 	# failed renewal is a total outage 90 days later.
 	email {$ACME_EMAIL}
 
+	# Cloudflare DNS-01 challenge. REQUIRED once the DNS records are
+	# orange-clouded (proxied): behind Cloudflare's proxy the HTTP-01 challenge
+	# can no longer reach this origin, so renewals would silently fail and the
+	# site would go dark when the cert expires. Needs (a) the caddy image built
+	# with the cloudflare module (docker/caddy/Dockerfile) and (b) a token with
+	# Zone.DNS:Edit on the zone in .env.prod. Uncomment ONLY when the token is
+	# set — an empty token breaks issuance outright.
+	# acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+
 	# Uncomment to use the Let's Encrypt STAGING CA while testing DNS/rate
 	# limits (staging certs are untrusted by browsers — that is the point).
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
@@ -47,6 +56,20 @@
 		-Server
 	}
 
+	# --- Static asset caching ------------------------------------------------
+	# The SPA bundle lives under /app/ with content-hashed filenames
+	# (main.<hash>.js), so it can be cached forever — a new build changes the
+	# URL. The gateway's Spring Security stamps no-store on EVERYTHING it
+	# serves, static assets included, which forces every visitor to re-download
+	# ~700 KB per page view. `defer` makes this run after the proxied response,
+	# REPLACING the upstream header instead of duplicating it. index.html is
+	# served at / (not under /app/), so it keeps no-store and picks up new
+	# bundle URLs immediately after a deploy.
+	header /app/* {
+		Cache-Control "public, max-age=31536000, immutable"
+		defer
+	}
+
 	# --- CJ image proxy ------------------------------------------------------
 	# Product images live on CJ Dropshipping's CDN (cf/oss-cf.cjdropshipping.com).
 	# Many client browsers can't load them directly — ad-blockers and privacy
@@ -57,17 +80,28 @@
 	# domain, so the browser never talks to CJ. Image URLs in the DB are rewritten
 	# to the relative paths /_cdn/cf/… and /_cdn/oss/… (portable across domains).
 	# handle_path strips the prefix, so /_cdn/cf/x.jpg → https://cf.cj…/x.jpg.
+	# `defer` on the Cache-Control: without it Caddy's header is written before
+	# the proxy runs and CJ's own Cache-Control comes through as a DUPLICATE
+	# header (observed live: 86400 + 31536000 on one response). 30 days is safe:
+	# a CJ image URL's content never changes, and this is what lets an edge CDN
+	# (Cloudflare) actually absorb the image traffic.
 	handle_path /_cdn/cf/* {
 		reverse_proxy https://cf.cjdropshipping.com {
 			header_up Host cf.cjdropshipping.com
 		}
-		header Cache-Control "public, max-age=86400"
+		header {
+			Cache-Control "public, max-age=2592000"
+			defer
+		}
 	}
 	handle_path /_cdn/oss/* {
 		reverse_proxy https://oss-cf.cjdropshipping.com {
 			header_up Host oss-cf.cjdropshipping.com
 		}
-		header Cache-Control "public, max-age=86400"
+		header {
+			Cache-Control "public, max-age=2592000"
+			defer
+		}
 	}
 
 	# The Stripe webhook (order Task A) MUST be reachable here over public HTTPS
@@ -98,6 +132,15 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		-Server
+	}
+
+	# Admin SPA's hashed assets (main.<hash>.js at the root, content/main.<hash>.css)
+	# — same no-store problem as the shop, same fix. The matcher is name-based so
+	# it cannot catch index.html.
+	@hashedAssets path /main.*.js /content/*
+	header @hashedAssets {
+		Cache-Control "public, max-age=31536000, immutable"
+		defer
 	}
 
 	reverse_proxy gateway-admin:8080 {

@@ -133,7 +133,11 @@ services:
   # =========================================================================
 
   caddy:
-    image: caddy:2-alpine
+    # Custom build = stock caddy + the cloudflare DNS module, needed for the
+    # ACME DNS-01 challenge once the DNS records are proxied through Cloudflare
+    # (HTTP-01 can't reach the origin from behind the proxy).
+    build: {context: ../docker/caddy}
+    image: litemall/caddy:latest
     restart: unless-stopped
     depends_on:
       gateway-api: {condition: service_healthy}
@@ -146,6 +150,9 @@ services:
       SHOP_DOMAIN: ${SHOP_DOMAIN:?set SHOP_DOMAIN in .env (use localhost for a local/staging run)}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in .env}
       ACME_EMAIL: ${ACME_EMAIL:-}
+      # Zone.DNS:Edit token for the DNS-01 challenge; blank until the operator
+      # creates one. The Caddyfile's acme_dns line stays commented while blank.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Named volumes, deliberately: these hold the issued certificates and ACME
@@ -235,6 +242,9 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+      # Tell RabbitMQ its real budget is the container limit, not host RAM —
+      # see the comment in the conf file (memory-watermark alarm flapping).
+      - ./rabbitmq/20-container-limits.conf:/etc/rabbitmq/conf.d/20-container-limits.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 15s
