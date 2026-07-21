@@ -11,9 +11,10 @@ import org.springframework.util.StringUtils;
 /**
  * Authenticated product-review write path ({@code POST /srv/comment/post},
  * litemall-wx-api {@code /wx/comment/post} parity). The review lands in
- * {@code litemall_comment} against the resolved NUMERIC goods id, so
- * {@link CommentQueryService}'s local-reviews-take-precedence rule surfaces it
- * on the next {@code /srv/comment/list} read — including for CJ-sourced goods.
+ * {@code litemall_comment} against the resolved NUMERIC goods id (with the V44
+ * {@code source} column defaulting to 'local'), so the next
+ * {@code /srv/comment/list} read serves it merged newest-first alongside any
+ * CJ-ingested rows — including for CJ-sourced goods.
  *
  * <p><b>Purchase check — v1 decision (2026-07-07):</b> any authenticated user
  * may review; no purchased-this-goods verification. {@code litemall_comment}
@@ -71,7 +72,11 @@ public class CommentPostService {
         // Refresh the goods' review aggregate (review_count/rating) so the new review feeds the
         // ranking boost on the next reindex. The doc itself refreshes via the goods write-path
         // GoodsIndexEvent; this keeps the persisted signal current for that re-index.
-        rankingSignalService.refreshLocalReviewSignal(valueId);
+        // CJ-sourced goods are exempt (V44): their aggregates are enrichment-owned CJ-side
+        // totals, which a recompute from the capped ingested subset would clobber.
+        if (!"cj".equals(goods.getSource())) {
+            rankingSignalService.refreshLocalReviewSignal(valueId);
+        }
         return comment.getId();
     }
 }

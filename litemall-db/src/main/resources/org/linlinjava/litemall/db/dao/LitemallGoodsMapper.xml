@@ -31,6 +31,7 @@
     <result column="listed_num" jdbcType="INTEGER" property="listedNum" />
     <result column="review_count" jdbcType="INTEGER" property="reviewCount" />
     <result column="rating" jdbcType="DECIMAL" property="rating" />
+    <result column="cj_reviews_ingested_time" jdbcType="TIMESTAMP" property="cjReviewsIngestedTime" />
     <result column="temp_id" jdbcType="INTEGER" property="tempId" />
     <result column="weight" jdbcType="DECIMAL" property="weight" />
     <result column="volume" jdbcType="DECIMAL" property="volume" />
@@ -154,7 +155,7 @@
     id, goods_sn, `name`, category_id, brand_id, gallery, keywords, brief, is_on_sale,
     sort_order, pic_url, share_url, is_new, is_hot, unit, counter_price, retail_price,
     add_time, update_time, deleted, source, cj_pid, listed_num, review_count, rating,
-    temp_id, weight, volume
+    cj_reviews_ingested_time, temp_id, weight, volume
   </sql>
   <sql id="Blob_Column_List">
     <!--

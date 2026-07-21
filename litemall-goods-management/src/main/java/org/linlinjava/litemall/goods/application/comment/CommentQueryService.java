@@ -5,13 +5,12 @@ import org.linlinjava.litemall.db.domain.LitemallComment;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallUser;
 import org.linlinjava.litemall.db.service.LitemallCommentService;
-import org.linlinjava.litemall.db.service.LitemallGoodsService;
 import org.linlinjava.litemall.db.service.LitemallUserService;
+import org.linlinjava.litemall.goods.application.engagement.EngagementGoodsResolver;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductComment;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductReviewData;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product.CJProductService;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,32 +19,41 @@ import java.util.Map;
 
 /**
  * Anonymous customer read queries for product reviews (litemall-wx-api {@code WxCommentController}
- * parity — read paths only; posting a review is authenticated and left as an order/user follow-up).
- * Mirrors the wx vo: each comment carries its author's {@code userInfo} (nickName/avatarUrl).
+ * parity — read paths only; posting is {@link CommentPostService}). Mirrors the wx vo: each
+ * comment carries its author's {@code userInfo} (nickName/avatarUrl).
  *
- * <p>CJ-aware: a goods target with no local reviews whose row is {@code source='cj'} (or a raw
- * {@code cj_&lt;pid&gt;} valueId from the index-only CJ detail page) is served from the CJ
- * "Product Comments" API through the cached/paced {@link CJProductService} — mapped to the SAME vo
- * shape, so the SPA cannot tell the sources apart. Local reviews always take precedence, and a CJ
- * outage degrades to an empty list, never an error. {@code showType=1} (with-picture) is not
- * supported by the CJ API and is ignored on the CJ path.
+ * <p><b>CJ-aware since V44 (Wave 8):</b> the first read of a CJ-sourced good triggers the
+ * demand-driven {@link CjReviewIngestService} — its newest CJ reviews land ONCE in
+ * {@code litemall_comment} ({@code source='cj'}) and every read, including this first one, is
+ * served from the local store. Customer-posted and CJ-ingested reviews therefore merge into a
+ * single list, ordered <b>newest-first by add_time</b> (CJ rows keep their original CJ comment
+ * date) — chosen over rating-weighting so fresh customer feedback is never buried under years
+ * of imported five-star rows. A disabled/unreachable CJ ACL degrades to the local rows (empty
+ * on prod today), never an error, and leaves the good ingestable later.
+ *
+ * <p>The {@code cj_&lt;pid&gt;} valueId resolves to the promoted native row
+ * ({@link EngagementGoodsResolver}); only a truly index-only doc (no native row, edge case)
+ * falls back to the legacy uncached CJ pass-through.
  */
 @Service
 public class CommentQueryService {
 
     private final LitemallCommentService commentService;
     private final LitemallUserService userService;
-    private final LitemallGoodsService goodsService;
     private final CJProductService cjProductService;
+    private final EngagementGoodsResolver goodsResolver;
+    private final CjReviewIngestService reviewIngestService;
 
     public CommentQueryService(LitemallCommentService commentService,
                                LitemallUserService userService,
-                               LitemallGoodsService goodsService,
-                               CJProductService cjProductService) {
+                               CJProductService cjProductService,
+                               EngagementGoodsResolver goodsResolver,
+                               CjReviewIngestService reviewIngestService) {
         this.commentService = commentService;
         this.userService = userService;
-        this.goodsService = goodsService;
         this.cjProductService = cjProductService;
+        this.goodsResolver = goodsResolver;
+        this.reviewIngestService = reviewIngestService;
     }
 
     /** One page of comment vos with real paging numbers, source-independent (local or CJ). */
@@ -53,16 +61,15 @@ public class CommentQueryService {
 
     /**
      * Reviews for {@code valueId} (type 0 = goods; numeric id or raw {@code cj_&lt;pid&gt;}),
-     * {@code showType} 0 = all / 1 = with-picture (local path only). Each vo carries
+     * {@code showType} 0 = all / 1 = with-picture. Each vo carries
      * addTime/content/adminContent/picList/star + the author's userInfo, matching wx.
      */
     public CommentPage list(Byte type, String valueId, Integer showType, Integer page, Integer limit) {
-        String cjPid = cjPidFor(type, valueId);
-        if (cjPid != null) {
-            return cjList(cjPid, page, limit);
-        }
-        Integer id = parseId(valueId);
+        Integer id = resolveTarget(type, valueId);
         if (id == null) {
+            if (isCjRef(type, valueId)) {
+                return cjPassThroughList(valueId.substring(3), page, limit);
+            }
             return new CommentPage(List.of(), 0, 0, page, limit);
         }
         List<LitemallComment> commentList = commentService.query(type, id, showType, page, limit);
@@ -74,26 +81,25 @@ public class CommentQueryService {
             vo.put("adminContent", comment.getAdminContent());
             vo.put("picList", comment.getPicUrls());
             vo.put("star", comment.getStar());
-            vo.put("userInfo", userInfo(comment.getUserId()));
+            vo.put("userInfo", userInfo(comment));
             voList.add(vo);
         }
         PageInfo<LitemallComment> pageInfo = PageInfo.of(commentList);
         return new CommentPage(voList, pageInfo.getTotal(), pageInfo.getPages(), page, limit);
     }
 
-    /** {allCount, hasPicCount} for a target, as wx returns (CJ targets report hasPicCount 0). */
+    /** {allCount, hasPicCount} for a target, as wx returns. */
     public Map<String, Object> count(Byte type, String valueId) {
         Map<String, Object> entity = new LinkedHashMap<>();
-        String cjPid = cjPidFor(type, valueId);
-        if (cjPid != null) {
-            CJProductReviewData data = cjProductService.getProductComments(cjPid, 1, 1);
+        Integer id = resolveTarget(type, valueId);
+        if (id == null && isCjRef(type, valueId)) {
+            CJProductReviewData data = cjProductService.getProductComments(valueId.substring(3), 1, 1);
             entity.put("allCount", data != null ? parseLong(data.getTotal()) : 0L);
             entity.put("hasPicCount", 0L); // the CJ comments API has no with-picture filter
             return entity;
         }
-        Integer id = parseId(valueId);
-        entity.put("allCount", id != null ? commentService.count(type, id, 0) : 0L);
-        entity.put("hasPicCount", id != null ? commentService.count(type, id, 1) : 0L);
+        entity.put("allCount", id != null ? (long) commentService.count(type, id, 0) : 0L);
+        entity.put("hasPicCount", id != null ? (long) commentService.count(type, id, 1) : 0L);
         return entity;
     }
 
@@ -103,29 +109,34 @@ public class CommentQueryService {
     }
 
     /**
-     * Resolve the CJ pid to serve reviews from, or null for the local path. Local reviews take
-     * precedence: a numeric goods id with any local comment rows stays local even for a CJ row.
+     * Resolve the LOCAL id to serve from, triggering the one-time CJ ingest for CJ-sourced
+     * goods on the way. Null only for an unresolvable reference (bad id, or an index-only
+     * {@code cj_&lt;pid&gt;} doc with no promoted native row — the caller's pass-through case).
      */
-    private String cjPidFor(Byte type, String valueId) {
-        if (type == null || type != 0 || valueId == null) {
-            return null; // only goods reviews (type 0) can come from CJ
+    private Integer resolveTarget(Byte type, String valueId) {
+        if (type != null && type == 0) {
+            LitemallGoods goods = goodsResolver.resolve(valueId);
+            if (goods != null) {
+                reviewIngestService.ingestIfNeeded(goods); // no-op unless a never-ingested CJ good
+                return goods.getId();
+            }
+            // No live goods row: a numeric id still serves its local rows (pre-V44 behavior,
+            // e.g. reviews of a since-deleted good); only an unresolved cj_ ref returns null.
+            return valueId != null && valueId.startsWith("cj_") ? null : parseId(valueId);
         }
-        if (valueId.startsWith("cj_")) {
-            return valueId.substring(3); // index-only CJ detail page passes the raw doc id
-        }
-        Integer id = parseId(valueId);
-        if (id == null || commentService.count(type, id, 0) > 0) {
-            return null;
-        }
-        LitemallGoods goods = goodsService.findById(id);
-        if (goods != null && "cj".equals(goods.getSource()) && StringUtils.hasText(goods.getCjPid())) {
-            return goods.getCjPid();
-        }
-        return null;
+        return parseId(valueId); // non-goods comment types stay purely local
     }
 
-    /** One CJ review page mapped to the wx vo shape; CJ failure → empty page. */
-    private CommentPage cjList(String pid, Integer page, Integer limit) {
+    private static boolean isCjRef(Byte type, String valueId) {
+        return type != null && type == 0 && valueId != null && valueId.startsWith("cj_") && valueId.length() > 3;
+    }
+
+    /**
+     * Legacy uncached pass-through for an index-only CJ doc (no native goods row to attach
+     * rows to — litemall_comment.value_id is INT). One CJ review page mapped to the wx vo
+     * shape; CJ failure or disabled ACL → empty page, never an error.
+     */
+    private CommentPage cjPassThroughList(String pid, Integer page, Integer limit) {
         CJProductReviewData data = cjProductService.getProductComments(pid, page, limit);
         if (data == null || data.getList() == null) {
             return new CommentPage(List.of(), 0, 0, page, limit);
@@ -149,10 +160,18 @@ public class CommentQueryService {
         return new CommentPage(voList, total, pages, page, limit);
     }
 
-    /** Minimal public author info (nickName/avatarUrl); anonymous/missing user → empty fields. */
-    private Map<String, Object> userInfo(Integer userId) {
+    /**
+     * Minimal public author info (nickName/avatarUrl). CJ-ingested rows carry their (masked)
+     * author inline; local rows resolve the posting user. Anonymous/missing → empty fields.
+     */
+    private Map<String, Object> userInfo(LitemallComment comment) {
         Map<String, Object> info = new LinkedHashMap<>();
-        LitemallUser user = userId == null ? null : userService.findById(userId);
+        if ("cj".equals(comment.getSource())) {
+            info.put("nickName", comment.getAuthorName() != null ? comment.getAuthorName() : "");
+            info.put("avatarUrl", comment.getAuthorAvatar() != null ? comment.getAuthorAvatar() : "");
+            return info;
+        }
+        LitemallUser user = comment.getUserId() == null ? null : userService.findById(comment.getUserId());
         info.put("nickName", user != null ? user.getNickname() : "");
         info.put("avatarUrl", user != null ? user.getAvatar() : "");
         return info;
