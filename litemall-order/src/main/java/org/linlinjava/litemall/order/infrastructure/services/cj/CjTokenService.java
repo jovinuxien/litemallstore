@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.infrastructure.services.cj;
 
+import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjDisabledException;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.CjAuthFeignClient;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjAuthRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.cj.dto.CjAuthResponse;
@@ -7,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -15,7 +17,16 @@ import java.time.format.DateTimeFormatter;
 /**
  * Provides a valid CJ Dropshipping access token to the CJ order client, with an in-memory cache +
  * re-auth on (near-)expiry. The order service authenticates independently of goods-management.
- * Email + API key are config-driven ({@code spring.cjdropship.api.auth.*}); no secrets in code.
+ * Email + API key are config-driven ({@code spring.cjdropship.api.auth.*} ← {@code CJ_EMAIL} /
+ * {@code CJ_API_KEY}); no secrets in code.
+ *
+ * <p><b>Disabled mode (Wave 8):</b> both credentials blank ⇒ the whole CJ ACL is DISABLED —
+ * {@link #getValidToken()} throws a typed {@link LitemallCjDisabledException} without any
+ * network call, every best-effort CJ facade degrades to its clean empty/false answer, the
+ * placement + status-sync sweeps skip via {@link #isEnabled()}, and paid CJ orders are
+ * retained for placement once the key appears. Half-configured (one of the two blank) is a
+ * deployment mistake and fails the boot, mirroring the Stripe seam in
+ * {@code FulfillmentSeamsConfiguration}.
  */
 @Service
 public class CjTokenService {
@@ -29,21 +40,53 @@ public class CjTokenService {
     private final CjAuthFeignClient authClient;
     private final String cjEmail;
     private final String cjApiKey;
+    private final boolean enabled;
 
     private volatile String cachedToken;
     private volatile Instant expiresAt = Instant.EPOCH;
     private final Object lock = new Object();
 
     public CjTokenService(CjAuthFeignClient authClient,
-                          @Value("${spring.cjdropship.api.auth.cj-email}") String cjEmail,
-                          @Value("${spring.cjdropship.api.auth.cj-api-key}") String cjApiKey) {
+                          @Value("${spring.cjdropship.api.auth.cj-email:}") String cjEmail,
+                          @Value("${spring.cjdropship.api.auth.cj-api-key:}") String cjApiKey,
+                          @Value("${spring.cjdropship.api.sandbox:false}") boolean sandbox) {
         this.authClient = authClient;
         this.cjEmail = cjEmail;
         this.cjApiKey = cjApiKey;
+        boolean hasEmail = StringUtils.hasText(cjEmail);
+        boolean hasKey = StringUtils.hasText(cjApiKey);
+        if (hasEmail != hasKey) {
+            // Half-configured is a deployment mistake, not a disabled deployment: refusing to
+            // boot beats silently running with CJ off (same stance as the Stripe seam).
+            throw new IllegalStateException("CJ dropshipping is half-configured: "
+                    + (hasKey ? "CJ_API_KEY is set but CJ_EMAIL is blank" : "CJ_EMAIL is set but CJ_API_KEY is blank")
+                    + " — set both to enable CJ, or neither to run with CJ disabled.");
+        }
+        this.enabled = hasEmail;
+        if (this.enabled) {
+            LOGGER.info("CJ dropshipping ENABLED for {} (sandbox={})", cjEmail, sandbox);
+        } else {
+            LOGGER.info("CJ dropshipping DISABLED (CJ_EMAIL/CJ_API_KEY empty) — paid CJ orders "
+                    + "are retained and will be placed automatically once credentials appear");
+        }
     }
 
-    /** A non-expired CJ access token, refreshing via {@code getAccessToken} when needed. */
+    /** Whether CJ credentials are configured; when false every CJ call is short-circuited. */
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    /**
+     * A non-expired CJ access token, refreshing via {@code getAccessToken} when needed.
+     *
+     * @throws LitemallCjDisabledException when the CJ ACL is disabled (no credentials) —
+     *         thrown without any network call, so disabled deployments never hammer CJ auth.
+     */
     public String getValidToken() {
+        if (!enabled) {
+            throw new LitemallCjDisabledException(
+                    "CJ ACL disabled (CJ_EMAIL/CJ_API_KEY empty) — fulfilment retained for retry");
+        }
         if (isValid()) {
             return cachedToken;
         }

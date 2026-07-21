@@ -92,9 +92,15 @@ spring:
       # createOrderV2 also rejects a missing/invalid customer email (3001). The ordering
       # user's email is used when present; this store contact is the fallback.
       customer-email-fallback: ${CJ_CUSTOMER_EMAIL_FALLBACK:orders@litemall.dev}
+      # CJ credentials come from the environment ONLY (handoff-secrets-wave7: no committed
+      # fallback). BOTH empty = CJ DISABLED: payment still settles, paid CJ orders are
+      # retained by the placement sweep and placed once the key appears (CjTokenService /
+      # CjPlacementSweepScheduler). Exactly one set = deployment mistake, boot fails.
+      # LITEMALL_CJ_API_KEY is honored first because the prod compose stack already
+      # injects the key under that name.
       auth:
-        cj-email: "bimeni89@gmail.com"
-        cj-api-key: "9520bc6b70fe45019688c5ae62be331b"
+        cj-email: ${CJ_EMAIL:}
+        cj-api-key: ${LITEMALL_CJ_API_KEY:${CJ_API_KEY:}}
 
 
 litemall:
@@ -128,6 +134,16 @@ litemall:
     # batch-capped so a sweep stays inside CJ's ~1 QPS budget. See CjOrderStatusSyncScheduler.
     cj-sync-sweep-ms: 300000
     cj-sync-batch: 20
+    # CJ placement sweep (Wave 8): paid CJ orders not yet placed at CJ (the order row IS
+    # the durable job — source='cj', PAID, cj_order_id NULL) are (re)placed here. Retries
+    # indefinitely while CJ is disabled/unreachable; skipped entirely (cheap) when the CJ
+    # credentials are empty. See CjPlacementSweepScheduler / CjPlacementService.
+    cj-place-sweep-ms: 300000
+    cj-place-batch: 10
+    # Ops mailbox for CJ fulfilment attention signals (terminal placement rejection,
+    # CJ-side cancellation of a paid order). Blank = log-only (mail rows need the
+    # litemall.customer-mail seam enabled anyway).
+    cj-ops-mail: ${CJ_OPS_MAIL:}
     # Wave 4 (Task D): fulfillment seams — disabled by default. printer.provider:
     # none|yly (yly needs client-id/client-secret/machine-code/machine-secret —
     # supply via env, e.g. LITEMALL_ORDER_PRINTER_CLIENT_SECRET). express.provider:

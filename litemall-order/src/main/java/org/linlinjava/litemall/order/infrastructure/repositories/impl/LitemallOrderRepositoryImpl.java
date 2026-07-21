@@ -442,6 +442,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public List<LitemallOrderId> queryPlaceableCjOrders(int limit) {
+        return orderMapper.selectPlaceableCjOrderIds(limit).stream()
+                .map(LitemallOrderId::new)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());

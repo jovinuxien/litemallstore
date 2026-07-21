@@ -29,19 +29,27 @@ public class CjOrderStatusSyncScheduler {
 
     private final LitemallOrderRepository orderRepository;
     private final CjLifecycleService lifecycleService;
+    private final org.linlinjava.litemall.order.infrastructure.services.cj.CjTokenService cjTokenService;
 
     /** Max open CJ orders visited per sweep (least-recently-updated first — nobody starves). */
     @Value("${litemall.order.cj-sync-batch:20}")
     private int batchSize;
 
     public CjOrderStatusSyncScheduler(LitemallOrderRepository orderRepository,
-                                      CjLifecycleService lifecycleService) {
+                                      CjLifecycleService lifecycleService,
+                                      org.linlinjava.litemall.order.infrastructure.services.cj.CjTokenService cjTokenService) {
         this.orderRepository = orderRepository;
         this.lifecycleService = lifecycleService;
+        this.cjTokenService = cjTokenService;
     }
 
     @Scheduled(fixedDelayString = "${litemall.order.cj-sync-sweep-ms:300000}")
     public void sweep() {
+        if (!cjTokenService.isEnabled()) {
+            // CJ disabled: every getOrderDetail would fail anyway — skip without DB/CJ traffic
+            // (also kills the per-order WARN spam a bad/absent key used to cause every sweep).
+            return;
+        }
         List<LitemallOrderId> due = orderRepository.querySyncableCjOrders(batchSize);
         if (due == null || due.isEmpty()) {
             return;

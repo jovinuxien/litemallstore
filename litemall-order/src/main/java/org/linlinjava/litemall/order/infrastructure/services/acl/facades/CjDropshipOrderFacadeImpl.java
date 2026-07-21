@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
 
+import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjDisabledException;
 import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException;
+import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjRetryableException;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjBalance;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjLogisticsOption;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
@@ -28,11 +30,17 @@ import java.util.stream.Collectors;
 /**
  * {@link CjDropshipOrderFacade} implementation: authenticates via {@link CjTokenService}, maps a
  * {@link CjOrderPlacement} to the CJ {@code createOrderV2} request (payType=3 create-only draft,
- * sandbox flag config-driven), calls {@link CjOrderFeignClient}, and converts any placement
- * failure (transport, circuit-open, or {@code result=false}) into a
- * {@link LitemallCjOrderException}. Lifecycle operations (confirm / payBalance / detail /
- * delete / balance) are best-effort per the facade contract. Mirrors
- * {@code LitemallGoodsFacadeImpl.call(...)}.
+ * sandbox flag config-driven), calls {@link CjOrderFeignClient}, and classifies every placement
+ * failure for the retained-placement machinery (Wave 8):
+ * <ul>
+ *   <li>CJ disabled (no credentials) → {@link LitemallCjDisabledException}, rethrown untouched;</li>
+ *   <li>transport / auth / circuit-open / CJ rate-limit → {@link LitemallCjRetryableException}
+ *       (the placement sweep retries indefinitely — the paid order is never stranded);</li>
+ *   <li>a CJ business rejection ({@code result=false}) → the base
+ *       {@link LitemallCjOrderException}, which the placement path treats as TERMINAL.</li>
+ * </ul>
+ * Lifecycle operations (confirm / payBalance / detail / delete / balance) are best-effort per
+ * the facade contract. Mirrors {@code LitemallGoodsFacadeImpl.call(...)}.
  */
 @Component
 public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
@@ -99,9 +107,13 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             CjCreateOrderRequest request = toRequest(placement, products, logistic);
             response = cjOrderFeignClient.createOrderV2(token, request);
             placedLogistic = logistic;
+        } catch (LitemallCjDisabledException e) {
+            // No credentials — no call was made; the placement sweep retains the order.
+            throw e;
         } catch (RuntimeException e) {
-            // Transport/auth errors AND CJ business rejections (the FeignErrorDecoder turns a CJ
-            // error body into an exception) surface here. Unwrap to the root cause so the real CJ
+            // Transport/auth errors AND HTTP-level failures (the FeignErrorDecoder turns an error
+            // body into an exception, erasing the HTTP status — so everything surfacing here is
+            // classified RETRYABLE, the safe direction). Unwrap to the root cause so the real CJ
             // message (e.g. "fromCountryCode must not be empty") reaches the caller instead of a
             // generic label.
             Throwable root = e;
@@ -110,7 +122,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             }
             String detail = root.getMessage() != null ? root.getMessage() : "transport/auth failure";
             log.error("CJ create-order failed for orderNumber={}: {}", placement.getOrderNumber(), detail, e);
-            throw new LitemallCjOrderException(detail, e);
+            throw new LitemallCjRetryableException(detail, e);
         }
 
         // Decide acceptance from CJ's own result/code flag — NOT from data being present.
@@ -121,19 +133,33 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
         if (!accepted) {
             String message = response == null ? "null response" : response.getMessage();
             log.error("CJ create-order rejected for orderNumber={}: {}", placement.getOrderNumber(), message);
+            if (message != null && isRateLimitMessage(message)) {
+                throw new LitemallCjRetryableException(message);
+            }
+            // A CJ business rejection (bad vid, bad address, IOSS…) — retrying cannot fix it.
             throw new LitemallCjOrderException(message);
         }
 
         CjCreateOrderResponse.Data data = response.getData();
         if (data == null) {
-            // CJ accepted the order (result=true) but returned data in a shape we could not bind
-            // (e.g. an empty/blank value). The order IS placed — surface success without the CJ id
-            // rather than failing the customer; our merchant orderNumber remains the idempotency key.
+            // CJ accepted the order (result=true) but returned data in a shape we could not bind.
+            // The order likely EXISTS at CJ — but recording a placement without a cj_order_id
+            // produces a stuck order no lifecycle/cancel/tracking guard can touch. Classify
+            // retryable instead: the placement sweep reconciles by our merchant orderNumber
+            // (getOrderDetail accepts it) and adopts the CJ-side order without re-creating it.
             log.warn("CJ create-order accepted orderNumber={} but returned no parseable data object; "
-                    + "proceeding without CJ order id", placement.getOrderNumber());
-            return new CjOrderResult(null, null, null, placedLogistic);
+                    + "deferring to reconcile-by-orderNumber next sweep", placement.getOrderNumber());
+            throw new LitemallCjRetryableException("CJ accepted orderNumber=" + placement.getOrderNumber()
+                    + " but returned no parseable data; will reconcile by orderNumber");
         }
         return new CjOrderResult(data.getOrderId(), data.getOrderNum(), data.getOrderStatus(), placedLogistic);
+    }
+
+    /** CJ rate-limit / quota answers are transient — the sweep retries them. */
+    private static boolean isRateLimitMessage(String message) {
+        String m = message.toLowerCase(java.util.Locale.ROOT);
+        return m.contains("too many request") || m.contains("frequent") || m.contains("quota")
+                || m.contains("rate limit") || m.contains("try again later");
     }
 
     private List<CjOrderProduct> toProducts(CjOrderPlacement p) {
