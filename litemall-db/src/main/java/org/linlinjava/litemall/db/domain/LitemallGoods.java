@@ -236,6 +236,15 @@ public class LitemallGoods {
     private BigDecimal rating;
 
     /**
+     * Hand-maintained (V44): demand-driven CJ review-ingest marker. NULL = review bodies
+     * never landed in litemall_comment (first /srv/comment read of a CJ good triggers the
+     * capped fetch); non-NULL = serve reviews purely from the local store, no CJ traffic.
+     * Written via {@code LitemallCjLinkageMapper.markCjReviewsIngested} only.
+     * Corresponds to litemall_goods.cj_reviews_ingested_time
+     */
+    private LocalDateTime cjReviewsIngestedTime;
+
+    /**
      * Hand-maintained (Wave 4): freight template binding / billing units; columns exist
      * since V2. {@code tempId} = litemall_shipping_templates.id, 0 = unbound (falls back
      * to the default template).
@@ -809,6 +818,14 @@ public class LitemallGoods {
 
     public void setRating(BigDecimal rating) {
         this.rating = rating;
+    }
+
+    public LocalDateTime getCjReviewsIngestedTime() {
+        return cjReviewsIngestedTime;
+    }
+
+    public void setCjReviewsIngestedTime(LocalDateTime cjReviewsIngestedTime) {
+        this.cjReviewsIngestedTime = cjReviewsIngestedTime;
     }
 
     public Integer getTempId() {

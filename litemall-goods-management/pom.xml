@@ -226,8 +226,10 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>${maven-surefire-plugin.version}</version>
 				<configuration>
-					<argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
-					<debugForkedProcess>true</debugForkedProcess>
+					<!-- MaxPermSize is an unrecognized option since JDK 8 (fatal without the
+					     ignore flag) and debugForkedProcess suspended the fork on :5005 —
+					     `mvn test` could never actually run in this module. -->
+					<argLine>-Xmx1024m -XX:+IgnoreUnrecognizedVMOptions -XX:+AllowRedefinitionToAddDeleteMethods</argLine>
 				</configuration>
 			</plugin>
 		</plugins>
