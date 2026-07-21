@@ -149,6 +149,16 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.order.application.internal.LitemallStoreServiceLayer storeServiceLayer;
 
+    // Submit pre-check only: a dangling addressId must 422 from OUTSIDE the
+    // transactional placeOrder (whose own guard is the rollback-only→502 landmine).
+    @Autowired
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallAddressRepository addressRepository;
+
+    // Same fallback CjFulfillmentService applies at placement time — a CJ submit
+    // without a countryCode is only acceptable when this deployment default exists.
+    @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.ship-to-country-code:}")
+    private String defaultShipToCountryCode;
+
     // Kill-switch for the pickup vertical (Wave 4). ON by default — flipping it off
     // 422s NEW pickup submits; already-placed pickup orders keep working (write-off
     // and reads are unaffected).
@@ -244,8 +254,32 @@ public class LitemallOrderOrchestratorService {
                             "Pickup contact name and mobile are required.");
                 }
             }
+            // Delivery submits need a resolvable shipping address. placeOrder's own
+            // guard throws from inside the transaction (rollback-only → generic 502),
+            // so a dangling/foreign addressId is rejected HERE as a clean 422 instead.
+            if (!command.isPickup()) {
+                org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate shippingAddress =
+                        command.getAddressId() == null
+                                ? addressRepository.findDefaultAddress(new LitemallUserId(command.getUserId()))
+                                : addressRepository.findAddress(new LitemallUserId(command.getUserId()),
+                                        new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallAddressId(
+                                                command.getAddressId()));
+                if (shippingAddress == null) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "The selected shipping address was not found — choose a valid address.");
+                }
+            }
             if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
                 cjOrderAvailabilityChecker.assertAllFulfillable(checkedItems);
+                // CJ placement is hard-blocked without a destination country
+                // (CjFulfillmentService rejects TERMINALLY at placement time — after
+                // the customer has already paid). Refuse at submit instead, unless the
+                // deployment-market fallback country is configured.
+                if (!org.springframework.util.StringUtils.hasText(command.getCountryCode())
+                        && !org.springframework.util.StringUtils.hasText(defaultShipToCountryCode)) {
+                    return LitemallOrderOperationResult.submitFailed(
+                            "A destination country is required for these items — please re-select your shipping address.");
+                }
             }
         } catch (LitemallOrderServiceException e) {
             return LitemallOrderOperationResult.submitFailed(e.getMessage());

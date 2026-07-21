@@ -492,7 +492,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         return new LitemallOrderSubmitResult(
                 existingOrderAggregate.getOrderId().getId(),
                 existingOrderAggregate.getOrderSn(),
-                false, // payment handled by orchestrator
+                true, // the order is CREATED/unpaid — pay is a separate action (/actions/pay)
                 grouponLinkId,
                 existingOrderAggregate.getActualPrice().getAmount(),
                 LocalDateTime.now(),

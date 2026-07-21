@@ -53,6 +53,8 @@ class LitemallOrderCreationFailurePropagationTest {
     private UnpaidOrderTaskScheduler unpaidOrderTaskScheduler;
     @Mock
     private LitemallDomainEventPublisher domainEventPublisher;
+    @Mock
+    private org.linlinjava.litemall.order.domain.model.repositories.LitemallAddressRepository addressRepository;
 
     private LitemallOrderOrchestratorService orchestrator;
 
@@ -67,10 +69,14 @@ class LitemallOrderCreationFailurePropagationTest {
         ReflectionTestUtils.setField(orchestrator, "orderSourceResolver", orderSourceResolver);
         ReflectionTestUtils.setField(orchestrator, "unpaidOrderTaskScheduler", unpaidOrderTaskScheduler);
         ReflectionTestUtils.setField(orchestrator, "domainEventPublisher", domainEventPublisher);
-        // Pre-checks pass: one checked cart line, single fulfillment source.
+        ReflectionTestUtils.setField(orchestrator, "addressRepository", addressRepository);
+        // Pre-checks pass: one checked cart line, single fulfillment source, resolvable
+        // shipping address (COMMAND carries addressId=20 → the explicit-id lookup).
         when(cartServiceLayer.getCheckedCartItems(any(), any()))
                 .thenReturn(List.of(mock(LitemallCartAggregate.class)));
         when(orderSourceResolver.resolve(anyList())).thenReturn("local");
+        when(addressRepository.findAddress(any(), any())).thenReturn(
+                mock(org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate.class));
     }
 
     @Test
