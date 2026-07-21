@@ -8,28 +8,29 @@ import org.linlinjava.litemall.order.application.internal.LitemallGrouponService
 import org.linlinjava.litemall.order.application.internal.LitemallOrderServiceImpl;
 import org.linlinjava.litemall.order.application.internal.UnpaidOrderTaskScheduler;
 import org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService;
-import org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException;
+import org.linlinjava.litemall.order.application.internal.cj.CjPlacementService;
 import org.linlinjava.litemall.order.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
-import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
 import org.linlinjava.litemall.order.domain.model.commands.payment.LitemallOrderPaymentCommand;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository;
 import org.linlinjava.litemall.order.domain.service.order.LitemallOrderOperationResult;
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.valueobjects.enums.payment.PaymentMethod;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -40,10 +41,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Pay-first CJ fulfillment on {@link LitemallOrderOrchestratorService#payOrder}: a
- * {@code source='cj'} order is replayed to CJ exactly once the payment succeeds, a CJ
- * rejection aborts the payment (exception propagates so the transaction rolls back and
- * no post-payment notification/event leaks), and a local order never touches CJ.
+ * Wave-8 pay/CJ decoupling on {@link LitemallOrderOrchestratorService#payOrder}: payment
+ * settles regardless of CJ. A {@code source='cj'} order is QUEUED for placement (honest
+ * timeline hop inside the pay path + async hand-off to {@link CjPlacementService}) — the
+ * in-transaction {@code placeForPaidOrder} of Wave 3–7 is gone, so a CJ outage, disabled
+ * ACL, or rejection can no longer roll back a customer's payment. Local orders never touch
+ * the CJ machinery.
  */
 @ExtendWith(MockitoExtension.class)
 class CjOrderPayFlowTest {
@@ -59,7 +62,11 @@ class CjOrderPayFlowTest {
     @Mock
     private CjFulfillmentService cjFulfillmentService;
     @Mock
+    private CjPlacementService cjPlacementService;
+    @Mock
     private LitemallOrderGoodsRepository orderGoodsRepository;
+    @Mock
+    private LitemallOrderStatusHistoryRepository statusHistoryRepository;
     @Mock
     private NotifyService notifyService;
     @Mock
@@ -75,7 +82,9 @@ class CjOrderPayFlowTest {
                 orderServiceImpl, orderRepository, grouponServiceLayer);
         ReflectionTestUtils.setField(orchestrator, "walletService", walletService);
         ReflectionTestUtils.setField(orchestrator, "cjFulfillmentService", cjFulfillmentService);
+        ReflectionTestUtils.setField(orchestrator, "cjPlacementService", cjPlacementService);
         ReflectionTestUtils.setField(orchestrator, "orderGoodsRepository", orderGoodsRepository);
+        ReflectionTestUtils.setField(orchestrator, "statusHistoryRepository", statusHistoryRepository);
         ReflectionTestUtils.setField(orchestrator, "notifyService", notifyService);
         ReflectionTestUtils.setField(orchestrator, "unpaidOrderTaskScheduler", unpaidOrderTaskScheduler);
         ReflectionTestUtils.setField(orchestrator, "domainEventPublisher", domainEventPublisher);
@@ -100,36 +109,30 @@ class CjOrderPayFlowTest {
     }
 
     @Test
-    void cjOrder_walletPaySuccess_placesAtCjWithTheOrderLines() {
+    void cjOrder_walletPaySuccess_queuesPlacement_insteadOfInTransactionPlacing() {
         LitemallOrderId orderId = new LitemallOrderId(51);
         LitemallOrderAggregate order = unpaidOrder(51, LitemallOrderAggregate.SOURCE_CJ);
-        List<LitemallOrderGoodsAggregate> lines = List.of(new LitemallOrderGoodsAggregate());
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
-        when(orderGoodsRepository.findByOId(orderId)).thenReturn(lines);
 
         LitemallOrderOperationResult result = orchestrator.payOrder(walletPay(51));
 
         assertTrue(result.isSuccess());
         verify(walletService).debit(any());
         verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString(), any());
-        verify(cjFulfillmentService).placeForPaidOrder(order, lines);
-    }
 
-    @Test
-    void cjRejection_abortsThePayment_beforeAnyPostPaymentSideEffect() {
-        LitemallOrderId orderId = new LitemallOrderId(52);
-        LitemallOrderAggregate order = unpaidOrder(52, LitemallOrderAggregate.SOURCE_CJ);
-        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
-        when(cjFulfillmentService.placeForPaidOrder(eq(order), anyList()))
-                .thenThrow(new LitemallCjOrderException("shipping country not supported"));
+        // The money TX never touches CJ; placement is handed to the async/durable path.
+        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
+        verify(cjPlacementService).placeAsync(orderId);
 
-        // Propagating out of the @Transactional orchestrator rolls back the wallet
-        // debit and the PAID transition; the REST layer maps it to a clean pay-failed.
-        assertThrows(LitemallCjOrderException.class, () -> orchestrator.payOrder(walletPay(52)));
+        // Honest customer-visible queue marker on the timeline, inside the pay path.
+        ArgumentCaptor<LitemallOrderStatusChange> hop =
+                ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
+        verify(statusHistoryRepository).record(hop.capture());
+        assertEquals(CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT, hop.getValue().getChangeType());
 
-        verify(notifyService, never()).notifyMail(anyString(), anyString());
-        verify(unpaidOrderTaskScheduler, never()).cancel(any());
-        verify(domainEventPublisher, never()).publish(any());
+        // Post-payment side effects fire — payment settled, CJ state is irrelevant to it.
+        verify(unpaidOrderTaskScheduler).cancel(orderId);
+        verify(domainEventPublisher).publish(any());
     }
 
     @Test
@@ -142,6 +145,7 @@ class CjOrderPayFlowTest {
 
         assertTrue(result.isSuccess());
         verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
+        verify(cjPlacementService, never()).placeAsync(any());
     }
 
     @Test
@@ -155,7 +159,7 @@ class CjOrderPayFlowTest {
         LitemallOrderOperationResult result = orchestrator.payOrder(walletPay(54));
 
         assertTrue(result.isSuccess());
-        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
+        verify(cjPlacementService, never()).placeAsync(any());
         verify(orderServiceImpl).markOrderPaid(eq(orderId), anyString(), any());
     }
 }
