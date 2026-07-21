@@ -47,6 +47,7 @@ public class CjLifecycleService {
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
     private final LitemallOrderServiceImpl orderServiceImpl;
     private final CjDropshipOrderFacade cjOrderFacade;
+    private final CjOpsNotifier opsNotifier;
     /** When false, UNPAID CJ orders are left for manual payment (CJ dashboard / balance top-up). */
     private final boolean autoPayBalance;
 
@@ -54,11 +55,13 @@ public class CjLifecycleService {
                               LitemallOrderStatusHistoryRepository statusHistoryRepository,
                               LitemallOrderServiceImpl orderServiceImpl,
                               CjDropshipOrderFacade cjOrderFacade,
+                              CjOpsNotifier opsNotifier,
                               @Value("${spring.cjdropship.api.auto-pay-balance:true}") boolean autoPayBalance) {
         this.orderRepository = orderRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.orderServiceImpl = orderServiceImpl;
         this.cjOrderFacade = cjOrderFacade;
+        this.opsNotifier = opsNotifier;
         this.autoPayBalance = autoPayBalance;
     }
 
@@ -77,6 +80,7 @@ public class CjLifecycleService {
             return; // CJ unreachable / unusable answer — retry next sweep
         }
         String cjStatus = snapshot.getOrderStatus().trim().toUpperCase();
+        String lastSeen = order.getCjOrderStatus(); // pre-hop value: detects the transition below
         recordHopIfChanged(order, cjStatus);
 
         switch (cjStatus) {
@@ -109,6 +113,17 @@ public class CjLifecycleService {
                 log.warn("CJ order {} (local {}) is CANCELLED at CJ — local order stays {}; "
                                 + "refund via the existing aftersale/refund paths",
                         order.getCjOrderId(), orderId.getId(), order.getOrderStatus());
+                // Ops attention exactly once, on the transition (Wave 8; user decision
+                // 2026-07-20: notify + timeline, no automatic money movement). The hop and
+                // the cj_order_status projection were already written by recordHopIfChanged.
+                if (!"CANCELLED".equals(lastSeen)) {
+                    opsNotifier.notify("CJ cancelled order " + order.getOrderSn(),
+                            "CJ reports order " + orderId.getId() + " (sn " + order.getOrderSn()
+                                    + ", CJ id " + order.getCjOrderId() + ") as CANCELLED on the CJ side."
+                                    + "\nLocal order status: " + order.getOrderStatus()
+                                    + " — the customer's payment is NOT touched automatically."
+                                    + "\nDecide and settle via the normal refund/aftersale path.");
+                }
                 break;
             default:
                 // UNSHIPPED (incl. PENDING/PROCESSING sub-states) and anything CJ adds later:

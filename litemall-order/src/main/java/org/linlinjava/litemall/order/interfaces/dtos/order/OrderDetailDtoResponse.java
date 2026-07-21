@@ -40,6 +40,15 @@ public class OrderDetailDtoResponse {
     private final String cjOrderNum;
     /** Logistics line the order ships with (CJ line at placement / admin ship channel). */
     private final String shipChannel;
+    /** Tracking number once shipped (CJ trackNumber / admin-entered). */
+    private final String shipSn;
+    /** Raw CJ-side status projection (CREATED/…/SHIPPED/DELIVERED/CANCELLED), CJ orders only. */
+    private final String cjOrderStatus;
+    /**
+     * Customer-friendly fulfilment phrase derived from source + CJ state (Wave 8), so the
+     * SPA can show honest progress without decoding CJ statuses. Null for local orders.
+     */
+    private final String fulfillmentStatus;
     // In-store pickup (Wave 4): mode + store + the redeem code. verifyCode is only ever
     // serialized on the OWNER-scoped detail read (this DTO) — paid orders only (null
     // until pay). NON_NULL keeps express orders' payloads unchanged.
@@ -54,6 +63,7 @@ public class OrderDetailDtoResponse {
                                   BigDecimal freightPrice, BigDecimal couponPrice, BigDecimal actualPrice,
                                   List<OrderGoodsDtoResponse> orderGoods,
                                   String source, String cjOrderId, String cjOrderNum, String shipChannel,
+                                  String shipSn, String cjOrderStatus, String fulfillmentStatus,
                                   String deliveryType, Integer storeId, String verifyCode,
                                   LocalDateTime verifyTime) {
         this.id = id;
@@ -73,6 +83,9 @@ public class OrderDetailDtoResponse {
         this.cjOrderId = cjOrderId;
         this.cjOrderNum = cjOrderNum;
         this.shipChannel = shipChannel;
+        this.shipSn = shipSn;
+        this.cjOrderStatus = cjOrderStatus;
+        this.fulfillmentStatus = fulfillmentStatus;
         this.deliveryType = deliveryType;
         this.storeId = storeId;
         this.verifyCode = verifyCode;
@@ -100,9 +113,44 @@ public class OrderDetailDtoResponse {
                 o.getCjOrderId(),
                 o.getCjOrderNum(),
                 o.getShipChannel(),
+                o.getShipSn(),
+                o.getCjOrderStatus(),
+                fulfillmentPhrase(o),
                 o.getDeliveryType(),
                 o.getStoreId(),
                 o.getVerifyCode(),
                 o.getVerifyTime());
+    }
+
+    /**
+     * Honest customer phrase for a CJ order's fulfilment state (Wave 8). Paid-but-unplaced
+     * (incl. the ops-parked PLACEMENT_REJECTED sentinel) reads "Processing" — true either
+     * way, and the ops signal for the parked case travels by mail/timeline, not here.
+     */
+    private static String fulfillmentPhrase(LitemallOrderAggregate o) {
+        if (!"cj".equals(o.getSource())) {
+            return null;
+        }
+        String cj = o.getCjOrderStatus() == null ? "" : o.getCjOrderStatus().trim().toUpperCase();
+        if (o.getCjOrderId() == null || o.getCjOrderId().isBlank()) {
+            switch (o.getOrderStatus()) {
+                case PAID:
+                    return "Processing";
+                case CREATED:
+                    return "Awaiting payment";
+                default:
+                    return null; // cancelled/refunded before placement: order status says it all
+            }
+        }
+        switch (cj) {
+            case "SHIPPED":
+                return "Shipped";
+            case "DELIVERED":
+                return "Delivered";
+            case "CANCELLED":
+                return "Attention required — contact support";
+            default:
+                return "Preparing shipment"; // CREATED / IN_CART / UNPAID / UNSHIPPED / unknown
+        }
     }
 }

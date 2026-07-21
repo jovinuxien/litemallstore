@@ -475,6 +475,12 @@ services:
       LITEMALL_ORDER_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
+      # CJ auth needs the account email alongside the key (Wave 8: the committed
+      # dev credentials are gone from order's application.yml). BOTH blank ⇒ CJ
+      # disabled: payment settles, paid CJ orders are retained and auto-placed
+      # once the pair appears. Exactly one set ⇒ order REFUSES TO BOOT.
+      CJ_EMAIL: ${CJ_EMAIL:-}
+      CJ_OPS_MAIL: ${CJ_OPS_MAIL:-}
       # order mints its OWN machine token (GoodsMachineTokenProvider) to call
       # goods-management when it re-resolves a cart line's price server-side. It
       # reads litemall.goods.auth.* — NOT the standard spring.security.oauth2

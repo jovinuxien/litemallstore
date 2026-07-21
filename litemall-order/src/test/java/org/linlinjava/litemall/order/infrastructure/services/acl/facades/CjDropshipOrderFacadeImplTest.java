@@ -41,7 +41,7 @@ class CjDropshipOrderFacadeImplTest {
     private CjOrderFeignClient cjOrderFeignClient;
 
     /** Hand-stubbed concrete token service (avoids subclass-mocking a concrete class). */
-    private final CjTokenService tokenStub = new CjTokenService(null, "e@x", "k") {
+    private final CjTokenService tokenStub = new CjTokenService(null, "e@x", "k", true) {
         @Override
         public String getValidToken() {
             return "tok";
@@ -49,7 +49,8 @@ class CjDropshipOrderFacadeImplTest {
     };
 
     private CjDropshipOrderFacadeImpl facade() {
-        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary", true);
+        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary",
+                true, 0, "", "orders@litemall.dev");
     }
 
     private static CjOrderPlacement placement() {
@@ -105,11 +106,39 @@ class CjDropshipOrderFacadeImplTest {
     }
 
     @Test
-    void placeOrder_transportFailure_throwsCjOrderException() {
+    void placeOrder_transportFailure_throwsRetryable() {
         when(cjOrderFeignClient.createOrderV2(eq("tok"), any()))
                 .thenThrow(new RuntimeException("connect timed out"));
 
-        assertThrows(LitemallCjOrderException.class, () -> facade().placeOrder(placement()));
+        // Wave 8: transport-level failures are RETRYABLE — the placement sweep keeps the
+        // paid order queued instead of a terminal park.
+        assertThrows(org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjRetryableException.class,
+                () -> facade().placeOrder(placement()));
+    }
+
+    @Test
+    void placeOrder_acceptedButUnparseableData_throwsRetryable_neverANullIdResult() {
+        // CJ accepted (result=true) but data didn't bind. Pre-Wave-8 this returned a
+        // CjOrderResult with a null cjOrderId, producing a stuck paid order no guard could
+        // touch. Now: retryable — the sweep reconciles by orderNumber and adopts the order.
+        CjCreateOrderResponse accepted = new CjCreateOrderResponse();
+        accepted.setResult(true);
+        accepted.setData(null);
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), any())).thenReturn(accepted);
+
+        assertThrows(org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjRetryableException.class,
+                () -> facade().placeOrder(placement()));
+    }
+
+    @Test
+    void placeOrder_rateLimitRejection_isRetryable_notTerminal() {
+        CjCreateOrderResponse limited = new CjCreateOrderResponse();
+        limited.setResult(false);
+        limited.setMessage("Too many requests, please try again later");
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), any())).thenReturn(limited);
+
+        assertThrows(org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjRetryableException.class,
+                () -> facade().placeOrder(placement()));
     }
 
     @Test
