@@ -292,7 +292,7 @@ const Layout: React.FC = () => {
         <button
           type='button'
           className='w-100 border-0 text-white text-center py-3'
-          style={{ background: '#31363B', fontSize: '0.85rem', letterSpacing: '0.02em' }}
+          style={{ background: '#0a5d65', fontSize: '0.85rem', letterSpacing: '0.02em' }}
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <i className='bi bi-chevron-up me-2' />
