@@ -79,6 +79,12 @@ class LitemallAftersaleApprovalFlowTest {
         ReflectionTestUtils.setField(orchestrator, "aftersaleRepository", aftersaleRepository);
         ReflectionTestUtils.setField(orchestrator, "statusHistoryRepository", statusHistoryRepository);
         ReflectionTestUtils.setField(orchestrator, "walletService", walletService);
+        // approveAftersale runs the Wave-3 CJ-side delete hook (no-op for local orders)
+        // and the Wave-5 brokerage clawback — both field-injected.
+        ReflectionTestUtils.setField(orchestrator, "cjFulfillmentService",
+                org.mockito.Mockito.mock(org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService.class));
+        ReflectionTestUtils.setField(orchestrator, "brokerageService",
+                org.mockito.Mockito.mock(org.linlinjava.litemall.order.application.internal.BrokerageService.class));
 
         order = new LitemallOrderAggregate();
         order.setOrderId(ORDER_ID);

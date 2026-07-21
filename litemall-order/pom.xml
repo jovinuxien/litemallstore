@@ -356,8 +356,10 @@
 					<artifactId>maven-surefire-plugin</artifactId>
 					<version>${maven-surefire-plugin.version}</version>
 					<configuration>
-						<argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
-						<debugForkedProcess>true</debugForkedProcess>
+						<!-- debugForkedProcess=true used to suspend every forked test JVM on
+						     :5005 waiting for a debugger — `mvn test` hung forever, so this
+						     module's tests never actually ran. Removed in Wave 8. -->
+						<argLine>-Xmx1024m</argLine>
 					</configuration>
 				</plugin>
 				<!-- jacoco plugin management -->
