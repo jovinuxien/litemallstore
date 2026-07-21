@@ -38,6 +38,31 @@
       font-size: 15px;
       white-space: nowrap;
       overflow: hidden;
+
+      .sidebar-brand {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+      }
+      .sidebar-brand-wordmark {
+        height: 20px;
+        width: auto;
+        align-self: center;
+      }
+      .sidebar-brand-realm {
+        color: #ffc24b;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      // Compact square mark, shown only when the sidebar is collapsed.
+      .sidebar-brand-mark {
+        display: none;
+        height: 26px;
+        width: 26px;
+        vertical-align: middle;
+      }
     }
 
     .el-menu {
@@ -127,6 +152,7 @@
       .menu-item span,
       .submenu-title span,
       .submenu-arrow { display: none; }
+      .sidebar-logo .sidebar-brand-mark { display: inline-block; }
       .menu-item,
       .submenu-title { padding: 0 0 0 18px; }
     }
