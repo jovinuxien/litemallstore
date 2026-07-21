@@ -96,8 +96,16 @@
   </update>
 
   <select id="selectReviewedGoodsIds" resultType="java.lang.Integer">
-    select distinct value_id from litemall_comment
-    where type = 0 and deleted = 0 and value_id is not null
+    select distinct c.value_id from litemall_comment c
+    join litemall_goods g on g.id = c.value_id
+    where c.type = 0 and c.deleted = 0
+      and g.source != 'cj'
   </select>
+
+  <update id="markCjReviewsIngested">
+    update litemall_goods
+    set cj_reviews_ingested_time = now()
+    where id = #{goodsId}
+  </update>
 
 </mapper>
