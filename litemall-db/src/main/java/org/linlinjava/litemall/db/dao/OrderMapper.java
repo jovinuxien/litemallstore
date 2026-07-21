@@ -22,6 +22,15 @@ public interface OrderMapper {
     List<Integer> selectSyncableCjOrderIds(@Param("limit") int limit);
 
     /**
+     * Hand-maintained (Wave 8): ids of PAID CJ orders not yet placed at CJ — the durable
+     * placement queue (the order row IS the job; no outbox table). Excludes orders marked
+     * with the local sentinel {@code cj_order_status='PLACEMENT_REJECTED'} (terminal CJ
+     * business rejection awaiting ops; clear the sentinel to requeue). Least-recently-updated
+     * first, LIMIT-capped like the sync sweep.
+     */
+    List<Integer> selectPlaceableCjOrderIds(@Param("limit") int limit);
+
+    /**
      * Hand-maintained (V35): stamp a pickup write-off code at pay time, but only once —
      * the {@code verify_code is null} guard makes generation idempotent under replays.
      * Returns 0 if the order already carries a code (caller keeps the existing one).
