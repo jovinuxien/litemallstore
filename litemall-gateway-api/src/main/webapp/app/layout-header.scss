@@ -13,10 +13,10 @@
     padding: 0 14px;
   }
 
-  // Header surfaces wear the Trovemo brand charcoal (#23272E) so the orange
-  // wordmark sits on-brand; body accents keep the teal tokens.
+  // Header surfaces keep the original teal theme (user decision 2026-07-22);
+  // the orange Trovemo wordmark sits directly on the teal.
   &__main {
-    background: #23272e;
+    background: var(--lm-primary-dark, #0a5d65);
     padding-top: 6px;
     padding-bottom: 6px;
   }
@@ -117,7 +117,7 @@
 
   // Secondary strip: slightly lighter than the main bar, like Amazon's.
   &__strip {
-    background: #31363b;
+    background: var(--lm-primary, #0e7c86);
     padding: 4px 0;
     // hide the horizontal scrollbar the overflow-auto utility can show
     scrollbar-width: none;
@@ -171,7 +171,7 @@
   max-width: 340px;
 
   &__head {
-    background: #23272e;
+    background: var(--lm-primary-dark, #0a5d65);
     color: #fff;
 
     .offcanvas-title {
