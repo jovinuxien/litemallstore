@@ -83,7 +83,9 @@ class UnpaidOrderTaskSchedulerTest {
 
         new UnpaidOrderTaskScheduler(repo, orderService).sweep();
 
-        verifyNoInteractions(orderService);
+        // verifyNoMoreInteractions: Mockito-2-compatible equivalent (nothing was verified
+        // on this mock, so it asserts zero interactions).
+        verifyNoMoreInteractions(orderService);
         verify(repo, never()).deleteByOrderId(any());
     }
 

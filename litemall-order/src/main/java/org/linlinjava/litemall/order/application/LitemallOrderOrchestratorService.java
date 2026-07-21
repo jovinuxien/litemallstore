@@ -96,16 +96,17 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     LitemallDomainEventPublisher domainEventPublisher;
 
-    // Pay-first CJ fulfillment: a source='cj' order is replayed to CJ createOrder
-    // right after it turns PAID, inside the same transaction (CJ rejection rolls
-    // back the wallet debit + PAID status together).
+    // CJ fulfillment (Wave 8): placement is DECOUPLED from the money transaction.
+    // Paying settles unconditionally; a 'queued' timeline hop lands in the pay TX and
+    // CjPlacementService places the order afterwards (afterCommit fast path + the
+    // durable placement sweep — a paid CJ order survives any CJ outage/disabled window
+    // and is placed when CJ returns). cjFulfillmentService remains for the best-effort
+    // CJ-side delete on cancel/refund.
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjFulfillmentService cjFulfillmentService;
 
-    // CJ lifecycle sync (Wave 3): first pass fires after the pay transaction commits
-    // (confirm the CREATED draft + payBalance); the status-sync scheduler self-heals.
     @Autowired
-    private org.linlinjava.litemall.order.application.internal.cj.CjLifecycleService cjLifecycleService;
+    private org.linlinjava.litemall.order.application.internal.cj.CjPlacementService cjPlacementService;
 
     // Brokerage clawback (Wave 5): an approved aftersale invalidates the order's
     // still-frozen commission inside this same transaction (guarded status=0 → -1;
@@ -345,33 +346,11 @@ public class LitemallOrderOrchestratorService {
             orderServiceImpl.markOrderPaid(orderId, tenderPayId(paymentCommand),
                     verifiedPaymentIntentId(paymentCommand));
 
-            // Pay-first CJ fulfillment: replay a source='cj' order to CJ createOrder
-            // now that the money is captured, BEFORE any post-payment notification or
-            // event goes out. A CJ rejection throws LitemallCjOrderException, rolling
-            // back the debit + PAID status in this same transaction (the REST layer
-            // surfaces it as a clean payment failure; order_sn is CJ's idempotency
-            // key, so a retried pay never double-places).
+            // CJ fulfillment (Wave 8): the money is settled by THIS transaction no matter
+            // what CJ does. Placement happens after commit (fast path) with the placement
+            // sweep as the durable retry — see queueCjPlacement.
             if (order.isCjFulfilled()) {
-                cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
-
-                // First lifecycle pass AFTER this transaction commits: confirm the CREATED
-                // draft and (config-gated) pay it from balance. Async so checkout latency
-                // doesn't grow by CJ round-trips; a lost pass is self-healed by the
-                // CjOrderStatusSyncScheduler sweep.
-                org.springframework.transaction.support.TransactionSynchronizationManager
-                        .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
-                            @Override
-                            public void afterCommit() {
-                                java.util.concurrent.CompletableFuture.runAsync(() -> {
-                                    try {
-                                        cjLifecycleService.advance(orderId);
-                                    } catch (RuntimeException e) {
-                                        log.warn("post-pay CJ lifecycle pass failed for order {} "
-                                                + "(sweep will retry): {}", orderId.getId(), e.getMessage());
-                                    }
-                                });
-                            }
-                        });
+                queueCjPlacement(orderId);
             }
 
             // Handle post-payment logic
@@ -470,13 +449,43 @@ public class LitemallOrderOrchestratorService {
                 PaymentMethod.CREDIT_CARD.name() + ":" + event.getPaymentIntentId(),
                 event.getPaymentIntentId());
 
-        // Same pay-first CJ placement the client path performs, so a webhook-paid order is
-        // fulfilled identically rather than sitting paid-but-unplaced.
+        // Same decoupled CJ placement as the client pay path (Wave 8). This also gives the
+        // webhook path the first-lifecycle-pass kick it never had — placement and advance
+        // both live in CjPlacementService now.
         if (order.isCjFulfilled()) {
-            cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
+            queueCjPlacement(orderId);
         }
         domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
                 orderId, order.getActualPrice(), LocalDateTime.now()));
+    }
+
+    /**
+     * Queue CJ placement for an order this transaction is marking PAID (Wave 8).
+     *
+     * <p>Inside the TX: one honest same-status timeline hop ("queued") so the customer sees
+     * fulfilment state truthfully even if CJ is disabled/down for days. After commit: the
+     * fast-path placement attempt (async — checkout latency never grows by CJ round-trips).
+     * The durable retry is the {@code CjPlacementSweepScheduler} sweep over
+     * paid-but-unplaced order rows; a lost afterCommit (crash, restart) loses nothing.
+     */
+    private void queueCjPlacement(LitemallOrderId orderId) {
+        statusHistoryRepository.record(new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange(
+                orderId, LitemallOrderStatus.PAID, LitemallOrderStatus.PAID,
+                org.linlinjava.litemall.order.application.internal.cj.CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT,
+                "Queued for CJ fulfilment placement", "system", LocalDateTime.now()));
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager
+                    .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            cjPlacementService.placeAsync(orderId);
+                        }
+                    });
+        } else {
+            // No active transaction synchronization (plain unit tests / non-TX callers):
+            // fire directly — placeAsync re-checks eligibility against the committed row.
+            cjPlacementService.placeAsync(orderId);
+        }
     }
 
     /**
@@ -520,10 +529,11 @@ public class LitemallOrderOrchestratorService {
      * tender-parity resolves it automatically (non-wallet ⇒ PSP-seam log, no wallet
      * credit is invented).
      *
-     * <p><b>CJ orders: the in-TX createOrderV2 replay FIRES exactly as for a normal
-     * pay</b> (live-fire — the admin SPA's confirm dialog must say so; the
+     * <p><b>CJ orders: placement is queued exactly as for a normal pay</b> (Wave 8 —
+     * live-fire once it runs; the admin SPA's confirm dialog must say so; the
      * {@code spring.cjdropship.api.sandbox} flag governs whether CJ simulates the
-     * money). A CJ rejection rolls the PAID flip back. See
+     * money). The PAID flip is final regardless of CJ: a rejection parks the order
+     * for ops, an outage retries via the placement sweep. See
      * docs/adr-offline-mark-paid.md.
      *
      * <p>Only a CREATED order qualifies — the controller pre-checks OUTSIDE this
@@ -554,24 +564,10 @@ public class LitemallOrderOrchestratorService {
                 "admin:" + (adminId == null || adminId.isBlank() ? "unknown" : adminId),
                 LocalDateTime.now()));
 
-        // CJ replay — identical to the customer pay path: placement inside THIS
-        // transaction (rejection rolls the PAID flip back), lifecycle pass after commit.
+        // CJ placement — identical to the customer pay path (Wave 8): queued after this
+        // transaction commits, retried durably by the placement sweep.
         if (order.isCjFulfilled()) {
-            cjFulfillmentService.placeForPaidOrder(order, orderGoodsRepository.findByOId(orderId));
-            org.springframework.transaction.support.TransactionSynchronizationManager
-                    .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            java.util.concurrent.CompletableFuture.runAsync(() -> {
-                                try {
-                                    cjLifecycleService.advance(orderId);
-                                } catch (RuntimeException e) {
-                                    log.warn("post-offline-pay CJ lifecycle pass failed for order {} "
-                                            + "(sweep will retry): {}", orderId.getId(), e.getMessage());
-                                }
-                            });
-                        }
-                    });
+            queueCjPlacement(orderId);
         }
 
         // Post-payment parity with the customer path: groupon settlement, success

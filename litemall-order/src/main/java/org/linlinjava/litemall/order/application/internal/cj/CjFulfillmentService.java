@@ -26,11 +26,13 @@ import java.util.stream.Collectors;
 /**
  * Pay-first CJ fulfillment: once a {@code source='cj'} order is PAID, replay it to CJ
  * {@code createOrder} through the {@link CjDropshipOrderFacade} ACL and record the CJ
- * identifiers on the order row. Called INSIDE the payment transaction, so a CJ rejection
- * (thrown as {@link LitemallCjOrderException}) rolls back the wallet debit and the PAID
- * status together — no paid-but-unfulfillable order, and no CJ order the customer never
- * paid for. {@code order_sn} is the merchant orderNumber CJ dedupes on, capping the blast
- * radius of the rare commit-fails-after-CJ-accepted window.
+ * identifiers on the order row. Since Wave 8 this runs OUTSIDE the payment transaction —
+ * {@link CjPlacementService} calls it after the pay commit (fast path) and from the durable
+ * placement sweep (retry path). Payment settles regardless of CJ: a retryable failure keeps
+ * the order in the placement queue, a terminal CJ rejection parks it for ops
+ * ({@code PLACEMENT_REJECTED}) with the money untouched. {@code order_sn} is the merchant
+ * orderNumber CJ dedupes on, and the sweep's reconcile-by-orderNumber pre-check adopts any
+ * CJ order that was accepted but never recorded locally.
  *
  * <p>The structured shipping address (province/city/zip as separate CJ fields) is
  * re-resolved from the address book via the {@code address_id} captured at submit — the
@@ -74,8 +76,10 @@ public class CjFulfillmentService {
 
     /**
      * Place the paid order at CJ and persist {@code cj_order_id}/{@code cj_order_num}.
-     * Throws {@link LitemallCjOrderException} on any gap (no lines, unresolvable address,
-     * missing destination country, CJ rejection) so the caller's transaction rolls back.
+     * Throws {@link LitemallCjOrderException} on any terminal gap (no lines, unresolvable
+     * address, missing destination country, CJ business rejection) and its retryable
+     * subtypes for transient failures — {@link CjPlacementService} classifies and either
+     * retries or parks the order. Money is never affected by this call (Wave 8).
      */
     public CjOrderResult placeForPaidOrder(LitemallOrderAggregate order,
                                            List<LitemallOrderGoodsAggregate> orderGoods) {
@@ -145,21 +149,34 @@ public class CjFulfillmentService {
         if (cjStatus != null && !CJ_DELETABLE_STATUSES.contains(cjStatus)) {
             log.info("CJ order {} (local {}) not deletable at CJ (status {}); skipping delete on {}",
                     order.getCjOrderId(), order.getOrderId().getId(), cjStatus, context);
+            // Honest timeline (Wave 8): a cancel/refund of a placed order must never imply
+            // the CJ-side shipment stopped when it didn't.
+            recordCjHop(order, "CJ order " + order.getCjOrderId() + " was NOT cancelled at CJ ("
+                    + context + "): CJ status " + cjStatus
+                    + " no longer allows deletion — CJ-side fulfilment continues; use the dispute "
+                    + "flow or the CJ dashboard");
             return;
         }
         if (cjOrderFacade.deleteOrder(order.getCjOrderId())) {
             orderRepository.updateCjOrderStatus(order.getOrderId(), "CANCELLED");
-            LitemallOrderStatus local = order.getOrderStatus();
-            statusHistoryRepository.record(new LitemallOrderStatusChange(
-                    order.getOrderId(), local, local, CjLifecycleService.CHANGE_TYPE_CJ_SYNC,
-                    "CJ order " + order.getCjOrderId() + " deleted at CJ (" + context + ")",
-                    "system", LocalDateTime.now()));
+            recordCjHop(order,
+                    "CJ order " + order.getCjOrderId() + " deleted at CJ (" + context + ")");
             log.info("CJ order {} (local {}) deleted at CJ on {}",
                     order.getCjOrderId(), order.getOrderId().getId(), context);
         } else {
             log.warn("CJ order {} (local {}) could NOT be deleted at CJ on {} — check the CJ dashboard",
                     order.getCjOrderId(), order.getOrderId().getId(), context);
+            recordCjHop(order, "CJ order " + order.getCjOrderId() + " could NOT be deleted at CJ ("
+                    + context + ") — CJ-side state unchanged; check the CJ dashboard");
         }
+    }
+
+    /** Same-status {@code cj_sync} timeline hop; the local order status never moves here. */
+    private void recordCjHop(LitemallOrderAggregate order, String message) {
+        LitemallOrderStatus local = order.getOrderStatus();
+        statusHistoryRepository.record(new LitemallOrderStatusChange(
+                order.getOrderId(), local, local, CjLifecycleService.CHANGE_TYPE_CJ_SYNC,
+                message, "system", LocalDateTime.now()));
     }
 
     private LitemallAddressAggregate resolveAddress(LitemallOrderAggregate order) {

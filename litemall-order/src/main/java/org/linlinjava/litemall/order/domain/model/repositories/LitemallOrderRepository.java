@@ -115,8 +115,8 @@ public interface LitemallOrderRepository {
      * Record the CJ identifiers returned by a successful CJ createOrderV2 on a
      * {@code source='cj'} order (see V27/V33), plus the logistics line it was placed with
      * (persisted as {@code ship_channel}) and the initial CJ-side status (normally CREATED).
-     * Called inside the payment transaction right after the placement, so a rollback also
-     * discards them.
+     * Called from the post-pay placement path (Wave 8: outside the money transaction) —
+     * a guarded single-row projection write, safe to auto-commit.
      */
     int recordCjPlacement(LitemallOrderId orderId, String cjOrderId, String cjOrderNum, String shipChannel,
                           String cjOrderStatus);
@@ -133,4 +133,13 @@ public interface LitemallOrderRepository {
      * first, capped at {@code limit} per sweep (CJ's ~1 QPS budget).
      */
     List<LitemallOrderId> querySyncableCjOrders(int limit);
+
+    /**
+     * Ids of PAID CJ orders not yet placed at CJ (Wave 8) — the durable placement queue.
+     * The order row is the job: the predicate never expires, so a paid order survives any
+     * CJ outage/disabled window and is placed when CJ returns. Excludes orders parked with
+     * the local {@code PLACEMENT_REJECTED} sentinel. Least-recently-updated first, capped
+     * at {@code limit}.
+     */
+    List<LitemallOrderId> queryPlaceableCjOrders(int limit);
 }

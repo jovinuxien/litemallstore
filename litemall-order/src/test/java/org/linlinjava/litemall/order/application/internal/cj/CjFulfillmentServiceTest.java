@@ -47,11 +47,13 @@ class CjFulfillmentServiceTest {
     private LitemallOrderRepository orderRepository;
     @Mock
     private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository statusHistoryRepository;
+    @Mock
+    private org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper;
 
     private CjFulfillmentService service(String defaultShipToCountry) {
         return new CjFulfillmentService(
                 cjOrderFacade, lineResolver, addressRepository, orderRepository,
-                statusHistoryRepository, defaultShipToCountry);
+                statusHistoryRepository, userMapper, defaultShipToCountry);
     }
 
     private LitemallOrderAggregate paidCjOrder(String countryCode) {
