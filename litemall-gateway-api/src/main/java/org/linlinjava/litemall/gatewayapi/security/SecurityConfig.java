@@ -50,6 +50,13 @@ public class SecurityConfig {
                         // CORS preflight carries no credentials by design.
                         .pathMatchers(org.springframework.http.HttpMethod.OPTIONS).permitAll()
                         .matchers(PublicPaths.matcher()).permitAll()
+                        // Wallet credit/debit are NOT customer self-service: credit mints
+                        // balance with no payment, debit is internal to the pay flow. Left
+                        // open they let any signed-in customer fund themselves and check
+                        // out for free. Denied outright at the customer edge — customers
+                        // top up via /srv/wallet/recharge (payment-gated) only.
+                        .pathMatchers(org.springframework.http.HttpMethod.POST,
+                                "/srv/wallet/credit", "/srv/wallet/debit").denyAll()
                         // Everything else — /srv/cart, /srv/order, /srv/address, /srv/wallet,
                         // /srv/collect, /srv/footprint, /srv/feedback, POST /srv/comment/post,
                         // /srv/coupon/{mylist,receive,selectlist}, /srv/storage/upload,
