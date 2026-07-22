@@ -209,6 +209,42 @@ export const EmptyState: React.FC<{ icon?: string; text: React.ReactNode; childr
 );
 
 // --------------------------------------------------------------------------
+// Payment brand badges — Visa / Mastercard / American Express, drawn inline
+// (no external asset request; the CSP-friendly same-origin discipline the CJ
+// image proxy exists for applies to payment marks too). `muted` greys them out
+// for the card-unavailable state so the row stays honest: recognisable, but
+// clearly not active.
+// --------------------------------------------------------------------------
+export const PaymentBrandIcons: React.FC<{ muted?: boolean; className?: string }> = ({ muted, className }) => (
+  <span
+    className={`lm-paybrands${muted ? ' lm-paybrands--muted' : ''}${className ? ` ${className}` : ''}`}
+    aria-label='Accepted cards: Visa, Mastercard, American Express'
+  >
+    {/* Visa */}
+    <svg width='38' height='24' viewBox='0 0 38 24' role='img' aria-label='Visa'>
+      <rect width='38' height='24' rx='3' fill='#fff' stroke='#d9dce1' />
+      <text x='19' y='16.5' textAnchor='middle' fontFamily='Arial, sans-serif' fontSize='11' fontWeight='bold' fontStyle='italic' fill='#1A1F71'>
+        VISA
+      </text>
+    </svg>
+    {/* Mastercard */}
+    <svg width='38' height='24' viewBox='0 0 38 24' role='img' aria-label='Mastercard'>
+      <rect width='38' height='24' rx='3' fill='#fff' stroke='#d9dce1' />
+      <circle cx='15.5' cy='12' r='7' fill='#EB001B' />
+      <circle cx='22.5' cy='12' r='7' fill='#F79E1B' />
+      <path d='M19 6.5a7 7 0 0 1 0 11 7 7 0 0 1 0-11z' fill='#FF5F00' />
+    </svg>
+    {/* American Express */}
+    <svg width='38' height='24' viewBox='0 0 38 24' role='img' aria-label='American Express'>
+      <rect width='38' height='24' rx='3' fill='#2E77BC' />
+      <text x='19' y='15.5' textAnchor='middle' fontFamily='Arial, sans-serif' fontSize='9' fontWeight='bold' fill='#fff'>
+        AMEX
+      </text>
+    </svg>
+  </span>
+);
+
+// --------------------------------------------------------------------------
 // Selectable address card
 // --------------------------------------------------------------------------
 interface AddressCardProps {

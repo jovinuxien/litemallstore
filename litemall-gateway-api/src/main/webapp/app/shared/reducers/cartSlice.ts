@@ -10,10 +10,14 @@ import { ICartTotalData, IItemCart } from 'app/shared/model/cart/cart.models';
  * No `/wx`.
  *
  * The cart is the single source of truth for the line items the checkout
- * submits. A guest cart is kept in sessionStorage ('cart') and merged with the
- * server cart on fetch so an anonymous customer keeps their basket after login.
- * The order-service /srv/cart endpoints are live — server failures surface as
- * errors rather than being silently degraded.
+ * submits. The local cart is kept in localStorage ('cart') — NOT sessionStorage,
+ * which is per-tab and dies with it: a customer who added goods, closed the
+ * browser and came back found "Your cart is empty" with their goods gone. The
+ * server cart (written by the checkout mirror) is used as a RESTORE source only:
+ * when the local cart is empty and the customer is signed in, their last
+ * mirrored basket comes back. When a local cart exists it wins outright —
+ * merging the server copy back in resurrected locally-removed lines, because
+ * removal never deletes server-side.
  */
 interface RemoteIndexCartApiResult
   extends ApiResult<{
@@ -22,18 +26,6 @@ interface RemoteIndexCartApiResult
   }> {}
 
 const isLoggedIn = (): boolean => !!sessionStorage.getItem('customerToken');
-
-/**
- * Is this the same cart line? A cart line is a SKU (productId), not a product (goodsId):
- * matching on goodsId alone collapses "red / 1.8m" and "blue / 2.0m" of one product into
- * a single line and loses one of them.
- *
- * <p>goodsId is compared as a string on purpose — a CJ line's id is `cj_<pid>` and its
- * vid exceeds JS's safe-integer range, so it must never be Number()-coerced (see
- * cart.models.ts).
- */
-const sameLine = (a: IItemCart, b: IItemCart): boolean =>
-  String(a.goodsId) === String(b.goodsId) && a.productId === b.productId;
 
 export const fetchCart = createAsyncThunk<RemoteIndexCartApiResult, void, { rejectValue: ApiResult<null> }>('cart/fetchCart', async (_, thunkApi) => {
   // Anonymous customers have only the local cart; skip the server round-trip.
@@ -67,17 +59,28 @@ interface CartState
     cartList: IItemCart[];
   }> {}
 
+/** Stored cart, localStorage first with a one-time sessionStorage migration (pre-fix tabs). */
+const readStoredCart = (): IItemCart[] => {
+  try {
+    const raw = localStorage.getItem('cart') ?? sessionStorage.getItem('cart') ?? '[]';
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const initialState: CartState = {
   loading: 'idle',
   errorMessage: null,
   data: {
     cartTotal: null,
-    cartList: JSON.parse(sessionStorage.getItem('cart') || '[]'),
+    cartList: readStoredCart(),
   },
   errorNumber: null,
 };
 
-const persist = (cartList: IItemCart[]) => sessionStorage.setItem('cart', JSON.stringify(cartList));
+const persist = (cartList: IItemCart[]) => localStorage.setItem('cart', JSON.stringify(cartList));
 
 const cartSlice = createSlice({
   name: 'cart',
@@ -106,7 +109,8 @@ const cartSlice = createSlice({
     },
     clearCart: state => {
       state.data.cartList = [];
-      sessionStorage.removeItem('cart');
+      localStorage.removeItem('cart');
+      sessionStorage.removeItem('cart'); // pre-localStorage leftover
     },
     syncLocalCart: (state, action: PayloadAction<IItemCart[]>) => {
       state.data.cartList = action.payload;
@@ -125,31 +129,20 @@ const cartSlice = createSlice({
       .addCase(fetchCart.fulfilled, (state, action) => {
         state.loading = 'succeeded';
         const serverCart = action.payload.data.cartList ?? [];
-        const localCart: IItemCart[] = JSON.parse(sessionStorage.getItem('cart') || '[]');
-        const mergedCart = [...localCart];
-        serverCart.forEach(serverItem => {
-          const idx = mergedCart.findIndex(item => sameLine(item, serverItem));
-          if (idx > -1) {
-            // The server line WINS; quantities are not summed.
-            //
-            // This used to be `local + server`, which was unreachable only because
-            // GET /srv/cart/items 400d on every fetch (the client sent no userId and the
-            // param was required), so serverCart was always empty. order's Wave-7 fix
-            // makes that endpoint work — which would have armed the bug: fetchCart runs on
-            // every Cart and Checkout mount, so a surviving server line (e.g. from a
-            // failed submit, whose mirror leaves the cart populated) would re-add its
-            // quantity on each visit and silently inflate the basket.
-            //
-            // Summing is wrong regardless of reachability: the mirror COPIES the local
-            // cart to the server, so a matching pair is the same line counted twice, not
-            // two additions.
-            mergedCart[idx] = { ...mergedCart[idx], ...serverItem };
-          } else {
-            mergedCart.push(serverItem);
-          }
-        });
-        state.data = { cartTotal: action.payload.data.cartTotal, cartList: mergedCart };
-        persist(mergedCart);
+        const localCart = readStoredCart();
+        // The LOCAL cart is the source of truth whenever it exists — the server cart is
+        // a checkout-mirror byproduct (and holds only the last-mirrored group), so
+        // merging it back in resurrected lines the customer had removed locally
+        // (removal never deletes server-side) and could re-inflate quantities. The
+        // server copy is used for exactly one thing: restoring the basket when the
+        // local cart is EMPTY — a new browser, a new device, cleared storage — for a
+        // signed-in customer. (Historical note: this merge was dead code until the
+        // cartApi.list response-shape fix; the endpoint's bare-array/value-object
+        // payload never matched the {cartList} the slice expected, so serverCart was
+        // always [].)
+        const nextCart = localCart.length > 0 ? localCart : serverCart;
+        state.data = { cartTotal: action.payload.data.cartTotal, cartList: nextCart };
+        persist(nextCart);
       })
       .addCase(updateCartItem.pending, state => {
         state.loading = 'pending';

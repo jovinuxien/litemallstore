@@ -37,6 +37,7 @@ import {
   OrderSummary,
   Page,
   PageHead,
+  PaymentBrandIcons,
   SubmitBar,
   AddressCard,
 } from 'app/components/commonComponents/storefront';
@@ -915,7 +916,12 @@ const CheckoutView: React.FC = () => {
               type='radio'
               id='pay-card'
               name='paymentMethod'
-              label='Credit / debit card'
+              label={
+                <>
+                  Credit / debit card
+                  <PaymentBrandIcons muted={!cardAvailable} />
+                </>
+              }
               checked={paymentMethod === 'CARD'}
               disabled={!cardAvailable}
               onChange={() => setPaymentMethod('CARD')}
@@ -924,7 +930,7 @@ const CheckoutView: React.FC = () => {
               // No publishable key ⇒ card payment is honestly unavailable. It is NOT
               // stubbed, and the customer is not told a placeholder authorisation "runs".
               <div className='small text-muted ms-4'>
-                Card payment is unavailable right now — please use your wallet balance.
+                Card payment is temporarily unavailable — please check back soon.
               </div>
             )}
           </Cell>

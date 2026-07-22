@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CheckoutPaymentMethod, payOrder } from 'app/shared/reducers/orderSlice';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { Cell, CellGroup, Page, PageHead, SubmitBar } from 'app/components/commonComponents/storefront';
+import { Cell, CellGroup, Page, PageHead, PaymentBrandIcons, SubmitBar } from 'app/components/commonComponents/storefront';
 
 /**
  * Standalone pay screen for an already-placed order, modelled on litemall-vue
@@ -53,7 +53,12 @@ const Payment: React.FC = () => {
               type='radio'
               id='pm-card'
               name='pm'
-              label='Credit / debit card'
+              label={
+                <>
+                  Credit / debit card
+                  <PaymentBrandIcons />
+                </>
+              }
               checked={paymentMethod === 'CARD'}
               onChange={() => setPaymentMethod('CARD')}
             />

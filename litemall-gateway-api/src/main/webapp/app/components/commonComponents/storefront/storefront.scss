@@ -309,3 +309,14 @@
   &__desc { color: var(--lm-muted, #6b7b82); font-size: 0.82rem; margin-top: 2px; }
   &__dates { color: var(--lm-muted, #9aa7ac); font-size: 0.76rem; margin-top: 6px; }
 }
+
+// ---- payment brand badges -------------------------------------------------
+.lm-paybrands {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 8px;
+  svg { display: block; border-radius: 3px; }
+  &--muted { filter: grayscale(1); opacity: 0.45; }
+}
