@@ -44,8 +44,73 @@ export interface CheckoutSummary {
   checkedGoodsList?: IItemCart[];
 }
 
+/** Unwrap the order service's DDD value objects: `{id: 5}` → 5, `{amount: 30.38}` → 30.38. */
+const idOf = (v: unknown): number | undefined => {
+  const raw = typeof v === 'object' && v !== null ? (v as { id?: unknown }).id : v;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+};
+const amountOf = (v: unknown): number | undefined => {
+  const raw = typeof v === 'object' && v !== null ? (v as { amount?: unknown }).amount : v;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/**
+ * A server cart line, as GET /srv/cart/items actually serves it: a BARE ARRAY of lines
+ * whose identifier fields are nested value objects (`"cartId":{"id":13}`,
+ * `"goodsId":{"id":10000095}`, `"price":{"amount":30.38}`) — unlike /srv/cart/checkout,
+ * which serves the same lines flat. The slice's `{cartList}` expectation silently
+ * matched neither, so the server cart read as empty on every fetch and a signed-in
+ * customer could never get their basket back.
+ */
+interface ServerCartLine {
+  cartId?: unknown;
+  userId?: unknown;
+  goodsId?: unknown;
+  productId?: unknown;
+  price?: unknown;
+  goodsSn?: string;
+  goodsName?: string;
+  number?: number;
+  specifications?: string[];
+  checked?: boolean;
+  picUrl?: string;
+  source?: string;
+  vid?: string;
+}
+
+const toCartItem = (line: ServerCartLine): IItemCart => {
+  const goodsIdNum = idOf(line.goodsId);
+  return {
+    // Line id = the server cartId, so update/remove hit the real server line.
+    id: idOf(line.cartId),
+    userId: idOf(line.userId),
+    goodsId: goodsIdNum != null ? String(goodsIdNum) : undefined,
+    goodsSn: line.goodsSn,
+    goodsName: line.goodsName,
+    productId: idOf(line.productId),
+    price: amountOf(line.price),
+    number: line.number ?? 0,
+    specifications: Array.isArray(line.specifications) ? line.specifications : [],
+    checked: line.checked !== false,
+    picUrl: line.picUrl,
+    // Server lines carry no `source`; the goodsSn prefix is how a restored CJ line
+    // keeps routing to the CJ checkout group (isCjItem checks source, Checkout.tsx).
+    source: line.source ?? (line.goodsSn?.startsWith('cj_') ? 'cj' : undefined),
+    vid: line.vid,
+  };
+};
+
 export const cartApi = {
-  list: () => unwrap<{ cartList: IItemCart[]; cartTotal: unknown }>(baseAxios.get(`${SRV}/cart/items`)),
+  list: async (): Promise<{ cartList: IItemCart[]; cartTotal: unknown }> => {
+    const raw = await unwrap<unknown>(baseAxios.get(`${SRV}/cart/items`));
+    const lines: ServerCartLine[] = Array.isArray(raw)
+      ? raw
+      : ((raw as { cartList?: ServerCartLine[] })?.cartList ?? []);
+    const cartTotal = Array.isArray(raw) ? null : ((raw as { cartTotal?: unknown })?.cartTotal ?? null);
+    return { cartList: lines.map(toCartItem), cartTotal };
+  },
   add: (body: AddToCartBody) => unwrap(baseAxios.post(`${SRV}/cart/items`, body)),
   update: (cartId: number, item: Partial<IItemCart>) => unwrap(baseAxios.put(`${SRV}/cart/items/${cartId}`, item)),
   remove: (cartId: number) => unwrap(baseAxios.delete(`${SRV}/cart/items/${cartId}`)),
