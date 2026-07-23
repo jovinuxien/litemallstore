@@ -528,7 +528,17 @@ services:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:?set RABBITMQ_USER in .env}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
-      LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
+      # CJ CATALOG credentials — goods-management binds spring.cjdropship.api.auth
+      # from the container vars CJ_API_KEY/CJ_EMAIL (application.yml:44-45; the
+      # LITEMALL_CJ_API_KEY name previously passed here was never read by this
+      # service). Deliberately fed from CJ_CATALOG_* host vars, NOT the CJ_API_KEY
+      # that the order service reads: this pair unlocks READ-ONLY catalog work —
+      # on-demand variant enrichment (what makes a shallow CJ good orderable),
+      # nightly refresh, reviews — while order-side CJ placement (which spends
+      # real money at CJ) stays governed by its own CJ_API_KEY/CJ_EMAIL pair.
+      # Both blank ⇒ enrichment fails soft exactly as before.
+      CJ_API_KEY: ${CJ_CATALOG_API_KEY:-}
+      CJ_EMAIL: ${CJ_CATALOG_EMAIL:-}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 
