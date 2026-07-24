@@ -40,7 +40,12 @@ public class OcsSearchClient {
                 .fromPath("/search-api/v1/search/{index}")
                 .queryParam("q", query == null ? "" : query)
                 .queryParam("offset", offset)
-                .queryParam("limit", size);
+                .queryParam("limit", size)
+                // Request per-hit highlighting. The searcher deployed today ignores this param
+                // (live-probed 2026-07-24: response byte-identical with/without, no ResultHit
+                // highlight field upstream) — SearchService compensates app-side — but sending it
+                // keeps us forward-compatible with an OCS build that honours it.
+                .queryParam("highlight", "true");
         if (sort != null && !sort.isBlank()) {
             builder.queryParam("sort", sort);
         }
