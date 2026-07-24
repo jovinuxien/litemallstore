@@ -2,7 +2,9 @@ import type { SearchClient, SearchResponse } from 'instantsearch.js';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
+import store from 'app/config/store';
 import { goodId } from 'app/components/userComponents/card/ProductCard';
+import { readSortOptions, searchMetaReceived } from 'app/modules/product/searchSlice';
 
 /**
  * Custom InstantSearch search client backed by goods-management's
@@ -223,6 +225,23 @@ const runSearch = async (indexName: string, params: AlgoliaParams): Promise<Sear
     const page = (Number(d.page ?? (params.page ?? 0) + 1) || 1) - 1;
     const nbPages = Number(d.totalPages ?? d.pages ?? (hitsPerPage > 0 ? Math.ceil(total / hitsPerPage) : 0)) || 0;
     const { facets, facetsStats } = mapFacets(d);
+
+    // The Algolia SearchResponse has no slot for goods-management's extra
+    // fields (server sort options, relaxed-match signal), so publish them to
+    // the search slice — the /search page reads them beside the widget tree.
+    // Only dispatch on a REAL change: an unconditional dispatch feeds a render
+    // loop (new meta object -> page re-render -> widget props change -> new
+    // search -> new meta object -> …).
+    const meta = {
+      query: params.query ?? '',
+      total,
+      queryStrategy: typeof d.queryStrategy === 'string' ? d.queryStrategy : null,
+      relaxed: d.relaxed === true,
+      sortOptions: readSortOptions(d),
+    };
+    if (JSON.stringify(meta) !== JSON.stringify(store.getState().search.meta)) {
+      store.dispatch(searchMetaReceived(meta));
+    }
 
     return {
       hits: list.map((g, i) => ({ ...g, objectID: String(goodId(g) ?? g.id ?? `r-${i}`) })),

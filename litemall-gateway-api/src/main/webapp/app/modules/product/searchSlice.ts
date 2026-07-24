@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
@@ -56,7 +56,7 @@ const readFacetGroups = (d: any): IFacetGroup[] => {
   }));
 };
 
-const readSortOptions = (d: any): ISortOption[] => {
+export const readSortOptions = (d: any): ISortOption[] => {
   const raw = d?.sortOptions;
   if (!Array.isArray(raw)) return [];
   return raw.map((o: any) => ({
@@ -97,19 +97,50 @@ export const searchProducts = createAsyncThunk<ISearchResult, ISearchParams, { r
   }
 );
 
-interface SearchState extends BaseState<ISearchResult> {}
+/**
+ * Per-response search metadata the faceted /search page reads OUTSIDE the
+ * InstantSearch widget tree: the server-driven sort options, and the
+ * relaxed-match signal ("no exact matches — showing similar results"). The
+ * custom search client (litemallSearchClient) dispatches this for every
+ * /srv/search response it maps — the widgets consume hits/facets through the
+ * Algolia shape, and this slice carries the fields that shape has no slot for.
+ */
+export interface ISearchMeta {
+  query: string;
+  total: number;
+  queryStrategy: string | null;
+  relaxed: boolean;
+  sortOptions: ISortOption[];
+}
+
+export const emptyMeta: ISearchMeta = {
+  query: '',
+  total: 0,
+  queryStrategy: null,
+  relaxed: false,
+  sortOptions: [],
+};
+
+interface SearchState extends BaseState<ISearchResult> {
+  meta: ISearchMeta;
+}
 
 const initialState: SearchState = {
   loading: 'idle',
   errorMessage: null,
   errorNumber: null,
   data: emptyResult,
+  meta: emptyMeta,
 };
 
 const searchSlice = createSlice({
   name: 'search',
   initialState,
-  reducers: {},
+  reducers: {
+    searchMetaReceived(state, action: PayloadAction<ISearchMeta>) {
+      state.meta = action.payload;
+    },
+  },
   extraReducers: builder => {
     builder
       .addCase(searchProducts.pending, state => {
@@ -127,5 +158,7 @@ const searchSlice = createSlice({
       });
   },
 });
+
+export const { searchMetaReceived } = searchSlice.actions;
 
 export default searchSlice.reducer;

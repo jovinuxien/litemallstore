@@ -63,6 +63,140 @@
     }
   }
 
+  // Typed autocomplete rows: icon + text, with a muted right-aligned hint for
+  // category deep-links; curated ("Popular") picks get the accent icon.
+  &__sug {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  &__sug-text {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__sug-hint {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lm-muted, #6b7b82);
+  }
+
+  &__sug--category i {
+    color: var(--lm-primary, #0e7c86);
+  }
+
+  &__sug--curated {
+    background: var(--lm-primary-soft, #e3f2f3);
+
+    i {
+      color: var(--lm-accent, #ff5a5f);
+    }
+  }
+
+  &__sug.active &__sug-hint,
+  &__sug.active i {
+    color: inherit;
+  }
+
+  // Focused-while-empty dropdown: "Recent searches" + "Trending" chrome.
+  &__dd {
+    background: #fff;
+    border-radius: 0 0 6px 6px;
+    color: var(--lm-text, #1f2a2e);
+    text-align: left;
+  }
+
+  &__dd-section {
+    padding: 10px 12px;
+
+    + .lm-header__dd-section {
+      border-top: 1px solid var(--lm-border, #eceff1);
+    }
+  }
+
+  &__dd-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lm-muted, #6b7b82);
+    margin-bottom: 6px;
+  }
+
+  &__dd-clear {
+    border: none;
+    background: transparent;
+    color: var(--lm-primary, #0e7c86);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__dd-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__dd-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    padding: 6px 4px;
+    font-size: 0.9rem;
+    color: var(--lm-text, #1f2a2e);
+    border-radius: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    i {
+      color: var(--lm-muted, #6b7b82);
+    }
+
+    &:hover {
+      background: var(--lm-primary-soft, #e3f2f3);
+      color: var(--lm-primary-dark, #0a5d65);
+    }
+  }
+
+  &__dd-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__dd-chip {
+    border: 1px solid var(--lm-border, #eceff1);
+    background: var(--lm-bg, #f6f9fa);
+    color: var(--lm-text, #1f2a2e);
+    border-radius: 999px;
+    font-size: 0.84rem;
+    padding: 4px 12px;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: var(--lm-primary, #0e7c86);
+      color: var(--lm-primary-dark, #0a5d65);
+      background: var(--lm-primary-soft, #e3f2f3);
+    }
+  }
+
   // Two-line text cluster ("Hello, x" over "Account & Lists").
   &__stack {
     display: flex;

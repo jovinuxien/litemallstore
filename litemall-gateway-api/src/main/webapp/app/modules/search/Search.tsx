@@ -10,6 +10,8 @@ import {
   RefinementList,
   SortBy,
   Stats,
+  useInstantSearch,
+  useSearchBox,
 } from 'react-instantsearch';
 import { Link, useLocation, useParams } from 'react-router-dom';
 
@@ -17,6 +19,7 @@ import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
+import { fetchSearchIndex } from 'app/modules/search/searchIndexApi';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
 
@@ -42,12 +45,44 @@ import './instantsearch/search.scss';
  * deep-links; the `/category/:id` path param is seeded via initialUiState.
  */
 
-// Sort options map to the virtual sort-index names the search client understands.
+// Fallback sort options, used only until/unless the backend returns its own
+// `sortOptions` (read off every /srv/search response into the search slice by
+// litemallSearchClient). Values map to the virtual sort-index names the search
+// client understands.
 const SORT_ITEMS = [
   { label: 'Relevance', value: PRIMARY_INDEX },
   { label: 'Price: low to high', value: sortIndex('price') },
   { label: 'Price: high to low', value: sortIndex('-price') },
 ];
+
+// A server sort value that means "no explicit sort" maps to the primary index.
+const RELEVANCE_VALUES = /^-?(_score|relevance|default)$/i;
+
+// Today the backend labels its sort options with the raw searcher strings
+// ("price.asc", "review_count.desc"). Prettify ONLY that raw shape — a label
+// that doesn't match it is assumed human-authored and passes through untouched,
+// so a later backend improvement wins automatically.
+const RAW_SORT_LABEL = /^([a-z0-9_]+)\.(asc|desc)$/i;
+const SORT_FIELD_LABELS: Record<string, { asc: string; desc: string }> = {
+  price: { asc: 'Price: low to high', desc: 'Price: high to low' },
+  variant_price: { asc: 'Variant price: low to high', desc: 'Variant price: high to low' },
+  rating: { asc: 'Rating: low to high', desc: 'Rating: high to low' },
+  review_count: { asc: 'Fewest reviews', desc: 'Most reviews' },
+  discount_pct: { asc: 'Discount: low to high', desc: 'Discount: high to low' },
+  listed_num: { asc: 'Popularity: low to high', desc: 'Most popular' },
+  title: { asc: 'Name: A to Z', desc: 'Name: Z to A' },
+  created_epoch: { asc: 'Oldest first', desc: 'Newest first' },
+  deal_end_epoch: { asc: 'Deal ending soonest', desc: 'Deal ending latest' },
+};
+
+const prettySortLabel = (label: string): string => {
+  const m = RAW_SORT_LABEL.exec(label.trim());
+  if (!m) return label;
+  const [, field, dir] = m;
+  const known = SORT_FIELD_LABELS[field.toLowerCase()];
+  if (known) return dir.toLowerCase() === 'asc' ? known.asc : known.desc;
+  return `${humanizeFacet(field)} (${dir.toLowerCase() === 'asc' ? 'ascending' : 'descending'})`;
+};
 
 // Facets rendered explicitly (with custom labels / a range control) above, plus
 // `category_names` which is the same data as the explicit `category_ids` facet
@@ -115,6 +150,103 @@ const DynamicExtraFacets: React.FC = () => {
   );
 };
 
+/**
+ * Invisible query consumer. The page deliberately mounts no <SearchBox> (the
+ * header bar is THE search box), but InstantSearch only forwards `uiState`
+ * slices that some mounted widget consumes — with no search-box widget the
+ * `query` seeded by searchRouting/initialUiState was silently DROPPED and every
+ * request went out with `q=` (all goods, no matter what the user searched).
+ * Mounting the connector — without rendering anything — makes `query` stick.
+ */
+const VirtualSearchBox: React.FC = () => {
+  useSearchBox();
+  return null;
+};
+
+/**
+ * Swaps the results grid for `fallback` once a search has actually settled at
+ * zero hits. `__isArtificial` marks InstantSearch's synthetic pre-first-response
+ * results, so the empty state never flashes while the first request is in
+ * flight.
+ */
+const NoResultsBoundary: React.FC<{ fallback: React.ReactNode; children: React.ReactNode }> = ({ fallback, children }) => {
+  const { results } = useInstantSearch();
+  if (results && !(results as any).__isArtificial && results.nbHits === 0) return <>{fallback}</>;
+  return <>{children}</>;
+};
+
+/**
+ * Intentional zero-results state: name the query that found nothing, then offer
+ * ways onward — trending keywords (GET /srv/search/index) and the top catalog
+ * categories (already in redux for the header drawer / home page).
+ */
+const SearchEmptyState: React.FC = () => {
+  const { results } = useInstantSearch();
+  const query = (results?.query ?? '').trim();
+  const [trending, setTrending] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSearchIndex()
+      .then(d => {
+        if (!cancelled) setTrending(d.hotKeywords);
+      })
+      .catch(() => {
+        /* the empty state still renders without trending */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Top (L1) categories from /srv/catalog/all — the backend orders that list by
+  // on-sale goods count (same source as the browse tree), so the first entries
+  // genuinely are the popular ones; the index list is unordered seed data. Same
+  // defensive dual-shape read as the category-name map below
+  // (`{categoryId:{id}, categoryName}` vs the flat `{id, name}` the type declares).
+  const catalogAll = useAppSelector(state => state.category.data.dataCatalogAll?.categoryList);
+  const catalogIndex = useAppSelector(state => state.category.data.dataCategoryIndex?.categoryList);
+  const topCategories = catalogAll?.length ? catalogAll : catalogIndex ?? [];
+  const categories = topCategories
+    .map(c => {
+      const cat = c as any;
+      return { id: cat?.categoryId?.id ?? cat?.id, name: cat?.categoryName ?? cat?.name };
+    })
+    .filter(c => c.id != null && c.name)
+    .slice(0, 8);
+
+  return (
+    <div className="lm-isearch__empty">
+      <h2>{query ? `No results for “${query}”` : 'No products found'}</h2>
+      <p>Check the spelling or try a different term — or start from one of these.</p>
+      {trending.length > 0 && (
+        <section>
+          <h3>Trending searches</h3>
+          <div className="lm-isearch__empty-chips">
+            {trending.slice(0, 10).map(k => (
+              <Link key={k} to={`/search?q=${encodeURIComponent(k)}`} className="lm-isearch__empty-chip">
+                {k}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {categories.length > 0 && (
+        <section>
+          <h3>Popular categories</h3>
+          <div className="lm-isearch__empty-chips">
+            {categories.map(c => (
+              <Link key={c.id} to={`/category/${c.id}`} className="lm-isearch__empty-chip lm-isearch__empty-chip--cat">
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};
+
 const SearchView: React.FC = () => {
   const dispatch = useAppDispatch();
   const params = useParams<{ id?: string }>();
@@ -127,6 +259,32 @@ const SearchView: React.FC = () => {
   // router, which react-router doesn't observe, so this key stays stable
   // while the user filters.
   const headerQuery = new URLSearchParams(location.search).get('q') ?? '';
+
+  // Extra per-response fields the Algolia shape can't carry — published by
+  // litemallSearchClient into the search slice (sort options, relaxed-match).
+  const meta = useAppSelector(state => state.search.meta);
+
+  // Server-driven sort options: map each `{label, value: 'field'|'-field'}`
+  // onto the client's virtual sort indices; relevance-ish/empty values mean the
+  // primary index. Fall back to the hardcoded list until the field arrives.
+  const sortItems = useMemo(() => {
+    if (!meta.sortOptions.length) return SORT_ITEMS;
+    const items = meta.sortOptions
+      .filter(o => o.label)
+      .map(o => ({
+        label: prettySortLabel(o.label),
+        value: o.value && !RELEVANCE_VALUES.test(o.value) ? sortIndex(o.value) : PRIMARY_INDEX,
+      }));
+    if (!items.some(it => it.value === PRIMARY_INDEX)) items.unshift({ label: 'Relevance', value: PRIMARY_INDEX });
+    const seen = new Set<string>();
+    return items.filter(it => (seen.has(it.value) ? false : (seen.add(it.value), true)));
+  }, [meta.sortOptions]);
+
+  // "Did you mean / similar results" banner: OCS reported it relaxed the query
+  // (typo/fuzzy fallback) for the CURRENT header query and still found hits.
+  // (At zero hits the empty state takes over instead.)
+  const relaxedQuery = meta.query.trim();
+  const showRelaxedBanner = meta.relaxed && meta.total > 0 && relaxedQuery.length > 0 && relaxedQuery === headerQuery.trim();
 
   // Category facet values are ids; build an id -> name map from the catalog data
   // already fetched for the home/menu so the refinement list shows readable
@@ -177,6 +335,7 @@ const SearchView: React.FC = () => {
         future={{ preserveSharedStateOnUnmount: true }}
       >
         <Configure hitsPerPage={12} {...(params.id ? { facetFilters: [`category_ids:${params.id}`] } : {})} />
+        <VirtualSearchBox />
 
         <div className="lm-isearch__body">
           {/* ── Filter rail ─────────────────────────────────────────────── */}
@@ -230,9 +389,15 @@ const SearchView: React.FC = () => {
               <Stats />
               <label className="lm-isearch__sort">
                 Sort by
-                <SortBy items={SORT_ITEMS} />
+                <SortBy items={sortItems} />
               </label>
             </div>
+
+            {showRelaxedBanner && (
+              <div className="lm-isearch__relaxed" role="status">
+                No exact matches for &ldquo;{relaxedQuery}&rdquo; &mdash; showing similar results.
+              </div>
+            )}
 
             <CurrentRefinements
               transformItems={items =>
@@ -247,9 +412,11 @@ const SearchView: React.FC = () => {
               }
             />
 
-            <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />
+            <NoResultsBoundary fallback={<SearchEmptyState />}>
+              <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />
 
-            <Pagination className="lm-isearch__pager" padding={2} />
+              <Pagination className="lm-isearch__pager" padding={2} />
+            </NoResultsBoundary>
           </section>
         </div>
       </InstantSearch>
