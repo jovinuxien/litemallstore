@@ -9,11 +9,15 @@ import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestClient;
 import org.linlinjava.litemall.goods.infrastructure.acl.ocs.OcsSuggestion;
 import org.springframework.stereotype.Service;
 
+import org.springframework.web.client.RestClientException;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -28,15 +32,29 @@ public class SearchService {
 
     private static final Logger log = LoggerFactory.getLogger(SearchService.class);
 
+    /** Wave-9 contract: OCS suggest tags each entry with its harvest source field. */
+    private static final String SUGGEST_SOURCE_CATEGORY = "category_names";
+    /** How many curated-keyword matches join the suggest response (after dedupe). */
+    private static final int CURATED_SUGGEST_LIMIT = 3;
+
     private final OcsSearchClient searchClient;
     private final OcsSuggestClient suggestClient;
     private final CommentStatsService commentStatsService;
+    private final SearchHighlighter searchHighlighter;
+    private final CategoryNameResolver categoryNameResolver;
+    private final SearchKeywordService searchKeywordService;
 
     public SearchService(OcsSearchClient searchClient, OcsSuggestClient suggestClient,
-                         CommentStatsService commentStatsService) {
+                         CommentStatsService commentStatsService,
+                         SearchHighlighter searchHighlighter,
+                         CategoryNameResolver categoryNameResolver,
+                         SearchKeywordService searchKeywordService) {
         this.searchClient = searchClient;
         this.suggestClient = suggestClient;
         this.commentStatsService = commentStatsService;
+        this.searchHighlighter = searchHighlighter;
+        this.categoryNameResolver = categoryNameResolver;
+        this.searchKeywordService = searchKeywordService;
     }
 
     public Map<String, Object> search(String query, int page, int size, String sort, Map<String, String> filters) {
@@ -52,6 +70,7 @@ public class SearchService {
         OcsSearchResult result = searchClient.search(query, offset, size, sort, filters);
 
         List<Map<String, Object>> items = new ArrayList<>();
+        List<OcsSearchResult.Hit> flatHits = new ArrayList<>();
         List<Map<String, Object>> facets = new ArrayList<>();
         Set<String> facetFields = new HashSet<>();
         long total = 0L;
@@ -61,6 +80,7 @@ public class SearchService {
                 if (slice.getHits() != null) {
                     for (OcsSearchResult.Hit hit : slice.getHits()) {
                         items.add(toGoodsListItem(hit));
+                        flatHits.add(hit);
                     }
                 }
                 if (slice.getFacets() != null) {
@@ -73,6 +93,13 @@ public class SearchService {
         }
         // Batch-decorate the page's local hits with review stats (star avg + count); cj_ ids skipped.
         commentStatsService.decorate(items);
+        // Wave-9 contract: optional per-hit `highlight` {field: <em>-wrapped snippet}. Strictly
+        // decorative — any failure leaves the hits plain rather than failing the search.
+        try {
+            attachHighlights(query, flatHits, items);
+        } catch (Exception e) {
+            log.warn("highlight decoration failed — serving plain hits for q='{}'", query, e);
+        }
         // Zero-results visibility (RUNBOOK §23): the cheapest relevance-feedback signal there is.
         // Grep for "zero-results search" to harvest synonym/typo/catalog gaps into querqy rules
         // and the judgment list. Only real user queries are worth logging — empty-q browses with
@@ -94,15 +121,119 @@ public class SearchService {
         return response;
     }
 
-    public List<String> suggest(String query) {
-        List<OcsSuggestion> suggestions = suggestClient.suggest(query);
-        List<String> phrases = new ArrayList<>(suggestions.size());
-        for (OcsSuggestion s : suggestions) {
-            if (s.getPhrase() != null) {
-                phrases.add(s.getPhrase());
+    /**
+     * Typed autocomplete entries per the Wave-9 contract: {@code {text, type, categoryId?}} with
+     * {@code type} one of {@code keyword}/{@code category}/{@code curated} and {@code categoryId}
+     * present only on {@code category} entries. OCS tags each suggestion with its harvest source
+     * field ({@code title}/{@code brand}/{@code category_names} — live-probed 2026-07-24), so
+     * category classification is source-driven; the name must additionally resolve to exactly one
+     * live category or the entry degrades to a plain keyword (no deep-link is better than a wrong
+     * one). Curated keywords (the {@code /helper} table) merge into the SAME response so the SPA
+     * has one autocomplete source; OCS being down degrades to curated-only, never an error.
+     */
+    public List<Map<String, Object>> suggest(String query) {
+        List<Map<String, Object>> entries = new ArrayList<>();
+        Set<String> seenTexts = new HashSet<>();
+        for (OcsSuggestion s : ocsSuggestions(query)) {
+            String phrase = s.getPhrase();
+            if (phrase == null || phrase.isBlank() || !seenTexts.add(phrase.trim().toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            entries.add(toSuggestEntry(phrase, s.getType()));
+        }
+        for (String curated : curatedKeywords(query)) {
+            if (curated == null || curated.isBlank() || !seenTexts.add(curated.trim().toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("text", curated);
+            entry.put("type", "curated");
+            entries.add(entry);
+        }
+        return entries;
+    }
+
+    private List<OcsSuggestion> ocsSuggestions(String query) {
+        try {
+            return suggestClient.suggest(query);
+        } catch (RestClientException e) {
+            log.warn("OCS suggest unavailable — serving curated-only suggestions for q='{}': {}",
+                    query, e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<String> curatedKeywords(String query) {
+        try {
+            return searchKeywordService.helper(query, 1, CURATED_SUGGEST_LIMIT);
+        } catch (Exception e) {
+            log.warn("curated keyword lookup failed for q='{}'", query, e);
+            return Collections.emptyList();
+        }
+    }
+
+    private Map<String, Object> toSuggestEntry(String phrase, String sourceField) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("text", phrase);
+        // An untagged entry (older suggest build) still gets a resolution attempt — the lookup is
+        // an in-memory snapshot hit, and an exact category-name match is a strong category signal.
+        if (sourceField == null || SUGGEST_SOURCE_CATEGORY.equals(sourceField)) {
+            Integer categoryId = categoryNameResolver.resolveId(phrase);
+            if (categoryId != null) {
+                entry.put("type", "category");
+                entry.put("categoryId", categoryId);
+                return entry;
             }
         }
-        return phrases;
+        entry.put("type", "keyword");
+        return entry;
+    }
+
+    /**
+     * Attaches the contract's optional {@code highlight} map to each hit item. An OCS-provided
+     * per-hit highlight is preferred (normalized so only {@code <em>} markup survives and OCS
+     * field names map to our item fields); the deployed searcher returns none (live-probed
+     * 2026-07-24), so {@link SearchHighlighter} produces the snippets app-side.
+     */
+    private void attachHighlights(String query, List<OcsSearchResult.Hit> hits,
+                                  List<Map<String, Object>> items) {
+        if (query == null || query.isBlank()) {
+            return;
+        }
+        for (int i = 0; i < items.size(); i++) {
+            Map<String, Object> item = items.get(i);
+            Map<String, String> snippets = normalizeOcsHighlight(i < hits.size() ? hits.get(i).getHighlight() : null);
+            if (snippets.isEmpty()) {
+                snippets = searchHighlighter.highlight(query, item);
+            }
+            if (!snippets.isEmpty()) {
+                item.put("highlight", snippets);
+            }
+        }
+    }
+
+    /** OCS index fields → the goods-list item fields the SPA renders. */
+    private static final Map<String, String> OCS_HIGHLIGHT_FIELD_NAMES =
+            Map.of("title", "name", "description", "brief", "name", "name", "brief", "brief");
+
+    private Map<String, String> normalizeOcsHighlight(Map<String, Object> ocsHighlight) {
+        Map<String, String> snippets = new LinkedHashMap<>();
+        if (ocsHighlight == null) {
+            return snippets;
+        }
+        for (Map.Entry<String, Object> entry : ocsHighlight.entrySet()) {
+            String field = OCS_HIGHLIGHT_FIELD_NAMES.get(entry.getKey());
+            if (field == null || !(entry.getValue() instanceof String)) {
+                continue;
+            }
+            String snippet = (String) entry.getValue();
+            // Contract: matches wrapped in <em> only — drop any other markup a searcher emits.
+            snippet = snippet.replaceAll("<(?!/?em>)[^<>]*>", "");
+            if (!snippet.isBlank()) {
+                snippets.put(field, snippet);
+            }
+        }
+        return snippets;
     }
 
     private Map<String, Object> toGoodsListItem(OcsSearchResult.Hit hit) {

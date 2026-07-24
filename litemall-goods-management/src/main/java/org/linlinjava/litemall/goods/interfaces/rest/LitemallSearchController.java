@@ -9,6 +9,7 @@ import org.linlinjava.litemall.goods.application.search.SearchHistoryService;
 import org.linlinjava.litemall.goods.application.search.SearchKeywordService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.utils.UserContext;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,9 +30,10 @@ public class LitemallSearchController {
      * {@code offset}/{@code limit} are reserved too: some callers (the InstantSearch adapter) send
      * raw OCS pagination params alongside {@code page}/{@code size}; without stripping them here they
      * leak into the filter map and OcsSearchClient re-appends them, producing a duplicated/zeroed
-     * {@code offset=&limit=} on the OCS URL.
+     * {@code offset=&limit=} on the OCS URL. {@code highlight} joined the reserved set in Wave 9:
+     * OcsSearchClient always sends it, so a caller-supplied copy must not leak in as a filter.
      */
-    private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort", "offset", "limit");
+    private static final Set<String> RESERVED_PARAMS = Set.of("q", "page", "size", "sort", "offset", "limit", "highlight");
 
     private final Log logger = LogFactory.getLog(LitemallSearchController.class);
 
@@ -62,8 +64,14 @@ public class LitemallSearchController {
         // the keyword is the user's intent, and an OCS outage — which surfaces
         // as an exception from search() — must not skip the history write.
         recordHistory(query);
-        // SearchService whitelists these to the index's Facet fields before they reach OCS.
-        return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+        try {
+            // SearchService whitelists these to the index's Facet fields before they reach OCS.
+            return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+        } catch (RestClientException e) {
+            // OCS unreachable/erroring must degrade to a typed error, never a 5xx (Wave 9).
+            logger.warn("OCS search unavailable for q='" + query + "': " + e.getMessage());
+            return ResponseUtil.fail(502, "Search is temporarily unavailable");
+        }
     }
 
     /** Best-effort history write for logged-in searches — must NEVER fail the search itself. */
@@ -114,13 +122,26 @@ public class LitemallSearchController {
         filters.keySet().removeAll(RESERVED_PARAMS);
         // The category scope is authoritative from the path; never let a query param override it.
         filters.remove("category_ids");
-        Map<String, Object> result = categorySearchService.searchByCategory(id, query, page, size, sort, filters);
+        Map<String, Object> result;
+        try {
+            result = categorySearchService.searchByCategory(id, query, page, size, sort, filters);
+        } catch (RestClientException e) {
+            logger.warn("OCS search unavailable for category " + id + ": " + e.getMessage());
+            return ResponseUtil.fail(502, "Search is temporarily unavailable");
+        }
         if (result == null) {
             return ResponseUtil.fail(404, "Category not found");
         }
         return ResponseUtil.ok(result);
     }
 
+    /**
+     * Typed autocomplete (Wave-9 contract): entries are {@code {text, type, categoryId?}} with
+     * {@code type} keyword/category/curated — one source for the SPA's dropdown, merging OCS
+     * suggestions with the curated keyword table. Plain-string entries remain legal per the
+     * contract; consumers must accept both shapes. Fail-soft inside the service: OCS down ⇒
+     * curated-only, never an error.
+     */
     @GetMapping("/suggest")
     public Object suggest(@RequestParam("q") String query) {
         return ResponseUtil.ok(searchService.suggest(query));

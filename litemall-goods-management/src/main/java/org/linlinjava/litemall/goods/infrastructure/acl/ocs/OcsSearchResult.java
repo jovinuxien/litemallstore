@@ -213,6 +213,11 @@ public class OcsSearchResult {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Hit {
         private Document document;
+        // Live-probed 2026-07-24: the deployed searcher ignores `highlight=true` and returns
+        // neither field with content — bound anyway so a future OCS release that does emit
+        // per-hit highlights (or highlight data via metaData) is picked up without a DTO change.
+        private Map<String, Object> highlight;
+        private Map<String, Object> metaData;
 
         public Document getDocument() {
             return document;
@@ -220,6 +225,22 @@ public class OcsSearchResult {
 
         public void setDocument(Document document) {
             this.document = document;
+        }
+
+        public Map<String, Object> getHighlight() {
+            return highlight;
+        }
+
+        public void setHighlight(Map<String, Object> highlight) {
+            this.highlight = highlight;
+        }
+
+        public Map<String, Object> getMetaData() {
+            return metaData;
+        }
+
+        public void setMetaData(Map<String, Object> metaData) {
+            this.metaData = metaData;
         }
     }
 

@@ -1,0 +1,38 @@
+{
+  "inputURI": "?q=silk&limit=2",
+  "tookInMillis": 12,
+  "slices": [
+    {
+      "matchCount": 2,
+      "nextOffset": 2,
+      "hits": [
+        {
+          "index": "ocs-132-litemall_index-en",
+          "document": {
+            "id": "1152161",
+            "data": {
+              "title": "Ice Silk Boxer Briefs",
+              "description": "Breathable silk fabric",
+              "price": 12.5
+            }
+          },
+          "matchedQueries": ["silk"],
+          "metaData": {"score": 21.5, "version": -1},
+          "highlight": {"title": "Ice <em>Silk</em> Boxer Briefs"}
+        },
+        {
+          "document": {
+            "id": "cj_12345",
+            "data": {"title": "Cotton Socks"}
+          }
+        }
+      ],
+      "facets": []
+    }
+  ],
+  "sortOptions": [
+    {"label": "Price", "field": "price", "sortOrder": "ASC", "active": false}
+  ],
+  "meta": {"query_strategy": "default-query", "query_stage": 0},
+  "some_future_field": {"ignored": true}
+}

@@ -1282,3 +1282,52 @@ concurrently-running old build's refresh-on-startup / nightly refresh reindexes 
 schema. Recovered by a full reindex from the current build (ocs-127, 9348 docs, searcher
 restarted, 125 local deals back, 0 CJ). If /deals ever empties: check `_cat/indices` creation
 time + a doc's resultData for missing deal fields before suspecting the deals code.
+
+## §26 — Wave 9: per-hit highlight map + typed suggest (2026-07-24)
+
+**Contract shipped** (fixed in CLAUDE.md Wave 9; gateway-api consumes post-merge):
+- Search hits gain an OPTIONAL `highlight` map `{field: snippet}`, matches `<em>`-wrapped only,
+  keys = goods-list item fields (`name`, `brief`). Absent map/field ⇒ render plain.
+- `/srv/search/suggest` entries are now objects `{text, type: keyword|category|curated,
+  categoryId?}` (`categoryId` only on `category`). Plain strings remain legal per contract —
+  the §18 `data:["quilt pillow",...]` shape above is SUPERSEDED. Curated `/helper` keywords
+  merge into the same response (`type:"curated"`, ≤3, deduped); `/srv/search/helper` unchanged.
+
+**OCS highlight probe (live, 2026-07-24).** `highlight=true` on the searcher is IGNORED —
+response byte-identical with/without (volatile fields stripped), param even dropped from the
+echoed `inputURI`; upstream `ResultHit` has no highlight field. `search_products.sh` (the
+CLAUDE.md citation for "OCS supports it") is a pre-verification artifact whose syntax
+contradicts the live envelope — do not trust it. Highlights are therefore computed APP-SIDE
+(`SearchHighlighter`: case-insensitive term match over name/brief, merged runs, `<em>` wrap).
+`OcsSearchClient` still sends `highlight=true` and `OcsSearchResult.Hit` binds permissive
+`highlight`/`metaData` maps; an OCS-provided highlight, if one ever appears, is preferred and
+normalized (non-`<em>` tags stripped, `title`→`name`/`description`→`brief`).
+
+**Suggest classification (live probe).** The suggest service tags every entry with its harvest
+source field: `type` ∈ `title|brand|category_names` (from `SUGGEST_INDEX_DEFAULT_SOURCEFIELDS`).
+`category_names`-sourced phrases resolve name→id via `CategoryNameResolver` (60s in-memory
+snapshot of live categories; exact case-insensitive match; duplicate names ⇒ null ⇒ entry
+degrades to `keyword` — no deep-link beats a wrong one).
+
+**Fail-soft / no-5xx (verified live on :8093, verify-profile jar).**
+- searcher stopped: `GET /srv/search?q=silk` and `/srv/search/category/{id}` → HTTP 200
+  `{"errno":502,"errmsg":"Search is temporarily unavailable"}` (was: unhandled 500).
+- suggest stopped: `/srv/search/suggest?q=su` → curated-only, errno 0.
+- highlight decoration failure ⇒ plain hits (unit-tested).
+
+**Verified live 2026-07-24** (worktree exec jar :8093, JDK21, canonical
+`dev,db,core,admin,wx,verify` boot, OCS stack from this worktree's compose):
+```
+GET /srv/search?q=silk&size=3       -> hits carry highlight{name,brief} with <em>Silk</em>
+GET /srv/search?q=&size=2           -> no highlight maps (blank q)
+GET /srv/search/suggest?q=wom       -> 10x {text,type:"category",categoryId} (e.g. Women's
+                                       Clothing -> 1036012; landing breadcrumb matches)
+GET /srv/search/suggest?q=quilt     -> title-sourced keywords + Pet Blankets & Quilts
+                                       (category 1036142) + curated "Summer Quilt"
+GET /srv/search/helper?keyword=su   -> ["Summer Quilt","Sunglasses"] (unchanged)
+POST /srv/private/admin/search/reindex (machine jwt) -> {"indexed":9644}; harvest ~20s
+```
+Module tests: 59 run / 2 failures = the KNOWN pre-existing reds (§23 nDCG 0.686 vs stale
+baseline 0.9286; CJ discount_price round-trip) — unchanged by this wave. New coverage:
+`SearchHighlighterTest` (10), `SearchServiceTest` (11), `CategoryNameResolverTest` (6),
+`OcsSearchResultTest` (1, first JSON fixture: `src/test/resources/ocs/`).
