@@ -35,17 +35,19 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '../public/index.html'),
-      favicon: path.resolve(__dirname, '../public/favicon.ico'),
+      // No `favicon:` option — the template carries the full favicon link set
+      // (with cache-busting queries); the plugin's auto-injected bare
+      // <link rel="icon"> would duplicate it.
     }),
     // Trovemo icon set + webmanifest, referenced by absolute path from
-    // index.html (index.html is the template, favicon.ico is emitted by
-    // HtmlWebpackPlugin above — both excluded to avoid double emission).
+    // index.html (index.html is the template and excluded; favicon.ico is
+    // copied like the rest of the pack).
     new CopyWebpackPlugin({
       patterns: [
         {
           from: path.resolve(__dirname, '../public'),
           to: '.',
-          globOptions: { ignore: ['**/index.html', '**/favicon.ico'] },
+          globOptions: { ignore: ['**/index.html'] },
         },
       ],
     }),

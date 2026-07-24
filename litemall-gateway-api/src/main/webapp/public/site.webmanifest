@@ -3,10 +3,10 @@
   "short_name": "Trovemo",
   "description": "Trovemo — online store. Shop electronics, home, toys and more with fast delivery.",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/favicon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/favicon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "theme_color": "#0a5d65",
+  "theme_color": "#0A5D65",
   "background_color": "#FFF7EC",
   "start_url": "/",
   "display": "standalone"
