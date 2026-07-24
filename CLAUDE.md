@@ -21,38 +21,72 @@
 > deactivation + on-sale enforcement (`doc/legacy-goods-deactivation-
 > 2026-07-20.pdf`) — is merged and deployed.
 >
-> **Wave 8 (2026-07-20) — CJ COMMERCE COMPLETENESS + TROVEMO BRANDING.**
-> The store is live and sells ONLY the CJ dropshipping catalog (the 239
-> legacy goods are off sale). Three things stand between "live" and
-> "credible": (1) the CJ order fulfilment + payment path has never been
-> walked end to end since the Wave-7 rewrite — walk it, fix what's broken;
-> (2) the PDP customer-reviews section is EMPTY for every CJ good (the
-> Reviews UI works and calls `/srv/comment/list`; the data side serves only
-> local `litemall_comment` rows, of which dev has 7) — ingest CJ product
-> reviews; (3) both SPAs still wear stock branding — the storefront header
-> is the literal text "litemall" and the admin header is a JHipster PNG.
-> Brand assets live in **`doc/brand/`**: `logo-wordmark.svg` (trovemo
-> wordmark; NOTE white background + dark text — adapt for dark headers) and
-> `logo-open-trove.svg` (square parcel mark → favicon source). Palette:
-> `#F09000` / `#FFC24B` / `#C86F00` / `#23272E`.
+> **Wave 8** (CJ fulfilment walk + CJ product reviews + Trovemo branding on
+> both SPAs) is merged and DEPLOYED to trovemo.com (2026-07-22, `b6906aac2`);
+> spec in git history. Flyway **V44** was consumed by it.
+>
+> **Wave 9 (2026-07-24) — SEARCH EXPOSURE: surface the dormant OCS features.**
+> An audit (claims re-verified against master 2026-07-24) found seven
+> FINISHED backend search capabilities the customer SPA never calls or
+> renders. Backend anchors: `LitemallSearchController.java`
+> (goods-management, `@RequestMapping("/srv/search")`), `SearchService.java`.
+> SPA anchors: `app/modules/search/Search.tsx`, `app/Layout.tsx` (header
+> search bar), `ProductHit.tsx`.
+> 1. `GET /srv/search/index` (default + hot keywords + per-user history from
+>    `litemall_search_history`) and **POST** `/srv/search/clearhistory` —
+>    zero SPA references.
+> 2. `GET /srv/search/helper` (curated keywords) — uncalled; SPA autocomplete
+>    uses only `/srv/search/suggest` (Layout.tsx:67, 200ms debounce).
+> 3. Response fields `queryStrategy` + `relaxed` (SearchService.java:92-93)
+>    — the backend says when it fell back to fuzzy/relaxed matching; SPA
+>    never renders a "no exact matches — showing similar results" line.
+> 4. Response `sortOptions` (SearchService.java:90) — Search.tsx:46 hardcodes
+>    `SORT_ITEMS` instead. (`searchSlice.ts:60-91` already parses
+>    `sortOptions` into redux; nothing reads it — dead path, revive it.)
+> 5. OCS highlighting — `search_products.sh` passes `highlight=true`, but
+>    `OcsSearchClient.java` never requests it and ProductHit renders no
+>    snippets.
+> 6. Suggest harvests `category_names` (SUGGEST_INDEX_DEFAULT_SOURCEFIELDS),
+>    but every suggestion click routes to `/search?q=` — the category
+>    landing (`GET /srv/search/category/{id}` + SPA `/category/:id` with
+>    breadcrumb + scoped facets, CategoryTree.tsx) exists and is never
+>    deep-linked from suggestions.
+> 7. Zero results render a dead-end empty grid (Search.tsx:250, no empty
+>    state) while the backend already logs zero-result queries
+>    (SearchService.java:80-82) and `/srv/search/index` has the "try these
+>    instead" data.
+>
+> Split: **goods-management** owns the two backend contract additions
+> (highlight pass-through, typed suggest); **gateway-api** owns ALL SPA
+> surfacing. **Cross-module contract — fixed here; implement to it, do NOT
+> read the other worktree's in-flight code:**
+> - Suggest entries become objects
+>   `{text, type: "keyword"|"category"|"curated", categoryId?}`
+>   (`categoryId` only when `type:"category"`). Plain-string entries remain
+>   legal; the SPA must accept both shapes.
+> - Search hits gain an OPTIONAL `highlight` map `{field: snippet}` with
+>   matches wrapped in `<em>` only. Absent map/field ⇒ render plain. SPA
+>   sanitizes: `em`/`mark` tags only, everything else escaped.
 >
 > **DEV → PROD:** worktrees merge to master as always. **Deployment to the
 > VPS is done by the MAIN session after merge** (docker build + recreate +
 > reindex where needed) — do NOT touch the production VPS or its DB from a
 > worktree. Verify in dev through the gateways.
 >
-> **USER-SIDE PREREQUISITES still pending:** `STRIPE_*` and `CJ_API_KEY` are
-> EMPTY in prod `.env.prod` — live card pay and live CJ placement stay
-> blocked by design. Everything must degrade honestly: typed errors,
+> **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
+> verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
+> is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
+> stays blocked by design. Everything must degrade honestly: typed errors,
 > retryable states (an order paid today must be placeable at CJ tomorrow
 > when the key arrives), never a fake success, never a 5xx.
 >
 > **Cross-cutting landmines (apply to every block):**
-> - **Flyway:** V43 is the last used (Wave-7 `order`). **V40 remains
->   EARMARKED** for goods-management's parked CJ-deals SKU-charge fix — do NOT
->   take it. Wave-8 migrations claim **V44+** after checking
->   `flyway_schema_history` immediately before first boot. `out-of-order: true`
->   is permanent. Never `flyway repair`.
+> - **Flyway:** V44 is the last used (Wave-8 goods-management, comment
+>   source/external_id). **V40 remains EARMARKED** for goods-management's
+>   parked CJ-deals SKU-charge fix — do NOT take it. Wave-9 migrations (none
+>   are expected — this wave is contract + SPA work) claim **V45+** after
+>   checking `flyway_schema_history` immediately before first boot.
+>   `out-of-order: true` is permanent. Never `flyway repair`.
 > - **litemall-db is shared and hand-maintained:** never regenerate; hand-edit
 >   entities + mapper XMLs together. After editing: `mvn install` litemall-db,
 >   restart EVERY dependent, verify the nested `BOOT-INF/lib` copy in running
@@ -74,97 +108,87 @@
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
 ### Worktree: `order`
-- **Branch:** `fix/order` — FIRST: `git merge master`. · **Scope:**
-  `litemall-order/` (+ migrations **V44+** only if truly needed).
-- **Task — walk the CJ order fulfilment + payment path end to end; fix every
-  gap.** The chain: add CJ good → `GET /srv/cart/checkout` (server totals) →
-  submit → pay (WALLET works today; Stripe disabled ⇒ typed 402-style error,
-  never fake success) → `placeForPaidOrder` (AFTER_COMMIT + outbox, moved out
-  of the money TX in Wave-7) → CJ `createOrderV2` (incl. IOSS fields,
-  `CjDropshipOrderFacadeImpl`) → CJ status sync scheduler → tracking surfaced
-  on `GET /srv/order/{id}` (timeline events). Walk it in dev with the CJ ACL
-  in BOTH states:
-  - **CJ enabled (dev key):** a wallet-paid CJ order must reach CJ placement
-    and progress via status sync; tracking visible to the customer. ⚠ A real
-    CJ placement can cost money — use the cheapest variant, flag before
-    placing, and prefer whatever CJ sandbox/test mode exists.
-  - **CJ disabled (prod's current state, `CJ_API_KEY` empty):** payment still
-    settles, order lands in an honest retryable fulfilment state, the outbox
-    RETAINS the placement job and retries once the key appears — an order
-    paid today must NOT be stranded or marked fulfilled. Refund/cancel of an
-    unplaced CJ order must work; of a placed one must not lie about CJ-side
-    state.
-- **Acceptance:** dev e2e demo of the enabled path (or sandbox equivalent);
-  disabled-path degradation exactly as above, verified by flipping the env;
-  timeline shows fulfilment events; `litemall-prod.sh smoke-checkout` money
-  path unbroken (note: it needs the one-legacy-good re-activation dance, the
-  script prints it); Wave-7 adversarial checks (junk paymentIntent, replay,
-  tampered amount) still dead.
+- **No Wave-9 assignment.** The Wave-8 CJ fulfilment/payment walk is merged
+  and deployed (`b6906aac2` + retained-placement `272176272`). Do not start
+  work here without a new instruction.
 
 ### Worktree: `goods-management`
 - **Branch:** `fix/goods-management` — FIRST: `git merge master`. · **Scope:**
-  `litemall-goods-management/` (+ migrations **V44+**; **V40 stays EARMARKED**
-  — do not take it). The parked CJ-deals work stays parked.
-- **Task — CJ product reviews: the PDP reviews section is EMPTY for every CJ
-  good.** `/srv/comment/list` (type 0) reads only local `litemall_comment`
-  (7 rows in dev, ~0 in prod). CJ's API exposes product comments/reviews for
-  its catalog — ingest and serve them for CJ goods through the SAME endpoint
-  the SPA already calls (`Reviews.tsx` renders fine; it receives `total:0`).
-  Design constraints:
-  - Follow the module's **demand-driven enrichment precedent**
-    (`CjDetailEnrichmentService`) — fetch on first view, persist/cache, serve
-    from local store afterwards; NO bulk pre-import of 9k goods.
-  - **Fail-soft:** CJ ACL disabled/unreachable ⇒ clean empty list, never 5xx
-    (prod currently has no CJ key — the PDP must still render).
-  - Keep `POST /srv/comment/post` (signed-in customer reviews) working; local
-    + CJ reviews merge in one list, newest-first or rating-weighted — your
-    call, document it.
-  - Mind `cj_<pid>` → native id resolution (`EngagementGoodsResolver`
-    precedent) and the machine-token/admin path distinctions.
-- **Acceptance:** in dev with the CJ key: PDP of a popular CJ good shows real
-  reviews (count, stars, dates, bodies); second view served locally (no CJ
-  re-hit — show the log); CJ ACL off ⇒ clean empty state; a posted customer
-  review appears alongside CJ ones; search/reindex unaffected; migration (if
-  any) is V44+ and applies cleanly.
+  `litemall-goods-management/` only. NO migration expected (runtime contract
+  work); if one is truly needed it's **V45+** (**V40 stays EARMARKED** — do
+  not take it). The parked CJ-deals work stays parked.
+- **Task — Wave 9, backend half: enrich the search contract so the SPA can
+  surface what OCS already does.** Implement to the Wave-9 cross-module
+  contract above; gateway-api consumes it post-merge.
+  1. **Highlighting:** make `OcsSearchClient` request highlighting (OCS
+     supports it — `search_products.sh` already passes `highlight=true`) and
+     have `SearchService` pass a per-hit `highlight` map through per the
+     contract (`<em>`-wrapped matches only). Highlight off/failed ⇒ hits
+     unchanged, fail-soft, never a 5xx.
+  2. **Typed suggest:** upgrade `/srv/search/suggest` entries to
+     `{text, type, categoryId?}` per the contract. Classify category
+     suggestions (suggest harvests `category_names`) and resolve name → id
+     server-side (category service / `EngagementGoodsResolver` resolution
+     precedent). Merge the curated `helper` keywords into the SAME suggest
+     response as `type:"curated"` so the SPA has ONE autocomplete source;
+     keep `GET /srv/search/helper` itself working (compat).
+  3. Leave `/srv/search/index`, `POST /clearhistory`, category landing and
+     zero-result logging as-is — gateway-api consumes them unchanged.
+- **Acceptance:** via the `:9000` gateway (or `:8093` direct with a machine
+  token): a category-ish prefix returns a `type:"category"` entry whose
+  `categoryId` opens the right `/srv/search/category/{id}`; a title-word
+  query returns hits with `<em>`-wrapped snippets in `highlight`; OCS
+  down/highlight failure ⇒ plain hits, no 5xx; old-shape consumers survive
+  (plain-string suggest entries still legal per contract); reindex + search
+  regression green; module tests actually RUN (read the "Tests run:" count).
 
 ### Worktree: `gateway-api`
 - **Branch:** `fix/gateway-api` — FIRST: `git merge master`. · **Scope:**
   `litemall-gateway-api/` (edge + customer SPA). NO migration.
-- **Task — Trovemo branding on the storefront.** The header brand is the
-  literal text "litemall" (`app/Layout.tsx:122-124`, dark navbar). Replace
-  with the wordmark `doc/brand/logo-wordmark.svg` — it ships white-background
-  + dark-text, so derive a header variant (transparent background,
-  light/white text, KEEP the orange open-"o" + spark exactly as designed).
-  Favicon + touch icons from `doc/brand/logo-open-trove.svg` (supersedes the
-  current favicon); wire real sizes (16/32/180/512 + manifest if present).
-  Sweep the SPA for remaining **user-visible** "litemall" strings (footer,
-  page titles, empty states, mails routed through site-config, legal pages) —
-  internal identifiers, package names and API paths are NOT in scope. Reviews
-  section: verify it renders goods-management's CJ reviews once that worktree
-  merges (coordinate via master), and that the signed-out/empty state looks
-  intentional.
-- **Acceptance:** SPA build clean; header wordmark crisp on desktop + mobile
-  widths (no white box on the dark navbar); tab icon = open-trove mark;
-  a case-insensitive sweep of user-visible surfaces finds no "litemall";
-  PDP reviews render CJ data post-merge; anonymous browse/search/PDP, login,
+- **Task — Wave 9, frontend half: surface the dormant search features.**
+  Items 1-4 are pure SPA work against endpoints/fields that are live TODAY —
+  do them first, in order; 5-6 depend on goods-management's contract work
+  (coordinate via master, implement to the Wave-9 contract, tolerate the old
+  shapes until it lands).
+  1. **Search-box dropdown when focused + empty:** "Recent searches"
+     (per-user) + "Trending" chips from `GET /srv/search/index`; a clear
+     button wired to **POST** `/srv/search/clearhistory` (POST, not GET);
+     anonymous users get trending only (index returns no history + the
+     clear path is unlogin-guarded).
+  2. **"Did you mean / similar results" banner:** read `queryStrategy` /
+     `relaxed` from the search response; when relaxed, render "No exact
+     matches for 'X' — showing similar results" above the grid.
+  3. **Backend-driven sorting:** drive the sort dropdown from response
+     `sortOptions` — `searchSlice.ts:60-91` already parses it into redux
+     and nothing reads it; revive that path. Keep the hardcoded
+     `SORT_ITEMS` (Search.tsx:46) only as fallback when the field is
+     absent.
+  4. **Zero-results page:** replace the dead-end empty grid in
+     `Search.tsx` with an intentional state: "no results for 'X'" +
+     trending keywords + popular categories (data: `/srv/search/index` and
+     the existing category tree).
+  5. **Highlight snippets** in `ProductHit.tsx` from the per-hit
+     `highlight` map — sanitize per contract (allow `em`/`mark` only,
+     escape everything else); absent map ⇒ plain title, no layout shift.
+  6. **Category deep-links from autocomplete:** suggestion entries with
+     `type:"category"` navigate to the existing `/category/:id` landing
+     (breadcrumb + scoped facets) instead of `/search?q=`; `curated`
+     entries render visually distinct; plain strings keep today's
+     behaviour.
+- **Acceptance:** SPA build clean; dropdown correct for anonymous AND
+  logged-in users, history actually clears (POST) and dedupes visually;
+  a misspelled query shows the relaxed banner; sort dropdown reflects
+  server `sortOptions`; zero-results shows alternatives, not an empty
+  grid; post-merge: snippets render with NO raw-HTML injection (search for
+  `<script>alert(1)</script>` to prove it) and a category suggestion lands
+  on `/category/:id` with breadcrumb; anonymous browse/search/PDP, login,
   cart, checkout all regression-green through `:9000`.
 
 ### Worktree: `gateway-admin`
-- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-admin/` (edge + admin SPA). NO migration.
-- **Task — Trovemo branding on the admin console.** The admin header still
-  renders the JHipster logo (`shared/layout/header/header-components.tsx:10`
-  → `content/images/logo-jhipster.png`). Replace with the Trovemo wordmark
-  (`doc/brand/logo-wordmark.svg`, adapt background/contrast to the header),
-  favicon/tab icon from `doc/brand/logo-open-trove.svg` (supersedes the
-  `c96c73d6f` favicon), and sweep the admin SPA for user-visible "litemall" /
-  "JHipster" remnants (sign-in page, sidebar, navbar, page titles, about
-  strings). Internal identifiers are NOT in scope.
-- **Acceptance:** admin SPA builds AND the jar actually contains it
-  (**checksum dirty-skip gotcha: `rm target/checksums.csv.old`** if webpack
-  is skipped); sign-in page + console show Trovemo marks; tab icon updated;
-  no JHipster/litemall visible anywhere; login + dashboard + goods/orders
-  panels regression-green through `:18080`.
+- **No Wave-9 assignment.** Wave-8 admin branding is merged and deployed
+  (`72446568f`). Do not start work here without a new instruction.
+  (Candidate for a later wave: a curated-keywords management panel feeding
+  `/srv/search/helper` and hot-keyword curation — NOT commissioned yet.)
 
 ### Worktree: `platform`
 - **No Wave-8 assignment.** The Wave-7 stack is merged and DEPLOYED (prod compose,
