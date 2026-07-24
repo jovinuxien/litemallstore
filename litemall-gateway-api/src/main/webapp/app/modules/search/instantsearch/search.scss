@@ -199,6 +199,96 @@
     }
   }
 
+  // "Did you mean / similar results" banner — shown when OCS relaxed the query.
+  &__relaxed {
+    background: var(--lm-primary-soft);
+    border: 1px solid var(--lm-primary);
+    border-radius: var(--lm-radius);
+    color: var(--lm-primary-dark);
+    font-size: 14px;
+    padding: 10px 14px;
+    margin: 0 0 12px;
+  }
+
+  // Zero-results state — replaces the grid with alternatives instead of a
+  // dead-end empty page.
+  &__empty {
+    background: var(--lm-surface);
+    border: 1px solid var(--lm-border);
+    border-radius: var(--lm-radius);
+    padding: 28px 22px;
+    text-align: center;
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 6px;
+      overflow-wrap: anywhere;
+    }
+
+    p {
+      color: var(--lm-muted);
+      font-size: 14px;
+      margin: 0 0 18px;
+    }
+
+    section {
+      margin-top: 18px;
+
+      h3 {
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: var(--lm-muted);
+        margin: 0 0 10px;
+      }
+    }
+  }
+
+  &__empty-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  &__empty-chip {
+    border: 1px solid var(--lm-border);
+    background: var(--lm-bg);
+    color: var(--lm-text);
+    border-radius: 999px;
+    font-size: 14px;
+    padding: 6px 14px;
+    text-decoration: none;
+    white-space: nowrap;
+
+    &:hover {
+      border-color: var(--lm-primary);
+      color: var(--lm-primary-dark);
+      background: var(--lm-primary-soft);
+    }
+
+    &--cat {
+      border-color: var(--lm-primary);
+      color: var(--lm-primary-dark);
+    }
+  }
+
+  // Highlight snippets inside hit titles (<em>/<mark> from the OCS highlight
+  // map, rendered as real elements by highlightSnippet — never raw HTML).
+  .lm-card__title {
+    em,
+    mark {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--lm-primary-dark);
+      background: var(--lm-primary-soft);
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+  }
+
   // CurrentRefinements — active-filter chips.
   .ais-CurrentRefinements-list {
     list-style: none;

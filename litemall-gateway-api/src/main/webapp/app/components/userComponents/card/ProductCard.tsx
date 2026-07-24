@@ -57,6 +57,9 @@ const useNow = (active: boolean): number => {
 
 interface Props {
   product: IGood;
+  // Optional pre-rendered title (search-highlight snippets as React nodes);
+  // falls back to the plain name. The tooltip/alt/cart name stay plain text.
+  nameNode?: React.ReactNode;
 }
 
 /**
@@ -73,7 +76,7 @@ interface Props {
  * product into the cart straight from the grid (SKU/variant choice still
  * happens on the detail page).
  */
-const ProductCard: React.FC<Props> = ({ product }) => {
+const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const dispatch = useAppDispatch();
   const [added, setAdded] = useState(false);
   const [qty, setQty] = useState(1);
@@ -154,7 +157,7 @@ const ProductCard: React.FC<Props> = ({ product }) => {
       <div className="lm-card__body">
         {/* CJ stack: title → meta count line → price. */}
         <Link to={to} className="lm-card__title" title={name}>
-          {name}
+          {nameNode ?? name}
         </Link>
 
         <div className="lm-card__meta">
