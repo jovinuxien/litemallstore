@@ -19,35 +19,38 @@
   --lm-radius: 10px;
 }
 
-// ── Deal-card look & feel ─────────────────────────────────────────────────────
-// Amazon-deals (Goldbox) layout on the --lm-* theme: clean 200px cover image,
-// then a deal row (solid accent % badge + accent "Limited time deal" text),
-// then the price line (big dark deal price, small struck "List:" price),
-// then the 2-line title/description, ratings/sold meta, and the CTA.
+// ── CJ-catalog look & feel ────────────────────────────────────────────────────
+// Card structure modelled on cjdropshipping.com's product cards — a clean white
+// vertical stack: SQUARE image, 2-line title, small meta count line, then the
+// price — dressed in this storefront's --lm-* Teal & Coral tokens (CJ's layout,
+// our colors). Discount/deal flags overlay the image so the stack stays clean;
+// CJ's warehouse/country chips are deliberately not reproduced. The footer adds
+// what CJ doesn't have: a quantity stepper + add-to-cart CTA.
 .lm-card {
   display: flex;
   flex-direction: column;
   background: var(--lm-surface);
-  border: none;
+  border: 1px solid var(--lm-border);
   border-radius: var(--lm-radius);
   overflow: hidden;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
+  box-shadow: none;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
   height: 100%;
 
   &:hover {
-    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-    transform: scale(1.03);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
   }
 
+  // Square, full-bleed image — the m_fill,w_250,h_250 treatment CJ's grid uses,
+  // expressed responsively. Overlays (discount / deal flag) anchor to it.
   &__media {
     position: relative;
     display: block;
     width: 100%;
-    height: 200px;
+    aspect-ratio: 1 / 1;
     overflow: hidden;
-    background: #f1f4f5;
-    border-bottom: 1px solid var(--lm-border);
+    background: #f7f9fa;
   }
 
   &__img {
@@ -55,40 +58,46 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    transition: transform 0.25s ease;
+  }
+
+  &:hover &__img {
+    transform: scale(1.04);
   }
 
   &__body {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
     padding: 10px 11px 12px;
     flex: 1;
   }
 
-  // Badge + label row under the image (reserves its height so price rows align
-  // across a grid even when a card has neither).
-  &__dealrow {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    min-height: 22px;
-  }
-
+  // Overlaid on the image, top-left.
   &__discount {
+    position: absolute;
+    top: 8px;
+    left: 8px;
     background: var(--lm-accent);
     color: #fff;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     padding: 3px 7px;
     border-radius: 4px;
     line-height: 1;
   }
 
+  // Overlaid on the image, bottom-left strip.
   &__deal-label {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.92);
     color: var(--lm-accent);
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: 600;
+    padding: 3px 8px;
+    border-top-right-radius: 6px;
   }
 
   &__price-row {
@@ -101,7 +110,7 @@
   &__price {
     color: var(--lm-text);
     font-weight: 700;
-    font-size: 21px;
+    font-size: 19px;
     line-height: 1.1;
   }
 
@@ -119,12 +128,13 @@
     }
   }
 
+  // CJ order: the title leads the stack, 2 lines, quiet weight.
   &__title {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 400;
     line-height: 1.35;
     min-height: 2.7em;
@@ -169,15 +179,66 @@
     color: var(--lm-success);
   }
 
+  // Footer: quantity stepper + CTA on one row, pinned to the card bottom so
+  // footers align across a grid row regardless of title/meta height.
+  &__actions {
+    margin-top: auto;
+    padding-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__qty {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--lm-border);
+    border-radius: 16px;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  &__qty-btn {
+    border: none;
+    background: transparent;
+    color: var(--lm-primary);
+    font-size: 15px;
+    font-weight: 700;
+    width: 26px;
+    height: 28px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease;
+
+    &:hover:not(:disabled) {
+      background: var(--lm-primary-soft);
+    }
+
+    &:disabled {
+      color: var(--lm-muted);
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  &__qty-val {
+    min-width: 22px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--lm-text);
+  }
+
   &__cart {
-    margin-top: 4px;
+    flex: 1;
     border: none;
     border-radius: 20px;
     background: var(--lm-primary);
     color: #fff;
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
-    padding: 6px 12px;
+    padding: 6px 10px;
+    white-space: nowrap;
     cursor: pointer;
     transition: background 0.2s ease;
 
