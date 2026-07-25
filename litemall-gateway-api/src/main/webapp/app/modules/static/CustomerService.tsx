@@ -1,13 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+import { SUPPORT_EMAIL, topFaqEntries } from 'app/modules/static/faqData';
+import SocialLinks from 'app/shared/config/SocialLinks';
+
 /**
- * Customer service, modelled on litemall-vue `user/module-server`. Static
- * contact information (no backend).
+ * Customer service (Wave-9.1). Real contact channels ONLY — the placeholder
+ * phone number is gone for the same honesty rule as payments: never show a
+ * channel that does not exist. Top questions come from the shared FAQ data
+ * (faqData.ts) and deep-link into /help anchors, so /service and /help
+ * cannot drift apart.
  */
 const CustomerService: React.FC = () => (
   <div className='container my-4' style={{ maxWidth: 640 }}>
     <h1 className='h4 mb-3'>Customer service</h1>
+
     <ul className='list-group'>
       <li className='list-group-item d-flex align-items-center gap-3'>
         <i className='bi bi-headset fs-4 text-primary' />
@@ -17,23 +24,43 @@ const CustomerService: React.FC = () => (
         </div>
       </li>
       <li className='list-group-item d-flex align-items-center gap-3'>
-        <i className='bi bi-telephone fs-4 text-primary' />
-        <div>
-          <div className='fw-semibold'>Phone</div>
-          <div className='text-muted small'>+1 (800) 000-0000</div>
-        </div>
-      </li>
-      <li className='list-group-item d-flex align-items-center gap-3'>
         <i className='bi bi-envelope fs-4 text-primary' />
         <div>
           <div className='fw-semibold'>Email</div>
-          <div className='text-muted small'>support@trovemo.com</div>
+          <div className='text-muted small'>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> — include your order number if
+            it concerns an order.
+          </div>
         </div>
       </li>
     </ul>
-    <p className='mt-4 text-muted'>
-      Have a suggestion? <Link to='/user/feedback'>Send us feedback</Link>.
+
+    <h2 className='h6 mt-4'>Top questions</h2>
+    <div className='list-group'>
+      {topFaqEntries().map(e => (
+        <Link
+          key={e.id}
+          to={`/help#${e.id}`}
+          className='list-group-item list-group-item-action d-flex justify-content-between align-items-center'
+        >
+          <span>{e.q}</span>
+          <i className='bi bi-chevron-right text-muted' aria-hidden='true' />
+        </Link>
+      ))}
+    </div>
+    <p className='small mt-2'>
+      <Link to='/help'>Browse the full help center</Link>
     </p>
+
+    <p className='mt-4 text-muted'>
+      Have a suggestion, or signed in and prefer not to email?{' '}
+      <Link to='/user/feedback'>Send us feedback</Link>.
+    </p>
+
+    <div className='mt-4'>
+      <span className='text-uppercase small text-muted d-block mb-2'>Follow us</span>
+      <SocialLinks linkClassName='link-secondary' />
+    </div>
   </div>
 );
 

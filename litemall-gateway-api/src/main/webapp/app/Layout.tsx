@@ -10,6 +10,7 @@ import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
+import SocialLinks from 'app/shared/config/SocialLinks';
 import './layout-header.scss';
 
 /**
@@ -493,12 +494,7 @@ const Layout: React.FC = () => {
                   more, brought together with curated deals, trusted brands, and a checkout that
                   just works. Shop with confidence; we stand behind every order.
                 </p>
-                <div className='d-flex gap-3 fs-5'>
-                  <i className='bi bi-facebook' aria-hidden='true' />
-                  <i className='bi bi-instagram' aria-hidden='true' />
-                  <i className='bi bi-twitter-x' aria-hidden='true' />
-                  <i className='bi bi-youtube' aria-hidden='true' />
-                </div>
+                <SocialLinks />
               </div>
 
               <div className='col-6 col-md-3'>
