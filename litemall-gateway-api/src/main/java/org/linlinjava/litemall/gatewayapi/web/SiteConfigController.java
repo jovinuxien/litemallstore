@@ -34,6 +34,13 @@ import org.springframework.web.bind.annotation.RestController;
  * ({@code active: default,db}), so there is no precedence trap today — but reusing
  * the key name would invite one, and would hand out a committed test key by
  * default. Retiring that block is flagged to platform.
+ *
+ * <p>Wave-9.1 adds the footer social-profile URLs on the same terms. Null ⇒ the
+ * SPA renders no icon for that network — a page that does not exist yet must be
+ * a hidden icon, not a dead link. Facebook has a committed default (the page is
+ * live); the rest go live via ENV ({@code LITEMALL_SOCIAL_INSTAGRAM_URL} etc.)
+ * plus a container recreate — no image rebuild, since the SPA reads these at
+ * runtime from this endpoint.
  */
 @RestController
 @RequestMapping("/auth")
@@ -43,16 +50,31 @@ public class SiteConfigController {
     private final String matomoSiteId;
     private final int matomoGoodsDimension;
     private final String stripePublishableKey;
+    private final String socialFacebookUrl;
+    private final String socialInstagramUrl;
+    private final String socialTiktokUrl;
+    private final String socialYoutubeUrl;
+    private final String socialXUrl;
 
     public SiteConfigController(
             @Value("${litemall.tracking.matomo.base-url:}") String matomoUrl,
             @Value("${litemall.tracking.matomo.site-id:}") String matomoSiteId,
             @Value("${litemall.tracking.matomo.goods-dimension:1}") int matomoGoodsDimension,
-            @Value("${litemall.stripe.publishable-key:}") String stripePublishableKey) {
+            @Value("${litemall.stripe.publishable-key:}") String stripePublishableKey,
+            @Value("${litemall.social.facebook-url:}") String socialFacebookUrl,
+            @Value("${litemall.social.instagram-url:}") String socialInstagramUrl,
+            @Value("${litemall.social.tiktok-url:}") String socialTiktokUrl,
+            @Value("${litemall.social.youtube-url:}") String socialYoutubeUrl,
+            @Value("${litemall.social.x-url:}") String socialXUrl) {
         this.matomoUrl = blankToNull(matomoUrl);
         this.matomoSiteId = blankToNull(matomoSiteId);
         this.matomoGoodsDimension = matomoGoodsDimension;
         this.stripePublishableKey = blankToNull(stripePublishableKey);
+        this.socialFacebookUrl = blankToNull(socialFacebookUrl);
+        this.socialInstagramUrl = blankToNull(socialInstagramUrl);
+        this.socialTiktokUrl = blankToNull(socialTiktokUrl);
+        this.socialYoutubeUrl = blankToNull(socialYoutubeUrl);
+        this.socialXUrl = blankToNull(socialXUrl);
     }
 
     @GetMapping("/site-config")
@@ -62,6 +84,11 @@ public class SiteConfigController {
         data.put("matomoSiteId", matomoSiteId);
         data.put("matomoGoodsDimension", matomoGoodsDimension);
         data.put("stripePublishableKey", stripePublishableKey);
+        data.put("socialFacebookUrl", socialFacebookUrl);
+        data.put("socialInstagramUrl", socialInstagramUrl);
+        data.put("socialTiktokUrl", socialTiktokUrl);
+        data.put("socialYoutubeUrl", socialYoutubeUrl);
+        data.put("socialXUrl", socialXUrl);
         return ApiResponse.ok(data);
     }
 

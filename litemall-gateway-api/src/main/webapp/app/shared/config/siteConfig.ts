@@ -21,12 +21,23 @@ export interface SiteConfig {
   matomoGoodsDimension?: number;
   /** Stripe publishable key. Null ⇒ card payment unavailable — never stub it. */
   stripePublishableKey: string | null;
+  /** Social profile URLs (Wave-9.1). Null ⇒ that network's icon is not rendered. */
+  socialFacebookUrl: string | null;
+  socialInstagramUrl: string | null;
+  socialTiktokUrl: string | null;
+  socialYoutubeUrl: string | null;
+  socialXUrl: string | null;
 }
 
 const EMPTY: SiteConfig = {
   matomoUrl: null,
   matomoSiteId: null,
   stripePublishableKey: null,
+  socialFacebookUrl: null,
+  socialInstagramUrl: null,
+  socialTiktokUrl: null,
+  socialYoutubeUrl: null,
+  socialXUrl: null,
 };
 
 export interface SiteConfigState {

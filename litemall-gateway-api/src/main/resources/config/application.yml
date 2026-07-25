@@ -162,6 +162,18 @@ litemall:
       # goods id on product-detail page views. Dimension must be created in
       # Matomo admin; index 1 is the handoff default.
       goods-dimension: 1
+  # Wave-9.1: footer social-profile URLs, served to the browser via
+  # GET /auth/site-config. Blank ⇒ the SPA renders NO icon for that network —
+  # a page that does not exist yet must be a hidden icon, never a dead link.
+  # Facebook is committed (the page is live); the others go live later via ENV
+  # (LITEMALL_SOCIAL_INSTAGRAM_URL / _TIKTOK_URL / _YOUTUBE_URL / _X_URL —
+  # dots and dashes both map to underscores) + container recreate, no rebuild.
+  social:
+    facebook-url: "https://www.facebook.com/trovemo"
+    instagram-url: ""
+    tiktok-url: ""
+    youtube-url: ""
+    x-url: ""
   jwt:
     issuer: litemall-customer
     audience: litemall-customer-api
