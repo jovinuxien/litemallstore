@@ -11,13 +11,13 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 9 (search exposure: surface dormant OCS features) active worktrees.
-# Parked this wave — re-add to launch them: "order", "gateway-admin"
-# (Wave-8 shipped), "platform", "promotion" (no assignment). Each name must
-# have a matching '### Worktree: `<short>`' block in CLAUDE.md.
+# Wave 9.1 (storefront trust surfaces) active worktrees.
+# Parked this wave — re-add to launch them: "order", "gateway-admin",
+# "goods-management" (Wave-9 shipped), "platform", "promotion" (no
+# assignment). Each name must have a matching '### Worktree: `<short>`'
+# block in CLAUDE.md.
 MODULES=(
-  "goods-management"  # backend half: highlight pass-through + typed suggest contract
-  "gateway-api"       # frontend half: dropdown, relaxed banner, sortOptions, zero-results, snippets, category deep-links
+  "gateway-api"  # social links (config-driven), help center hub, customer-service FAQ, kill fake phone
 )
 
 mkdir -p "$WT_BASE"
