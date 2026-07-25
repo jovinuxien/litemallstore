@@ -56,17 +56,26 @@
 >    (SearchService.java:80-82) and `/srv/search/index` has the "try these
 >    instead" data.
 >
-> Split: **goods-management** owns the two backend contract additions
-> (highlight pass-through, typed suggest); **gateway-api** owns ALL SPA
-> surfacing. **Cross-module contract — fixed here; implement to it, do NOT
-> read the other worktree's in-flight code:**
-> - Suggest entries become objects
->   `{text, type: "keyword"|"category"|"curated", categoryId?}`
->   (`categoryId` only when `type:"category"`). Plain-string entries remain
->   legal; the SPA must accept both shapes.
-> - Search hits gain an OPTIONAL `highlight` map `{field: snippet}` with
->   matches wrapped in `<em>` only. Absent map/field ⇒ render plain. SPA
->   sanitizes: `em`/`mark` tags only, everything else escaped.
+> **Wave 9 is MERGED to master** (goods-management `c78118743`, gateway-api
+> `d085062c7`) — deploy to the VPS is PENDING and belongs to the main
+> session. Spec + cross-module contract live in git history (`abc2d4b72`).
+>
+> **Wave 9.1 (2026-07-25) — STOREFRONT TRUST SURFACES: social links + help
+> center + customer-service FAQ.** gateway-api only. Audit facts
+> (2026-07-25): the footer social icons (`Layout.tsx:496-501` — facebook,
+> instagram, twitter-x, youtube) are DECORATIVE `<i>` glyphs with NO anchors
+> and no TikTok; `/help` (`app/modules/static/Help.tsx`) has only 5
+> hardcoded Q&As; `/service` (`CustomerService.tsx`) shows a FAKE phone
+> `+1 (800) 000-0000` next to the real `support@trovemo.com`;
+> `app/views/userViews/pages/ContactUs.tsx` is an UNROUTED scaffold (submit
+> = `alert()`, address literally "Twitter, Inc.") — dead code. The clean
+> config seam for social URLs is `/auth/site-config`
+> (`SiteConfigController.java` `@Value` bindings → `siteConfig.ts` observable
+> store — the proven Matomo/Stripe pattern). User-confirmed facts: Facebook
+> page = `https://www.facebook.com/trovemo` (live now); Instagram/TikTok
+> pages DO NOT EXIST YET — their icons must stay hidden until an env var is
+> set, activation must need NO rebuild (env change + container recreate
+> only); escalation contact = `support@trovemo.com`.
 >
 > **DEV → PROD:** worktrees merge to master as always. **Deployment to the
 > VPS is done by the MAIN session after merge** (docker build + recreate +
@@ -113,76 +122,62 @@
   work here without a new instruction.
 
 ### Worktree: `goods-management`
-- **Branch:** `fix/goods-management` — FIRST: `git merge master`. · **Scope:**
-  `litemall-goods-management/` only. NO migration expected (runtime contract
-  work); if one is truly needed it's **V45+** (**V40 stays EARMARKED** — do
-  not take it). The parked CJ-deals work stays parked.
-- **Task — Wave 9, backend half: enrich the search contract so the SPA can
-  surface what OCS already does.** Implement to the Wave-9 cross-module
-  contract above; gateway-api consumes it post-merge.
-  1. **Highlighting:** make `OcsSearchClient` request highlighting (OCS
-     supports it — `search_products.sh` already passes `highlight=true`) and
-     have `SearchService` pass a per-hit `highlight` map through per the
-     contract (`<em>`-wrapped matches only). Highlight off/failed ⇒ hits
-     unchanged, fail-soft, never a 5xx.
-  2. **Typed suggest:** upgrade `/srv/search/suggest` entries to
-     `{text, type, categoryId?}` per the contract. Classify category
-     suggestions (suggest harvests `category_names`) and resolve name → id
-     server-side (category service / `EngagementGoodsResolver` resolution
-     precedent). Merge the curated `helper` keywords into the SAME suggest
-     response as `type:"curated"` so the SPA has ONE autocomplete source;
-     keep `GET /srv/search/helper` itself working (compat).
-  3. Leave `/srv/search/index`, `POST /clearhistory`, category landing and
-     zero-result logging as-is — gateway-api consumes them unchanged.
-- **Acceptance:** via the `:9000` gateway (or `:8093` direct with a machine
-  token): a category-ish prefix returns a `type:"category"` entry whose
-  `categoryId` opens the right `/srv/search/category/{id}`; a title-word
-  query returns hits with `<em>`-wrapped snippets in `highlight`; OCS
-  down/highlight failure ⇒ plain hits, no 5xx; old-shape consumers survive
-  (plain-string suggest entries still legal per contract); reindex + search
-  regression green; module tests actually RUN (read the "Tests run:" count).
+- **No Wave-9.1 assignment.** The Wave-9 search contract (app-side
+  highlighter + typed suggest, `c78118743`) is merged to master; deploy
+  pending with the main session. Do not start work here without a new
+  instruction.
 
 ### Worktree: `gateway-api`
 - **Branch:** `fix/gateway-api` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-api/` (edge + customer SPA). NO migration.
-- **Task — Wave 9, frontend half: surface the dormant search features.**
-  Items 1-4 are pure SPA work against endpoints/fields that are live TODAY —
-  do them first, in order; 5-6 depend on goods-management's contract work
-  (coordinate via master, implement to the Wave-9 contract, tolerate the old
-  shapes until it lands).
-  1. **Search-box dropdown when focused + empty:** "Recent searches"
-     (per-user) + "Trending" chips from `GET /srv/search/index`; a clear
-     button wired to **POST** `/srv/search/clearhistory` (POST, not GET);
-     anonymous users get trending only (index returns no history + the
-     clear path is unlogin-guarded).
-  2. **"Did you mean / similar results" banner:** read `queryStrategy` /
-     `relaxed` from the search response; when relaxed, render "No exact
-     matches for 'X' — showing similar results" above the grid.
-  3. **Backend-driven sorting:** drive the sort dropdown from response
-     `sortOptions` — `searchSlice.ts:60-91` already parses it into redux
-     and nothing reads it; revive that path. Keep the hardcoded
-     `SORT_ITEMS` (Search.tsx:46) only as fallback when the field is
-     absent.
-  4. **Zero-results page:** replace the dead-end empty grid in
-     `Search.tsx` with an intentional state: "no results for 'X'" +
-     trending keywords + popular categories (data: `/srv/search/index` and
-     the existing category tree).
-  5. **Highlight snippets** in `ProductHit.tsx` from the per-hit
-     `highlight` map — sanitize per contract (allow `em`/`mark` only,
-     escape everything else); absent map ⇒ plain title, no layout shift.
-  6. **Category deep-links from autocomplete:** suggestion entries with
-     `type:"category"` navigate to the existing `/category/:id` landing
-     (breadcrumb + scoped facets) instead of `/search?q=`; `curated`
-     entries render visually distinct; plain strings keep today's
-     behaviour.
-- **Acceptance:** SPA build clean; dropdown correct for anonymous AND
-  logged-in users, history actually clears (POST) and dedupes visually;
-  a misspelled query shows the relaxed banner; sort dropdown reflects
-  server `sortOptions`; zero-results shows alternatives, not an empty
-  grid; post-merge: snippets render with NO raw-HTML injection (search for
-  `<script>alert(1)</script>` to prove it) and a category suggestion lands
-  on `/category/:id` with breadcrumb; anonymous browse/search/PDP, login,
-  cart, checkout all regression-green through `:9000`.
+  `litemall-gateway-api/` (edge + customer SPA). NO migration. No new
+  anonymous service paths — social config rides the EXISTING
+  `/auth/site-config`.
+- **Task — Wave 9.1: storefront trust surfaces (social links, help center,
+  customer-service FAQ).**
+  1. **Config-driven social links in the footer.** Extend the site-config
+     seam: `litemall.social.{facebook,instagram,tiktok,youtube,x}-url`
+     `@Value` bindings in `SiteConfigController` (env-overridable,
+     `LITEMALL_SOCIAL_*`), fields in the `siteConfig.ts` interface, then
+     turn the decorative glyphs (`Layout.tsx:496-501`) into real anchors:
+     `target="_blank" rel="noopener noreferrer"`, proper `aria-label`s.
+     RENDER ONLY icons whose URL is non-empty. Committed yml default for
+     facebook: `https://www.facebook.com/trovemo`; all others default
+     EMPTY (the pages don't exist yet — a hidden icon, not a dead link).
+     Add the `bi-tiktok` glyph so it's ready. Activation later = set env +
+     recreate, NO rebuild — prove this in dev.
+  2. **Help Center (`/help`, Help.tsx).** Grow the 5-entry FAQ into a
+     structured self-service hub: topic sections (Orders & Delivery ·
+     Payments & Pricing · Returns & Refunds · Account & Security · Coupons
+     & Deals), a client-side FAQ filter box, and a guided "still stuck?"
+     flow — self-serve deep links first (order status/timeline in
+     `/user/...` account pages, `/returns` policy, `/cookies` preferences,
+     password reset), then escalation card: `support@trovemo.com` (mailto)
+     + `/user/feedback`. EVERY answer must state only TRUE store behaviour
+     (card via Stripe + wallet; 7-day return window per `Returns.tsx`;
+     dropshipping delivery windows stated honestly; no invented policies,
+     no invented channels). Keep the existing no-i18n plain-JSX convention.
+  3. **Shared FAQ source.** Factor the Q&A content into one data module
+     (e.g. `app/modules/static/faqData.ts`) consumed by BOTH `/help`
+     (full hub) and `/service` (top questions) so they can't drift.
+  4. **Customer Service (`/service`, CustomerService.tsx).** DELETE the
+     fake phone `+1 (800) 000-0000` (never show unreal contact channels —
+     same honesty rule as payments). Keep hours + `support@trovemo.com`
+     mailto; add "Top questions" (from the shared FAQ, linking into
+     `/help` sections/anchors), the social row, and the `/user/feedback`
+     link for signed-in users.
+  5. **Cleanup:** delete the orphaned
+     `app/views/userViews/pages/ContactUs.tsx` (unrouted, `alert()`
+     submit, "Twitter, Inc." address). Verify the footer "Let us help
+     you" column links (`/help`, `/service`, `/returns`) stay coherent.
+- **Acceptance:** SPA build clean; footer facebook icon opens
+  `facebook.com/trovemo` in a new tab; instagram/tiktok/youtube/x icons
+  ABSENT from the DOM until their env var is set — then appear after
+  restart with NO rebuild (demonstrate once in dev); no fake phone
+  anywhere (repo-wide grep for `800) 000`); `/help` filter narrows
+  entries, every internal link resolves (no 404 through `:9000`);
+  `/service` shows top questions + escalation; ContactUs.tsx gone;
+  anonymous browse/search/PDP, login, cart, checkout regression-green
+  through `:9000`.
 
 ### Worktree: `gateway-admin`
 - **No Wave-9 assignment.** Wave-8 admin branding is merged and deployed
