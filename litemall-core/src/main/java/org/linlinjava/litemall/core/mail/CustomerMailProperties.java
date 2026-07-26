@@ -18,7 +18,7 @@ public class CustomerMailProperties {
     /** Master switch; false = no-op logging sender, byte-identical boot. */
     private boolean enabled = false;
     /** From address stamped on every customer mail. */
-    private String from = "noreply@litemall.dev";
+    private String from = "noreply@trovemo.com";
     /** SMTP host (dev default = MailHog). */
     private String host = "localhost";
     /** SMTP port (dev default = MailHog's 1025). */
