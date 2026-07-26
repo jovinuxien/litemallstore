@@ -49,14 +49,19 @@ public class CatalogGoodsCountService {
             }
             Map<Integer, Long> fresh = new LinkedHashMap<>();
             for (LitemallCategory root : categoryService.queryL1()) {
-                List<Integer> subtree = new ArrayList<>();
-                collectSubtreeIds(root.getId(), subtree);
-                fresh.put(root.getId(), countOnSale(subtree));
+                fresh.put(root.getId(), countOnSale(subtreeIds(root.getId())));
             }
             cache = fresh;
             cachedAt = System.currentTimeMillis();
             return fresh;
         }
+    }
+
+    /** The root id plus every descendant category id (depth-first walk of {@code queryByPid}). */
+    public List<Integer> subtreeIds(Integer rootId) {
+        List<Integer> acc = new ArrayList<>();
+        collectSubtreeIds(rootId, acc);
+        return acc;
     }
 
     private void collectSubtreeIds(Integer id, List<Integer> acc) {

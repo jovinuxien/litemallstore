@@ -10,7 +10,6 @@ import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.db.domain.LitemallGoodsRelated;
-import org.linlinjava.litemall.db.service.LitemallAdService;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.db.service.LitemallGoodsRelatedService;
@@ -77,10 +76,10 @@ public class LitemallGoodsController {
     @Autowired
     private LitemallGoodsRelatedService goodsRelatedService;
 
-    // Home-page marketing data sourced from litemall-db (mirrors the monolith's
-    // WxHomeController): banners (ads), channels (channel categories), coupons.
+    // Home-page marketing data (mirrors the monolith's WxHomeController): banners (manual admin
+    // rows + CJ-derived category banners), channels (channel categories), coupons.
     @Autowired
-    private LitemallAdService adService;
+    private org.linlinjava.litemall.goods.application.goods.HomeBannerService homeBannerService;
     @Autowired
     private LitemallCategoryService categoryService;
     @Autowired
@@ -101,9 +100,13 @@ public class LitemallGoodsController {
     @GetMapping("/index")
     public Object index(){
 
-        Callable<List> bannerListCallable = () -> adService.queryIndex();
+        Callable<List> bannerListCallable = () -> homeBannerService.homeBanners();
 
-        Callable<List> channelListCallable = () -> categoryService.queryChannel();
+        // Plain-HTTP icons (the 9 legacy yanxuan L1 seeds, all with zero on-sale goods) are
+        // mixed-content-blocked on the HTTPS storefront — same read-time rule as manual banners.
+        Callable<List> channelListCallable = () -> categoryService.queryChannel().stream()
+                .filter(c -> c.getIconUrl() == null || !c.getIconUrl().startsWith("http://"))
+                .collect(Collectors.toList());
 
         // Public home payload: top coupons available to claim (no logged-in user here).
         Callable<List> couponListCallable = () -> couponService.queryList(0, 3);
