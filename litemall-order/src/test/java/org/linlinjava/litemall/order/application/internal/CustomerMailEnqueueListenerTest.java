@@ -1,0 +1,211 @@
+package org.linlinjava.litemall.order.application.internal;
+
+import org.junit.jupiter.api.Test;
+import org.linlinjava.litemall.core.mail.CustomerMailProperties;
+import org.linlinjava.litemall.core.mail.MailTemplates;
+import org.linlinjava.litemall.db.dao.LitemallUserMapper;
+import org.linlinjava.litemall.db.dao.MailOutboxMapper;
+import org.linlinjava.litemall.db.domain.LitemallMailOutbox;
+import org.linlinjava.litemall.db.domain.LitemallUser;
+import org.linlinjava.litemall.order.domain.events.order.LitemallOrderPaidEvent;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
+import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderGoodsRepository;
+import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
+import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
+import org.mockito.ArgumentCaptor;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+/**
+ * Wave-10 coverage for the paid → order-confirmation enqueue path: rich body
+ * (items + amounts + delivery), blank-email skip, goods-load failure fallback
+ * to the minimal body, pickup double-mail and the disabled default.
+ *
+ * <p>The listener hands work to its single daemon worker, so outcomes are
+ * asserted with {@code verify(..., timeout(...))} / {@code after(...)}.
+ */
+class CustomerMailEnqueueListenerTest {
+
+    private static final int VERIFY_TIMEOUT_MS = 5000;
+
+    private final LitemallOrderRepository orderRepository = mock(LitemallOrderRepository.class);
+    private final LitemallOrderGoodsRepository orderGoodsRepository = mock(LitemallOrderGoodsRepository.class);
+    private final LitemallUserMapper userMapper = mock(LitemallUserMapper.class);
+    private final MailOutboxMapper mailOutboxMapper = mock(MailOutboxMapper.class);
+
+    private CustomerMailEnqueueListener listener(boolean enabled) {
+        CustomerMailProperties properties = new CustomerMailProperties();
+        properties.setEnabled(enabled);
+        return new CustomerMailEnqueueListener(orderRepository, orderGoodsRepository,
+                userMapper, mailOutboxMapper, properties);
+    }
+
+    private static LitemallOrderAggregate order(int orderId) {
+        LitemallOrderAggregate order = new LitemallOrderAggregate();
+        order.setOrderId(new LitemallOrderId(orderId));
+        order.setUserId(new LitemallUserId(7));
+        order.setOrderSn("20260726000042");
+        order.setDeliveryType(LitemallOrderAggregate.DELIVERY_EXPRESS);
+        order.setConsignee("Jane Buyer");
+        order.setMobile("+1 555 0100");
+        order.setAddress("1 Main St, Springfield, IL 62701, US");
+        order.setGoodsPrice(money("39.96"));
+        order.setFreightPrice(money("5.00"));
+        order.setCouponPrice(money("2.00"));
+        order.setTaxPrice(money("1.20"));
+        order.setActualPrice(money("44.16"));
+        order.setPayTime(LocalDateTime.of(2026, 7, 26, 14, 3));
+        return order;
+    }
+
+    private static LitemallOrderGoodsAggregate line(String name, String[] specs, int number, String price) {
+        LitemallOrderGoodsAggregate goods = new LitemallOrderGoodsAggregate();
+        goods.setGoodsName(name);
+        goods.setSpecifications(specs);
+        goods.setNumber((short) number);
+        goods.setPrice(money(price));
+        return goods;
+    }
+
+    private static LitemallMoney money(String amount) {
+        return new LitemallMoney(new BigDecimal(amount));
+    }
+
+    private void stubBuyerEmail(String email) {
+        LitemallUser user = new LitemallUser();
+        user.setEmail(email);
+        when(userMapper.selectByPrimaryKey(7)).thenReturn(user);
+    }
+
+    @Test
+    void paidEvent_enqueuesRichConfirmation() {
+        LitemallOrderAggregate order = order(42);
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", new String[]{"Black", "USB-C"}, 2, "9.99"),
+                line("Desk Mat", null, 1, "19.98")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getRecipient()).isEqualTo("buyer@example.com");
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_ORDER_CONFIRMATION);
+        assertThat(row.getStatus()).isEqualTo(LitemallMailOutbox.STATUS_PENDING);
+        assertThat(row.getSendAt()).isNotNull();
+        assertThat(row.getSubject()).contains("20260726000042");
+        assertThat(row.getBody())
+                .contains("Wireless Mouse (Black, USB-C) x 2 — $9.99")
+                .contains("Desk Mat x 1 — $19.98")
+                .contains("Paid at: 2026-07-26 14:03")
+                .contains("Items subtotal:")
+                .contains("$39.96")
+                .contains("Shipping:")
+                .contains("$5.00")
+                .contains("Coupon discount:")
+                .contains("-$2.00")
+                .contains("Tax:")
+                .contains("$1.20")
+                .contains("Order total:")
+                .contains("$44.16")
+                .contains("Consignee: Jane Buyer")
+                .contains("Phone: +1 555 0100")
+                .contains("Address: 1 Main St, Springfield, IL 62701, US");
+    }
+
+    @Test
+    void paidEvent_zeroCouponAndTaxLinesOmitted() {
+        LitemallOrderAggregate order = order(42);
+        order.setCouponPrice(money("0.00"));
+        order.setTaxPrice(money("0.00"));
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", null, 1, "9.99")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        assertThat(captor.getValue().getBody())
+                .doesNotContain("Coupon discount:")
+                .doesNotContain("Tax:")
+                .contains("Order total:");
+    }
+
+    @Test
+    void blankEmailUser_noRowNoError() {
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order(42)));
+        stubBuyerEmail("  ");
+
+        listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        verify(mailOutboxMapper, after(500).never()).insert(any());
+    }
+
+    @Test
+    void goodsLoadFailure_fallsBackToMinimalBody() {
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order(42)));
+        when(orderGoodsRepository.findByOId(any())).thenThrow(new RuntimeException("db down"));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_ORDER_CONFIRMATION);
+        assertThat(row.getBody())
+                .contains("Order total: $44.16")
+                .contains("20260726000042")
+                .doesNotContain("Your items");
+    }
+
+    @Test
+    void pickupOrder_confirmationShowsPickupAndCodeMailStillSent() {
+        LitemallOrderAggregate order = order(42);
+        order.setDeliveryType(LitemallOrderAggregate.DELIVERY_PICKUP);
+        order.setAddress("PICKUP: Springfield Store");
+        order.setVerifyCode("ABX123");
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", null, 1, "9.99")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS).times(2)).insert(captor.capture());
+        List<LitemallMailOutbox> rows = captor.getAllValues();
+        LitemallMailOutbox confirmation = rows.stream()
+                .filter(r -> MailTemplates.KEY_ORDER_CONFIRMATION.equals(r.getTemplateKey()))
+                .findFirst().orElseThrow();
+        LitemallMailOutbox pickup = rows.stream()
+                .filter(r -> MailTemplates.KEY_PICKUP_CODE.equals(r.getTemplateKey()))
+                .findFirst().orElseThrow();
+        assertThat(confirmation.getBody())
+                .contains("Pickup at: Springfield Store")
+                .doesNotContain("Consignee:");
+        assertThat(pickup.getBody()).contains("ABX123");
+    }
+
+    @Test
+    void disabled_writesNothingAndReadsNothing() {
+        listener(false).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        verify(mailOutboxMapper, after(500).never()).insert(any());
+        verifyZeroInteractions(orderRepository, orderGoodsRepository, userMapper);
+    }
+}
