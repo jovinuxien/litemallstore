@@ -76,6 +76,22 @@
 > pages DO NOT EXIST YET — their icons must stay hidden until an env var is
 > set, activation must need NO rebuild (env change + container recreate
 > only); escalation contact = `support@trovemo.com`.
+> **Wave 9.1 is MERGED + DEPLOYED** (2026-07-25, `3989e2053`).
+>
+> **Wave 10 (2026-07-26) — ORDER CONFIRMATION EMAIL: enrich + light up the
+> dormant Wave-6 customer-mail pipeline.** User ask: when a customer's
+> order is paid, they receive an email with all the order information.
+> Audit facts (re-verified against master 2026-07-26): the Wave-6 outbox
+> pipeline EXISTS end-to-end — V41 `litemall_mail_outbox` (plain-text body,
+> `send_at`), `CustomerMailEnqueueListener` (order) enqueues on
+> `LitemallOrderPaidEvent`, `MailOutboxSweepScheduler` sweeps every 60s
+> (max 5 attempts) — but it is DARK: `litemall.customer-mail.enabled`
+> defaults false, no yml or compose file anywhere turns it on, and the
+> existing `MailTemplates.orderConfirmation` body is orderSn + total ONLY
+> (no line items, no amounts breakdown, no delivery info). Recipient is
+> `litemall_user.email` (optional at registration; blank ⇒ silent skip).
+> Dev SMTP sink: MailHog in `docker-compose.marketing.yml` (SMTP :1025,
+> UI :8025). Details + anchors in the `order` worktree block below.
 >
 > **DEV → PROD:** worktrees merge to master as always. **Deployment to the
 > VPS is done by the MAIN session after merge** (docker build + recreate +
@@ -117,9 +133,64 @@
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
 ### Worktree: `order`
-- **No Wave-9 assignment.** The Wave-8 CJ fulfilment/payment walk is merged
-  and deployed (`b6906aac2` + retained-placement `272176272`). Do not start
-  work here without a new instruction.
+- **Branch:** `fix/order` — FIRST: `git merge master`. · **Scope:**
+  `litemall-order/` + `litemall-core` `mail` pkg (shared-core discipline:
+  `mvn install` core, restart every dependent) + compose env passthrough.
+  **NO migration expected** — V41 already has the outbox with `send_at`;
+  if one becomes truly necessary, claim V45+ after checking
+  `flyway_schema_history` (V40 stays earmarked).
+- **Task — Wave 10: rich order-confirmation email once an order is paid.**
+  Backend anchors (verified 2026-07-26): paid choke point =
+  `LitemallOrderServiceImpl.markOrderPaid` (:625) → aggregate
+  `markAsPaid()` adds `LitemallOrderPaidEvent`; its three callers in
+  `LitemallOrderOrchestratorService` (customer pay card+wallet :380,
+  Stripe webhook :482, admin offline pay :592) mean event coverage is
+  ALREADY complete — do not add new paid paths. Mail side:
+  `CustomerMailEnqueueListener` (AFTER_COMMIT + 1-thread executor;
+  `buyerEmail()` :127 skips blank), `MailTemplates.orderConfirmation`
+  (:27, core), `MailOutboxSweepScheduler`, admin resend at
+  `/srv/private/admin/mail`. Proven precedent for loading full order data
+  after commit: `OrderPaidReceiptPrintListener` (:91-140, uses
+  `orderGoodsRepository.findByOId`).
+  1. **Enrich the confirmation body** (`MailTemplates.orderConfirmation` +
+     listener): full plain-text order summary — each line item (goodsName,
+     specifications, quantity, price; via `LitemallOrderGoodsRepository`),
+     money breakdown (goodsPrice, freightPrice, couponPrice, tax,
+     actualPrice), delivery block (consignee, mobile, address string — or
+     pickup store; the separate pickup-code mail stays), orderSn, payTime.
+     Keep plain text (`SimpleMailMessage`; V41 body column is text-only)
+     and keep render-at-enqueue (row stores the final subject/body). A DB
+     read failure while building the mail must never break the payment
+     path — degrade to the current minimal body, never throw.
+  2. **Light the pipeline up.** Dev: enable via env
+     (`LITEMALL_CUSTOMERMAIL_ENABLED=true`, host/port → MailHog :1025) and
+     prove delivery in the MailHog UI (:8025). Prod: add
+     `LITEMALL_CUSTOMERMAIL_*` passthrough to the order service in
+     `docker-compose.prod.yml` with EMPTY defaults — real SMTP creds are a
+     USER-SIDE PREREQUISITE (none exist yet); enabling later must be env +
+     container recreate, NO rebuild. Honesty rule: while disabled/blank,
+     behaviour stays exactly as today (silent no-op, no fake sends, no
+     5xx). Keep the compose warning accurate: the sweeper is
+     single-instance-only (duplicate emails if order is scaled out).
+  3. **Tests** — none exist today for the listener/sweeper. Add: paid
+     event ⇒ outbox row whose body contains items/amounts/address;
+     blank-email user ⇒ no row, no error; goods-load failure ⇒ minimal
+     body still enqueued; sweeper marks sent/failed. Mind the test-run
+     gotcha: read the "Tests run:" count, root pom + `@Nested` both
+     produce green no-op builds.
+  4. **Out of scope:** gateway-api's password-reset mail (separate
+     worktree; its `user`/`pass` key names diverge from core's
+     `username`/`password` — leave it, but don't make it worse). No new
+     anonymous service paths. Do not touch the production VPS.
+- **Acceptance:** dev e2e through `:9000` — register a user WITH an email,
+  place an order, pay with a Stripe test card ⇒ confirmation mail lands in
+  MailHog showing line items + amounts + delivery + orderSn; wallet-paid
+  order covered too (e2e or test); user with no email ⇒ order pays fine,
+  no outbox row, no error logged as failure; `litemall.customer-mail.enabled`
+  unset ⇒ behaviour identical to master; outbox row `template_key
+  order-confirmation` stores the final body; module tests green with real
+  "Tests run" counts; no migration (or V45+ justified in the plan);
+  checkout regression-green through `:9000`.
 
 ### Worktree: `goods-management`
 - **No Wave-9.1 assignment.** The Wave-9 search contract (app-side
