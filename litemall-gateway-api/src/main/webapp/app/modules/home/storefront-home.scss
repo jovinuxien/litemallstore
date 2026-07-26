@@ -350,26 +350,107 @@
       height: 100%;
     }
 
+    // Hero images are 1:1 product-catalog crops, not designed banner art —
+    // a fixed cover-cropped height makes them read as banners.
     img {
       width: 100%;
-      height: 340px;
+      height: 220px;
       object-fit: cover;
-    }
+      display: block;
 
-    .carousel-caption {
-      background: rgba(0, 0, 0, 0.4);
-      border-radius: 8px;
-      padding: 8px 14px;
-      left: 8%;
-      right: auto;
-      bottom: 18px;
-      text-align: left;
-
-      h3 {
-        font-size: 18px;
-        margin: 0;
+      @media (min-width: 576px) {
+        height: 340px;
       }
     }
+  }
+
+  // Slide wrapper: whole slide is the click target (Link, anchor, or plain div).
+  .lm-banner {
+    position: relative;
+    display: block;
+    height: 100%;
+    color: #fff;
+    text-decoration: none;
+
+    &:hover {
+      color: #fff;
+    }
+  }
+
+  // Bottom scrim so the caption stays legible on arbitrary product imagery.
+  // Extra bottom padding keeps the CTA clear of the carousel indicator dots.
+  .lm-banner__caption {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 48px 18px 30px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.65));
+    text-align: left;
+  }
+
+  .lm-banner__title {
+    font-size: 20px;
+    font-weight: 800;
+    margin: 0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  }
+
+  .lm-banner__subtitle {
+    font-size: 13px;
+    opacity: 0.9;
+    margin: 2px 0 0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  }
+
+  .lm-banner__cta {
+    display: inline-block;
+    margin-top: 10px;
+    background: #fff;
+    color: var(--lm-primary-dark);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 20px;
+  }
+
+  // Graceful stand-in when no banners are served — keeps the hero height
+  // instead of a blank void.
+  .lm-hero__banner-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 4px;
+    height: 220px;
+    padding: 0 24px;
+    background: linear-gradient(135deg, var(--lm-primary), var(--lm-primary-dark));
+    color: #fff;
+
+    @media (min-width: 576px) {
+      height: 340px;
+    }
+
+    h3 {
+      font-size: 20px;
+      font-weight: 800;
+      margin: 0;
+    }
+
+    p {
+      font-size: 13px;
+      opacity: 0.9;
+      margin: 0 0 10px;
+    }
+  }
+
+  .lm-hero__banner-empty-btn {
+    display: inline-block;
+    background: #fff;
+    color: var(--lm-primary-dark);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    text-decoration: none;
   }
 
   .lm-hero__aside {

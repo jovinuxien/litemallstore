@@ -6,6 +6,7 @@ import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { contentApi, IPageView } from 'app/shared/api';
+import { IBanner } from 'app/shared/model/home.models';
 import { IGood } from 'app/shared/model/product/product.model';
 import PageRenderer from '../page/PageRenderer';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
@@ -37,6 +38,41 @@ const useGridColumns = (): number => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
   return cols;
+};
+
+// One hero-carousel slide. Banners follow the Wave-11 contract: `link` values
+// starting with "/" are internal SPA routes (client-side navigation), absolute
+// URLs keep a plain anchor, and a missing link means the slide isn't clickable.
+// The hero images are square catalog crops, so the caption sits on a scrim.
+const BannerSlide: React.FC<{ banner: IBanner; eager?: boolean }> = ({ banner, eager }) => {
+  const body = (
+    <>
+      <img src={banner.url} alt={banner.name ?? ''} loading={eager ? 'eager' : 'lazy'} />
+      {banner.name && (
+        <div className="lm-banner__caption">
+          <h3 className="lm-banner__title">{banner.name}</h3>
+          {banner.content && <p className="lm-banner__subtitle">{banner.content}</p>}
+          <span className="lm-banner__cta">Shop {banner.name} ›</span>
+        </div>
+      )}
+    </>
+  );
+  const link = banner.link ?? '';
+  if (link.startsWith('/')) {
+    return (
+      <Link to={link} className="lm-banner">
+        {body}
+      </Link>
+    );
+  }
+  if (/^https?:\/\//i.test(link)) {
+    return (
+      <a href={link} className="lm-banner">
+        {body}
+      </a>
+    );
+  }
+  return <div className="lm-banner">{body}</div>;
 };
 
 // Small section wrapper with a title + optional "see more" link.
@@ -186,21 +222,20 @@ const HomeView: React.FC = () => {
           <div className="lm-hero__banner">
             {banners.length > 0 ? (
               <Carousel fade>
-                {banners.map(banner => (
-                  <Carousel.Item key={banner.id}>
-                    <a href={banner.link || '#'}>
-                      <img src={banner.url} alt={banner.name} />
-                    </a>
-                    {banner.name && (
-                      <Carousel.Caption>
-                        <h3>{banner.name}</h3>
-                      </Carousel.Caption>
-                    )}
+                {banners.map((banner, i) => (
+                  <Carousel.Item key={banner.id ?? `banner-${i}`}>
+                    <BannerSlide banner={banner} eager={i === 0} />
                   </Carousel.Item>
                 ))}
               </Carousel>
             ) : (
-              <div style={{ height: 340 }} />
+              <div className="lm-hero__banner-empty">
+                <h3>Welcome to Trovemo</h3>
+                <p>Fresh finds across every category, shipped to your door.</p>
+                <Link to="/search" className="lm-hero__banner-empty-btn">
+                  Browse all products ›
+                </Link>
+              </div>
             )}
           </div>
 
