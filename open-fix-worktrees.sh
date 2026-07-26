@@ -11,13 +11,15 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 10 (order confirmation email) active worktrees.
-# Parked this wave — re-add to launch them: "gateway-api" (Wave-9.1
-# shipped), "gateway-admin", "goods-management" (Wave-9 shipped),
-# "platform", "promotion" (no assignment). Each name must have a matching
+# Wave 11 (CJ-sourced homepage banners) active worktrees. Wave 10 runs in
+# parallel in the already-open "order" terminal — do NOT relaunch it here
+# (FRESH=1 would bury its live session's assignment).
+# Parked: "order" (Wave-10 in flight), "gateway-admin", "platform",
+# "promotion" (no assignment). Each name must have a matching
 # '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "order"  # enrich order-confirmation mail (items/amounts/address) + enable the Wave-6 outbox pipeline, MailHog-verified
+  "goods-management"  # derive homepage banners from CJ imagery for top on-sale L1 categories
+  "gateway-api"       # render/route the category banner carousel per the Wave-11 contract
 )
 
 mkdir -p "$WT_BASE"
