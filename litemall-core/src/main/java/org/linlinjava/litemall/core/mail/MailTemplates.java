@@ -1,10 +1,13 @@
 package org.linlinjava.litemall.core.mail;
 
+import java.util.List;
+
 /**
- * The five shared customer-mail templates (Wave 6) — English, plain-text v1.
- * Pure rendering, no Spring: order's enqueue listeners render at enqueue time
- * (the outbox row stores the finished subject/body) and gateway-api reuses
- * {@link #passwordReset} from its edge-local reset-mail sender.
+ * The five shared customer-mail templates (Wave 6) — English, plain-text v1;
+ * Trovemo-branded copy since Wave 10. Pure rendering, no Spring: order's
+ * enqueue listeners render at enqueue time (the outbox row stores the finished
+ * subject/body) and gateway-api mirrors {@link #passwordReset} in its
+ * edge-local reset-mail sender.
  *
  * <p>Template keys are the cross-service contract (outbox rows, admin panel
  * filters, the gateway-admin handoff) — do not rename.
@@ -21,21 +24,87 @@ public final class MailTemplates {
     public record RenderedMail(String templateKey, String subject, String body) {
     }
 
+    /** One purchased line in the confirmation mail; price is the already-formatted unit price. */
+    public record OrderLine(String name, String specifications, int quantity, String price) {
+    }
+
+    /**
+     * Everything the rich confirmation body needs, pre-formatted by the caller
+     * (money strings include their currency symbol; blank/null amount = omit
+     * that line; {@code deliveryBlock} is the finished multi-line address or
+     * pickup text).
+     */
+    public record OrderConfirmationDetails(String orderSn,
+                                           String payTime,
+                                           List<OrderLine> lines,
+                                           String goodsPrice,
+                                           String freightPrice,
+                                           String couponPrice,
+                                           String taxPrice,
+                                           String actualPrice,
+                                           String deliveryBlock) {
+    }
+
     private MailTemplates() {
     }
 
+    /**
+     * Minimal confirmation (orderSn + total only) — the FALLBACK body used when
+     * the full order data cannot be loaded at enqueue time. The rich variant is
+     * {@link #orderConfirmation(OrderConfirmationDetails)}.
+     */
     public static RenderedMail orderConfirmation(String orderSn, String totalAmount) {
-        String subject = "Your litemall order " + nz(orderSn) + " is confirmed";
+        String subject = confirmationSubject(orderSn);
         String body = "Thank you for your purchase!\n\n"
                 + "We have received your payment for order " + nz(orderSn) + ".\n"
                 + "Order total: " + nz(totalAmount) + "\n\n"
-                + "We will let you know as soon as your order ships.\n\n"
+                + SHIP_SOON + "\n\n"
                 + FOOTER;
         return new RenderedMail(KEY_ORDER_CONFIRMATION, subject, body);
     }
 
+    /** Full confirmation: line items, amounts breakdown and delivery details. (Wave 10) */
+    public static RenderedMail orderConfirmation(OrderConfirmationDetails details) {
+        StringBuilder body = new StringBuilder();
+        body.append("Thank you for your purchase!\n\n")
+                .append("We have received your payment for order ").append(nz(details.orderSn())).append(".\n");
+        if (notBlank(details.payTime())) {
+            body.append("Paid at: ").append(details.payTime()).append('\n');
+        }
+
+        List<OrderLine> lines = details.lines();
+        if (lines != null && !lines.isEmpty()) {
+            body.append('\n').append(section("Your items"));
+            for (OrderLine line : lines) {
+                body.append("- ").append(nz(line.name()));
+                if (notBlank(line.specifications())) {
+                    body.append(" (").append(line.specifications()).append(')');
+                }
+                body.append(" x ").append(line.quantity());
+                if (notBlank(line.price())) {
+                    body.append(" — ").append(line.price());
+                }
+                body.append('\n');
+            }
+        }
+
+        body.append('\n').append(section("Amounts"));
+        amountLine(body, "Items subtotal:", details.goodsPrice());
+        amountLine(body, "Shipping:", details.freightPrice());
+        amountLine(body, "Coupon discount:", details.couponPrice());
+        amountLine(body, "Tax:", details.taxPrice());
+        amountLine(body, "Order total:", details.actualPrice());
+
+        if (notBlank(details.deliveryBlock())) {
+            body.append('\n').append(section("Delivery")).append(details.deliveryBlock()).append('\n');
+        }
+
+        body.append('\n').append(SHIP_SOON).append("\n\n").append(FOOTER);
+        return new RenderedMail(KEY_ORDER_CONFIRMATION, confirmationSubject(details.orderSn()), body.toString());
+    }
+
     public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn) {
-        String subject = "Your litemall order " + nz(orderSn) + " has shipped";
+        String subject = "Your Trovemo order " + nz(orderSn) + " has shipped";
         String body = "Good news — your order " + nz(orderSn) + " is on its way!\n\n"
                 + "Carrier: " + nz(shipChannel) + "\n"
                 + "Tracking number: " + nz(shipSn) + "\n\n"
@@ -64,8 +133,8 @@ public final class MailTemplates {
     }
 
     public static RenderedMail passwordReset(String resetLink, long expiryMinutes) {
-        String subject = "Reset your litemall password";
-        String body = "We received a request to reset the password for your litemall account.\n\n"
+        String subject = "Reset your Trovemo password";
+        String body = "We received a request to reset the password for your Trovemo account.\n\n"
                 + "To choose a new password, open this link:\n"
                 + nz(resetLink) + "\n\n"
                 + "The link expires in " + expiryMinutes + " minutes and can be used once.\n"
@@ -74,7 +143,27 @@ public final class MailTemplates {
         return new RenderedMail(KEY_PASSWORD_RESET, subject, body);
     }
 
-    private static final String FOOTER = "— The litemall team";
+    private static final String FOOTER = "— The Trovemo team";
+    private static final String SHIP_SOON = "We will let you know as soon as your order ships.";
+
+    private static String confirmationSubject(String orderSn) {
+        return "Your Trovemo order " + nz(orderSn) + " is confirmed";
+    }
+
+    private static String section(String title) {
+        return title + "\n" + "-".repeat(title.length()) + "\n";
+    }
+
+    /** One right-padded label + amount line; a blank amount omits the line entirely. */
+    private static void amountLine(StringBuilder body, String label, String amount) {
+        if (notBlank(amount)) {
+            body.append(String.format("%-16s %s", label, amount)).append('\n');
+        }
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.isBlank();
+    }
 
     private static String nz(String value) {
         return value == null ? "" : value;
