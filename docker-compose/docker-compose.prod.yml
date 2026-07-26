@@ -498,6 +498,20 @@ services:
       # add-to-cart/checkout 502s (goods price re-resolve) and coupons fail.
       GOODS_SERVICE_URL: http://goods-management:8082
       PROMOTION_SERVICE_URL: http://promotion-service:8088
+      # Customer transactional mail (Wave 6 outbox, Wave 10 rich confirmation).
+      # DARK BY DEFAULT: enabled=false keeps the no-op logging sender bound and
+      # writes no outbox rows — byte-identical behaviour. Real SMTP creds are a
+      # USER-SIDE PREREQUISITE (none exist yet); to go live, set the env vars in
+      # .env and `docker compose up -d order` (container recreate, NO rebuild).
+      # HOST/PORT keep harmless structural defaults (an empty PORT would break
+      # int binding at boot). WARNING: the 60s outbox sweeper claims no rows —
+      # scaling the order service beyond one instance duplicates customer emails.
+      LITEMALL_CUSTOMERMAIL_ENABLED: ${LITEMALL_CUSTOMERMAIL_ENABLED:-false}
+      LITEMALL_CUSTOMERMAIL_HOST: ${LITEMALL_CUSTOMERMAIL_HOST:-localhost}
+      LITEMALL_CUSTOMERMAIL_PORT: ${LITEMALL_CUSTOMERMAIL_PORT:-1025}
+      LITEMALL_CUSTOMERMAIL_FROM: ${LITEMALL_CUSTOMERMAIL_FROM:-noreply@trovemo.com}
+      LITEMALL_CUSTOMERMAIL_USERNAME: ${LITEMALL_CUSTOMERMAIL_USERNAME:-}
+      LITEMALL_CUSTOMERMAIL_PASSWORD: ${LITEMALL_CUSTOMERMAIL_PASSWORD:-}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 
