@@ -56,9 +56,9 @@
 >    (SearchService.java:80-82) and `/srv/search/index` has the "try these
 >    instead" data.
 >
-> **Wave 9 is MERGED to master** (goods-management `c78118743`, gateway-api
-> `d085062c7`) — deploy to the VPS is PENDING and belongs to the main
-> session. Spec + cross-module contract live in git history (`abc2d4b72`).
+> **Wave 9 is MERGED + DEPLOYED to trovemo.com** (2026-07-25;
+> goods-management `c78118743`, gateway-api `d085062c7`). Spec +
+> cross-module contract live in git history (`abc2d4b72`).
 >
 > **Wave 9.1 (2026-07-25) — STOREFRONT TRUST SURFACES: social links + help
 > center + customer-service FAQ.** gateway-api only. Audit facts
@@ -92,8 +92,36 @@
 > `litemall_user.email` (optional at registration; blank ⇒ silent skip).
 > Dev SMTP sink: MailHog in `docker-compose.marketing.yml` (SMTP :1025,
 > UI :8025). Details + anchors in the `order` worktree block below.
+> Wave 10 runs in the `order` worktree IN PARALLEL with Wave 11 below.
 >
-> **DEV → PROD:** worktrees merge to master as always. **Deployment to the
+> **Wave 11 (2026-07-26) — CJ-SOURCED HOMEPAGE BANNERS matched to the live
+> category mix.** User ask: stop serving local/seed banners; fetch banner
+> imagery from CJ dropshipping matching the store's current product
+> categories. Audit facts (2026-07-26, dev DB + master): today's banners
+> are 3 `litemall_ad` position=1 rows pointing at plain-HTTP
+> `yanxuan.nosdn.127.net` (upstream seed CDN — third-party, mixed-content
+> broken on the HTTPS storefront) with `link=''` (dead clicks). Serving
+> path: `GET /srv/goods/index` `banner` key ← goods-management
+> `LitemallGoodsController.index()` (:101-177) → `LitemallAdService
+> .queryIndex()` (litemall-db :19-23 — position=1 + enabled + not-deleted,
+> NO ordering/time-window/limit). SPA: `Home.tsx:186-205` react-bootstrap
+> `<Carousel>` with `<a href={banner.link || '#'}>` full-page nav; empty
+> list ⇒ blank 340px spacer. **CJ's APIs carry NO category/banner art**
+> (`CategoryImageBackfillService.java:15-18` — which already derives
+> category images from goods pics; the proven pattern). Usable imagery:
+> ~9.6k on-sale CJ hero images on `cf.`/`oss-cf.cjdropshipping.com`, both
+> covered by the `/_cdn` edge rewrite (`CjImageUrlRewriteFilter`, Caddyfile
+> `/_cdn/cf/*` + `/_cdn/oss/*`); yanxuan + aliyuncs hosts are NOT covered.
+> 14 CJ L1 roots have on-sale goods (Women's Clothing 1300 … Computer &
+> Office 353); the 9 legacy yanxuan L1s have 0. `/category/:id` landing
+> exists (Wave 9) — the natural banner click target.
+> **Cross-module CONTRACT (both worktrees code to THIS, not to each
+> other's branches):** `banner[]` in `/srv/goods/index` keeps the existing
+> `LitemallAd` field shape. Semantics: `name` = category display name;
+> `url` = CJ-hosted image (edge rewrite turns it into `/_cdn/...`);
+> `link` = SPA-RELATIVE path `/category/<L1 id>`; `content` = optional
+> short subtitle (e.g. "1,300 products"). Links starting with `/` are
+> internal SPA routes. Manual admin-created banners keep working. worktrees merge to master as always. **Deployment to the
 > VPS is done by the MAIN session after merge** (docker build + recreate +
 > reindex where needed) — do NOT touch the production VPS or its DB from a
 > worktree. Verify in dev through the gateways.
@@ -193,62 +221,74 @@
   checkout regression-green through `:9000`.
 
 ### Worktree: `goods-management`
-- **No Wave-9.1 assignment.** The Wave-9 search contract (app-side
-  highlighter + typed suggest, `c78118743`) is merged to master; deploy
-  pending with the main session. Do not start work here without a new
-  instruction.
+- **Branch:** `fix/goods-management` — FIRST: `git merge master`. ·
+  **Scope:** `litemall-goods-management/` (+ `litemall-db` ONLY if a
+  schema change is truly justified — then claim **V45+** after checking
+  `flyway_schema_history`; V40 stays earmarked; note Wave-10 `order` runs
+  in parallel and also expects no migration — first to boot claims V45).
+- **Task — Wave 11 (backend): derive homepage banners from CJ imagery,
+  matched to the live category mix.** Serve the CONTRACT in the Wave-11
+  preamble note.
+  1. **Derivation:** for the top-N (config, default ~5) CJ L1 roots by
+     on-sale goods count (`CatalogGoodsCountService.countsByRoot()`
+     already computes this), pick a hero image from that subtree's
+     on-sale CJ goods (newest or best-selling; URL MUST be on
+     `cf.`/`oss-cf.cjdropshipping.com` so the `/_cdn` rewrite covers it —
+     skip aliyuncs/yanxuan-hosted pics). Build banner entries: `name` =
+     L1 name, `url` = hero pic, `link` = `/category/<L1 id>`, `content` =
+     short subtitle. NO live CJ API calls on the request path — derive
+     from local `litemall_goods` data like `CategoryImageBackfillService`
+     does, with a cache/refresh so `/srv/goods/index` latency stays flat.
+  2. **Serving:** `/srv/goods/index` `banner` key returns the derived
+     banners; manual admin rows (`litemall_ad` position=1, enabled)
+     still appear and outrank generated ones. The 3 yanxuan seed rows
+     must STOP being served (they are mixed-content broken) — data-level
+     deactivation or read-time filtering of non-HTTPS/foreign hosts;
+     your plan decides, but the admin ad panel must keep working for
+     rows admins create.
+  3. **Honesty:** only banner categories with a meaningful number of
+     on-sale goods; every `link` must land on a non-empty category page.
+  4. **Tests** for derivation (top-N selection, host filter, admin-row
+     precedence, empty-catalog fallback). Mind the surefire/@Nested
+     "Tests run:" gotcha.
+- **Acceptance:** through `:9000`, `/srv/goods/index` returns ≥3 banners,
+  every `url` rewritten to `/_cdn/...` at the edge, every `link` a
+  `/category/<id>` with on-sale goods, zero `yanxuan.nosdn.127.net` in
+  the payload; admin ad CRUD still functional (create a manual row ⇒ it
+  appears first); index latency comparable to master (cached derivation);
+  module tests green with real "Tests run" counts; no migration (or V45+
+  justified in the plan and coordinated).
 
 ### Worktree: `gateway-api`
 - **Branch:** `fix/gateway-api` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-api/` (edge + customer SPA). NO migration. No new
-  anonymous service paths — social config rides the EXISTING
-  `/auth/site-config`.
+  `litemall-gateway-api/` customer SPA only. NO migration, no new
+  anonymous service paths, no banner logic at the edge — the banner list
+  arrives ready-made per the Wave-11 CONTRACT (code to the contract, not
+  to the goods-management branch).
+- **Task — Wave 11 (SPA): render + route the CJ category banners.**
+  1. **Routing:** in `Home.tsx` (:186-205) treat `banner.link` values
+     starting with `/` as internal SPA routes (react-router navigate, no
+     full page reload); keep plain `<a>` behaviour for absolute external
+     URLs; no more dead `href="#"`.
+  2. **Presentation:** the hero images are 1:1 product catalog crops, not
+     designed banner art — make them read as banners: fixed hero height
+     with `object-fit: cover` (or equivalent), a gradient/scrim overlay
+     so the caption is legible, caption = `name` + `content` subtitle +
+     a "Shop <category>" CTA. Keep the react-bootstrap `<Carousel>` and
+     the existing `storefront-home.scss` conventions; keep a graceful
+     empty-state (no broken 340px void if the list is ever empty).
+  3. **Regression:** home, category landing (banner click lands on
+     `/category/<id>` with facets), anonymous browse/search/PDP, login,
+     cart, checkout — green through `:9000`.
+- **Acceptance:** SPA build clean; banners render on `/` through `:9000`
+  with images served via `/_cdn` (no mixed-content or console errors);
+  clicking a banner performs a client-side route to its category landing;
+  captions legible on arbitrary product imagery; empty banner list
+  degrades cleanly; regression list above green.
+
+### Worktree: `gateway-api` — history (Wave 9.1, SHIPPED)
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
-  customer-service FAQ).**
-  1. **Config-driven social links in the footer.** Extend the site-config
-     seam: `litemall.social.{facebook,instagram,tiktok,youtube,x}-url`
-     `@Value` bindings in `SiteConfigController` (env-overridable,
-     `LITEMALL_SOCIAL_*`), fields in the `siteConfig.ts` interface, then
-     turn the decorative glyphs (`Layout.tsx:496-501`) into real anchors:
-     `target="_blank" rel="noopener noreferrer"`, proper `aria-label`s.
-     RENDER ONLY icons whose URL is non-empty. Committed yml default for
-     facebook: `https://www.facebook.com/trovemo`; all others default
-     EMPTY (the pages don't exist yet — a hidden icon, not a dead link).
-     Add the `bi-tiktok` glyph so it's ready. Activation later = set env +
-     recreate, NO rebuild — prove this in dev.
-  2. **Help Center (`/help`, Help.tsx).** Grow the 5-entry FAQ into a
-     structured self-service hub: topic sections (Orders & Delivery ·
-     Payments & Pricing · Returns & Refunds · Account & Security · Coupons
-     & Deals), a client-side FAQ filter box, and a guided "still stuck?"
-     flow — self-serve deep links first (order status/timeline in
-     `/user/...` account pages, `/returns` policy, `/cookies` preferences,
-     password reset), then escalation card: `support@trovemo.com` (mailto)
-     + `/user/feedback`. EVERY answer must state only TRUE store behaviour
-     (card via Stripe + wallet; 7-day return window per `Returns.tsx`;
-     dropshipping delivery windows stated honestly; no invented policies,
-     no invented channels). Keep the existing no-i18n plain-JSX convention.
-  3. **Shared FAQ source.** Factor the Q&A content into one data module
-     (e.g. `app/modules/static/faqData.ts`) consumed by BOTH `/help`
-     (full hub) and `/service` (top questions) so they can't drift.
-  4. **Customer Service (`/service`, CustomerService.tsx).** DELETE the
-     fake phone `+1 (800) 000-0000` (never show unreal contact channels —
-     same honesty rule as payments). Keep hours + `support@trovemo.com`
-     mailto; add "Top questions" (from the shared FAQ, linking into
-     `/help` sections/anchors), the social row, and the `/user/feedback`
-     link for signed-in users.
-  5. **Cleanup:** delete the orphaned
-     `app/views/userViews/pages/ContactUs.tsx` (unrouted, `alert()`
-     submit, "Twitter, Inc." address). Verify the footer "Let us help
-     you" column links (`/help`, `/service`, `/returns`) stay coherent.
-- **Acceptance:** SPA build clean; footer facebook icon opens
-  `facebook.com/trovemo` in a new tab; instagram/tiktok/youtube/x icons
-  ABSENT from the DOM until their env var is set — then appear after
-  restart with NO rebuild (demonstrate once in dev); no fake phone
-  anywhere (repo-wide grep for `800) 000`); `/help` filter narrows
-  entries, every internal link resolves (no 404 through `:9000`);
-  `/service` shows top questions + escalation; ContactUs.tsx gone;
-  anonymous browse/search/PDP, login, cart, checkout regression-green
-  through `:9000`.
+  customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
 ### Worktree: `gateway-admin`
 - **No Wave-9 assignment.** Wave-8 admin branding is merged and deployed
