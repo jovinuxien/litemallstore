@@ -3,6 +3,8 @@ package org.linlinjava.litemall.goods.application.search;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
+import org.linlinjava.litemall.goods.application.inventoryflow.InventoryFlowGateway;
+import org.springframework.beans.factory.ObjectProvider;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductComment;
@@ -54,19 +56,25 @@ public class CjDetailEnrichmentService {
     private final SearchReindexService reindexService;
     private final CJDropshippingConfig config;
     private final ObjectMapper objectMapper;
+    private final CjPricing pricing;
+    private final ObjectProvider<InventoryFlowGateway> flowGateway;
 
     public CjDetailEnrichmentService(CJProductService cjProductService,
                                      LitemallCjProductService cjProductStore,
                                      CjProductPromotionService promotionService,
                                      SearchReindexService reindexService,
                                      CJDropshippingConfig config,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     CjPricing pricing,
+                                     ObjectProvider<InventoryFlowGateway> flowGateway) {
         this.cjProductService = cjProductService;
         this.cjProductStore = cjProductStore;
         this.promotionService = promotionService;
         this.reindexService = reindexService;
         this.config = config;
         this.objectMapper = objectMapper;
+        this.pricing = pricing;
+        this.flowGateway = flowGateway;
     }
 
     /** Outcome of one enrichment run. */
@@ -140,16 +148,25 @@ public class CjDetailEnrichmentService {
         }
         List<CJProductVariantData> variants = d.getVariants() != null ? d.getVariants() : List.of();
 
-        // Real per-SKU variants: variant_price (retail of the variant's wholesale) + real stock.
+        // Wave 12: refresh the product-level raw cost from detail (exact, not the list range's
+        // lower bound); null preserves the sync-landed value (enrich statement COALESCEs, and the
+        // fallback variant below reads the freshest value off the row).
+        if (pricing.cost(d.getSellPrice()) != null) {
+            row.setSellPrice(pricing.cost(d.getSellPrice()));
+        }
+
+        // Real per-SKU variants: variant_sell_price (raw USD cost, Wave 12) + variant_price
+        // (its marked-up retail) + real stock.
         List<Map<String, Object>> variantMaps = new ArrayList<>();
         for (CJProductVariantData v : variants) {
             Map<String, Object> vm = new LinkedHashMap<>();
             vm.put("vid", v.getVid());
             vm.put("variant_sku", v.getVariantSku());
             vm.put("options", variantOptions(v));
-            BigDecimal vp = retail(v.getVariantSellPrice());
-            if (vp != null) {
-                vm.put("variant_price", vp);
+            BigDecimal vCost = pricing.cost(v.getVariantSellPrice());
+            if (vCost != null) {
+                vm.put("variant_sell_price", vCost);
+                vm.put("variant_price", pricing.retail(vCost));
             }
             vm.put("stock", stockOf(v.getVid()));
             variantMaps.add(vm);
@@ -161,6 +178,9 @@ public class CjDetailEnrichmentService {
             vm.put("stock", config.getDefaultStock());
             if (row.getPrice() != null) {
                 vm.put("variant_price", row.getPrice());
+            }
+            if (row.getSellPrice() != null) {
+                vm.put("variant_sell_price", row.getSellPrice());
             }
             variantMaps.add(vm);
         }
@@ -196,6 +216,18 @@ public class CjDetailEnrichmentService {
         // transaction, so the subsequent reindex reads the committed native goods.
         Integer goodsId = promotionService.promote(row);
         reindexService.reindexGoods(goodsId);
+        // Wave 12: every enrichment path (nightly batch, admin targeted, on-demand) funnels
+        // through here — hand the re-promoted pid to the inventory flow (metric refresh with the
+        // now-real per-variant costs/stock). Async, and never allowed to break enrichment.
+        try {
+            InventoryFlowGateway gateway = flowGateway.getIfAvailable();
+            if (gateway != null) {
+                gateway.onEnrichmentBatch(List.of(pid));
+            }
+        } catch (RuntimeException flowEx) {
+            LOGGER.warn("inventory flow hand-off failed for pid {} (enrichment continues): {}",
+                    pid, flowEx.getMessage());
+        }
         return goodsId;
     }
 
@@ -219,18 +251,6 @@ public class CjDetailEnrichmentService {
             }
         }
         return any ? sum : config.getDefaultStock();
-    }
-
-    /** Retail = wholesale USD × usdToCny × margin in the local CNY basis; null on no cost. */
-    private BigDecimal retail(Double sellPrice) {
-        if (sellPrice == null) {
-            return null;
-        }
-        CJDropshippingConfig.Pricing pricing = config.getPricing();
-        return BigDecimal.valueOf(sellPrice)
-                .multiply(pricing.getUsdToCny())
-                .multiply(pricing.getMargin())
-                .setScale(2, RoundingMode.HALF_UP);
     }
 
     /**

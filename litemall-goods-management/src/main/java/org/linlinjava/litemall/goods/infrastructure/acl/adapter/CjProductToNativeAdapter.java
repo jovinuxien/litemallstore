@@ -28,7 +28,10 @@ import java.util.Objects;
  * <p>It reads only the row's already-enriched JSON columns ({@code variants_json},
  * {@code attributes_json}, {@code images_json}, {@code category_*}) — no CJ API call —
  * so it never spends the rate-limited budget. Pricing is taken verbatim from the row,
- * which the enrichment step already marked up ({@code wholesale_usd × usdToCny × margin}).
+ * which the sync/enrichment steps already marked up ({@code wholesale_usd × margin}); the raw
+ * wholesale cost rides along (Wave 12): {@code row.sell_price} → {@code goods.cost},
+ * {@code variant_sell_price} → {@code goods_product.cost}. A null cost (row not re-synced
+ * since V45) is preserved as "not captured" by the mappers' COALESCE semantics.
  *
  * <p>Identity is preserved end-to-end: CJ {@code pid} → {@link LitemallGoods#getCjPid()},
  * each variant {@code vid} → {@link LitemallGoodsProduct#getCjVid()}.
@@ -80,6 +83,7 @@ public class CjProductToNativeAdapter {
         goods.setRetailPrice(retail);
         // CJ exposes no strike-through price, so counter == retail (no implied discount).
         goods.setCounterPrice(retail);
+        goods.setCost(row.getSellPrice());
         goods.setIsOnSale(Boolean.TRUE);
         goods.setIsNew(Boolean.FALSE);
         goods.setIsHot(Boolean.FALSE);
@@ -109,7 +113,7 @@ public class CjProductToNativeAdapter {
         // ---- variants -> SKUs (litemall_goods_product) + spec axes (litemall_goods_specification) ----
         List<CjVariant> variants = parseVariants(row.getVariantsJson());
         buildSpecifications(aggregate, variants, now);
-        buildProducts(aggregate, variants, retail, row.getImageUrl(), now);
+        buildProducts(aggregate, variants, retail, row.getSellPrice(), row.getImageUrl(), now);
 
         // ---- category + brand descriptors (resolved to ids by the promotion service) ----
         aggregate.setCategory(new NativeGoodsAggregate.CategoryRef(
@@ -155,11 +159,13 @@ public class CjProductToNativeAdapter {
     }
 
     private void buildProducts(NativeGoodsAggregate aggregate, List<CjVariant> variants,
-                               BigDecimal fallbackPrice, String imageUrl, LocalDateTime now) {
+                               BigDecimal fallbackPrice, BigDecimal fallbackCost,
+                               String imageUrl, LocalDateTime now) {
         for (CjVariant v : variants) {
             LitemallGoodsProduct product = new LitemallGoodsProduct();
             product.setCjVid(v.vid());
             product.setPrice(v.variantPrice() != null ? v.variantPrice() : fallbackPrice);
+            product.setCost(v.variantSellPrice() != null ? v.variantSellPrice() : fallbackCost);
             product.setNumber(v.stock() != null ? v.stock() : 0);
             product.setUrl(trim(imageUrl, 125));
             product.setSpecifications(specTuple(v));
@@ -171,6 +177,7 @@ public class CjProductToNativeAdapter {
             LitemallGoodsProduct product = new LitemallGoodsProduct();
             product.setCjVid(null);
             product.setPrice(fallbackPrice);
+            product.setCost(fallbackCost);
             product.setNumber(0);
             product.setUrl(trim(imageUrl, 125));
             product.setSpecifications(new String[]{DEFAULT_SPEC_VALUE});
@@ -222,8 +229,9 @@ public class CjProductToNativeAdapter {
                 }
             }
             BigDecimal price = decimal(node, "variant_price");
+            BigDecimal sellPrice = decimal(node, "variant_sell_price");
             Integer stock = node.hasNonNull("stock") ? node.get("stock").asInt() : null;
-            out.add(new CjVariant(vid, sku, options, price, stock));
+            out.add(new CjVariant(vid, sku, options, price, sellPrice, stock));
         }
         return out;
     }
@@ -329,6 +337,6 @@ public class CjProductToNativeAdapter {
 
     /** Parsed view of one entry in {@code variants_json}. */
     private record CjVariant(String vid, String variantSku, List<String> options,
-                             BigDecimal variantPrice, Integer stock) {
+                             BigDecimal variantPrice, BigDecimal variantSellPrice, Integer stock) {
     }
 }

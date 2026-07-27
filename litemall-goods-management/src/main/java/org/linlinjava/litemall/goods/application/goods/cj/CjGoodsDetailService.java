@@ -8,6 +8,7 @@ import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvariant.CJProductVariantData;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product.CJProductService;
+import org.linlinjava.litemall.goods.application.search.CjPricing;
 import org.linlinjava.litemall.goods.domain.service.elastic.CjProductIndexingService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
@@ -15,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,8 +35,8 @@ import java.util.Map;
  * {@code specifications[{specifications,value,picUrl}]}, {@code attributes[{attributeName,
  * attributeValue}]}, {@code products[{goodsProductId:{id},specifications[]}]}.
  *
- * <p>Pricing mirrors {@code CjProductIndexingService}: retail = CJ wholesale (USD) × usdToCny ×
- * margin in the local CNY basis — never raw wholesale cost.
+ * <p>Pricing rides {@code CjPricing} (Wave 12): retail = CJ wholesale cost (USD) × margin —
+ * never raw wholesale cost.
  */
 @Service
 public class CjGoodsDetailService {
@@ -54,15 +54,18 @@ public class CjGoodsDetailService {
     private final LitemallCjProductService cjProductStore;
     private final CJDropshippingConfig config;
     private final ObjectMapper objectMapper;
+    private final CjPricing pricing;
 
     public CjGoodsDetailService(CJProductService cjProductService,
                                 LitemallCjProductService cjProductStore,
                                 CJDropshippingConfig config,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                CjPricing pricing) {
         this.cjProductService = cjProductService;
         this.cjProductStore = cjProductStore;
         this.config = config;
         this.objectMapper = objectMapper;
+        this.pricing = pricing;
     }
 
     /** {@code true} when the id is a CJ document id (and {@link #pidOf} can extract its pid). */
@@ -316,16 +319,9 @@ public class CjGoodsDetailService {
         return d.getProductName();
     }
 
-    /** Retail = wholesale USD × usdToCny × margin, in the local CNY basis; null on no cost. */
+    /** Retail = wholesale cost (USD) × margin (CjPricing, Wave 12); null on no cost. */
     private BigDecimal retailPrice(Double sellPrice) {
-        if (sellPrice == null) {
-            return null;
-        }
-        CJDropshippingConfig.Pricing pricing = config.getPricing();
-        return BigDecimal.valueOf(sellPrice)
-                .multiply(pricing.getUsdToCny())
-                .multiply(pricing.getMargin())
-                .setScale(2, RoundingMode.HALF_UP);
+        return pricing.retail(pricing.cost(sellPrice));
     }
 
     /**

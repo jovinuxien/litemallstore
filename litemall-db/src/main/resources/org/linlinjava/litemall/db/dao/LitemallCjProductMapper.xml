@@ -4,7 +4,7 @@
 
   <!-- map-underscore-to-camel-case is enabled, so snake_case columns auto-map to camelCase fields. -->
   <sql id="Base_Column_List">
-    pid, source, title, price, discount_price, description, image_url, brand,
+    pid, source, title, price, sell_price, discount_price, description, image_url, brand,
     category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
     add_time, update_time, deleted, listed_num, review_count, rating, cj_create_time, reviews_synced_time
   </sql>
@@ -46,17 +46,18 @@
   -->
   <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
     insert into litemall_cj_product
-      (pid, source, title, price, discount_price, description, image_url, brand,
+      (pid, source, title, price, sell_price, discount_price, description, image_url, brand,
        category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
        add_time, update_time, deleted)
     values
-      (#{pid}, #{source}, #{title}, #{price}, #{discountPrice}, #{description}, #{imageUrl}, #{brand},
+      (#{pid}, #{source}, #{title}, #{price}, #{sellPrice}, #{discountPrice}, #{description}, #{imageUrl}, #{brand},
        #{categoryNames}, #{categoryIds}, #{variantsJson}, #{attributesJson}, #{imagesJson}, #{detailHtml}, #{enrichedTime},
        now(), now(), 0)
     on duplicate key update
       source = values(source),
       title = values(title),
       price = values(price),
+      sell_price = coalesce(values(sell_price), sell_price),
       description = values(description),
       image_url = values(image_url),
       brand = values(brand),
@@ -79,6 +80,7 @@
         discount_price = #{discountPrice},
         images_json = #{imagesJson},
         detail_html = #{detailHtml},
+        sell_price = coalesce(#{sellPrice}, sell_price),
         listed_num = coalesce(#{listedNum}, listed_num),
         review_count = coalesce(#{reviewCount}, review_count),
         rating = coalesce(#{rating}, rating),
