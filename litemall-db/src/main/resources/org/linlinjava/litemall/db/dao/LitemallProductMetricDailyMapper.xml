@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 12). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallProductMetricDailyMapper">
+
+  <sql id="Base_Column_List">
+    goods_id, `day`, retail_price, cost, margin_pct, stock_total, available, views, sales_qty, update_time
+  </sql>
+
+  <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallProductMetricDaily">
+    insert into litemall_product_metric_daily
+      (goods_id, `day`, retail_price, cost, margin_pct, stock_total, available, views, sales_qty, update_time)
+    values
+      (#{goodsId}, #{day}, #{retailPrice}, #{cost}, #{marginPct}, #{stockTotal},
+       coalesce(#{available}, 1), coalesce(#{views}, 0), coalesce(#{salesQty}, 0), now())
+    on duplicate key update
+      retail_price = values(retail_price),
+      cost = values(cost),
+      margin_pct = values(margin_pct),
+      stock_total = values(stock_total),
+      available = values(available),
+      views = values(views),
+      sales_qty = values(sales_qty),
+      update_time = now()
+  </insert>
+
+  <insert id="upsertAvailability">
+    insert into litemall_product_metric_daily
+      (goods_id, `day`, available, update_time)
+    values
+      (#{goodsId}, #{day}, #{available}, now())
+    on duplicate key update
+      available = values(available),
+      update_time = now()
+  </insert>
+
+  <select id="selectSeries" resultType="org.linlinjava.litemall.db.domain.LitemallProductMetricDaily">
+    select <include refid="Base_Column_List"/>
+    from litemall_product_metric_daily
+    where goods_id = #{goodsId}
+      and `day` &gt;= date_sub(curdate(), interval #{days} day)
+    order by `day` asc
+  </select>
+
+  <select id="selectOne" resultType="org.linlinjava.litemall.db.domain.LitemallProductMetricDaily">
+    select <include refid="Base_Column_List"/>
+    from litemall_product_metric_daily
+    where goods_id = #{goodsId} and `day` = #{day}
+  </select>
+
+</mapper>

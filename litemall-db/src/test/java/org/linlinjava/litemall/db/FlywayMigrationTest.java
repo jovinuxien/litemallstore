@@ -2,36 +2,42 @@ package org.linlinjava.litemall.db;
 
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.MySQLContainer;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Validates every Flyway migration runs cleanly against a real MySQL
  * instance spun up in Docker via Testcontainers.
  *
- * Requirements: Docker daemon must be running.
+ * Requirements: Docker daemon must be running — SKIPPED (not failed) when it isn't.
  * Does NOT need a local MySQL — fully self-contained.
  *
  * Run with: mvn test -pl litemall-db -Dtest=FlywayMigrationTest
+ *
+ * JUnit 5 (Wave 12): the module's other tests are legacy JUnit 4 and are NOT
+ * discovered by the junit-platform provider (no vintage engine on the classpath) —
+ * this class was converted to Jupiter so it actually executes; check the
+ * "Tests run:" count, a 0 here means the provider regressed again.
  */
 // The schema spot-checks assume allMigrationsRunClean already migrated the
-// container; JUnit's DEFAULT (name-hash) order runs them FIRST. Alphabetical
-// order puts allMigrationsRunClean ahead of every spot-check.
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+// container; alphabetical order puts allMigrationsRunClean ahead of every spot-check.
+@TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V43 (order payment/tax + integrity keys) is the latest
+    // Hand-maintained floor: V45 (CJ inventory intelligence) is the latest
     // known migration; the exact-count assertion was replaced with a >= floor so this
     // test no longer goes stale every time a script lands. Being a floor it still
     // passes when it drifts, so it only asserts what it is raised to — bump it when
     // you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 43;
+    private static final int MIN_EXPECTED_MIGRATIONS = 45;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -40,14 +46,18 @@ public class FlywayMigrationTest {
                     .withUsername("litemall_test")
                     .withPassword("litemall_test");
 
-    @BeforeClass
+    @BeforeAll
     public static void startContainer() {
+        Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(),
+                "Docker unavailable — skipping Flyway migration validation");
         MYSQL.start();
     }
 
-    @AfterClass
+    @AfterAll
     public static void stopContainer() {
-        MYSQL.stop();
+        if (MYSQL.isRunning()) {
+            MYSQL.stop();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -66,12 +76,10 @@ public class FlywayMigrationTest {
 
         MigrateResult result = flyway.migrate();
 
-        assertTrue("Flyway migration failed: " + result.warnings, result.success);
-        assertTrue(
+        assertTrue(result.success, "Flyway migration failed: " + result.warnings);
+        assertTrue(result.migrationsExecuted >= MIN_EXPECTED_MIGRATIONS,
                 "Expected at least " + MIN_EXPECTED_MIGRATIONS + " migrations but only "
-                        + result.migrationsExecuted + " ran",
-                result.migrationsExecuted >= MIN_EXPECTED_MIGRATIONS
-        );
+                        + result.migrationsExecuted + " ran");
     }
 
     // -------------------------------------------------------------------------
@@ -95,6 +103,8 @@ public class FlywayMigrationTest {
             {"litemall_coupon_user",  "use_type"},
             // V2: freight-template binding / billing units on goods
             {"litemall_goods",        "temp_id"},
+            // V2: landed wholesale cost (mapped + written since Wave 12)
+            {"litemall_goods",        "cost"},
             // V34: internationalized freight-template rows + default-template flag
             {"litemall_shipping_templates",        "is_default"},
             {"litemall_shipping_templates_region", "country_code"},
@@ -114,6 +124,8 @@ public class FlywayMigrationTest {
             {"litemall_order",        "payment_intent_id"},
             {"litemall_order",        "tax_price"},
             {"litemall_order",        "tax_breakdown"},
+            // V45: raw CJ wholesale cost captured at sync (Wave 12)
+            {"litemall_cj_product",   "sell_price"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
@@ -122,10 +134,8 @@ public class FlywayMigrationTest {
                 String column = check[1];
                 var rs = conn.getMetaData().getColumns(
                         MYSQL.getDatabaseName(), null, table, column);
-                assertTrue(
-                        "Missing column: " + table + "." + column,
-                        rs.next()
-                );
+                assertTrue(rs.next(),
+                        "Missing column: " + table + "." + column);
             }
         }
     }
@@ -170,13 +180,17 @@ public class FlywayMigrationTest {
             "litemall_mail_outbox",
             // V43: Stripe webhook idempotency ledger (Wave 7)
             "litemall_stripe_event",
+            // V45: CJ inventory intelligence (Wave 12)
+            "litemall_cj_sync_run",
+            "litemall_product_metric_daily",
+            "litemall_deal_candidate",
         };
 
         try (var conn = MYSQL.createConnection("")) {
             for (String table : tables) {
                 var rs = conn.getMetaData().getTables(
                         MYSQL.getDatabaseName(), null, table, new String[]{"TABLE"});
-                assertTrue("Missing table: " + table, rs.next());
+                assertTrue(rs.next(), "Missing table: " + table);
             }
         }
     }
@@ -197,7 +211,7 @@ public class FlywayMigrationTest {
             for (String table : v1Tables) {
                 var rs = conn.getMetaData().getTables(
                         MYSQL.getDatabaseName(), null, table, new String[]{"TABLE"});
-                assertTrue("Baseline table missing: " + table, rs.next());
+                assertTrue(rs.next(), "Baseline table missing: " + table);
             }
         }
     }

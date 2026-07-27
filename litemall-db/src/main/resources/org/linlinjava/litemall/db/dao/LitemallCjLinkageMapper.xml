@@ -7,10 +7,11 @@
 -->
 <mapper namespace="org.linlinjava.litemall.db.dao.LitemallCjLinkageMapper">
 
+  <!-- Column lists ride LitemallCjProductMapper.Base_Column_List (cross-namespace include)
+       so the promote path can never drift behind newly mapped snapshot columns again —
+       the previous inline lists had silently gone stale (V31 signals, V45 sell_price). -->
   <select id="selectEnriched" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
-    select pid, source, title, price, discount_price, description, image_url, brand,
-           category_names, category_ids, variants_json, attributes_json, images_json,
-           detail_html, enriched_time, add_time, update_time, deleted
+    select <include refid="org.linlinjava.litemall.db.dao.LitemallCjProductMapper.Base_Column_List"/>
     from litemall_cj_product
     where enriched_time is not null and deleted = 0
     order by update_time desc
@@ -18,9 +19,7 @@
   </select>
 
   <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
-    select pid, source, title, price, discount_price, description, image_url, brand,
-           category_names, category_ids, variants_json, attributes_json, images_json,
-           detail_html, enriched_time, add_time, update_time, deleted
+    select <include refid="org.linlinjava.litemall.db.dao.LitemallCjProductMapper.Base_Column_List"/>
     from litemall_cj_product
     where deleted = 0
     order by update_time desc
@@ -106,6 +105,18 @@
     update litemall_goods
     set cj_reviews_ingested_time = now()
     where id = #{goodsId}
+  </update>
+
+  <select id="findGoodsIdByCjVid" resultType="java.lang.Integer">
+    select goods_id from litemall_goods_product
+    where cj_vid = #{cjVid} and deleted = 0
+    limit 1
+  </select>
+
+  <update id="updateProductStockByCjVid">
+    update litemall_goods_product
+    set `number` = #{number}, update_time = now()
+    where cj_vid = #{cjVid} and deleted = 0
   </update>
 
 </mapper>

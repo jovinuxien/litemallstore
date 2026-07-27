@@ -18,6 +18,9 @@ public class LitemallCjProduct {
     private String source;
     private String title;
     private BigDecimal price;
+    // Raw CJ wholesale price in USD (range lower bound) — the cost basis behind price.
+    // NULL on rows not yet re-synced since V45; consumers must render margin as null then.
+    private BigDecimal sellPrice;
     private BigDecimal discountPrice;
     private String description;
     private String imageUrl;
@@ -71,6 +74,14 @@ public class LitemallCjProduct {
 
     public void setPrice(BigDecimal price) {
         this.price = price;
+    }
+
+    public BigDecimal getSellPrice() {
+        return sellPrice;
+    }
+
+    public void setSellPrice(BigDecimal sellPrice) {
+        this.sellPrice = sellPrice;
     }
 
     public BigDecimal getDiscountPrice() {

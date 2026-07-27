@@ -30,10 +30,12 @@ import java.util.Map;
  * see the deal with ZERO order-service changes — a deliberate deviation from
  * crmeb's separate seckill purchase path (promotion's {@code /seckill/join}
  * stock-reservation flow is bypassed; its read endpoints keep working since
- * they read this same table). CJ goods are refused (652) — a working
- * CJ-deals design (cost floor + sync guards + organic anchors) is PARKED
- * pending an efficiency redesign; see doc/cj-deals-strategy-2026-07-16.pdf
- * and commit a82a19e0e.
+ * they read this same table). CJ goods are LIVE again (Wave 12, unparking
+ * a82a19e0e): the deal price is floored at the REAL captured wholesale cost
+ * ({@code litemall_goods.cost}, landed by the V45 sync) — below the floor is
+ * 650 naming the floor; 652 is narrowed to "no captured cost, basis unknown".
+ * The uniform ×margin pricing means the goods-level floor keeps every
+ * proportionally-swapped SKU at or above its own variant cost.
  */
 @Service
 public class FlashDealService {
@@ -67,11 +69,9 @@ public class FlashDealService {
         if (goods == null) {
             return Result.fail(ERRNO_INVALID, "goods " + goodsId + " not found");
         }
-        if ("cj".equalsIgnoreCase(goods.getSource())) {
-            // PARKED (2026-07-16): CJ flash deals shipped with a cost floor + sync guards and were
-            // reverted the same day pending an efficiency redesign — see the strategy PDF
-            // (doc/cj-deals-strategy-2026-07-16.pdf) and commit a82a19e0e for the working design.
-            return Result.fail(ERRNO_CJ, "flash deals are not supported for CJ-sourced goods");
+        Result floorError = validateCjFloor(goods, dealPrice);
+        if (floorError != null) {
+            return floorError;
         }
         String windowError = validateWindow(dealPrice, goods.getRetailPrice(), start, stop);
         if (windowError != null) {
@@ -123,6 +123,10 @@ public class FlashDealService {
         LocalDateTime effStart = start != null ? start : deal.getStartTime();
         LocalDateTime effStop = stop != null ? stop : deal.getStopTime();
         LitemallGoods goods = goodsService.findById(deal.getGoodsId());
+        Result floorError = validateCjFloor(goods, effPrice);
+        if (floorError != null) {
+            return floorError;
+        }
         BigDecimal referenceRetail = live && deal.getOriginalRetailPrice() != null
                 ? deal.getOriginalRetailPrice()
                 : goods != null ? goods.getRetailPrice() : null;
@@ -204,6 +208,29 @@ public class FlashDealService {
         view.put("enabled", deal.getStatus() != null && deal.getStatus() == 1);
         view.put("live", Boolean.TRUE.equals(deal.getPriceSwapped()));
         return view;
+    }
+
+    /**
+     * Wave-12 CJ floor: the deal price may never go below the REAL captured wholesale cost
+     * ({@code litemall_goods.cost}, USD basis since the ×1.25 repricing). No captured cost
+     * (0.00 = the V2 column default, row not re-synced since V45) ⇒ the cost basis is
+     * unknowable and the deal is refused outright (652) — never a guessed floor.
+     * Returns null when the goods is not CJ-sourced or the floor holds.
+     */
+    private Result validateCjFloor(LitemallGoods goods, BigDecimal dealPrice) {
+        if (goods == null || !"cj".equalsIgnoreCase(goods.getSource()) || dealPrice == null) {
+            return null;
+        }
+        BigDecimal cost = goods.getCost();
+        if (cost == null || cost.signum() <= 0) {
+            return Result.fail(ERRNO_CJ, "goods " + goods.getId()
+                    + " has no captured CJ cost — cost basis unknown, deal refused");
+        }
+        if (dealPrice.compareTo(cost) < 0) {
+            return Result.fail(ERRNO_INVALID, "dealPrice " + dealPrice
+                    + " is below the CJ cost floor " + cost + " (captured wholesale cost)");
+        }
+        return null;
     }
 
     private static String validateWindow(BigDecimal dealPrice, BigDecimal retail,

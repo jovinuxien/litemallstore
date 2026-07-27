@@ -70,11 +70,12 @@ spring:
       #   create-url: "https://developers.cjdropshipping.com/api2.0/v1/shopping/order/createOrder"
     # --- CJ → OCS indexing ---
     enabled: true
-    # Retail = CJ wholesale sellPrice (USD) × usd-to-cny × margin, indexed in the local CNY basis
-    # (NOT raw wholesale cost). Tune per business; profile-overridable.
+    # Retail = CJ wholesale cost (USD) × margin (NOT raw wholesale cost). Wave 12 (user decision
+    # 2026-07-28): margin 1.25, and the old usd-to-cny 7.2 currency factor is DELETED — prices
+    # live in the USD basis and the raw cost is persisted (litemall_cj_product.sell_price,
+    # litemall_goods[_product].cost). Tune per business; profile-overridable.
     pricing:
-      margin: 2.0
-      usd-to-cny: 7.2
+      margin: 1.25
     # Stock assumed for a CJ SKU until real inventory is fetched (keeps in-stock scoring from burying CJ).
     default-stock: 100
     # Recorded CJ product-list response, used only when the live CJ API is unreachable.

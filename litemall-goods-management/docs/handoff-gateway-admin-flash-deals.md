@@ -44,14 +44,15 @@ always within ~60s, never synchronously with the admin call.
 
 | errno | when | UI treatment |
 |-------|------|--------------|
-| 650 | dealPrice ≤ 0 or ≥ goods retail; start ≥ stop; window entirely past; goods missing | inline form error |
+| 650 | dealPrice ≤ 0 or ≥ goods retail; start ≥ stop; window entirely past; goods missing; **CJ: dealPrice below the cost floor (errmsg names the floor)** | inline form error |
 | 651 | another ENABLED deal overlaps this goods+window; OR editing `dealPrice`/`startTime` while `live` | inline; for the live case the message says "disable it before changing price or start" — offer the disable toggle |
-| 652 | goods is `source='cj'` (CJ deals PARKED pending redesign — see the ADR; a cost-floor design exists in commit `a82a19e0e`) | disable/grey the deal action for CJ goods in the picker; message if raced |
+| 652 | CJ goods with NO captured wholesale cost (`litemall_goods.cost` empty — row not re-synced since V45): cost basis unknown, deal refused. **CJ deals are otherwise LIVE since Wave 12** (floored at the captured cost) | message inline; the deal action stays enabled for CJ goods |
 
 ## Validation rules the form should mirror (server is authoritative)
 
 - `dealPrice` strictly below the goods' CURRENT retail price (for a live deal,
-  below the captured `originalRetailPrice`).
+  below the captured `originalRetailPrice`); for CJ goods additionally at or
+  above the captured wholesale cost (`litemall_goods.cost`).
 - `startTime < stopTime`; `stopTime` in the future.
 - One enabled deal per goods per overlapping window.
 - While `live`: price/start locked; stop (extend), stock and enabled remain editable.
