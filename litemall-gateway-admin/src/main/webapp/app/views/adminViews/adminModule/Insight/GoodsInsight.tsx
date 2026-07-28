@@ -1,5 +1,10 @@
 import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
-import { IInsightSeriesPoint, useDismissDealCandidateMutation, useGetInsightGoodsDetailQuery } from 'app/shared/reducers/private/services/insightApi';
+import {
+  IInsightSeriesPoint,
+  useDismissDealCandidateMutation,
+  useGetDealCandidatesQuery,
+  useGetInsightGoodsDetailQuery,
+} from 'app/shared/reducers/private/services/insightApi';
 import { ElTag, errnoMessage, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import ApproveDealDialog from 'app/views/adminViews/adminModule/Insight/ApproveDealDialog';
 import { fmtDateTime, fmtInt, fmtMoney, fmtPct } from 'app/views/adminViews/adminModule/Insight/insightFormat';
@@ -80,14 +85,18 @@ const GoodsInsight: React.FC = () => {
   const deals = data?.deals ?? [];
   const rec = data?.recommendation;
 
-  // Approve prefill: an explicit suggested deal price from an attached
-  // proposal wins; otherwise the recommendation's suggested retail.
-  const suggestedDeal = deals.find(d => d.suggestedDealPrice != null)?.suggestedDealPrice ?? rec?.suggestedRetail;
-  const cost = goods?.cost ?? null;
+  // Approve/Dismiss are candidate-scoped (backend errno 653 without an open
+  // proposal). detail.deals[] carries only CREATED flash deals — the open
+  // proposal lives on /deal-candidates (backend's default day), so look this
+  // goods up there.
+  const { data: candidatesData } = useGetDealCandidatesQuery({}, { skip: !goodsId });
+  const candidate = (candidatesData?.list ?? []).find(c => c.goodsId === goodsId);
+  const hasOpenProposal = candidate != null && !['approved', 'dismissed'].includes((candidate.status || '').toLowerCase());
 
-  // A dismissible proposal = a deals[] row that is not a created flash deal
-  // (no id) and not already decided.
-  const hasOpenProposal = deals.some(d => d.id == null && !['approved', 'dismissed'].includes((d.status || '').toLowerCase()));
+  // Approve prefill: the proposal's suggested deal price wins; otherwise the
+  // recommendation's suggested retail.
+  const suggestedDeal = candidate?.suggestedDealPrice ?? rec?.suggestedRetail;
+  const cost = goods?.cost ?? null;
 
   const onDismiss = async () => {
     if (!window.confirm(`Dismiss the deal proposal for "${goods?.name || `goods #${goodsId}`}"?`)) return;
@@ -142,9 +151,13 @@ const GoodsInsight: React.FC = () => {
             <button className='btn btn-outline-primary filter-item' onClick={() => setShowPromote(true)}>
               Promote on social
             </button>
-            <button className='btn btn-success filter-item' onClick={() => setShowApprove(true)}>
-              Approve deal…
-            </button>
+            {/* Approve is candidate-scoped (backend errno 653 without an open
+                proposal) — only offered when one exists, like Dismiss. */}
+            {hasOpenProposal && (
+              <button className='btn btn-success filter-item' onClick={() => setShowApprove(true)}>
+                Approve deal…
+              </button>
+            )}
           </div>
 
           <div className='d-flex flex-wrap gap-3 mb-3'>
@@ -279,6 +292,19 @@ const GoodsInsight: React.FC = () => {
                 <div className='text-muted mb-3'>No recommendation yet — needs a captured CJ cost and a nightly evaluation.</div>
               )}
 
+              {hasOpenProposal && candidate && (
+                <div className='alert alert-warning d-flex align-items-center justify-content-between'>
+                  <span>
+                    Open deal proposal{candidate.tier ? ` (${candidate.tier}` : ''}
+                    {candidate.score != null ? `${candidate.tier ? ', ' : '('}score ${Number(candidate.score).toFixed(1)})` : candidate.tier ? ')' : ''} — suggested
+                    deal price <strong>{fmtMoney(candidate.suggestedDealPrice)}</strong>
+                  </span>
+                  <button className='btn btn-sm btn-success ms-2' onClick={() => setShowApprove(true)}>
+                    Approve…
+                  </button>
+                </div>
+              )}
+
               {deals.length > 0 && (
                 <table className='el-table'>
                   <thead>
@@ -314,7 +340,7 @@ const GoodsInsight: React.FC = () => {
           goodsName={goods?.name}
           cost={cost}
           suggestedDealPrice={suggestedDeal}
-          defaultStock={0}
+          defaultStock={candidate?.stockTotal ?? 0}
           onClose={() => setShowApprove(false)}
         />
       )}

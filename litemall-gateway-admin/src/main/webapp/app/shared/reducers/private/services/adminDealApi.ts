@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 import { getAdminToken } from 'app/shared/reducers/admin-auth';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 
 // RTK Query client for the Flash Deals admin vertical, served through the
 // gateway under '/srv/private/admin/deal'.
@@ -8,11 +9,15 @@ import { getAdminToken } from 'app/shared/reducers/admin-auth';
 // Envelope rule: litemall returns HTTP 200 with {errno,errmsg,data} even on
 // business errors — mutations return the raw envelope so views can surface
 // errmsg inline. Deal-specific errnos: 650 = invalid request (message in
-// errmsg), 651 = conflict (overlapping window) or live-immutable field,
-// 652 = CJ-sourced goods refused.
+// errmsg; since Wave 12 includes the CJ cost floor), 651 = conflict
+// (overlapping window) or live-immutable field, 652 = CJ goods with no
+// captured cost (CJ deals otherwise live since Wave 12).
 //
-// startTime/stopTime travel as ISO local datetime strings WITHOUT a timezone
-// suffix, e.g. "2026-07-15T18:00:00" (Jackson LocalDateTime).
+// startTime/stopTime: the committed contract
+// (handoff-gateway-admin-flash-deals.md) says ISO local datetime strings,
+// but the Wave-12 goods-management build serializes LocalDateTime as
+// numeric arrays module-wide — normalise both here (fromServerDateTime)
+// so the panel survives either serialization.
 
 export interface ApiEnvelope<T = unknown> {
   errno: number;
@@ -82,6 +87,12 @@ export const dealOpMessage = (res: unknown): string | null => {
   return 'Request failed.';
 };
 
+const toDealView = (d: IDeal): IDeal => ({
+  ...d,
+  startTime: fromServerDateTime(d.startTime),
+  stopTime: fromServerDateTime(d.stopTime),
+});
+
 export const adminDealApi = createApi({
   reducerPath: 'adminDealApi',
   baseQuery: fetchBaseQuery({
@@ -96,13 +107,15 @@ export const adminDealApi = createApi({
   endpoints: builder => ({
     listDeals: builder.query<DealPage, DealListParams>({
       query: ({ page, limit }) => ({ url: '/list', params: { page, limit } }),
-      transformResponse: (r: ApiEnvelope<DealPage>, _meta, arg) =>
-        r?.data ?? { total: 0, page: arg.page, limit: arg.limit, list: [] },
+      transformResponse: (r: ApiEnvelope<DealPage>, _meta, arg) => {
+        const d = r?.data ?? { total: 0, page: arg.page, limit: arg.limit, list: [] };
+        return { ...d, list: (d.list ?? []).map(toDealView) };
+      },
       providesTags: ['Deal'],
     }),
     readDeal: builder.query<IDeal, number | string>({
       query: id => ({ url: '/read', params: { id } }),
-      transformResponse: (r: ApiEnvelope<IDeal>) => r?.data ?? {},
+      transformResponse: (r: ApiEnvelope<IDeal>) => toDealView(r?.data ?? {}),
       providesTags: (_res, _err, id) => [{ type: 'Deal', id }],
     }),
     createDeal: builder.mutation<ApiEnvelope, DealCreateBody>({

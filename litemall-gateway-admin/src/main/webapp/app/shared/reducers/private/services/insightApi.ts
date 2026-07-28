@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 import { getAdminToken } from 'app/shared/reducers/admin-auth';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 
 // Wave 12: RTK Query client for the CJ inventory-insight admin surface,
 // served by goods-management under '/srv/private/admin/insight' (the
@@ -152,6 +153,49 @@ interface ApiEnvelope<T> {
   data?: T;
 }
 
+// ---- served-shape normalisation --------------------------------------------
+// The goods-management insight surface (verified against master 68ebcbb38)
+// deviates from the raw contract sketch in serialization only: list rows key
+// the goods as `goodsId`, and the module's core Jackson setup serializes
+// LocalDate/LocalDateTime as numeric arrays ([y,m,d,...]) and the candidate
+// `day` as epoch millis. Normalise here so views keep plain string/number
+// rendering.
+
+type Raw = Record<string, unknown>;
+
+// day: LocalDate array | epoch millis | ISO string → 'YYYY-MM-DD'
+const toDay = (v: unknown): string | undefined => {
+  if (typeof v === 'number') return new Date(v).toISOString().slice(0, 10);
+  return fromServerDateTime(v)?.slice(0, 10);
+};
+
+const toGoodsRow = (r: Raw): IInsightGoodsRow =>
+  ({
+    ...r,
+    id: (r.id ?? r.goodsId) as number,
+    arrivalDate: fromServerDateTime(r.arrivalDate),
+  }) as IInsightGoodsRow;
+
+const toSeriesPoint = (r: Raw): IInsightSeriesPoint => ({ ...r, day: toDay(r.day) ?? '' }) as IInsightSeriesPoint;
+
+const toDeal = (r: Raw): IInsightDeal =>
+  ({
+    ...r,
+    startTime: fromServerDateTime(r.startTime),
+    stopTime: fromServerDateTime(r.stopTime),
+  }) as IInsightDeal;
+
+const toCandidate = (r: Raw): IDealCandidate => ({ ...r, day: toDay(r.day) }) as IDealCandidate;
+
+const toDetail = (d?: IInsightGoodsDetail): IInsightGoodsDetail | undefined =>
+  d && {
+    ...d,
+    variants: d.variants ?? [],
+    series: (d.series ?? []).map(p => toSeriesPoint(p as unknown as Raw)),
+    totals: d.totals ?? {},
+    deals: (d.deals ?? []).map(x => toDeal(x as unknown as Raw)),
+  };
+
 export const insightApi = createApi({
   reducerPath: 'insightApi',
   baseQuery: fetchBaseQuery({
@@ -177,17 +221,22 @@ export const insightApi = createApi({
         url: '/goods/list',
         params: { categoryId, sort, order, page, limit },
       }),
-      transformResponse: (r: ApiEnvelope<InsightGoodsListResponse>) => r?.data ?? { total: 0, pages: 0, limit: 0, page: 1, list: [] },
+      transformResponse: (r: ApiEnvelope<InsightGoodsListResponse>) => {
+        const d = r?.data ?? { total: 0, pages: 0, limit: 0, page: 1, list: [] };
+        return { ...d, list: (d.list ?? []).map(row => toGoodsRow(row as unknown as Raw)) };
+      },
       providesTags: ['InsightGoods'],
     }),
     getInsightGoodsDetail: builder.query<IInsightGoodsDetail | undefined, number | string>({
       query: id => ({ url: `/goods/${id}` }),
-      transformResponse: (r: ApiEnvelope<IInsightGoodsDetail>) => r?.data,
+      transformResponse: (r: ApiEnvelope<IInsightGoodsDetail>) => toDetail(r?.data),
       providesTags: (result, err, id) => [{ type: 'InsightGoods', id }],
     }),
     getDealCandidates: builder.query<{ list: IDealCandidate[] }, { day?: string }>({
       query: ({ day }) => ({ url: '/deal-candidates', params: day ? { day } : undefined }),
-      transformResponse: (r: ApiEnvelope<{ list: IDealCandidate[] }>) => r?.data ?? { list: [] },
+      transformResponse: (r: ApiEnvelope<{ list: IDealCandidate[] }>) => ({
+        list: (r?.data?.list ?? []).map(c => toCandidate(c as unknown as Raw)),
+      }),
       providesTags: ['Candidates'],
     }),
     // Creates the flash deal through the CJ-unparked path; the backend
