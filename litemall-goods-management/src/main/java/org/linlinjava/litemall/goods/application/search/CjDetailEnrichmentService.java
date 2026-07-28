@@ -150,9 +150,16 @@ public class CjDetailEnrichmentService {
 
         // Wave 12: refresh the product-level raw cost from detail (exact, not the list range's
         // lower bound); null preserves the sync-landed value (enrich statement COALESCEs, and the
-        // fallback variant below reads the freshest value off the row).
-        if (pricing.cost(d.getSellPrice()) != null) {
-            row.setSellPrice(pricing.cost(d.getSellPrice()));
+        // fallback variant below reads the freshest value off the row). The RETAIL is recomputed
+        // with it: the nightly plan only rotates a slice of the catalog, so for the long tail
+        // THIS is the repricing path — without it an on-demand-enriched product captures its
+        // cost but keeps the pre-Wave-12 ×14.4 price until a sync happens to list it again.
+        BigDecimal detailCost = pricing.cost(d.getSellPrice());
+        if (detailCost != null) {
+            row.setSellPrice(detailCost);
+            row.setPrice(pricing.retail(detailCost));
+        } else if (row.getSellPrice() != null) {
+            row.setPrice(pricing.retail(row.getSellPrice()));
         }
 
         // Real per-SKU variants: variant_sell_price (raw USD cost, Wave 12) + variant_price

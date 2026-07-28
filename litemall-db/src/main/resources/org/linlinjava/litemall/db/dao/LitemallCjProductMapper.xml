@@ -75,7 +75,8 @@
   -->
   <update id="enrich" parameterType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
     update litemall_cj_product
-    set variants_json = #{variantsJson},
+    set price = coalesce(#{price}, price),
+        variants_json = #{variantsJson},
         attributes_json = #{attributesJson},
         discount_price = #{discountPrice},
         images_json = #{imagesJson},
