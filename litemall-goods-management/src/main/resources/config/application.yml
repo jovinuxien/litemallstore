@@ -175,10 +175,16 @@ litemall:
       - /srv/storage/fetch/**
       - /srv/article/**
       - /srv/page/**
+  # Wave 13 (SEO): absolute origin minted into sitemap <loc> URLs. The default is the
+  # live storefront, so prod needs no env; override for other environments.
+  public-base-url: ${LITEMALL_PUBLIC_BASE_URL:https://trovemo.com}
   goods:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
     stock-low-threshold: 5
+    # Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO,
+    # mirroring the order service's LITEMALL_ORDER_STRIPE_CURRENCY (usd).
+    currency: ${LITEMALL_GOODS_CURRENCY:USD}
   # Storefront "about" metadata served anonymously at /srv/home/about (wx-api /home/about parity).
   # Config-driven (no litemall_system dependency); override per-env via config-server.
   mall:
