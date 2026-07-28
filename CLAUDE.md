@@ -126,6 +126,84 @@
 > reindex where needed) — do NOT touch the production VPS or its DB from a
 > worktree. Verify in dev through the gateways.
 >
+> **Wave 11 is MERGED + DEPLOYED to trovemo.com** (2026-07-26, master
+> `308082607`, both halves).
+>
+> **Wave 12 (2026-07-28) — CJ INVENTORY INTELLIGENCE: cost capture +
+> 1.25-margin repricing, arrival tracking, deal proposals, scheduled
+> category campaigns (Spring Integration).** User asks: know the
+> flow/flux of CJ inventory to (1) price by real margins, (2) judge from
+> provider stock whether/how long a product can be advertised, (3)
+> classify daily new arrivals into deal tiers, (4) track each product
+> from its arrival date with nightly availability re-checks, and
+> schedule category product campaigns on our media platforms. Backend
+> flows follow Spring Integration patterns (Fisher et al., *Spring
+> Integration in Action*: gateway ch5, transformer/enricher ch5,
+> router/filter ch6, splitter/aggregator ch7, wire tap ch14, pollers
+> ch15); the flow's entry point is data landed by
+> `CjSnapshotSyncService`. Audit facts (2026-07-27, dev DB + master):
+> - CJ raw cost (`CJProduct.sellPrice`, USD) is DISCARDED at sync:
+>   `CjSnapshotSyncService.toRow()` (:194-220) persists only
+>   `sellPrice × usdToCny 7.2 × margin 2.0` (a flat ×14.4;
+>   `retailPrice()` :252-267); same per-variant in
+>   `CjDetailEnrichmentService.retail()` (:225-233). Store
+>   `retail_price` == snapshot `price` for all 9,644 CJ goods (avg
+>   $260.91 retail for avg ≈$18 cost).
+> - **USER DECISIONS (2026-07-28): new formula `retail = cjCost × 1.25`**
+>   (drop the ×7.2 currency leftover entirely) — a DELIBERATE storewide
+>   ~91% repricing at the first sync after deploy; deal candidates are
+>   PROPOSED and admin-APPROVED, never auto-created; campaign scheduling
+>   ships now and degrades honestly while Meta/TikTok tokens are absent.
+> - `litemall_goods.cost` / `litemall_goods_product.cost` exist since V2
+>   but are UNMAPPED and never written — the natural landing spot.
+>   Enriched `variants_json` already carries real per-variant
+>   `variant_price` + `stock`; `cj_create_time` is empty for all rows ⇒
+>   "arrival date" = our `add_time`. No sync-history table exists.
+> - `FlashDealService` REFUSES CJ goods (errno 652). V40
+>   (`original_sku_prices` per-SKU swap JSON) IS applied — the parked
+>   CJ-deals piece is CODE, ref impl `a82a19e0e` in git history.
+> - CJ client hard rate limit: 1 req/s global + 3s-paced /product/list.
+>   Nightly availability MUST ride the existing 03:00 `syncAll()`
+>   (`SyncResult.livePids`/`removedPids`) plus targeted
+>   `getInventory(vid)` for deal/tracked goods ONLY. NO live CJ calls on
+>   request paths.
+> - spring-integration is NOT on goods-management's classpath (only the
+>   legacy analytic module has spring-integration-file). Add
+>   `spring-boot-starter-integration` (Boot 3.1.6 BOM, Java 21) and use
+>   the Java DSL (`IntegrationFlow` beans — the book's XML maps 1:1).
+> **Wave-12 CONTRACT (gateway-admin codes to THIS, not to other
+> branches):** goods-management serves `/srv/private/admin/insight/**`
+> (the gateway-admin `/srv/**` catch-all already routes there — no yml
+> change). Money = plain decimals; errno envelope as everywhere; margin
+> fields are `null` (never 0) when cost is not yet captured.
+> - `GET /insight/categories` → `{list:[{categoryId, name, onSaleCount,
+>   newArrivals7d, stockUnits, lowStockCount, unavailableCount,
+>   avgMarginPct, potentialProfit}]}`, sorted potentialProfit desc, L1
+>   roots with on-sale goods only.
+> - `GET /insight/goods/list?categoryId&sort=add_time|retail_price|
+>   margin_pct|stock|sales&order=asc|desc&page&limit` → standard page
+>   envelope; items = goods summary + `{cost, marginAmount, marginPct,
+>   stockTotal, cjAvailable, arrivalDate, salesQty, dealStatus}`;
+>   default sort `add_time desc`.
+> - `GET /insight/goods/{id}` → `{goods, variants:[{productId, cjVid,
+>   specifications, price, cost, stock, available}], series:[{day,
+>   retailPrice, cost, marginPct, stockTotal, available, views,
+>   salesQty}], totals:{views, salesQty, revenue, collects, comments},
+>   deals:[...], recommendation:{suggestedRetail, marginPct,
+>   advertisable, reasons[]}}`.
+> - `GET /insight/deal-candidates?day=` → `{list:[{goodsId, name,
+>   picUrl, day, tier, score, cost, retailPrice, suggestedDealPrice,
+>   stockTotal, rating, status, reasons[]}]}`;
+>   `POST /insight/deal-candidates/{goodsId}/approve` body `{dealPrice,
+>   startTime, stopTime, stock}` creates the flash deal (CJ-unparked
+>   path; deal price must never go below cost);
+>   `POST /insight/deal-candidates/{goodsId}/dismiss`.
+> - Promotion: `POST /srv/private/admin/promotion/campaign/from-category`
+>   body `{categoryL1Id, name?, schedule:{start, stop}, platforms[],
+>   goodsIds?}` → creates the campaign row + per-platform
+>   `litemall_social_post` drafts; response = campaign id + post ids +
+>   per-platform status (honest disabled/failed while tokens absent).
+>
 > **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
 > verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
 > is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
@@ -134,12 +212,14 @@
 > when the key arrives), never a fake success, never a 5xx.
 >
 > **Cross-cutting landmines (apply to every block):**
-> - **Flyway:** V44 is the last used (Wave-8 goods-management, comment
->   source/external_id). **V40 remains EARMARKED** for goods-management's
->   parked CJ-deals SKU-charge fix — do NOT take it. Wave-9 migrations (none
->   are expected — this wave is contract + SPA work) claim **V45+** after
->   checking `flyway_schema_history` immediately before first boot.
->   `out-of-order: true` is permanent. Never `flyway repair`.
+> - **Flyway:** V44 is the last applied (dev `flyway_schema_history`
+>   re-verified 2026-07-27; numbering contiguous V1–V44). V40 IS applied
+>   (2026-07-16, "deal sku swap and cj suggest") — the old "V40 stays
+>   earmarked" note is OBSOLETE; the parked CJ-deals piece is code, not
+>   a migration. Wave-12's single migration (goods-management) claims
+>   **V45** after checking `flyway_schema_history` immediately before
+>   first boot; every other worktree expects NONE. `out-of-order: true`
+>   is permanent. Never `flyway repair`.
 > - **litemall-db is shared and hand-maintained:** never regenerate; hand-edit
 >   entities + mapper XMLs together. After editing: `mvn install` litemall-db,
 >   restart EVERY dependent, verify the nested `BOOT-INF/lib` copy in running
@@ -160,141 +240,154 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order`
-- **Branch:** `fix/order` — FIRST: `git merge master`. · **Scope:**
-  `litemall-order/` + `litemall-core` `mail` pkg (shared-core discipline:
-  `mvn install` core, restart every dependent) + compose env passthrough.
-  **NO migration expected** — V41 already has the outbox with `send_at`;
-  if one becomes truly necessary, claim V45+ after checking
-  `flyway_schema_history` (V40 stays earmarked).
+### Worktree: `order` — history (Wave 10, SHIPPED)
 - **Task — Wave 10: rich order-confirmation email once an order is paid.**
-  Backend anchors (verified 2026-07-26): paid choke point =
-  `LitemallOrderServiceImpl.markOrderPaid` (:625) → aggregate
-  `markAsPaid()` adds `LitemallOrderPaidEvent`; its three callers in
-  `LitemallOrderOrchestratorService` (customer pay card+wallet :380,
-  Stripe webhook :482, admin offline pay :592) mean event coverage is
-  ALREADY complete — do not add new paid paths. Mail side:
-  `CustomerMailEnqueueListener` (AFTER_COMMIT + 1-thread executor;
-  `buyerEmail()` :127 skips blank), `MailTemplates.orderConfirmation`
-  (:27, core), `MailOutboxSweepScheduler`, admin resend at
-  `/srv/private/admin/mail`. Proven precedent for loading full order data
-  after commit: `OrderPaidReceiptPrintListener` (:91-140, uses
-  `orderGoodsRepository.findByOId`).
-  1. **Enrich the confirmation body** (`MailTemplates.orderConfirmation` +
-     listener): full plain-text order summary — each line item (goodsName,
-     specifications, quantity, price; via `LitemallOrderGoodsRepository`),
-     money breakdown (goodsPrice, freightPrice, couponPrice, tax,
-     actualPrice), delivery block (consignee, mobile, address string — or
-     pickup store; the separate pickup-code mail stays), orderSn, payTime.
-     Keep plain text (`SimpleMailMessage`; V41 body column is text-only)
-     and keep render-at-enqueue (row stores the final subject/body). A DB
-     read failure while building the mail must never break the payment
-     path — degrade to the current minimal body, never throw.
-  2. **Light the pipeline up.** Dev: enable via env
-     (`LITEMALL_CUSTOMERMAIL_ENABLED=true`, host/port → MailHog :1025) and
-     prove delivery in the MailHog UI (:8025). Prod: add
-     `LITEMALL_CUSTOMERMAIL_*` passthrough to the order service in
-     `docker-compose.prod.yml` with EMPTY defaults — real SMTP creds are a
-     USER-SIDE PREREQUISITE (none exist yet); enabling later must be env +
-     container recreate, NO rebuild. Honesty rule: while disabled/blank,
-     behaviour stays exactly as today (silent no-op, no fake sends, no
-     5xx). Keep the compose warning accurate: the sweeper is
-     single-instance-only (duplicate emails if order is scaled out).
-  3. **Tests** — none exist today for the listener/sweeper. Add: paid
-     event ⇒ outbox row whose body contains items/amounts/address;
-     blank-email user ⇒ no row, no error; goods-load failure ⇒ minimal
-     body still enqueued; sweeper marks sent/failed. Mind the test-run
-     gotcha: read the "Tests run:" count, root pom + `@Nested` both
-     produce green no-op builds.
-  4. **Out of scope:** gateway-api's password-reset mail (separate
-     worktree; its `user`/`pass` key names diverge from core's
-     `username`/`password` — leave it, but don't make it worse). No new
-     anonymous service paths. Do not touch the production VPS.
-- **Acceptance:** dev e2e through `:9000` — register a user WITH an email,
-  place an order, pay with a Stripe test card ⇒ confirmation mail lands in
-  MailHog showing line items + amounts + delivery + orderSn; wallet-paid
-  order covered too (e2e or test); user with no email ⇒ order pays fine,
-  no outbox row, no error logged as failure; `litemall.customer-mail.enabled`
-  unset ⇒ behaviour identical to master; outbox row `template_key
-  order-confirmation` stores the final body; module tests green with real
-  "Tests run" counts; no migration (or V45+ justified in the plan);
-  checkout regression-green through `:9000`.
+  (Merged + deployed 2026-07-26, `77c55e027` — DARK until SMTP creds
+  land; activation = SMTP env in `.env.prod` + container recreate, no
+  rebuild, keep 1 replica. Spec in git history.)
+- **No Wave-12 assignment.** Do not start work here without a new
+  instruction.
 
 ### Worktree: `goods-management`
 - **Branch:** `fix/goods-management` — FIRST: `git merge master`. ·
-  **Scope:** `litemall-goods-management/` (+ `litemall-db` ONLY if a
-  schema change is truly justified — then claim **V45+** after checking
-  `flyway_schema_history`; V40 stays earmarked; note Wave-10 `order` runs
-  in parallel and also expects no migration — first to boot claims V45).
-- **Task — Wave 11 (backend): derive homepage banners from CJ imagery,
-  matched to the live category mix.** Serve the CONTRACT in the Wave-11
-  preamble note.
-  1. **Derivation:** for the top-N (config, default ~5) CJ L1 roots by
-     on-sale goods count (`CatalogGoodsCountService.countsByRoot()`
-     already computes this), pick a hero image from that subtree's
-     on-sale CJ goods (newest or best-selling; URL MUST be on
-     `cf.`/`oss-cf.cjdropshipping.com` so the `/_cdn` rewrite covers it —
-     skip aliyuncs/yanxuan-hosted pics). Build banner entries: `name` =
-     L1 name, `url` = hero pic, `link` = `/category/<L1 id>`, `content` =
-     short subtitle. NO live CJ API calls on the request path — derive
-     from local `litemall_goods` data like `CategoryImageBackfillService`
-     does, with a cache/refresh so `/srv/goods/index` latency stays flat.
-  2. **Serving:** `/srv/goods/index` `banner` key returns the derived
-     banners; manual admin rows (`litemall_ad` position=1, enabled)
-     still appear and outrank generated ones. The 3 yanxuan seed rows
-     must STOP being served (they are mixed-content broken) — data-level
-     deactivation or read-time filtering of non-HTTPS/foreign hosts;
-     your plan decides, but the admin ad panel must keep working for
-     rows admins create.
-  3. **Honesty:** only banner categories with a meaningful number of
-     on-sale goods; every `link` must land on a non-empty category page.
-  4. **Tests** for derivation (top-N selection, host filter, admin-row
-     precedence, empty-catalog fallback). Mind the surefire/@Nested
-     "Tests run:" gotcha.
-- **Acceptance:** through `:9000`, `/srv/goods/index` returns ≥3 banners,
-  every `url` rewritten to `/_cdn/...` at the edge, every `link` a
-  `/category/<id>` with on-sale goods, zero `yanxuan.nosdn.127.net` in
-  the payload; admin ad CRUD still functional (create a manual row ⇒ it
-  appears first); index latency comparable to master (cached derivation);
-  module tests green with real "Tests run" counts; no migration (or V45+
-  justified in the plan and coordinated).
+  **Scope:** `litemall-goods-management/` + `litemall-db` (V45 migration
+  + mapping the dead `cost` columns — shared-db discipline: hand-edit
+  entities + mapper XMLs together, `mvn install` litemall-db, restart
+  EVERY dependent, verify the nested `BOOT-INF/lib` copy).
+- **History:** Wave 11 CJ homepage banners SHIPPED (2026-07-26, master
+  `308082607`); spec in git history.
+- **Task — Wave 12 (backend core): CJ inventory intelligence.** Serve
+  the Wave-12 CONTRACT in the preamble note.
+  1. **Cost capture + 1.25 repricing:** V45 adds
+     `litemall_cj_product.sell_price decimal(10,2)` (raw CJ USD cost).
+     `CjSnapshotSyncService.toRow()` persists it, and the retail formula
+     becomes `retail = sellPrice × pricing.margin` with margin default
+     **1.25** — DELETE the `usdToCny` factor from the formula (don't
+     silently set it to 1). `CjDetailEnrichmentService` writes
+     per-variant `variant_sell_price` into `variants_json` (JSON — no
+     schema change) and variant retail = variant cost × margin. Map the
+     dead `cost` columns on `LitemallGoods` + `LitemallGoodsProduct`
+     (domain + mapper XML) and write them in the CJ→native path
+     (`CjProductToNativeAdapter` + promotion/SKU import). REPRICING IS
+     DELIBERATE (user-approved 2026-07-28): the first full sync lands
+     ~91% lower prices storewide; `counter_price` stays == retail (no
+     fake strike-through). Costs populate as syncs run — rows not yet
+     re-synced have NULL cost, and margin fields must render null,
+     never a fake 0.
+  2. **Tracking tables (same V45):** `litemall_cj_sync_run` (phase
+     sync|enrich|flow, started/finished, upserted/inserted/updated/
+     removed counts, complete, error — today sync outcomes are only a
+     log line); `litemall_product_metric_daily` (goods_id+day PK,
+     retail_price, cost, margin_pct, stock_total, available, views,
+     sales_qty — idempotent daily upsert; the per-product time series
+     from arrival date); `litemall_deal_candidate` (goods_id, day, tier,
+     score, suggested_deal_price, reasons, status
+     proposed|approved|dismissed).
+  3. **Spring Integration flow** (add `spring-boot-starter-integration`;
+     new pkg `application/inventoryflow/`, Java DSL): entry =
+     `@MessagingGateway InventoryFlowGateway.onCatalogLanded(summary)`
+     called by `CjCatalogRefreshTask` after the promote stage, and
+     `.onEnrichmentBatch(pids)` from the enrich task (gateway, ch5).
+     Splitter: batch → per-pid messages (ch7). Content enricher: join
+     snapshot + goods + goods_product + yesterday's metric (ch5). Router
+     (ch6): NEW_ARRIVAL (goods first seen today) / UPDATED / VANISHED
+     (removedPids). Service activators (ch5): MarginRecorder (metric
+     upsert), AvailabilityRecorder (livePids ⇒ available=1; vanished ⇒
+     available=0 — existing off-sale enforcement keeps them viewable but
+     unbuyable), DealCandidateScorer (NEW_ARRIVAL channel only:
+     tier/score from marginPct × stock × rating/reviewCount; persists
+     proposal rows). Aggregator (ch7): per-L1 rollup → memoized
+     `CategoryInsightCache` (`CatalogGoodsCountService` 5-min pattern)
+     ranking categories by potentialProfit. Wire tap (ch14) →
+     `litemall_cj_sync_run` bookkeeping. ExecutorChannel for per-product
+     work; bounded QueueChannel + 1/s poller (ch15) for the targeted
+     nightly `getInventory(vid)` re-checks — goods with live or proposed
+     deals ONLY (respect the CJ rate limit; pick a cron hour clear of
+     02:45/03:00/03:30).
+  4. **Serving:** the `/srv/private/admin/insight/**` CONTRACT
+     endpoints; request paths read local tables/caches only.
+     views/salesQty come from `litemall_footprint` /
+     `litemall_order_goods` (shared DB, read-only).
+  5. **Unpark CJ flash deals:** implement the per-SKU price swap for CJ
+     goods on V40 `original_sku_prices` (ref impl `a82a19e0e` in git
+     history), replacing the errno-652 refusal; lifecycle swap/unwind
+     must handle multi-SKU CJ goods; the approve endpoint creates the
+     deal; deal price ≥ cost, always.
+  6. **Honesty:** no live CJ calls on request paths; CJ API down ⇒
+     failed sync_run row + stale metrics tolerated; never fake margins,
+     stock, or availability.
+  7. **Tests:** formula (×1.25, no ×7.2), router channel selection,
+     scorer tiers, metric same-day idempotency, rollup ranking, approve
+     → deal with SKU swap + unwind, vanished ⇒ available=0. Mind the
+     surefire/@Nested "Tests run:" gotcha.
+- **Acceptance:** dev: run a sync ⇒ `sell_price` populated for live pids
+  and PDP retail == cost×1.25 through `:9000`; metric rows exist for
+  today; through `:18080`: `/insight/categories` returns the ranked
+  payload, `/insight/goods/list` sorts on every contract key
+  server-side, `/insight/goods/{id}` returns series + per-variant costs,
+  `/insight/deal-candidates` lists scored arrivals and approving one
+  yields a live CJ flash deal (SKU prices swapped, unwound on expiry);
+  sync_run rows recorded per phase; checkout regression green through
+  `:9000` on the repriced catalog; module tests green with real "Tests
+  run" counts; V45 claimed after checking `flyway_schema_history`.
 
-### Worktree: `gateway-api`
-- **Branch:** `fix/gateway-api` — FIRST: `git merge master`. · **Scope:**
-  `litemall-gateway-api/` customer SPA only. NO migration, no new
-  anonymous service paths, no banner logic at the edge — the banner list
-  arrives ready-made per the Wave-11 CONTRACT (code to the contract, not
-  to the goods-management branch).
+### Worktree: `gateway-api` — history (Wave 11, SHIPPED)
 - **Task — Wave 11 (SPA): render + route the CJ category banners.**
-  1. **Routing:** in `Home.tsx` (:186-205) treat `banner.link` values
-     starting with `/` as internal SPA routes (react-router navigate, no
-     full page reload); keep plain `<a>` behaviour for absolute external
-     URLs; no more dead `href="#"`.
-  2. **Presentation:** the hero images are 1:1 product catalog crops, not
-     designed banner art — make them read as banners: fixed hero height
-     with `object-fit: cover` (or equivalent), a gradient/scrim overlay
-     so the caption is legible, caption = `name` + `content` subtitle +
-     a "Shop <category>" CTA. Keep the react-bootstrap `<Carousel>` and
-     the existing `storefront-home.scss` conventions; keep a graceful
-     empty-state (no broken 340px void if the list is ever empty).
-  3. **Regression:** home, category landing (banner click lands on
-     `/category/<id>` with facets), anonymous browse/search/PDP, login,
-     cart, checkout — green through `:9000`.
-- **Acceptance:** SPA build clean; banners render on `/` through `:9000`
-  with images served via `/_cdn` (no mixed-content or console errors);
-  clicking a banner performs a client-side route to its category landing;
-  captions legible on arbitrary product imagery; empty banner list
-  degrades cleanly; regression list above green.
+  (Merged + deployed 2026-07-26, master `308082607`; spec in git
+  history.)
+- **No Wave-12 assignment** — the customer storefront needs no change
+  (repricing arrives through existing price fields). Do not start work
+  here without a new instruction.
 
 ### Worktree: `gateway-api` — history (Wave 9.1, SHIPPED)
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
 ### Worktree: `gateway-admin`
-- **No Wave-9 assignment.** Wave-8 admin branding is merged and deployed
-  (`72446568f`). Do not start work here without a new instruction.
-  (Candidate for a later wave: a curated-keywords management panel feeding
-  `/srv/search/helper` and hot-keyword curation — NOT commissioned yet.)
+- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
+  **Scope:** `litemall-gateway-admin/` SPA only — no edge controllers,
+  no yml route changes (the `/srv/**` catch-all already reaches
+  goods-management; `/srv/private/admin/promotion/**` already routes to
+  promotion). NO migration. Code to the Wave-12 CONTRACT, not to other
+  branches.
+- **Task — Wave 12 (admin UI): goods-by-category insight navigation +
+  per-product decision page.**
+  1. **Nav** (`menu.config.ts` goods group :75-86): add wired leaves
+     "Goods by category" `/admin/goods/categories` and "Deal proposals"
+     `/admin/goods/deal-candidates`; hidden leaves
+     `/admin/goods/categories/:id` and `/admin/goods/:id/insight`. Keep
+     the flat "Goods list" untouched. Routes in `admin-routes.tsx` —
+     static segments BEFORE `:id` routes (comment at :91).
+  2. **Views** (`adminModule/Insight/`, reuse `_shared/crudUi.tsx` +
+     el-table/el-pagination conventions): `CategoryInsightList` — table
+     ranked by potentialProfit desc (name, on-sale, new arrivals 7d,
+     stock, low-stock, unavailable, avg margin %, potential profit); row
+     → category goods page; plus a "Launch category campaign" dialog
+     (POST `/campaign/from-category` per CONTRACT, rendering the honest
+     per-platform disabled/failed statuses). `CategoryGoodsList` —
+     DEFAULT sort = arrival date (`add_time desc`) with a sort box: date
+     (default) | price | stock availability | margin | sales, asc/desc,
+     paginated; row → insight page. `GoodsInsight`
+     (`/admin/goods/:id/insight`) — chart.js Line series (StatPage.tsx
+     pattern): price/cost/margin%, stock + availability, views/sales;
+     totals cards; per-variant table (price, cost, stock, available);
+     recommendation/deal panel with Approve-deal + Dismiss actions; link
+     to the existing Wave-6 `PromoteComposerDialog` for social
+     advertising. `DealCandidateList` — today's proposals with
+     tier/score/reasons + approve/dismiss.
+  3. **API:** new RTK Query `insightApi.ts` (baseUrl
+     `/srv/private/admin/insight`, `adminGoodsApi.ts` pattern: Bearer +
+     envelope unwrap); campaign-from-category on the existing promotion
+     API slice; register the new api in BOTH `shared/reducers/index.ts`
+     and `config/store.ts`.
+- **Acceptance:** SPA build clean; through `:18080` — new nav entries
+  render real payloads; category list ranked by potential profit;
+  category goods page defaults to newest-arrival and every sort option
+  round-trips server-side; insight page renders charts + variants +
+  recommendation with no console errors; approving a candidate creates a
+  deal visible in the existing deals panel; the campaign dialog creates
+  campaign + drafts with honest statuses; existing Goods list/CRUD and
+  all other panels regression-green.
 
 ### Worktree: `platform`
 - **No Wave-8 assignment.** The Wave-7 stack is merged and DEPLOYED (prod compose,
@@ -307,4 +400,36 @@
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
 ### Worktree: `promotion`
-- **No Wave-8 assignment.** Do not start work here without a new instruction.
+- **Branch:** `fix/promotion` — FIRST: `git merge master`. · **Scope:**
+  `litemall-promotion-service/` only. NO migration, no new anonymous
+  paths, fail-soft ACL discipline (Meta/TikTok/Mautic stay
+  disabled-by-default; enabling later = env + container recreate, NO
+  rebuild).
+- **Task — Wave 12: scheduled category campaigns on media platforms.**
+  1. **Campaign scheduler:** new
+     `infrastructure/scheduling/CampaignScheduleTick` (@Scheduled
+     fixedDelay `litemall.promotion.campaign.tick-ms:60000`,
+     enabled-guard + try/catch-swallow like `PromotionExpirySweeper`):
+     activate due draft campaigns whose schedule start has arrived
+     (`activateCampaign` + `evaluateCampaign`), mark past-end active
+     campaigns done. Today evaluation is admin-triggered only — keep the
+     admin endpoints working unchanged.
+  2. **Category campaign composer:**
+     `POST /srv/private/admin/promotion/campaign/from-category` per the
+     Wave-12 CONTRACT — target goods = the category's live-deal goods
+     via the existing `SocialCatalogAdapter` (fallback: explicit
+     goodsIds), campaign row linked to the deal mechanic, plus
+     per-platform `litemall_social_post` drafts via the existing
+     composer seams. Publishing honest-degrades (adapters disabled ⇒
+     failed rows with reason) until Meta/TikTok tokens land (USER-SIDE
+     PREREQUISITE).
+  3. Leave `SocialDealAutoPoster` and the Mautic delivery listener
+     untouched.
+  4. **Tests:** tick activates/completes by schedule; from-category
+     builds the right target set + drafts; disabled adapters ⇒ failed
+     rows, never exceptions. Mind the "Tests run:" gotcha.
+- **Acceptance:** through `:18080` — create a category campaign with a
+  near-term schedule ⇒ the tick activates + evaluates it on time; social
+  rows appear per platform with honest disabled/failed statuses;
+  existing campaign/seckill/social panels regression-green; no
+  migration; module tests green with real "Tests run" counts.
