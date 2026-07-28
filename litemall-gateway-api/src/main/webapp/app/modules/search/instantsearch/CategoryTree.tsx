@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
+import { resetPageTitle, setPageTitle } from 'app/shared/util/pageTitle';
 
 type Node = { id: number; name: string; level?: string; count?: number };
 
@@ -42,6 +43,16 @@ const CategoryTree: React.FC<{ categoryId: string }> = ({ categoryId }) => {
       cancelled = true;
     };
   }, [categoryId]);
+
+  // Tab title follows the category on client-side navigation (a full page
+  // load arrives with the edge-injected title, Wave-13). This component owns
+  // the fetched category payload, so the title lives here rather than in
+  // Search.tsx, which never sees the category name.
+  useEffect(() => {
+    const name = detail?.category?.name ?? detail?.breadcrumb?.at(-1)?.name;
+    if (name) setPageTitle(name);
+    return resetPageTitle;
+  }, [detail]);
 
   if (!detail?.category) return null;
 
