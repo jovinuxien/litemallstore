@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { baseAxios, contentApi, IArticle, IPageComponent, IPageView, SRV, unwrap } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
+import { productPath } from 'app/shared/util/slug';
 import 'app/components/userComponents/card/product-card.scss';
 import 'app/modules/home/storefront-home.scss';
 
@@ -257,7 +258,7 @@ const SeckillStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
             </div>
           );
           return s.goodsId ? (
-            <Link key={s.seckillId ?? i} to={`/product/${s.goodsId}`} className='text-decoration-none text-reset'>
+            <Link key={s.seckillId ?? i} to={productPath(s.goodsId, s.goodsName)} className='text-decoration-none text-reset'>
               {body}
             </Link>
           ) : (

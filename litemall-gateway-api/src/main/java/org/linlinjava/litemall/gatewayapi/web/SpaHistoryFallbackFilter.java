@@ -1,17 +1,24 @@
 package org.linlinjava.litemall.gatewayapi.web;
 
+import org.linlinjava.litemall.gatewayapi.web.seo.SeoHeadRenderer;
+import org.linlinjava.litemall.gatewayapi.web.seo.SeoMetaSource;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * History-API fallback for the bundled customer SPA.
@@ -43,6 +50,17 @@ import java.util.List;
  *
  * <p>Ordered after Spring Security's chain (-100): authorization evaluates the real
  * requested path, then the rewrite decides what content answers it.
+ *
+ * <p><b>Wave-13 head injection.</b> Product ({@code /product/<id>[-slug]}) and
+ * category ({@code /category/<id>}) navigations are answered with the same shell
+ * but a real head (title, canonical, OpenGraph, JSON-LD) rendered by
+ * {@link SeoHeadRenderer} from goods-management meta — that is what no-JS social
+ * crawlers and Google's first-wave fetch index. Strictly fail-open: meta not
+ * fetched within {@code SeoMetaClient.FETCH_BUDGET}, a non-numeric id (legacy
+ * {@code cj_<pid>} routes), an unbuilt webapp tree, or any error falls back to
+ * the plain rewrite below. The HTML is identical for every caller of a given
+ * URL (no UA cloaking), and marked {@code Cache-Control: no-cache} so no edge
+ * cache can serve one product's head for another.
  */
 @Component
 @Order(10)
@@ -50,6 +68,18 @@ public class SpaHistoryFallbackFilter implements WebFilter, Ordered {
 
     private static final List<String> API_PREFIXES =
             List.of("/srv/", "/auth/", "/actuator/", "/_cdn/");
+
+    /** Leading digits are the goods id; an optional -slug tail is ignored. */
+    private static final Pattern PRODUCT_ROUTE = Pattern.compile("^/product/(\\d+)(?:-[^/]*)?$");
+    private static final Pattern CATEGORY_ROUTE = Pattern.compile("^/category/(\\d+)$");
+
+    private final SeoMetaSource seoMetaClient;
+    private final SeoHeadRenderer seoHeadRenderer;
+
+    public SpaHistoryFallbackFilter(SeoMetaSource seoMetaClient, SeoHeadRenderer seoHeadRenderer) {
+        this.seoMetaClient = seoMetaClient;
+        this.seoHeadRenderer = seoHeadRenderer;
+    }
 
     @Override
     public int getOrder() {
@@ -60,11 +90,56 @@ public class SpaHistoryFallbackFilter implements WebFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         if (isSpaNavigation(request)) {
-            return chain.filter(exchange.mutate()
-                    .request(request.mutate().path("/index.html").build())
-                    .build());
+            return seoHtml(request.getURI().getRawPath())
+                    .flatMap(html -> html.isEmpty()
+                            ? serveShell(exchange, chain)
+                            : writeHtml(exchange, html));
         }
         return chain.filter(exchange);
+    }
+
+    /**
+     * The injected document for a crawlable route, or {@code ""} for "serve the
+     * plain shell" — empty string rather than an empty Mono because the success
+     * path writes a {@code Mono<Void>}, whose completion is indistinguishable
+     * from emptiness under {@code switchIfEmpty}.
+     */
+    private Mono<String> seoHtml(String path) {
+        if (!seoHeadRenderer.available()) {
+            return Mono.just("");
+        }
+        Matcher product = PRODUCT_ROUTE.matcher(path);
+        if (product.matches()) {
+            return seoMetaClient.goodsMeta(product.group(1))
+                    .flatMap(meta -> Mono.justOrEmpty(seoHeadRenderer.renderProduct(meta)))
+                    .defaultIfEmpty("")
+                    .onErrorReturn("");
+        }
+        Matcher category = CATEGORY_ROUTE.matcher(path);
+        if (category.matches()) {
+            return seoMetaClient.categoryName(category.group(1))
+                    .flatMap(name -> Mono.justOrEmpty(
+                            seoHeadRenderer.renderCategory(category.group(1), name)))
+                    .defaultIfEmpty("")
+                    .onErrorReturn("");
+        }
+        return Mono.just("");
+    }
+
+    private Mono<Void> serveShell(ServerWebExchange exchange, WebFilterChain chain) {
+        return chain.filter(exchange.mutate()
+                .request(exchange.getRequest().mutate().path("/index.html").build())
+                .build());
+    }
+
+    private Mono<Void> writeHtml(ServerWebExchange exchange, String html) {
+        ServerHttpResponse response = exchange.getResponse();
+        byte[] bytes = html.getBytes(StandardCharsets.UTF_8);
+        response.setStatusCode(HttpStatus.OK);
+        response.getHeaders().setContentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8));
+        response.getHeaders().setCacheControl("no-cache");
+        response.getHeaders().setContentLength(bytes.length);
+        return response.writeWith(Mono.just(response.bufferFactory().wrap(bytes)));
     }
 
     private boolean isSpaNavigation(ServerHttpRequest request) {
