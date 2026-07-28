@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,19 +49,22 @@ public class CjSnapshotSyncService {
     private final ObjectMapper objectMapper;
     private final CjRawCacheRepository rawCache;
     private final CjCategoryTreeSyncService categoryTreeSync;
+    private final CjPricing pricing;
 
     public CjSnapshotSyncService(CJProductService cjProductService,
                                  LitemallCjProductService cjProductStore,
                                  CJDropshippingConfig config,
                                  ObjectMapper objectMapper,
                                  CjRawCacheRepository rawCache,
-                                 CjCategoryTreeSyncService categoryTreeSync) {
+                                 CjCategoryTreeSyncService categoryTreeSync,
+                                 CjPricing pricing) {
         this.cjProductService = cjProductService;
         this.cjProductStore = cjProductStore;
         this.config = config;
         this.objectMapper = objectMapper;
         this.rawCache = rawCache;
         this.categoryTreeSync = categoryTreeSync;
+        this.pricing = pricing;
     }
 
     /**
@@ -70,12 +72,15 @@ public class CjSnapshotSyncService {
      * daily job can report how many products are genuinely NEW vs refreshed. {@code livePids} is the set
      * of pids seen in this fetch — the inverse of {@code removedPids}, fed to
      * {@code CjProductPromotionService.reconcile} so native goods for vanished pids are soft-deleted.
+     * {@code insertedPids} (Wave 12) lists the genuinely NEW/resurrected pids so the inventory flow can
+     * route them as NEW_ARRIVAL (deal-candidate scoring) without re-deriving the classification.
      */
     public record SyncResult(int upserted, int inserted, int updated,
                              List<String> removedPids, java.util.Set<String> livePids,
+                             List<String> insertedPids,
                              boolean complete) {
         public static SyncResult empty() {
-            return new SyncResult(0, 0, 0, List.of(), java.util.Set.of(), false);
+            return new SyncResult(0, 0, 0, List.of(), java.util.Set.of(), List.of(), false);
         }
     }
 
@@ -129,7 +134,7 @@ public class CjSnapshotSyncService {
         java.util.Set<String> preexistingPids = new java.util.HashSet<>(cjProductStore.queryLivePids());
 
         java.util.Set<String> livePids = new java.util.LinkedHashSet<>();
-        int inserted = 0;
+        List<String> insertedPids = new ArrayList<>();
         int updated = 0;
         for (CJProduct p : products) {
             if (p == null || p.getPid() == null || p.getPid().isBlank()) {
@@ -140,13 +145,14 @@ public class CjSnapshotSyncService {
                 if (preexistingPids.contains(p.getPid())) {
                     updated++;
                 } else {
-                    inserted++;
+                    insertedPids.add(p.getPid());
                 }
                 livePids.add(p.getPid());
             } catch (RuntimeException ex) {
                 LOGGER.warn("Skipping malformed CJ product pid={}: {}", p.getPid(), ex.getMessage());
             }
         }
+        int inserted = insertedPids.size();
         int upserted = inserted + updated;
 
         // Stale detection: any previously-live row not seen in this fetch is soft-deleted (and its
@@ -186,7 +192,7 @@ public class CjSnapshotSyncService {
         }
 
         LOGGER.info("CJ snapshot sync: {} new, {} updated, {} soft-deleted stale", inserted, updated, removed.size());
-        return new SyncResult(upserted, inserted, updated, removed, livePids, fetch.complete());
+        return new SyncResult(upserted, inserted, updated, removed, livePids, insertedPids, fetch.complete());
     }
 
     // ---- CJProduct → snapshot row (normalization lives here) --------------------------------------
@@ -200,7 +206,10 @@ public class CjSnapshotSyncService {
         row.setDescription(description(p));
         row.setBrand(null); // CJ has no brand for most items; brand facet stays sparse (acceptable)
 
-        BigDecimal retail = retailPrice(p.getSellPrice());
+        // Wave 12: persist the raw USD cost (range lower bound) alongside the marked-up retail.
+        BigDecimal cost = pricing.parseCost(p.getSellPrice());
+        BigDecimal retail = pricing.retail(cost);
+        row.setSellPrice(cost);
         row.setPrice(retail);
         row.setDiscountPrice(null);
 
@@ -213,6 +222,9 @@ public class CjSnapshotSyncService {
         variant.put("stock", config.getDefaultStock());
         if (retail != null) {
             variant.put("variant_price", retail);
+        }
+        if (cost != null) {
+            variant.put("variant_sell_price", cost);
         }
         row.setVariantsJson(writeJson(List.of(variant)));
         row.setAttributesJson(null); // CJ carries no curated attributes today
@@ -242,28 +254,6 @@ public class CjSnapshotSyncService {
             return p.getRemark().trim();
         }
         return title(p);
-    }
-
-    /**
-     * Retail = wholesale USD × usdToCny × margin, in the local CNY basis; null on unparseable cost.
-     * CJ {@code sellPrice} may be a single value ("11.85") OR a variant range ("14.71 -- 64.38") —
-     * for a range the lower bound is used (the entry-level "from" price).
-     */
-    private BigDecimal retailPrice(String sellPrice) {
-        if (sellPrice == null || sellPrice.isBlank()) {
-            return null;
-        }
-        // Take the first numeric token, so a "low -- high" range collapses to its lower bound.
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?").matcher(sellPrice);
-        if (!m.find()) {
-            LOGGER.warn("Unparseable CJ sellPrice '{}'", sellPrice);
-            return null;
-        }
-        CJDropshippingConfig.Pricing pricing = config.getPricing();
-        return new BigDecimal(m.group())
-                .multiply(pricing.getUsdToCny())
-                .multiply(pricing.getMargin())
-                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private record CategoryMapping(List<String> names, List<String> ids) {}

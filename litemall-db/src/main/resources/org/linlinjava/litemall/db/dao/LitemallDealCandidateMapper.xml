@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 12). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallDealCandidateMapper">
+
+  <sql id="Base_Column_List">
+    id, goods_id, `day`, tier, score, suggested_deal_price, reasons, status, add_time, update_time, deleted
+  </sql>
+
+  <!-- Re-running the scorer refreshes scoring fields only while status is still 'proposed';
+       an admin's approve/dismiss decision is never clobbered by a later flow run. -->
+  <insert id="upsertProposal" parameterType="org.linlinjava.litemall.db.domain.LitemallDealCandidate"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_deal_candidate
+      (goods_id, `day`, tier, score, suggested_deal_price, reasons, status, add_time, update_time, deleted)
+    values
+      (#{goodsId}, #{day}, #{tier}, coalesce(#{score}, 0.00), #{suggestedDealPrice}, #{reasons},
+       coalesce(#{status}, 'proposed'), now(), now(), 0)
+    on duplicate key update
+      tier = if(status = 'proposed', values(tier), tier),
+      score = if(status = 'proposed', values(score), score),
+      suggested_deal_price = if(status = 'proposed', values(suggested_deal_price), suggested_deal_price),
+      reasons = if(status = 'proposed', values(reasons), reasons),
+      update_time = if(status = 'proposed', now(), update_time)
+  </insert>
+
+  <select id="selectByDay" resultType="org.linlinjava.litemall.db.domain.LitemallDealCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_deal_candidate
+    where `day` = #{day} and deleted = 0
+    <if test="status != null">and status = #{status}</if>
+    order by score desc, id asc
+  </select>
+
+  <select id="selectLatestByGoods" resultType="org.linlinjava.litemall.db.domain.LitemallDealCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_deal_candidate
+    where goods_id = #{goodsId} and deleted = 0
+    order by `day` desc
+    limit 1
+  </select>
+
+  <select id="selectByGoodsAndDay" resultType="org.linlinjava.litemall.db.domain.LitemallDealCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_deal_candidate
+    where goods_id = #{goodsId} and `day` = #{day} and deleted = 0
+  </select>
+
+  <update id="updateStatus">
+    update litemall_deal_candidate
+    set status = #{status}, update_time = now()
+    where id = #{id} and status = #{expect} and deleted = 0
+  </update>
+
+</mapper>

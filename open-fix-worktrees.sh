@@ -11,15 +11,16 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 11 (CJ-sourced homepage banners) active worktrees. Wave 10 runs in
-# parallel in the already-open "order" terminal — do NOT relaunch it here
-# (FRESH=1 would bury its live session's assignment).
-# Parked: "order" (Wave-10 in flight), "gateway-admin", "platform",
-# "promotion" (no assignment). Each name must have a matching
-# '### Worktree: `<short>`' block in CLAUDE.md.
+# Wave 12 (CJ inventory intelligence) active worktrees. Launch with
+# FRESH=1 — Waves 10/11 are shipped, and a plain resume would reopen the
+# finished previous-wave conversations instead of delivering Wave 12.
+# Parked: "order", "gateway-api" (Wave-12 has no assignment for them),
+# "platform". Each name must have a matching '### Worktree: `<short>`'
+# block in CLAUDE.md.
 MODULES=(
-  "goods-management"  # derive homepage banners from CJ imagery for top on-sale L1 categories
-  "gateway-api"       # render/route the category banner carousel per the Wave-11 contract
+  "goods-management"  # cost capture + 1.25 repricing, SI inventory flow, insight API, CJ deal unpark (V45)
+  "gateway-admin"     # goods-by-category insight nav + per-product decision page + deal proposals UI
+  "promotion"         # campaign scheduler tick + category-campaign composer (honest-degrade sans tokens)
 )
 
 mkdir -p "$WT_BASE"

@@ -89,4 +89,14 @@ public interface LitemallCjLinkageMapper {
      * the generated insert/update (which don't carry the column), same as the ranking signals.
      */
     int markCjReviewsIngested(@Param("goodsId") Integer goodsId);
+
+    /** goods_id of the live SKU carrying this CJ variant id, or null (Wave 12 recheck path). */
+    Integer findGoodsIdByCjVid(@Param("cjVid") String cjVid);
+
+    /**
+     * Write a freshly re-checked CJ warehouse stock onto the SKU row by its variant id
+     * (Wave 12 nightly deal-goods recheck) — outside the generated update, which the
+     * {@code *Example} API cannot address by {@code cj_vid}.
+     */
+    int updateProductStockByCjVid(@Param("cjVid") String cjVid, @Param("number") int number);
 }

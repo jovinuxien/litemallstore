@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written read-only insight aggregates (Wave 12). Map results are keyed by the
+  camelCase aliases below (mapUnderscoreToCamelCase does not apply to map rows).
+  Margin aliases are NULL when cost is not captured (cost <= 0) — never a fake 0.
+  Sales follow the house paid-or-later convention: join litemall_order, order_status >= 201.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.InsightMapper">
+
+  <sql id="Stock_Subquery">
+    select goods_id, sum(`number`) as stock_total
+    from litemall_goods_product
+    where deleted = 0
+    group by goods_id
+  </sql>
+
+  <sql id="Sales_Subquery">
+    select og.goods_id, sum(og.number) as sales_qty
+    from litemall_order_goods og
+    join litemall_order o on o.id = og.order_id and o.order_status &gt;= 201
+    where og.deleted = 0
+    group by og.goods_id
+  </sql>
+
+  <select id="selectCategoryAgg" resultType="java.util.HashMap">
+    select
+      count(*) as onSaleCount,
+      coalesce(sum(case when g.add_time &gt;= date_sub(curdate(), interval 7 day) then 1 else 0 end), 0) as newArrivals7d,
+      coalesce(sum(coalesce(p.stock_total, 0)), 0) as stockUnits,
+      coalesce(sum(case when coalesce(p.stock_total, 0) &lt;= #{lowStock} then 1 else 0 end), 0) as lowStockCount,
+      coalesce(sum(case when md.available = 0 then 1 else 0 end), 0) as unavailableCount,
+      round(avg(case when g.cost &gt; 0 and g.retail_price &gt; 0
+                     then (g.retail_price - g.cost) / g.retail_price * 100 end), 2) as avgMarginPct,
+      round(coalesce(sum(case when g.cost &gt; 0
+                     then (g.retail_price - g.cost) * least(coalesce(p.stock_total, 0), #{stockCap}) end), 0), 2) as potentialProfit
+    from litemall_goods g
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = g.id
+    left join litemall_product_metric_daily md on md.goods_id = g.id and md.`day` = #{day}
+    where g.deleted = 0 and g.is_on_sale = 1
+      and g.category_id in
+      <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+  </select>
+
+  <select id="selectGoodsPage" resultType="java.util.HashMap">
+    select
+      g.id as goodsId,
+      g.`name` as name,
+      g.pic_url as picUrl,
+      g.is_on_sale as isOnSale,
+      g.retail_price as retailPrice,
+      case when g.cost &gt; 0 then g.cost end as cost,
+      case when g.cost &gt; 0 then g.retail_price - g.cost end as marginAmount,
+      case when g.cost &gt; 0 and g.retail_price &gt; 0
+           then round((g.retail_price - g.cost) / g.retail_price * 100, 2) end as marginPct,
+      coalesce(p.stock_total, 0) as stockTotal,
+      md.available as cjAvailable,
+      g.add_time as arrivalDate,
+      coalesce(s.sales_qty, 0) as salesQty
+    from litemall_goods g
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = g.id
+    left join (<include refid="Sales_Subquery"/>) s on s.goods_id = g.id
+    left join litemall_product_metric_daily md on md.goods_id = g.id and md.`day` = #{day}
+    where g.deleted = 0
+    <if test="categoryIds != null">
+      and g.category_id in
+      <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+    </if>
+    order by
+    <choose>
+      <when test="sort == 'retail_price'">g.retail_price</when>
+      <when test="sort == 'margin_pct'">marginPct</when>
+      <when test="sort == 'stock'">stockTotal</when>
+      <when test="sort == 'sales'">salesQty</when>
+      <otherwise>g.add_time</otherwise>
+    </choose>
+    <choose>
+      <when test="order == 'asc'">asc</when>
+      <otherwise>desc</otherwise>
+    </choose>
+    , g.id desc
+    limit #{limit} offset #{offset}
+  </select>
+
+  <select id="countGoods" resultType="long">
+    select count(*)
+    from litemall_goods g
+    where g.deleted = 0
+    <if test="categoryIds != null">
+      and g.category_id in
+      <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+    </if>
+  </select>
+
+  <select id="selectGoodsTotals" resultType="java.util.HashMap">
+    select
+      (select count(*) from litemall_footprint f
+        where f.goods_id = #{goodsId} and f.deleted = 0) as views,
+      coalesce((select sum(og.number) from litemall_order_goods og
+        join litemall_order o on o.id = og.order_id and o.order_status &gt;= 201
+        where og.goods_id = #{goodsId} and og.deleted = 0), 0) as salesQty,
+      round(coalesce((select sum(og.number * og.price) from litemall_order_goods og
+        join litemall_order o on o.id = og.order_id and o.order_status &gt;= 201
+        where og.goods_id = #{goodsId} and og.deleted = 0), 0), 2) as revenue,
+      (select count(*) from litemall_collect c
+        where c.value_id = #{goodsId} and c.type = 0 and c.deleted = 0) as collects,
+      (select count(*) from litemall_comment cm
+        where cm.value_id = #{goodsId} and cm.type = 0 and cm.deleted = 0) as comments
+  </select>
+
+  <select id="selectDealCandidateRows" resultType="java.util.HashMap">
+    select
+      dc.id as id,
+      dc.goods_id as goodsId,
+      g.`name` as name,
+      g.pic_url as picUrl,
+      dc.`day` as day,
+      dc.tier as tier,
+      dc.score as score,
+      case when g.cost &gt; 0 then g.cost end as cost,
+      g.retail_price as retailPrice,
+      dc.suggested_deal_price as suggestedDealPrice,
+      coalesce(p.stock_total, 0) as stockTotal,
+      g.rating as rating,
+      dc.status as status,
+      dc.reasons as reasons
+    from litemall_deal_candidate dc
+    join litemall_goods g on g.id = dc.goods_id and g.deleted = 0
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = dc.goods_id
+    where dc.deleted = 0 and dc.`day` = #{day}
+    order by dc.score desc, dc.id asc
+  </select>
+
+  <select id="selectDailyViews" resultType="java.util.HashMap">
+    select goods_id as goodsId, count(*) as cnt
+    from litemall_footprint
+    where deleted = 0
+      and add_time &gt;= #{day} and add_time &lt; date_add(#{day}, interval 1 day)
+    group by goods_id
+  </select>
+
+  <select id="selectDailySales" resultType="java.util.HashMap">
+    select og.goods_id as goodsId, sum(og.number) as cnt
+    from litemall_order_goods og
+    join litemall_order o on o.id = og.order_id and o.order_status &gt;= 201
+    where og.deleted = 0
+      and o.pay_time &gt;= #{day} and o.pay_time &lt; date_add(#{day}, interval 1 day)
+    group by og.goods_id
+  </select>
+
+  <select id="selectTrackedDealVids" resultType="java.lang.String">
+    select distinct gp.cj_vid
+    from litemall_goods_product gp
+    join litemall_goods g on g.id = gp.goods_id and g.source = 'cj' and g.deleted = 0
+    where gp.deleted = 0 and gp.cj_vid is not null and gp.cj_vid != ''
+      and (gp.goods_id in (select goods_id from litemall_seckill
+                            where price_swapped = 1 and is_del = 0 and deleted = 0)
+        or gp.goods_id in (select goods_id from litemall_deal_candidate
+                            where status = 'proposed' and deleted = 0
+                              and `day` &gt;= date_sub(curdate(), interval 7 day)))
+  </select>
+
+</mapper>

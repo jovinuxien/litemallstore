@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 12). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCjSyncRunMapper">
+
+  <sql id="Base_Column_List">
+    id, phase, started_time, finished_time, upserted, inserted, updated, removed,
+    complete, error, add_time, update_time
+  </sql>
+
+  <insert id="insertRun" parameterType="org.linlinjava.litemall.db.domain.LitemallCjSyncRun"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_cj_sync_run
+      (phase, started_time, upserted, inserted, updated, removed, complete, error, add_time, update_time)
+    values
+      (#{phase}, #{startedTime}, coalesce(#{upserted}, 0), coalesce(#{inserted}, 0),
+       coalesce(#{updated}, 0), coalesce(#{removed}, 0), coalesce(#{complete}, 0), #{error}, now(), now())
+  </insert>
+
+  <update id="finishRun" parameterType="org.linlinjava.litemall.db.domain.LitemallCjSyncRun">
+    update litemall_cj_sync_run
+    set finished_time = #{finishedTime},
+        upserted = coalesce(#{upserted}, upserted),
+        inserted = coalesce(#{inserted}, inserted),
+        updated = coalesce(#{updated}, updated),
+        removed = coalesce(#{removed}, removed),
+        complete = coalesce(#{complete}, complete),
+        error = #{error},
+        update_time = now()
+    where id = #{id}
+  </update>
+
+  <select id="selectRecent" resultType="org.linlinjava.litemall.db.domain.LitemallCjSyncRun">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_sync_run
+    <where>
+      <if test="phase != null">phase = #{phase}</if>
+    </where>
+    order by started_time desc, id desc
+    limit #{limit}
+  </select>
+
+</mapper>

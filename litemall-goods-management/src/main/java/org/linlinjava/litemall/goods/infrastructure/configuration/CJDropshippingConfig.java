@@ -134,11 +134,6 @@ public class CJDropshippingConfig {
         private boolean purgeAfterSync = true;
     }
 
-    /**
-     * Retail = CJ wholesale {@code sellPrice} (USD) × {@code usdToCny} × {@code margin}, indexed in the
-     * local price basis (CNY) — so CJ products sort/compare sanely against local retail prices rather
-     * than being indexed at raw wholesale cost. Assumptions are configurable + profile-overridable.
-     */
     /** One entry of the {@link #catalogTargets} fetch plan. */
     @Data
     public static class CatalogTarget {
@@ -157,10 +152,15 @@ public class CJDropshippingConfig {
         private int perLeafLimit = 0;
     }
 
+    /**
+     * Retail = CJ wholesale cost (USD) × {@code margin}. Wave 12 (user decision 2026-07-28):
+     * margin is 1.25 and the old {@code usdToCny} 7.2 currency factor was DELETED outright —
+     * prices live in the USD basis, and the raw cost is persisted alongside
+     * ({@code litemall_cj_product.sell_price}, {@code litemall_goods[_product].cost}).
+     */
     @Data
     public static class Pricing {
-        private BigDecimal margin = new BigDecimal("2.0");
-        private BigDecimal usdToCny = new BigDecimal("7.2");
+        private BigDecimal margin = new BigDecimal("1.25");
     }
 
 

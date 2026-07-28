@@ -7,7 +7,10 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallSeckill;
 import org.linlinjava.litemall.db.service.LitemallGoodsProductService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
+import org.linlinjava.litemall.db.domain.LitemallCjProduct;
+import org.linlinjava.litemall.db.service.LitemallCjProductService;
 import org.linlinjava.litemall.db.service.LitemallSeckillService;
+import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
 import org.linlinjava.litemall.goods.application.search.SearchReindexService;
 import org.linlinjava.litemall.goods.domain.deals.DealMath;
 import org.slf4j.Logger;
@@ -62,6 +65,8 @@ public class FlashDealLifecycleTask {
     private final LitemallGoodsService goodsService;
     private final LitemallGoodsProductService productService;
     private final SearchReindexService reindexService;
+    private final LitemallCjProductService cjProductService;
+    private final CjProductPromotionService cjPromotionService;
     private final ObjectMapper json = new ObjectMapper();
     /** Last urgency pushed to the index per deal id (instance-scoped; a restart just re-pushes once). */
     private final Map<Integer, Integer> lastIndexedUrgency = new ConcurrentHashMap<>();
@@ -72,11 +77,15 @@ public class FlashDealLifecycleTask {
     public FlashDealLifecycleTask(LitemallSeckillService seckillService,
                                   LitemallGoodsService goodsService,
                                   LitemallGoodsProductService productService,
-                                  SearchReindexService reindexService) {
+                                  SearchReindexService reindexService,
+                                  LitemallCjProductService cjProductService,
+                                  CjProductPromotionService cjPromotionService) {
         this.seckillService = seckillService;
         this.goodsService = goodsService;
         this.productService = productService;
         this.reindexService = reindexService;
+        this.cjProductService = cjProductService;
+        this.cjPromotionService = cjPromotionService;
     }
 
     @Scheduled(fixedDelayString = "${litemall.deals.tick-ms:60000}")
@@ -213,6 +222,20 @@ public class FlashDealLifecycleTask {
         patch.setPriceSwapped(false);
         seckillService.updateById(patch);
         lastIndexedUrgency.remove(deal.getId());
+        // Wave 12 (unparked a82a19e0e): CJ goods re-promote from the snapshot right after the
+        // swap clears — the promote path withheld price writes while the deal was live, so a
+        // mid-deal CJ reprice converges NOW rather than waiting for the nightly batch.
+        if (goods != null && "cj".equalsIgnoreCase(goods.getSource()) && goods.getCjPid() != null) {
+            try {
+                LitemallCjProduct snapshot = cjProductService.findByPid(goods.getCjPid());
+                if (snapshot != null) {
+                    cjPromotionService.promote(snapshot);
+                }
+            } catch (RuntimeException e) {
+                log.warn("deal {} unwind: CJ re-promote of pid {} failed — nightly promote will converge: {}",
+                        deal.getId(), goods.getCjPid(), e.getMessage());
+            }
+        }
         if (goods != null) {
             reindexService.reindexGoods(goods.getId());
         }
