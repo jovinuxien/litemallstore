@@ -7,6 +7,8 @@ import { userApi } from 'app/shared/api';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { goodId, priceNum } from 'app/components/userComponents/card/ProductCard';
 import ProductCard from 'app/components/userComponents/card/ProductCard';
+import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
+import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
@@ -36,7 +38,10 @@ const sameSpecs = (a: string[] = [], b: string[] = []): boolean => a.length === 
 const ProductDetailView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+  const { id: routeId } = useParams<{ id: string }>();
+  // Slugged URLs (`/product/123-some-name`, Wave-13) carry the id in the
+  // leading digits; bare numeric and legacy CJ ids pass through verbatim.
+  const id = goodsIdFromRoute(routeId);
 
   const { data, loading, errorMessage } = useAppSelector(state => state.productDetail);
   const related = useAppSelector(state => state.related.data.list);
@@ -65,6 +70,13 @@ const ProductDetailView: React.FC = () => {
       }
     }
   }, [dispatch, id]);
+
+  // Tab title follows the product on client-side navigation (a full page load
+  // already arrives with the edge-injected title).
+  useEffect(() => {
+    if (goods?.goodsName) setPageTitle(goods.goodsName);
+    return resetPageTitle;
+  }, [goods?.goodsName]);
 
   // Option groups: preserve backend order, collect distinct values per group.
   const specGroups = useMemo(() => {

@@ -4,7 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0a5d65" />
-    <meta name="description" content="Trovemo — online store. Shop electronics, home, toys and more with fast delivery." />
+    <!-- Sitewide fallback head (Wave-13): product/category deep links get a
+         route-specific title/description/canonical/OG/JSON-LD injected by the
+         edge. SeoHeadRenderer replaces the title and the description CONTENT
+         below and appends the rest at the end of the head, so keep both tags
+         single-line and NEVER write a literal closing head/title tag in a
+         comment (html-webpack-plugin injects the bundle script at the first
+         such marker it finds — inside a comment, the script gets minified
+         away with it). Only og:site_name lives here; page-level
+         og:title/og:type are injected per-route so the template never
+         duplicates them. -->
+    <meta name="description" content="Trovemo — online store. Shop fashion, electronics, home, toys and more with fast delivery." />
+    <meta property="og:site_name" content="Trovemo" />
     <!-- Trovemo favicon pack (assets/exports/favicon, HOW-TO-INSTALL.txt).
          ?v=2 busts the hard favicon caches (browser + Cloudflare edge). -->
     <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
@@ -13,7 +24,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
     <link rel="manifest" href="/site.webmanifest" />
-    <title>Trovemo</title>
+    <title>Trovemo — Online Shopping for Fashion, Electronics, Home &amp; More</title>
   </head>
   <body>
     <div id="root"></div>
