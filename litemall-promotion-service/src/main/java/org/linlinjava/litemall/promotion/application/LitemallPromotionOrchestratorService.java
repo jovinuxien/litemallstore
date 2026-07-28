@@ -1,11 +1,13 @@
 package org.linlinjava.litemall.promotion.application;
 
 import org.linlinjava.litemall.promotion.application.internal.LitemallBargainServiceImpl;
+import org.linlinjava.litemall.promotion.application.internal.LitemallCampaignSchedulingServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallCampaignServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallCombinationServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallCouponServiceImpl;
 import org.linlinjava.litemall.promotion.application.internal.LitemallSeckillServiceImpl;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallActivateCampaignCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallCampaignFromCategoryCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallDefineCampaignCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallEvaluateCampaignCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.LitemallCheckBargainStatusCommand;
@@ -42,18 +44,21 @@ public class LitemallPromotionOrchestratorService {
     private final LitemallCouponServiceImpl couponService;
     private final LitemallCombinationServiceImpl combinationService;
     private final LitemallCampaignServiceImpl campaignService;
+    private final LitemallCampaignSchedulingServiceImpl campaignSchedulingService;
 
     @Autowired
     public LitemallPromotionOrchestratorService(LitemallSeckillServiceImpl seckillService,
                                                  LitemallBargainServiceImpl bargainService,
                                                  LitemallCouponServiceImpl couponService,
                                                  LitemallCombinationServiceImpl combinationService,
-                                                 LitemallCampaignServiceImpl campaignService) {
+                                                 LitemallCampaignServiceImpl campaignService,
+                                                 LitemallCampaignSchedulingServiceImpl campaignSchedulingService) {
         this.seckillService = seckillService;
         this.bargainService = bargainService;
         this.couponService = couponService;
         this.combinationService = combinationService;
         this.campaignService = campaignService;
+        this.campaignSchedulingService = campaignSchedulingService;
     }
 
     public enum PromotionAction {
@@ -378,6 +383,18 @@ public class LitemallPromotionOrchestratorService {
         } catch (Exception e) {
             logger.error("Error evaluating campaign", e);
             return LitemallPromotionOperationResult.campaignEvaluateFailed("System error: " + e.getMessage());
+        }
+    }
+
+    public LitemallPromotionOperationResult campaignFromCategory(LitemallCampaignFromCategoryCommand command,
+                                                                 String postedBy) {
+        try {
+            return campaignSchedulingService.fromCategory(command, postedBy);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.campaignFromCategoryFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error composing category campaign", e);
+            return LitemallPromotionOperationResult.campaignFromCategoryFailed("System error: " + e.getMessage());
         }
     }
 
