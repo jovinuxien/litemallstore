@@ -127,6 +127,12 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
+		<!-- Wave 12: CJ inventory-intelligence flow (application/inventoryflow, Java DSL —
+		     gateway/splitter/enricher/router/aggregator/wire-tap/pollers). BOM-managed version. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-integration</artifactId>
+		</dependency>
 
 		<!-- Security section -->
 		<!-- Phase 4: shared machine-JWT resource-server auto-config.

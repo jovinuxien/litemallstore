@@ -1,8 +1,12 @@
 package org.linlinjava.litemall.goods.application.search;
 
+import org.linlinjava.litemall.goods.application.inventoryflow.CatalogLandedSummary;
+import org.linlinjava.litemall.goods.application.inventoryflow.CjSyncRunRecorder;
+import org.linlinjava.litemall.goods.application.inventoryflow.InventoryFlowGateway;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -40,19 +44,25 @@ public class CjCatalogRefreshTask {
     private final SearchReindexService reindexService;
     private final CategoryImageBackfillService categoryImageBackfill;
     private final CJDropshippingConfig config;
+    private final CjSyncRunRecorder runRecorder;
+    private final ObjectProvider<InventoryFlowGateway> flowGateway;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
                                 CjDetailEnrichmentService detailEnrichmentService,
                                 CjProductPromotionService promotionService,
                                 SearchReindexService reindexService,
                                 CategoryImageBackfillService categoryImageBackfill,
-                                CJDropshippingConfig config) {
+                                CJDropshippingConfig config,
+                                CjSyncRunRecorder runRecorder,
+                                ObjectProvider<InventoryFlowGateway> flowGateway) {
         this.snapshotSyncService = snapshotSyncService;
         this.detailEnrichmentService = detailEnrichmentService;
         this.promotionService = promotionService;
         this.reindexService = reindexService;
         this.categoryImageBackfill = categoryImageBackfill;
         this.config = config;
+        this.runRecorder = runRecorder;
+        this.flowGateway = flowGateway;
     }
 
     /**
@@ -67,10 +77,15 @@ public class CjCatalogRefreshTask {
         if (!config.isEnabled()) {
             return;
         }
+        Integer runId = runRecorder.open("enrich");
         try {
-            detailEnrichmentService.enrichBatch(config.getEnrichBatchSize());
+            CjDetailEnrichmentService.EnrichResult result =
+                    detailEnrichmentService.enrichBatch(config.getEnrichBatchSize());
+            runRecorder.close(runId, result.enriched() + result.failed(), 0,
+                    result.enriched(), 0, result.failed() == 0, null);
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ detail enrichment run failed: {}", ex.getMessage());
+            runRecorder.close(runId, 0, 0, 0, 0, false, ex.getMessage());
         }
     }
 
@@ -105,9 +120,13 @@ public class CjCatalogRefreshTask {
         if (!config.isEnabled()) {
             return;
         }
+        Integer syncRunId = runRecorder.open("sync");
         try {
             // 1) Fetch (paced, via Redis) → normalize → persist the snapshot; learn live vs vanished pids.
             CjSnapshotSyncService.SyncResult result = snapshotSyncService.syncAll();
+            runRecorder.close(syncRunId, result.upserted(), result.inserted(), result.updated(),
+                    result.removedPids().size(), result.complete(), null);
+            syncRunId = null; // closed — a later promote/reindex failure must not rewrite this phase
 
             // 2) Promote enriched rows into native litemall_goods, and soft-delete native goods for
             //    pids that vanished upstream (only source='cj' rows are ever touched). Reconcile is
@@ -121,6 +140,20 @@ public class CjCatalogRefreshTask {
                 reconciled = promotionService.reconcile(result.livePids());
             } else {
                 LOGGER.warn("CJ refresh: fetch plan incomplete — native-goods reconcile skipped this run");
+            }
+
+            // Wave 12: hand the landed cycle to the inventory-intelligence flow (metrics, deal
+            // proposals, category rollup) — async on its own executor; a flow failure is bookkept
+            // in litemall_cj_sync_run and must never break the refresh.
+            try {
+                InventoryFlowGateway gateway = flowGateway.getIfAvailable();
+                if (gateway != null) {
+                    gateway.onCatalogLanded(new CatalogLandedSummary(
+                            result.insertedPids(), result.removedPids(), result.livePids(),
+                            result.upserted(), result.inserted(), result.updated(), result.complete()));
+                }
+            } catch (RuntimeException flowEx) {
+                LOGGER.warn("inventory flow hand-off failed (refresh continues): {}", flowEx.getMessage());
             }
 
             // 3) Atomically swap the OCS index from the DB: promoted/refreshed goods appear and the
@@ -137,6 +170,7 @@ public class CjCatalogRefreshTask {
                     promote.promoted(), promote.failed(), reconciled, indexed);
         } catch (RuntimeException ex) {
             LOGGER.warn("CJ catalog refresh failed: {}", ex.getMessage());
+            runRecorder.close(syncRunId, 0, 0, 0, 0, false, ex.getMessage());
         }
     }
 }

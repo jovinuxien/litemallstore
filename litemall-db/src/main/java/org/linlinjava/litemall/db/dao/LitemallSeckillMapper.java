@@ -89,6 +89,11 @@ public interface LitemallSeckillMapper {
     @Select("SELECT * FROM litemall_seckill WHERE deleted = 0 ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}")
     List<LitemallSeckill> selectAdminPage(@Param("offset") int offset, @Param("limit") int limit);
 
+    /** Recent deals of ONE goods, newest first (Wave 12 insight panel). */
+    @Select("SELECT * FROM litemall_seckill WHERE goods_id = #{goodsId} AND deleted = 0 "
+            + "ORDER BY id DESC LIMIT 10")
+    List<LitemallSeckill> selectRecentByGoodsId(Integer goodsId);
+
     @Select("SELECT COUNT(*) FROM litemall_seckill WHERE deleted = 0")
     int countAdmin();
 

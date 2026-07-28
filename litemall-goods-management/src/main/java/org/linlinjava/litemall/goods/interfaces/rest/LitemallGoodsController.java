@@ -72,6 +72,9 @@ public class LitemallGoodsController {
     // Flash deals (price-swap lifecycle): serves the live-deal block for the detail-page countdown.
     @Autowired
     private org.linlinjava.litemall.goods.application.deals.FlashDealService flashDealService;
+    // Resolves numeric AND cj_<pid> goods refs to the native goods id (Wave 12: CJ deals are live).
+    @Autowired
+    private org.linlinjava.litemall.goods.application.engagement.EngagementGoodsResolver engagementGoodsResolver;
     // Item-item co-occurrence rows (litemall_goods_related, nightly batch) behind /related.
     @Autowired
     private LitemallGoodsRelatedService goodsRelatedService;
@@ -376,14 +379,13 @@ public class LitemallGoodsController {
      * claimed, claimedPct}} or {@code data:null} when no deal is live. The detail page polls
      * this once to render the countdown/claimed bar; the deal PRICE itself already rides the
      * normal detail payload (price-swap semantics — retail_price IS the deal price while live).
-     * CJ ids have no deals by design (652 on authoring), so they short-circuit to null.
+     * CJ deals are LIVE since Wave 12 — a {@code cj_<pid>} ref resolves to its promoted native
+     * goods (un-promoted CJ rows have no goods row, hence no deal → null, honestly).
      */
     @GetMapping("/deal")
     public Object liveDeal(@NotBlank String id) {
-        if (CjGoodsDetailService.isCjId(id)) {
-            return ResponseUtil.ok(null);
-        }
-        return ResponseUtil.ok(flashDealService.liveDealBlock(Integer.valueOf(id.trim())));
+        Integer goodsId = engagementGoodsResolver.resolveId(id);
+        return ResponseUtil.ok(goodsId == null ? null : flashDealService.liveDealBlock(goodsId));
     }
 
     @GetMapping("/detail")

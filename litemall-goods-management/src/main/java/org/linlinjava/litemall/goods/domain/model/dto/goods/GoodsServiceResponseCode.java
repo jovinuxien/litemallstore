@@ -24,9 +24,14 @@ public class GoodsServiceResponseCode {
     public static final Integer DEAL_INVALID = 650;
     /** An enabled deal already overlaps this goods+window, or the deal is live and immutable. */
     public static final Integer DEAL_CONFLICT = 651;
-    /** Flash deals refuse source='cj' goods (CJ price sync would fight the price swap).
-     *  A cost-floor + sync-guard design is PARKED pending an efficiency redesign — see
-     *  doc/cj-deals-strategy-2026-07-16.pdf and commit a82a19e0e. */
+    /** CJ deal has NO usable cost basis (cost never captured) — deal refused. Narrowed in
+     *  Wave 12 from the old blanket "CJ goods refused": CJ deals are LIVE again, floored at
+     *  the real captured cost ({@code litemall_goods.cost}); 650 covers a price below that
+     *  floor. Ref: doc/cj-deals-strategy-2026-07-16.pdf, commits a82a19e0e / Wave 12. */
     public static final Integer DEAL_CJ_UNSUPPORTED = 652;
+
+    // Insight subdomain (Wave 12).
+    /** Deal-candidate action refused: no candidate for the goods, or it is already decided. */
+    public static final Integer INSIGHT_CANDIDATE_INVALID = 653;
 
 }
