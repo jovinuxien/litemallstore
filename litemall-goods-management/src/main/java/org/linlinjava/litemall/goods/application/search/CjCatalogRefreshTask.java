@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.application.search;
 import org.linlinjava.litemall.goods.application.inventoryflow.CatalogLandedSummary;
 import org.linlinjava.litemall.goods.application.inventoryflow.CjSyncRunRecorder;
 import org.linlinjava.litemall.goods.application.inventoryflow.InventoryFlowGateway;
+import org.linlinjava.litemall.goods.application.seo.SitemapService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,7 @@ public class CjCatalogRefreshTask {
     private final CJDropshippingConfig config;
     private final CjSyncRunRecorder runRecorder;
     private final ObjectProvider<InventoryFlowGateway> flowGateway;
+    private final SitemapService sitemapService;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
                                 CjDetailEnrichmentService detailEnrichmentService,
@@ -54,7 +56,8 @@ public class CjCatalogRefreshTask {
                                 CategoryImageBackfillService categoryImageBackfill,
                                 CJDropshippingConfig config,
                                 CjSyncRunRecorder runRecorder,
-                                ObjectProvider<InventoryFlowGateway> flowGateway) {
+                                ObjectProvider<InventoryFlowGateway> flowGateway,
+                                SitemapService sitemapService) {
         this.snapshotSyncService = snapshotSyncService;
         this.detailEnrichmentService = detailEnrichmentService;
         this.promotionService = promotionService;
@@ -63,6 +66,7 @@ public class CjCatalogRefreshTask {
         this.config = config;
         this.runRecorder = runRecorder;
         this.flowGateway = flowGateway;
+        this.sitemapService = sitemapService;
     }
 
     /**
@@ -163,6 +167,14 @@ public class CjCatalogRefreshTask {
             // 4) Newly-landed goods may have filled previously-empty subtrees — give their
             //    categories a representative image (blank-only, idempotent).
             categoryImageBackfill.backfillAll();
+
+            // Wave 13: the sitemap mirrors the on-sale set that just changed — regenerate it
+            // now; a sitemap failure must never break the refresh.
+            try {
+                sitemapService.rebuild();
+            } catch (RuntimeException seoEx) {
+                LOGGER.warn("sitemap rebuild after refresh failed (refresh continues): {}", seoEx.getMessage());
+            }
 
             LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed (snapshot); "
                             + "promoted {} (failed {}), reconciled {} stale native goods; reindexed {} docs",

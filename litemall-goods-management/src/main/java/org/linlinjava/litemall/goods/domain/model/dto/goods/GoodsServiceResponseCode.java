@@ -34,4 +34,8 @@ public class GoodsServiceResponseCode {
     /** Deal-candidate action refused: no candidate for the goods, or it is already decided. */
     public static final Integer INSIGHT_CANDIDATE_INVALID = 653;
 
+    // SEO subdomain (Wave 13).
+    /** /srv/goods/meta/{id}: goods missing or soft-deleted (off-sale is still served). */
+    public static final Integer GOODS_NOT_FOUND = 654;
+
 }
