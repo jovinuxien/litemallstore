@@ -13,7 +13,8 @@ public class LitemallPromotionOperationResult {
         DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION,
         UPDATE_COMBINATION, DELETE_COMBINATION,
         START_GROUP, JOIN_GROUP,
-        DEFINE_CAMPAIGN, ACTIVATE_CAMPAIGN, EVALUATE_CAMPAIGN
+        DEFINE_CAMPAIGN, ACTIVATE_CAMPAIGN, EVALUATE_CAMPAIGN,
+        COMPLETE_CAMPAIGN, CAMPAIGN_FROM_CATEGORY
     }
 
     private final boolean success;
@@ -219,6 +220,23 @@ public class LitemallPromotionOperationResult {
 
     public static LitemallPromotionOperationResult campaignEvaluateFailed(String reason) {
         return failed(OperationType.EVALUATE_CAMPAIGN, "Failed to evaluate campaign: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult campaignCompleted(Map<String, Object> data) {
+        return success(OperationType.COMPLETE_CAMPAIGN, "Campaign completed", data);
+    }
+
+    public static LitemallPromotionOperationResult campaignCompleteFailed(String reason) {
+        return failed(OperationType.COMPLETE_CAMPAIGN, "Failed to complete campaign: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult campaignComposedFromCategory(Map<String, Object> data) {
+        return success(OperationType.CAMPAIGN_FROM_CATEGORY,
+                "Category campaign composed; scheduled for activation", data);
+    }
+
+    public static LitemallPromotionOperationResult campaignFromCategoryFailed(String reason) {
+        return failed(OperationType.CAMPAIGN_FROM_CATEGORY, "Failed to compose category campaign: " + reason);
     }
 
     // =========================================================================
