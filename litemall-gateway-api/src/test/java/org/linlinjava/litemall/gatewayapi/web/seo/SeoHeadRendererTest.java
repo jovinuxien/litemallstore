@@ -102,6 +102,28 @@ class SeoHeadRendererTest {
     }
 
     @Test
+    @DisplayName("HTML-only brief (CJ supplier markup) ⇒ description falls back to the name")
+    void htmlOnlyBrief() {
+        GoodsMeta m = new GoodsMeta("11", "Steel Water Bottle",
+                "<p><img src=\"/_cdn/oss/product/x.jpg\" style=\"max-width:100%;\" contenteditable=\"false\"/></p>",
+                null, "12.50", "USD", true, null, null);
+        String html = renderer.renderProduct(m).orElseThrow();
+        assertThat(html).contains("<meta name=\"description\" content=\"Steel Water Bottle\"");
+        assertThat(html).contains("<meta property=\"og:description\" content=\"Steel Water Bottle\"");
+        assertThat(html).doesNotContain("&lt;p&gt;").doesNotContain("&lt;img");
+    }
+
+    @Test
+    @DisplayName("mixed HTML brief ⇒ description keeps only the text")
+    void mixedHtmlBrief() {
+        GoodsMeta m = new GoodsMeta("12", "Desk Lamp",
+                "<p>Warm <b>LED</b> light.</p>\n<p><img src=\"x.jpg\"/></p>",
+                null, null, null, true, null, null);
+        String html = renderer.renderProduct(m).orElseThrow();
+        assertThat(html).contains("<meta name=\"description\" content=\"Warm LED light.\"");
+    }
+
+    @Test
     @DisplayName("category: name-driven title, canonical and og:type website")
     void category() {
         String html = renderer.renderCategory("1036007", "Women's Clothing").orElseThrow();

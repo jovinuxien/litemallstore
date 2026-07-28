@@ -70,7 +70,9 @@ public class SeoHeadRenderer {
         return template().map(shell -> {
             String canonical = baseUrl + Slugs.productPath(meta.id(), meta.name());
             String title = meta.name() + " | Trovemo";
-            String description = firstNonBlank(meta.brief(), meta.name());
+            // ~half the CJ catalog's briefs are raw supplier HTML (often just an
+            // <img> wrapped in a <p>) — strip to text; pure markup ⇒ use the name.
+            String description = firstNonBlank(plainText(meta.brief()), meta.name());
             String image = absoluteImageUrl(meta.picUrl());
 
             StringBuilder head = new StringBuilder();
@@ -251,6 +253,14 @@ public class SeoHeadRenderer {
 
     private static String firstNonBlank(String a, String b) {
         return a != null && !a.isBlank() ? a : b;
+    }
+
+    /** Tags removed, whitespace runs collapsed — what a description may contain. */
+    private static String plainText(String html) {
+        if (html == null) {
+            return null;
+        }
+        return html.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
     }
 
     private static String escapeHtml(String value) {
