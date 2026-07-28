@@ -164,7 +164,13 @@ public class CjProductToNativeAdapter {
         for (CjVariant v : variants) {
             LitemallGoodsProduct product = new LitemallGoodsProduct();
             product.setCjVid(v.vid());
-            product.setPrice(v.variantPrice() != null ? v.variantPrice() : fallbackPrice);
+            // Charge-integrity guard (Wave 12 repricing): checkout money reads THIS price. When
+            // the row is priced on the new cost basis (sell_price captured) but the variant entry
+            // predates it (no variant_sell_price → its variant_price is still the old-basis
+            // markup), that stale price must NOT survive the repricing — charge the product
+            // retail until enrichment recomputes real per-variant prices from per-variant costs.
+            boolean staleBasis = fallbackCost != null && v.variantSellPrice() == null;
+            product.setPrice(v.variantPrice() != null && !staleBasis ? v.variantPrice() : fallbackPrice);
             product.setCost(v.variantSellPrice() != null ? v.variantSellPrice() : fallbackCost);
             product.setNumber(v.stock() != null ? v.stock() : 0);
             product.setUrl(trim(imageUrl, 125));
