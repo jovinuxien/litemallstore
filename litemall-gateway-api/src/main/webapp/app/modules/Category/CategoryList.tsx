@@ -2,6 +2,7 @@ import Breadcrumb from 'app/components/userComponents/Breadcrumb';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
+import { productPath } from 'app/shared/util/slug';
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Col, Container, Row } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -94,7 +95,7 @@ const CategoryList: React.FC<CategoryListProps> = () => {
                           </span>
                         </div>
                         <div className='d-flex justify-content-between align-items-center'>
-                          <Link to={`/product/${product.id}`} className='btn btn-primary btn-sm'>
+                          <Link to={productPath(product.id ?? '', product.name)} className='btn btn-primary btn-sm'>
                             <Button variant='outline-primary' size='sm'>
                               View Deal
                             </Button>

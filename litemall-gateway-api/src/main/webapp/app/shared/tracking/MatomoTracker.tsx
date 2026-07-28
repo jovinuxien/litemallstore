@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import { consentSnapshot, subscribeConsent } from 'app/shared/tracking/consent';
 import { applyConsent, initMatomo, trackPageView } from 'app/shared/tracking/matomo';
+import { goodsIdFromRoute } from 'app/shared/util/slug';
 
 /**
  * Route-change page-view tracking (Wave-6 Task A). Mounted once inside
@@ -51,7 +52,9 @@ const MatomoTracker: React.FC = () => {
     const url = AUTH_PATHS.has(pathname)
       ? window.location.origin + pathname
       : window.location.origin + pathname + search;
-    const goodsId = PRODUCT_PATH.exec(pathname)?.[1];
+    // Slugged PDP URLs (Wave-13) carry the goods id in the leading digits;
+    // the Matomo dimension must keep receiving the bare id.
+    const goodsId = goodsIdFromRoute(PRODUCT_PATH.exec(pathname)?.[1]);
     trackPageView(url, document.title, goodsId);
   }, [location]);
 

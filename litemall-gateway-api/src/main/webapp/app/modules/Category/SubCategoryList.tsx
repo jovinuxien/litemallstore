@@ -8,6 +8,7 @@ import Breadcrumb from 'app/components/userComponents/Breadcrumb';
 import CardServices from 'app/components/userComponents/card/CardServices';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
+import { productPath } from 'app/shared/util/slug';
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Col, Container, Row } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -273,7 +274,7 @@ const SubCategoryList: React.FC<ProductListViewProps> = () => {
             <Row>
               {currentData.slice(0, visibleProducts).map((product, idx) => (
                 <Col key={idx} xs={12} md={3} className='mb-4'>
-                  <Link to={`/product/${product.id}`} className='text-decoration-none'>
+                  <Link to={productPath(product.id ?? '', product.name)} className='text-decoration-none'>
                     <Card className='h-100 deal-card shadow-sm'>
                       <div className='image-container'>
                         <Card.Img variant='top' src={product.picUrl} className='product-image' />

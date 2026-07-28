@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAppDispatch } from 'app/config/store';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
+import { productPath } from 'app/shared/util/slug';
 import './product-card.scss';
 
 /**
@@ -103,7 +104,9 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const discountPct = hasDiscount ? Math.round(((counter - retail) / counter) * 100) : 0;
   const sold = Number(p.salesQuantity) || 0;
   const rating = Number(p.star) || 0;
-  const to = `/product/${id}`;
+  // Slugged canonical-shaped href (Wave-13); the route parser accepts both
+  // this and the bare-id form.
+  const to = id != null ? productPath(id, name) : '/product/undefined';
   // Live flash deal: countdown chip (30s tick) + claimed bar. Fields ride the search DTO
   // only while a deal is live, so this renders nothing everywhere else.
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
