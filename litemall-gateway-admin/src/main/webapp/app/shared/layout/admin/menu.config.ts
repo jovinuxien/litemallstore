@@ -81,6 +81,11 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/goods/:id', title: 'Goods detail', wired: true, hidden: true },
       { path: '/admin/goods/:id/edit', title: 'Edit goods', wired: true, hidden: true },
       { path: '/admin/goods/create', title: 'Add goods', wired: true },
+      // Wave 12: CJ inventory insight (goods-management insight backend).
+      { path: '/admin/goods/categories', title: 'Goods by category', wired: true },
+      { path: '/admin/goods/categories/:id', title: 'Category goods', wired: true, hidden: true },
+      { path: '/admin/goods/:id/insight', title: 'Goods insight', wired: true, hidden: true },
+      { path: '/admin/goods/deal-candidates', title: 'Deal proposals', wired: true },
       { path: '/admin/goods/comment', title: 'Comments', wired: true },
     ],
   },
@@ -190,6 +195,10 @@ export const titleForPath = (pathname: string): string | undefined => {
   // dynamic goods leaves: create/edit forms before the ':id' detail fallback
   if (pathname === '/admin/goods/create') return 'Add goods';
   if (/^\/admin\/goods\/[^/]+\/edit$/.test(pathname)) return 'Edit goods';
+  // Wave 12 insight leaves — must resolve before the ':id' detail fallback
+  // (which would otherwise claim /admin/goods/categories/<id>).
+  if (/^\/admin\/goods\/categories\/[^/]+$/.test(pathname)) return 'Category goods';
+  if (/^\/admin\/goods\/[^/]+\/insight$/.test(pathname)) return 'Goods insight';
   if (/^\/admin\/goods\/[^/]+$/.test(pathname)) return 'Goods detail';
   // order detail: /admin/mall/order/:id
   if (/^\/admin\/mall\/order\/[^/]+$/.test(pathname)) return 'Order detail';

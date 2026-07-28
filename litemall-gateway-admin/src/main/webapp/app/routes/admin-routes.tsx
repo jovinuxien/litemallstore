@@ -59,6 +59,10 @@ import PromoterLedger from 'app/views/adminViews/adminModule/Affiliate/PromoterL
 import ExtractList from 'app/views/adminViews/adminModule/Affiliate/ExtractList';
 import ProfilePage from 'app/views/adminViews/adminModule/Profile/ProfilePage';
 import SocialPostList from 'app/views/adminViews/adminModule/Social/SocialPostList';
+import CategoryInsightList from 'app/views/adminViews/adminModule/Insight/CategoryInsightList';
+import CategoryGoodsList from 'app/views/adminViews/adminModule/Insight/CategoryGoodsList';
+import GoodsInsight from 'app/views/adminViews/adminModule/Insight/GoodsInsight';
+import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCandidateList';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
 import MailOutboxList from 'app/views/adminViews/adminModule/Mail/MailOutboxList';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
@@ -88,9 +92,14 @@ export const AdminRoutes = () => (
       <Route path='dashboard' element={<Dashboard />} />
       <Route path='goods' element={<AdminGoodsList />} />
       <Route path='goods/comment' element={<CommentList />} />
+      {/* Wave 12: CJ inventory insight — static segments before ':id' routes */}
+      <Route path='goods/categories' element={<CategoryInsightList />} />
+      <Route path='goods/categories/:id' element={<CategoryGoodsList />} />
+      <Route path='goods/deal-candidates' element={<DealCandidateList />} />
       {/* static 'create' wins over the ':id' detail route in v6 ranking */}
       <Route path='goods/create' element={<GoodsForm />} />
       <Route path='goods/:id/edit' element={<GoodsForm />} />
+      <Route path='goods/:id/insight' element={<GoodsInsight />} />
       <Route path='goods/:id' element={<GoodsDetail />} />
       <Route path='user/user' element={<UserList />} />
       <Route path='user/address' element={<AddressList />} />
