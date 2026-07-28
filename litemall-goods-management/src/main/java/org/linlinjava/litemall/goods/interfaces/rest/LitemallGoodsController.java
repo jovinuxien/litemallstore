@@ -19,8 +19,11 @@ import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsVideoService;
 import org.linlinjava.litemall.goods.application.discovery.DiscoveryService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
+import org.linlinjava.litemall.goods.application.seo.GoodsMetaService;
+import org.linlinjava.litemall.goods.application.seo.SitemapService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
+import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsServiceResponseCode;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.ReduceStockRequest;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsId;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.goods.LitemallGoodsProductId;
@@ -30,7 +33,10 @@ import org.linlinjava.litemall.goods.infrastructure.configuration.RabbitMqConfig
 import org.linlinjava.litemall.goods.infrastructure.messaging.source.MessageProducer;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallCatalogService;
 import org.linlinjava.litemall.goods.infrastructure.services.api.LitemallGoodsServiceApi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,6 +52,7 @@ import java.util.stream.Collectors;
 @RequestMapping("srv/goods")
 public class LitemallGoodsController {
 
+    private static final Logger logger = LoggerFactory.getLogger(LitemallGoodsController.class);
 
     @Autowired
     private LitemallGoodsServiceApi goodsServiceApi;
@@ -87,6 +94,12 @@ public class LitemallGoodsController {
     private LitemallCategoryService categoryService;
     @Autowired
     private LitemallCouponService couponService;
+
+    // Wave 13 (SEO): slim meta for the edge head-injection + the cached sitemap.
+    @Autowired
+    private GoodsMetaService goodsMetaService;
+    @Autowired
+    private SitemapService sitemapService;
 
     @Autowired
     private MessageProducer messageProducer;
@@ -504,6 +517,43 @@ public class LitemallGoodsController {
         return goodsManagementService.getGoodsSpecificationAggregateByGoodsId(goodsId);
     }
 
+
+    /**
+     * Slim product meta for the edge head-injection (Wave-13 contract). {@code updateTime} is a
+     * pre-formatted ISO-8601 STRING (this module's ObjectMapper writes LocalDateTime as arrays —
+     * the contract forbids that for this field). Off-sale goods are served ({@code onSale:false},
+     * PDPs stay viewable-unbuyable); missing/soft-deleted ⇒ errno 654 — never a 5xx, this feeds
+     * a fail-open crawler path.
+     */
+    @GetMapping("/meta/{id}")
+    public Object goodsMeta(@PathVariable("id") String id) {
+        int goodsId;
+        try {
+            goodsId = Integer.parseInt(id.trim());
+        } catch (NumberFormatException e) {
+            return ResponseUtil.badArgumentValue();
+        }
+        try {
+            return goodsMetaService.meta(goodsId)
+                    .map(ResponseUtil::ok)
+                    .orElseGet(() -> ResponseUtil.fail(
+                            GoodsServiceResponseCode.GOODS_NOT_FOUND, "goods not found"));
+        } catch (RuntimeException e) {
+            logger.warn("goods meta {} failed: {}", goodsId, e.getMessage());
+            return ResponseUtil.serious();
+        }
+    }
+
+    /**
+     * Cached sitemaps.org XML (Wave-13 contract); the gateway-api edge proxies {@code /sitemap.xml}
+     * here. Snapshot bytes — no per-request DB sweep; always valid XML, never throws.
+     */
+    @GetMapping(value = "/sitemap.xml", produces = MediaType.APPLICATION_XML_VALUE)
+    public ResponseEntity<byte[]> sitemap() {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_XML)
+                .body(sitemapService.sitemap());
+    }
 
     /**
      * Bulk goods lookup keyed by plain integer goods id. Keying by the
