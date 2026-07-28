@@ -204,6 +204,65 @@
 >   `litemall_social_post` drafts; response = campaign id + post ids +
 >   per-platform status (honest disabled/failed while tokens absent).
 >
+> **Wave 12 STATUS:** goods-management backend + gateway-admin insight
+> UI are MERGED + DEPLOYED to trovemo.com (2026-07-28, master
+> `68ebcbb38`; repricing LIVE — costs land via the sync/enrichment
+> rotation, ~3.5k goods costed on day one, the rest reprice as rotation
+> covers them). The `promotion` worktree is still IN FLIGHT on its
+> Wave-12 block below — do not reassign it.
+>
+> **Wave 13 (2026-07-28) — SEO FOUNDATION: crawlable product pages,
+> slugged URLs, sitemap + robots.** User ask: register trovemo.com in
+> Google Search Console and do SEO ("referencing") properly. Audit
+> facts (2026-07-28): URLs are already crawl-friendly real paths
+> (`/product/10000553` — NOT hash-routing; keep that). The REAL gap:
+> the SPA shell is empty HTML — `SpaHistoryFallbackFilter`
+> (gateway-api web/, :49) rewrites every deep-link navigation to
+> `/index.html` (webapp/public/index.html), so social crawlers
+> (Facebook/WhatsApp/Twitter run NO JS) see no title/image/price, and
+> Google only gets meta after deferred JS rendering (Googlebot DOES
+> render JS — pages are not invisible today; this wave makes them
+> first-class). NO robots.txt and NO sitemap exist anywhere in the
+> repo. litemall has no slug concept — derive from `name`, NO new DB
+> column. Approach: server-side HEAD INJECTION at the existing
+> fallback seam (the gateway is WebFlux — reactive, cached,
+> fail-open), NOT full SSR/prerender infra.
+> **Wave-13 CONTRACT (both worktrees code to THIS):**
+> - Slug rules (shared, deterministic): `slug(name)` = lowercase,
+>   ASCII-fold, non-alphanumeric → `-`, collapse repeats, trim, max 80
+>   chars. Canonical product URL = `/product/<id>-<slug>`; parser =
+>   leading digits of the segment; bare `/product/<id>` stays valid
+>   forever; the canonical tag always points at the slugged form.
+> - `GET /srv/goods/meta/{id}` (goods-management, public read, local
+>   tables only): `{id, name, brief, picUrl, retailPrice, currency,
+>   onSale, rating, reviewCount, categoryId, categoryName, updateTime}`
+>   — `updateTime` is an ISO-8601 STRING (beware: Wave-12 made
+>   goods-management serialize LocalDateTime as ARRAYS module-wide;
+>   this field must be an explicit string). Missing goods ⇒ errno
+>   envelope, never 5xx.
+> - `GET /srv/goods/sitemap.xml` (goods-management, public read): valid
+>   sitemaps.org XML — homepage, on-sale category landings
+>   (`/category/<id>`), every on-sale product at its SLUGGED URL,
+>   `lastmod` = update_time (W3C format). Absolute URLs from config
+>   `litemall.public-base-url` (env `LITEMALL_PUBLIC_BASE_URL`, default
+>   `https://trovemo.com`). Regenerated after the nightly catalog
+>   refresh + cached (no per-request DB sweep). ≈9.6k URLs today =
+>   single file; if it ever nears the 50k limit, split into a sitemap
+>   index — never truncate silently.
+> - Edge (gateway-api) serves `/sitemap.xml` (proxy route to the goods
+>   endpoint) and a static `/robots.txt` (`Allow: /`; `Disallow:` for
+>   `/user`, `/checkout`, `/cart`; `Sitemap:` absolute URL).
+>   Dot-containing last segments already bypass the SPA fallback.
+> - Head injection serves IDENTICAL HTML to bots and humans (no UA
+>   cloaking — Google penalizes it); ANY meta-fetch failure ⇒ plain
+>   shell, 200, fail-open.
+> User-side: Search Console "Domain property" for trovemo.com (DNS TXT
+> in Cloudflare) can be registered NOW — no sitemap needed to start;
+> after deploy, URL-Inspect a PDP ("View tested page" must show the
+> injected head). Main-session deploy check: Cloudflare must NOT cache
+> PDP HTML across products (today it caches only /_cdn + hashed
+> bundles — re-verify).
+>
 > **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
 > verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
 > is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
@@ -250,94 +309,83 @@
 
 ### Worktree: `goods-management`
 - **Branch:** `fix/goods-management` — FIRST: `git merge master`. ·
-  **Scope:** `litemall-goods-management/` + `litemall-db` (V45 migration
-  + mapping the dead `cost` columns — shared-db discipline: hand-edit
-  entities + mapper XMLs together, `mvn install` litemall-db, restart
-  EVERY dependent, verify the nested `BOOT-INF/lib` copy).
-- **History:** Wave 11 CJ homepage banners SHIPPED (2026-07-26, master
-  `308082607`); spec in git history.
-- **Task — Wave 12 (backend core): CJ inventory intelligence.** Serve
-  the Wave-12 CONTRACT in the preamble note.
-  1. **Cost capture + 1.25 repricing:** V45 adds
-     `litemall_cj_product.sell_price decimal(10,2)` (raw CJ USD cost).
-     `CjSnapshotSyncService.toRow()` persists it, and the retail formula
-     becomes `retail = sellPrice × pricing.margin` with margin default
-     **1.25** — DELETE the `usdToCny` factor from the formula (don't
-     silently set it to 1). `CjDetailEnrichmentService` writes
-     per-variant `variant_sell_price` into `variants_json` (JSON — no
-     schema change) and variant retail = variant cost × margin. Map the
-     dead `cost` columns on `LitemallGoods` + `LitemallGoodsProduct`
-     (domain + mapper XML) and write them in the CJ→native path
-     (`CjProductToNativeAdapter` + promotion/SKU import). REPRICING IS
-     DELIBERATE (user-approved 2026-07-28): the first full sync lands
-     ~91% lower prices storewide; `counter_price` stays == retail (no
-     fake strike-through). Costs populate as syncs run — rows not yet
-     re-synced have NULL cost, and margin fields must render null,
-     never a fake 0.
-  2. **Tracking tables (same V45):** `litemall_cj_sync_run` (phase
-     sync|enrich|flow, started/finished, upserted/inserted/updated/
-     removed counts, complete, error — today sync outcomes are only a
-     log line); `litemall_product_metric_daily` (goods_id+day PK,
-     retail_price, cost, margin_pct, stock_total, available, views,
-     sales_qty — idempotent daily upsert; the per-product time series
-     from arrival date); `litemall_deal_candidate` (goods_id, day, tier,
-     score, suggested_deal_price, reasons, status
-     proposed|approved|dismissed).
-  3. **Spring Integration flow** (add `spring-boot-starter-integration`;
-     new pkg `application/inventoryflow/`, Java DSL): entry =
-     `@MessagingGateway InventoryFlowGateway.onCatalogLanded(summary)`
-     called by `CjCatalogRefreshTask` after the promote stage, and
-     `.onEnrichmentBatch(pids)` from the enrich task (gateway, ch5).
-     Splitter: batch → per-pid messages (ch7). Content enricher: join
-     snapshot + goods + goods_product + yesterday's metric (ch5). Router
-     (ch6): NEW_ARRIVAL (goods first seen today) / UPDATED / VANISHED
-     (removedPids). Service activators (ch5): MarginRecorder (metric
-     upsert), AvailabilityRecorder (livePids ⇒ available=1; vanished ⇒
-     available=0 — existing off-sale enforcement keeps them viewable but
-     unbuyable), DealCandidateScorer (NEW_ARRIVAL channel only:
-     tier/score from marginPct × stock × rating/reviewCount; persists
-     proposal rows). Aggregator (ch7): per-L1 rollup → memoized
-     `CategoryInsightCache` (`CatalogGoodsCountService` 5-min pattern)
-     ranking categories by potentialProfit. Wire tap (ch14) →
-     `litemall_cj_sync_run` bookkeeping. ExecutorChannel for per-product
-     work; bounded QueueChannel + 1/s poller (ch15) for the targeted
-     nightly `getInventory(vid)` re-checks — goods with live or proposed
-     deals ONLY (respect the CJ rate limit; pick a cron hour clear of
-     02:45/03:00/03:30).
-  4. **Serving:** the `/srv/private/admin/insight/**` CONTRACT
-     endpoints; request paths read local tables/caches only.
-     views/salesQty come from `litemall_footprint` /
-     `litemall_order_goods` (shared DB, read-only).
-  5. **Unpark CJ flash deals:** implement the per-SKU price swap for CJ
-     goods on V40 `original_sku_prices` (ref impl `a82a19e0e` in git
-     history), replacing the errno-652 refusal; lifecycle swap/unwind
-     must handle multi-SKU CJ goods; the approve endpoint creates the
-     deal; deal price ≥ cost, always.
-  6. **Honesty:** no live CJ calls on request paths; CJ API down ⇒
-     failed sync_run row + stale metrics tolerated; never fake margins,
-     stock, or availability.
-  7. **Tests:** formula (×1.25, no ×7.2), router channel selection,
-     scorer tiers, metric same-day idempotency, rollup ranking, approve
-     → deal with SKU swap + unwind, vanished ⇒ available=0. Mind the
+  **Scope:** `litemall-goods-management/` only. NO migration expected
+  (V45 was consumed by Wave 12; if one becomes truly necessary, claim
+  V46+ after checking `flyway_schema_history`).
+- **History:** Wave 12 CJ inventory intelligence SHIPPED (2026-07-28,
+  master `68ebcbb38`, repricing live); Wave 11 banners SHIPPED
+  (`308082607`). Specs in git history.
+- **Task — Wave 13 (backend): product meta + sitemap serving.** Serve
+  the Wave-13 CONTRACT in the preamble note.
+  1. **`GET /srv/goods/meta/{id}`:** slim, cache-friendly (in-memory
+     TTL ~5 min is fine), local tables only; `updateTime` explicitly an
+     ISO-8601 string (the module now serializes LocalDateTime as arrays
+     — this contract field must not); missing/deleted goods ⇒ errno
+     envelope. `currency` = what the storefront actually charges —
+     verify against the order/Stripe config, do not guess.
+  2. **Sitemap generation:** builder walks on-sale goods (id, name →
+     contract slug, update_time) + on-sale category landings;
+     regenerate after the nightly `CjCatalogRefreshTask` chain
+     completes (hook alongside the Wave-12 flow notification) and
+     lazily-if-stale on first read; serve cached bytes at
+     `GET /srv/goods/sitemap.xml` (application/xml). Base URL from
+     `litemall.public-base-url` (env `LITEMALL_PUBLIC_BASE_URL`).
+  3. **Honesty:** off-sale products excluded from the sitemap but
+     `/meta/{id}` stays serveable for them (crawlers may still visit;
+     PDPs stay viewable-unbuyable). No live CJ calls in this wave.
+  4. **Tests:** slugger edge cases (unicode, symbols, length cap),
+     sitemap XML validity + only-on-sale + slugged absolute URLs +
+     lastmod format, meta ISO date + null-cost-safe fields. Mind the
      surefire/@Nested "Tests run:" gotcha.
-- **Acceptance:** dev: run a sync ⇒ `sell_price` populated for live pids
-  and PDP retail == cost×1.25 through `:9000`; metric rows exist for
-  today; through `:18080`: `/insight/categories` returns the ranked
-  payload, `/insight/goods/list` sorts on every contract key
-  server-side, `/insight/goods/{id}` returns series + per-variant costs,
-  `/insight/deal-candidates` lists scored arrivals and approving one
-  yields a live CJ flash deal (SKU prices swapped, unwound on expiry);
-  sync_run rows recorded per phase; checkout regression green through
-  `:9000` on the repriced catalog; module tests green with real "Tests
-  run" counts; V45 claimed after checking `flyway_schema_history`.
+- **Acceptance:** through `:9000` (public `/srv/goods/**` reads already
+  route): `/srv/goods/meta/<id>` returns the contract JSON with a
+  STRING updateTime; `/srv/goods/sitemap.xml` validates (xmllint),
+  lists only on-sale products at slugged absolute URLs plus `/` and
+  category landings; regenerates after a catalog refresh; module tests
+  green with real "Tests run" counts; no migration.
 
-### Worktree: `gateway-api` — history (Wave 11, SHIPPED)
-- **Task — Wave 11 (SPA): render + route the CJ category banners.**
-  (Merged + deployed 2026-07-26, master `308082607`; spec in git
-  history.)
-- **No Wave-12 assignment** — the customer storefront needs no change
-  (repricing arrives through existing price fields). Do not start work
-  here without a new instruction.
+### Worktree: `gateway-api`
+- **Branch:** `fix/gateway-api` — FIRST: `git merge master`. ·
+  **Scope:** `litemall-gateway-api/` (edge Java + customer SPA). NO
+  migration, no new anonymous DOWNSTREAM service paths (`/srv/goods/**`
+  public reads already exist). Code to the Wave-13 CONTRACT.
+- **History:** Wave 11 banner SPA SHIPPED (master `308082607`); Wave
+  9.1 trust surfaces SHIPPED (`3989e2053`). Specs in git history.
+- **Task — Wave 13 (edge + SPA): crawlable PDPs, slugged URLs, robots +
+  sitemap.**
+  1. **Head injection at the fallback seam:** for SPA navigations
+     matching `/product/<id>[-slug]` (and `/category/<id>`), serve the
+     shell with an injected head: `<title>`, meta description (brief),
+     `<link rel=canonical>` (slugged absolute URL), OpenGraph
+     (og:title/description/image/url, og:type=product — og:image must
+     be an ABSOLUTE `https://…/_cdn/...` URL), twitter:card, and
+     JSON-LD `Product` (name, image, description, productID, offers:
+     price + priceCurrency + availability from onSale, aggregateRating
+     only when reviewCount > 0). Implementation: REACTIVE — the
+     gateway is WebFlux, no blocking; meta fetched from
+     `/srv/goods/meta/{id}` via WebClient, short timeout (~300ms) +
+     small TTL cache; ANY failure ⇒ plain shell, 200, fail-open.
+     IDENTICAL HTML for bots and humans. While in there, give the
+     default shell (webapp/public/index.html) a real site
+     title/description as the sitewide fallback.
+  2. **Slug routing:** the `product/:id` route (App.tsx:98) accepts
+     `<id>-<slug>` (parse leading digits); catalog surfaces emit
+     slugged hrefs (ProductHit, related items, home/category grids;
+     cart/order internals may stay bare-id — canonical absorbs the
+     difference). Client keeps setting document.title on navigation.
+  3. **robots.txt + sitemap route:** static `/robots.txt` per CONTRACT;
+     edge route proxies `/sitemap.xml` → goods-management
+     `/srv/goods/sitemap.xml`.
+  4. **Regression:** PDP deep-link + refresh on slugged AND bare URLs,
+     search/category/cart/checkout green through `:9000`; the `:9001`
+     dev-server flow must not break.
+- **Acceptance:** through `:9000`: `curl -H "Accept: text/html"` on
+  `/product/<id>` AND its slugged form returns HTML whose head has the
+  real product name, OG tags, canonical slugged URL, and JSON-LD that
+  passes a validator; goods service stopped ⇒ PDP navigation still
+  serves the shell 200 within the timeout; `/robots.txt` and
+  `/sitemap.xml` serve through the edge; SPA build clean; regression
+  list green.
 
 ### Worktree: `gateway-api` — history (Wave 9.1, SHIPPED)
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
