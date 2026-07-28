@@ -187,6 +187,43 @@ const toCampaign = (d: CampaignManagerDto): ICampaign => ({
   endTime: fromServerDateTime(d.endTime),
 });
 
+// Wave 12: category campaign composer (Wave-12 CONTRACT). The response
+// carries the created campaign id, the per-platform social_post draft ids
+// and an HONEST per-platform status (disabled/failed while Meta/TikTok
+// tokens are absent) — the dialog renders those verbatim, never a fake
+// success.
+export interface ICampaignPlatformStatus {
+  platform?: string;
+  status?: string;
+  postId?: number;
+  message?: string;
+  reason?: string;
+}
+
+export interface ICampaignFromCategoryResult {
+  campaignId?: number;
+  postIds?: number[];
+  platforms?: ICampaignPlatformStatus[];
+  message?: string;
+}
+
+export interface CampaignFromCategoryCommand {
+  categoryL1Id: number;
+  name?: string;
+  schedule: { start: string; stop: string };
+  platforms: string[];
+  goodsIds?: number[];
+}
+
+// The mutation rides the promotion-service operation shape; the payload may
+// arrive either bare or inside PromotionOperation.data — normalise both.
+const toFromCategoryResult = (r: unknown): ICampaignFromCategoryResult => {
+  const op = r as PromotionOperation & ICampaignFromCategoryResult;
+  const data = (op?.data ?? {}) as ICampaignFromCategoryResult;
+  if (data.campaignId != null || data.platforms || data.postIds) return { ...data, message: op?.message };
+  return { campaignId: op?.campaignId, postIds: op?.postIds, platforms: op?.platforms, message: op?.message };
+};
+
 // Promotion's core JacksonConfig only accepts strict ISO-8601 LocalDateTime
 // ('2026-07-10T00:00:00'); pad the 'YYYY-MM-DDTHH:mm' that datetime-local
 // inputs produce, and drop empty strings.
@@ -339,6 +376,19 @@ export const adminPromotionApi = createApi({
       query: id => ({ url: `/promotion/campaign/${id}/evaluate`, method: 'POST' }),
       invalidatesTags: ['Campaign'],
     }),
+    // Wave 12: create a scheduled category campaign + per-platform drafts.
+    createCampaignFromCategory: builder.mutation<ICampaignFromCategoryResult, CampaignFromCategoryCommand>({
+      query: ({ schedule, ...rest }) => ({
+        url: '/promotion/campaign/from-category',
+        method: 'POST',
+        body: clean({
+          ...rest,
+          schedule: { start: isoDateTime(schedule.start), stop: isoDateTime(schedule.stop) },
+        }),
+      }),
+      transformResponse: toFromCategoryResult,
+      invalidatesTags: ['Campaign'],
+    }),
 
     listPinks: builder.query<BareList<ICombinationPink>, { combinationId?: number | string; status?: number }>({
       query: ({ combinationId, status }) => ({
@@ -389,4 +439,5 @@ export const {
   useListCampaignsQuery,
   useActivateCampaignMutation,
   useEvaluateCampaignMutation,
+  useCreateCampaignFromCategoryMutation,
 } = adminPromotionApi;
