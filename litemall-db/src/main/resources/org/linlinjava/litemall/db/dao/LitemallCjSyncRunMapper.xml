@@ -40,4 +40,12 @@
     limit #{limit}
   </select>
 
+  <select id="selectRecentComplete" resultType="org.linlinjava.litemall.db.domain.LitemallCjSyncRun">
+    select <include refid="Base_Column_List"/>
+    from litemall_cj_sync_run
+    where phase = #{phase} and complete = 1
+    order by started_time desc, id desc
+    limit #{limit}
+  </select>
+
 </mapper>

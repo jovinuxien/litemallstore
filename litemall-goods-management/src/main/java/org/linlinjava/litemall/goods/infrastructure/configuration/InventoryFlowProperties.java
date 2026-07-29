@@ -26,4 +26,29 @@ public class InventoryFlowProperties {
 
     /** Debounce for non-forced rollup refreshes (per-product enrichment trickle). */
     private int cacheMinRefreshSeconds = 60;
+
+    // --- Wave 14: inventory governance ---
+
+    /**
+     * On-sale CJ catalog size the governor steers toward. When the catalog overshoots,
+     * the nightly governor proposes roughly the overage as retire candidates (never fewer);
+     * at/below target only hard problems (unavailable streaks) are proposed.
+     */
+    private int catalogTarget = 12000;
+
+    /** Days of metric history the retirement scorer reads per goods. */
+    private int retireWindowDays = 30;
+
+    /** Unavailable streak (days since last available metric row) that hard-proposes retirement. */
+    private int retireUnavailableStreakDays = 3;
+
+    /** Don't re-propose a goods this many days after an admin dismissed its retirement. */
+    private int retireDismissCooldownDays = 14;
+
+    /**
+     * Weekday (java.time.DayOfWeek name, e.g. WEDNESDAY / WED accepted) used as the default
+     * execute_on when approving retire candidates without an explicit date — "the next
+     * scheduled day". The daily executor cron itself is litemall.inventoryflow.retire-cron.
+     */
+    private String retireDefaultDay = "WEDNESDAY";
 }

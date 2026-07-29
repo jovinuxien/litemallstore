@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 14). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCategoryMarginMapper">
+
+  <sql id="Base_Column_List">
+    category_id, margin, add_time, update_time
+  </sql>
+
+  <insert id="upsert" parameterType="org.linlinjava.litemall.db.domain.LitemallCategoryMargin">
+    insert into litemall_category_margin (category_id, margin, add_time, update_time)
+    values (#{categoryId}, #{margin}, now(), now())
+    on duplicate key update
+      margin = values(margin),
+      update_time = now()
+  </insert>
+
+  <select id="selectAll" resultType="org.linlinjava.litemall.db.domain.LitemallCategoryMargin">
+    select <include refid="Base_Column_List"/>
+    from litemall_category_margin
+    order by category_id asc
+  </select>
+
+  <select id="selectById" resultType="org.linlinjava.litemall.db.domain.LitemallCategoryMargin">
+    select <include refid="Base_Column_List"/>
+    from litemall_category_margin
+    where category_id = #{categoryId}
+  </select>
+
+  <delete id="deleteById">
+    delete from litemall_category_margin
+    where category_id = #{categoryId}
+  </delete>
+
+</mapper>

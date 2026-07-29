@@ -111,21 +111,26 @@ spring:
       - { category: "Toys, Kids & Babies", limit: 200 }   # baby
       - { category: "Women's Clothing",    limit: 300 }   # women
       - { category: "Consumer Electronics", limit: 200 }  # electronics
-      # light fill: every leaf of every CJ L1 tree gets its own ~10-product budget
-      - { category: "Women's Clothing",           per-leaf-limit: 10 }
-      - { category: "Toys, Kids & Babies",        per-leaf-limit: 10 }
-      - { category: "Consumer Electronics",       per-leaf-limit: 10 }
-      - { category: "Pet Supplies",               per-leaf-limit: 10 }
-      - { category: "Men's Clothing",             per-leaf-limit: 10 }
-      - { category: "Home, Garden & Furniture",   per-leaf-limit: 10 }
-      - { category: "Health, Beauty & Hair",      per-leaf-limit: 10 }
-      - { category: "Sports & Outdoors",          per-leaf-limit: 10 }
-      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 10 }
-      - { category: "Jewelry & Watches",          per-leaf-limit: 10 }
-      - { category: "Phones & Accessories",       per-leaf-limit: 10 }
-      - { category: "Computer & Office",          per-leaf-limit: 10 }
-      - { category: "Bags & Shoes",               per-leaf-limit: 10 }
-      - { category: "Home Improvement",           per-leaf-limit: 10 }
+      # Wave 14 light fill sized for the ~12k catalog target: every leaf of every CJ L1
+      # tree gets its own ~25-product budget. `limit: 0` is EXPLICIT and means uncapped
+      # in per-leaf mode (the Java default of 200 silently capped each target — the
+      # Wave-14 inflow-ceiling gotcha); per-leaf-limit is the real control. ~540 leaves
+      # x 25 ≈ 13.5k raw minus duplicate-category overlap → sustains ~12,000 on-sale.
+      # 25 < page-size, so this is still exactly 1 paced call per leaf.
+      - { category: "Women's Clothing",           per-leaf-limit: 25, limit: 0 }
+      - { category: "Toys, Kids & Babies",        per-leaf-limit: 25, limit: 0 }
+      - { category: "Consumer Electronics",       per-leaf-limit: 25, limit: 0 }
+      - { category: "Pet Supplies",               per-leaf-limit: 25, limit: 0 }
+      - { category: "Men's Clothing",             per-leaf-limit: 25, limit: 0 }
+      - { category: "Home, Garden & Furniture",   per-leaf-limit: 25, limit: 0 }
+      - { category: "Health, Beauty & Hair",      per-leaf-limit: 25, limit: 0 }
+      - { category: "Sports & Outdoors",          per-leaf-limit: 25, limit: 0 }
+      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 25, limit: 0 }
+      - { category: "Jewelry & Watches",          per-leaf-limit: 25, limit: 0 }
+      - { category: "Phones & Accessories",       per-leaf-limit: 25, limit: 0 }
+      - { category: "Computer & Office",          per-leaf-limit: 25, limit: 0 }
+      - { category: "Bags & Shoes",               per-leaf-limit: 25, limit: 0 }
+      - { category: "Home Improvement",           per-leaf-limit: 25, limit: 0 }
     # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
     # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
     # the CJ category path — and checked BEFORE the mirrored-tree resolution, so a matching entry
@@ -185,6 +190,23 @@ litemall:
     # Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO,
     # mirroring the order service's LITEMALL_ORDER_STRIPE_CURRENCY (usd).
     currency: ${LITEMALL_GOODS_CURRENCY:USD}
+  # Wave 14: inventory governance. The governor sizes nightly retirement proposals
+  # against catalog-target; the 02:00 executor flips due APPROVED batches off-sale
+  # (reversible via the normal admin on-sale toggle). Crons stay clear of the nightly
+  # chain: 02:00 retire < 02:45 related-goods < 03:00 sync < 03:30 enrich < 04:15
+  # recheck < 05:00 auto deals.
+  inventoryflow:
+    catalog-target: ${LITEMALL_CATALOG_TARGET:12000}
+    retire-cron: "0 0 2 * * *"
+    retire-default-day: ${LITEMALL_RETIRE_DEFAULT_DAY:WEDNESDAY}
+  deals:
+    # Wave 14 (user decision 2026-07-29, supersedes Wave-12 manual-only): auto top-N
+    # daily deals from hot-tier proposals. Floor = max(suggestedDealPrice, cost x 1.05)
+    # — an auto deal can never sell at a loss. Env kill-switch, no rebuild needed.
+    auto-daily-enabled: ${LITEMALL_DEALS_AUTO_DAILY_ENABLED:true}
+    auto-daily-cap: ${LITEMALL_DEALS_AUTO_DAILY_CAP:12}
+    auto-daily-window-hours: ${LITEMALL_DEALS_AUTO_DAILY_WINDOW_HOURS:24}
+    auto-daily-cron: "0 0 5 * * *"
   # Storefront "about" metadata served anonymously at /srv/home/about (wx-api /home/about parity).
   # Config-driven (no litemall_system dependency); override per-env via config-server.
   mall:
