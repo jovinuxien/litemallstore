@@ -50,6 +50,8 @@ public class LitemallSocialPostServiceImpl {
 
     private static final Logger logger = LoggerFactory.getLogger(LitemallSocialPostServiceImpl.class);
 
+    private static final int DRAFT_SCAN_PAGE_SIZE = 100;
+
     private final LitemallSocialPostRepository socialPostRepository;
     private final SocialCatalogPort socialCatalogPort;
     private final SocialProperties properties;
@@ -249,6 +251,89 @@ public class LitemallSocialPostServiceImpl {
     }
 
     // ------------------------------------------------------------------
+    // Wave-12 scheduled category campaigns (called via LitemallCampaignSchedulingServiceImpl)
+    // ------------------------------------------------------------------
+
+    /**
+     * Create UNPUBLISHED draft rows for a scheduled campaign: one per
+     * (goods × platform), correlated to the campaign by the
+     * {@code utm_campaign=campaign-<id>} slug in {@code link_url} (the V42
+     * ledger has no campaign column). {@link #publishCampaignDrafts(Integer)}
+     * fires them when the campaign activates. Goods that no longer exist are
+     * skipped with a WARN — never an exception.
+     */
+    public List<CampaignDraft> createCampaignDrafts(Integer campaignId, List<Integer> goodsIds,
+                                                    List<LitemallSocialPlatform> platforms, String postedBy) {
+        String slug = UtmShareLink.campaignSlug(campaignId);
+        List<CampaignDraft> drafts = new ArrayList<>();
+        for (Integer goodsId : new LinkedHashSet<>(goodsIds)) {
+            GoodsSocialSnapshot snapshot = socialCatalogPort.goodsSnapshot(goodsId).orElse(null);
+            if (snapshot == null) {
+                logger.warn("campaign {}: goods {} not found — skipping its drafts", campaignId, goodsId);
+                continue;
+            }
+            LiveDeal deal = socialCatalogPort.liveDealFor(goodsId).orElse(null);
+            for (LitemallSocialPlatform platform : new LinkedHashSet<>(platforms)) {
+                LitemallSocialPostAggregate row = new LitemallSocialPostAggregate();
+                row.setGoodsId(goodsId);
+                row.setPlatform(platform);
+                row.setCaption(captionFor(snapshot, deal));
+                row.setMediaUrl(platform == LitemallSocialPlatform.TIKTOK
+                        ? snapshot.videoUrl() : snapshot.picUrl());
+                row.setLinkUrl(UtmShareLink.productUrl(
+                        properties.getShareBaseUrl(), goodsId, platform, slug));
+                row.setStatus(LitemallSocialPostStatus.DRAFT);
+                row.setPostedBy(StringUtils.hasText(postedBy) ? postedBy : "");
+                row.setDealId(deal != null ? deal.dealId() : null);
+                row.setAutoActive(false);
+                socialPostRepository.insert(row);
+                drafts.add(new CampaignDraft(row.getId(), goodsId, platform));
+            }
+        }
+        return drafts;
+    }
+
+    /**
+     * Publish every remaining draft of a campaign (matched by its UTM slug).
+     * Fail-soft per row — a disabled adapter or API error becomes an honest
+     * {@code failed} row (retryable from the admin ledger), never an exception.
+     */
+    public List<PublishOutcome> publishCampaignDrafts(Integer campaignId) {
+        String marker = "utm_campaign=" + UtmShareLink.campaignSlug(campaignId);
+        // Collect first, then publish: publishAndRecord moves rows out of DRAFT,
+        // which would shift pages under an interleaved scan.
+        List<LitemallSocialPostAggregate> targets = new ArrayList<>();
+        for (int page = 1; ; page++) {
+            List<LitemallSocialPostAggregate> batch =
+                    socialPostRepository.page(LitemallSocialPostStatus.DRAFT, null, page, DRAFT_SCAN_PAGE_SIZE);
+            for (LitemallSocialPostAggregate row : batch) {
+                if (row.getLinkUrl() != null && row.getLinkUrl().endsWith(marker)) {
+                    targets.add(row);
+                }
+            }
+            if (batch.size() < DRAFT_SCAN_PAGE_SIZE) {
+                break;
+            }
+        }
+        List<PublishOutcome> outcomes = new ArrayList<>();
+        for (LitemallSocialPostAggregate row : targets) {
+            PublishOutcome outcome = publishAndRecord(row);
+            outcomes.add(outcome);
+            logger.info("campaign {}: goods {} → {} = {}{}",
+                    campaignId, row.getGoodsId(), row.getPlatform().getDbValue(),
+                    outcome.status().getDbValue(),
+                    outcome.error() != null ? " (" + outcome.error() + ")" : "");
+        }
+        return outcomes;
+    }
+
+    /** Whether the platform's publish adapter is present and enabled (for honest composer responses). */
+    public boolean isPlatformEnabled(LitemallSocialPlatform platform) {
+        SocialPublishPort port = publishPorts.get(platform);
+        return port != null && port.isEnabled();
+    }
+
+    // ------------------------------------------------------------------
     // Internals
     // ------------------------------------------------------------------
 
@@ -323,6 +408,10 @@ public class LitemallSocialPostServiceImpl {
 
     /** @param retried false with found=true means the row was not in FAILED (retry guard). */
     public record RetryResult(boolean found, boolean retried, PublishOutcome outcome) {
+    }
+
+    /** One unpublished campaign draft row (Wave-12 from-category composer). */
+    public record CampaignDraft(Integer postId, Integer goodsId, LitemallSocialPlatform platform) {
     }
 
     public record PostPage(int total, List<LitemallSocialPostAggregate> rows) {
