@@ -50,5 +50,6 @@ management:
 # (MATOMO_AUTH_TOKEN / MAUTIC_*). Disabled is the safe default: the adapters
 # fail soft and the storefront is unaffected.
 #
-# SocialDealAutoPoster has NO leader election. At >1 replica it double-posts to
-# Meta and TikTok. See the replicas:1 banner in docker-compose.prod.yml.
+# SocialDealAutoPoster and CampaignScheduleTick have NO leader election. At
+# >1 replica they double-post to Meta and TikTok (the tick also double-fires
+# campaign drafts). See the replicas:1 banner in docker-compose.prod.yml.

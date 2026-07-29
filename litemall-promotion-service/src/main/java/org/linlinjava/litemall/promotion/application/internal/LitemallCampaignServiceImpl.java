@@ -177,6 +177,25 @@ public class LitemallCampaignServiceImpl {
         return LitemallPromotionOperationResult.campaignEvaluated(data);
     }
 
+    /**
+     * Scheduler (Wave-12): mark a past-end ACTIVE campaign COMPLETED. No
+     * domain event exists for completion — the terminal state itself is the
+     * signal (mirrors the group-buy expiry sweep).
+     */
+    public LitemallPromotionOperationResult completeCampaign(LitemallCampaignId campaignId) {
+        Optional<LitemallPromotionCampaignAggregate> opt = campaignRepository.findById(campaignId);
+        if (opt.isEmpty()) {
+            return LitemallPromotionOperationResult.campaignCompleteFailed("Campaign not found");
+        }
+        LitemallPromotionCampaignAggregate campaign = opt.get();
+        campaign.complete();
+        campaignRepository.save(campaign);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("campaignId", campaign.getCampaignId().getId());
+        return LitemallPromotionOperationResult.campaignCompleted(data);
+    }
+
     // ----- read models -----
 
     @Transactional(readOnly = true)

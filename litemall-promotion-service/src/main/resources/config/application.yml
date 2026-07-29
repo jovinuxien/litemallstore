@@ -38,6 +38,13 @@ litemall:
         at-risk-min-frequency: 3
         new-min-recency: 4
         new-max-frequency: 1
+    # Wave 12 campaign schedule tick: activates due DRAFT campaigns (+ fires
+    # their social drafts) and completes past-end ACTIVE ones. Default ON — it
+    # only executes schedules an admin already set; the flag is an ops
+    # off-switch. Like the other schedulers: no leader election, replicas:1.
+    campaign:
+      scheduler-enabled: ${PROMOTION_CAMPAIGN_SCHEDULER_ENABLED:true}
+      tick-ms: 60000
     # Wave 2 group-buy participation ("pink") tuning: how long a group has to
     # fill (capped at the campaign end) and how often the expiry sweep runs.
     # Profile-overridable via the config server.

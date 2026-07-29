@@ -3,6 +3,7 @@ package org.linlinjava.litemall.promotion.interfaces.rest.admin;
 import org.linlinjava.litemall.promotion.application.LitemallPromotionOrchestratorService;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallPromotionCampaignAggregate;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallActivateCampaignCommand;
+import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallCampaignFromCategoryCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallDefineCampaignCommand;
 import org.linlinjava.litemall.promotion.domain.model.commands.campaign.LitemallEvaluateCampaignCommand;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCampaignId;
@@ -12,6 +13,7 @@ import org.linlinjava.litemall.promotion.interfaces.dtos.CampaignManagerDtoRespo
 import org.linlinjava.litemall.promotion.interfaces.dtos.PromotionOperationDtoResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -65,6 +67,21 @@ public class LitemallCampaignAdminController {
     public ResponseEntity<PromotionOperationDtoResponse> activate(@PathVariable Integer campaignId) {
         LitemallPromotionOperationResult result = orchestratorService.activateCampaign(
                 new LitemallActivateCampaignCommand(new LitemallCampaignId(campaignId)));
+        return buildResponse(result);
+    }
+
+    /**
+     * Wave-12 category campaign composer: one call = scheduled campaign row +
+     * unpublished per-platform social drafts; the schedule tick activates and
+     * fires them at {@code schedule.start}. Per-platform statuses in the
+     * response are honest about disabled adapters.
+     */
+    @PostMapping("/from-category")
+    public ResponseEntity<PromotionOperationDtoResponse> fromCategory(
+            @RequestHeader(value = "X-User-Id", required = false) String adminId,
+            @RequestBody LitemallCampaignFromCategoryCommand command) {
+        LitemallPromotionOperationResult result = orchestratorService.campaignFromCategory(
+                command, StringUtils.hasText(adminId) ? adminId : "admin");
         return buildResponse(result);
     }
 
