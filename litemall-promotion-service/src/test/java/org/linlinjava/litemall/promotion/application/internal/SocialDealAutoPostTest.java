@@ -116,6 +116,11 @@ class SocialDealAutoPostTest {
         public List<LiveDeal> liveDeals() {
             return new ArrayList<>(live);
         }
+
+        @Override
+        public Optional<CategoryLiveDeals> categoryLiveDeals(Integer categoryId) {
+            return Optional.empty(); // the auto-poster never resolves categories
+        }
     }
 
     private static class FakePort implements SocialPublishPort {

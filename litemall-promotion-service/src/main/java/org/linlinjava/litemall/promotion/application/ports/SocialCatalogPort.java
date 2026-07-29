@@ -25,6 +25,13 @@ public interface SocialCatalogPort {
     List<LiveDeal> liveDeals();
 
     /**
+     * A category root and the live deals on goods in its tree (the category
+     * itself plus its direct children) — the target set of a Wave-12
+     * from-category campaign. Empty when the category does not exist.
+     */
+    Optional<CategoryLiveDeals> categoryLiveDeals(Integer categoryId);
+
+    /**
      * @param videoUrl first live product video, or null — a null gates TikTok
      *                 (video-only platform); resolution is fail-soft (goods-service
      *                 down ⇒ null, never an exception)
@@ -37,5 +44,9 @@ public interface SocialCatalogPort {
     /** @param originalPrice the pre-swap retail captured at activation (may be null on legacy rows) */
     record LiveDeal(Integer dealId, Integer goodsId, BigDecimal dealPrice,
                     BigDecimal originalPrice, LocalDateTime startTime, LocalDateTime stopTime) {
+    }
+
+    /** @param deals live deals on goods under this category; empty list = none right now */
+    record CategoryLiveDeals(Integer categoryId, String categoryName, List<LiveDeal> deals) {
     }
 }
