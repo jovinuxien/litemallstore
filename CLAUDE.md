@@ -338,6 +338,19 @@
 > - Auto-deal knobs (goods-management): `litemall.deals.auto-daily-
 >   enabled` (default true — env kill-switch), `auto-daily-cap`
 >   (default 12), `auto-daily-window-hours` (default 24).
+> - **Wave-14.1 addendum (2026-07-29) — Meta catalogue feed:**
+>   `GET /srv/goods/meta-catalog.csv` (goods-management; public read;
+>   cached artifact regenerated alongside the sitemap). FULL SPEC:
+>   `doc/meta-catalog-feed.md` (committed, annotated with verified
+>   codebase facts). Highlights: same row set as the sitemap; exact
+>   13-column header; description via the Wave-13 brief sanitizer;
+>   price/sale_price `"<amount> <ISO>"` from the SAME currency config
+>   the meta endpoint uses (Stripe charges
+>   `LITEMALL_ORDER_STRIPE_CURRENCY`, default usd — one source of
+>   truth); image_link absolutized (the relative-/_cdn og:image
+>   gotcha); streaming write, RFC-4180 quoting, UTF-8 no BOM. The edge
+>   route `/meta-catalog.csv` (mirror of /sitemap.xml) is done by the
+>   MAIN session at merge; Commerce Manager setup is USER-SIDE.
 >
 > **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
 > verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
@@ -445,6 +458,19 @@
      kill-switch/dismissed-untouched, margin resolution + simulate
      math, arrivals window boundaries. Mind the surefire/@Nested
      "Tests run:" gotcha.
+  10. **Wave-14.1 — Meta catalogue feed** (full spec + verified
+     codebase notes: `doc/meta-catalog-feed.md`):
+     `GET /srv/goods/meta-catalog.csv` streamed from a cached artifact
+     regenerated with the sitemap (nightly + lazily-if-stale). Reuse
+     the sitemap row query + slug builder and the Wave-13 brief
+     sanitizer. Exact 13-column header; currency from the same
+     property as `/srv/goods/meta/{id}`; availability/inventory from
+     summed SKU stock; image_link absolutized; deal-swap rule: when
+     counter > retail ⇒ price = counter, sale_price = retail, else
+     price = retail, sale_price empty. Tests: exact header, RFC-4180
+     quoting (comma/quote/newline in fields), HTML-free descriptions,
+     streaming (no full-string assembly), row count == sitemap product
+     count.
 - **Acceptance:** dev through `:18080`: weak goods appear as retire
   proposals with reasons; batch-approve with `executeOn=today` ⇒ 02:00
   executor (or manual trigger in dev) flips them off-sale, they leave
@@ -453,8 +479,11 @@
   `:9000` shows them after reindex; `simulate` returns consistent
   numbers and `PUT margin` + nightly reprice lands retail =
   cost×override (spot-check); `arrivals?runs=2` ranked per contract;
-  kill-switch env off ⇒ no auto deals, everything else intact; module
-  tests green with real "Tests run" counts; V46 claimed after checking
+  kill-switch env off ⇒ no auto deals, everything else intact;
+  `/srv/goods/meta-catalog.csv` through `:9000` passes the spec's
+  checks (text/csv, exact header, lines ≈ on-sale count + 1, zero raw
+  `<` in output, spot-checked links/images 200); module tests green
+  with real "Tests run" counts; V46 claimed after checking
   `flyway_schema_history`.
 
 ### Worktree: `gateway-api` — history (Wave 13, SHIPPED to master)
