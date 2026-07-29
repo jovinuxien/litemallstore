@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.application.search;
 import org.linlinjava.litemall.goods.application.inventoryflow.CatalogLandedSummary;
 import org.linlinjava.litemall.goods.application.inventoryflow.CjSyncRunRecorder;
 import org.linlinjava.litemall.goods.application.inventoryflow.InventoryFlowGateway;
+import org.linlinjava.litemall.goods.application.seo.MetaCatalogFeedService;
 import org.linlinjava.litemall.goods.application.seo.SitemapService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
@@ -48,6 +49,7 @@ public class CjCatalogRefreshTask {
     private final CjSyncRunRecorder runRecorder;
     private final ObjectProvider<InventoryFlowGateway> flowGateway;
     private final SitemapService sitemapService;
+    private final MetaCatalogFeedService metaCatalogFeedService;
 
     public CjCatalogRefreshTask(CjSnapshotSyncService snapshotSyncService,
                                 CjDetailEnrichmentService detailEnrichmentService,
@@ -57,7 +59,8 @@ public class CjCatalogRefreshTask {
                                 CJDropshippingConfig config,
                                 CjSyncRunRecorder runRecorder,
                                 ObjectProvider<InventoryFlowGateway> flowGateway,
-                                SitemapService sitemapService) {
+                                SitemapService sitemapService,
+                                MetaCatalogFeedService metaCatalogFeedService) {
         this.snapshotSyncService = snapshotSyncService;
         this.detailEnrichmentService = detailEnrichmentService;
         this.promotionService = promotionService;
@@ -67,6 +70,7 @@ public class CjCatalogRefreshTask {
         this.runRecorder = runRecorder;
         this.flowGateway = flowGateway;
         this.sitemapService = sitemapService;
+        this.metaCatalogFeedService = metaCatalogFeedService;
     }
 
     /**
@@ -174,6 +178,13 @@ public class CjCatalogRefreshTask {
                 sitemapService.rebuild();
             } catch (RuntimeException seoEx) {
                 LOGGER.warn("sitemap rebuild after refresh failed (refresh continues): {}", seoEx.getMessage());
+            }
+
+            // Wave 14.1: the Meta catalogue feed mirrors the same on-sale set — same deal.
+            try {
+                metaCatalogFeedService.rebuild();
+            } catch (RuntimeException feedEx) {
+                LOGGER.warn("meta-catalog feed rebuild after refresh failed (refresh continues): {}", feedEx.getMessage());
             }
 
             LOGGER.info("CJ catalog refresh: {} new / {} updated / {} removed (snapshot); "
