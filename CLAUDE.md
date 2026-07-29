@@ -351,6 +351,11 @@
 >   gotcha); streaming write, RFC-4180 quoting, UTF-8 no BOM. The edge
 >   route `/meta-catalog.csv` (mirror of /sitemap.xml) is done by the
 >   MAIN session at merge; Commerce Manager setup is USER-SIDE.
+>   **Wave-14.1 STATUS: SHIPPED + DEPLOYED** (2026-07-30, master
+>   `c5fdae86f` + edge `0d8cdec96`; live at
+>   https://trovemo.com/meta-catalog.csv — 12,549 rows validated
+>   RFC-4180, 13 columns, absolute /_cdn images, "<amount> USD"
+>   prices; regenerates with the nightly refresh).
 >
 > **Wave 14 STATUS:** goods-management backend (V46 inventory
 > governance) and gateway-admin UI are MERGED + DEPLOYED to
@@ -418,9 +423,9 @@
 - **History:** Wave 13 SEO backend SHIPPED (`b4ca2d557`); Wave 12
   inventory intelligence SHIPPED (`68ebcbb38`); Wave 11 banners
   SHIPPED (`308082607`).
-- **NEXT: Wave 14.1 meta catalogue feed** (spec: preamble addendum +
-  `doc/meta-catalog-feed.md`; edge route already on master
-  `0d8cdec96`) — await the Task rewrite before starting.
+- **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
+  `c5fdae86f`; live feed validated). No new assignment — do not start
+  work here without a new instruction.
 
 ### Worktree: `gateway-api` — history (Wave 13, SHIPPED to master)
 - **Task — Wave 13 (edge + SPA): crawlable PDPs, slugged URLs, robots
