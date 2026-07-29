@@ -263,6 +263,82 @@
 > PDP HTML across products (today it caches only /_cdn + hashed
 > bundles — re-verify).
 >
+> **Wave 13 STATUS:** goods-management SEO backend DEPLOYED (2026-07-29,
+> `b4ca2d557`, live sitemap 11,698 URLs); gateway-api head injection
+> MERGED to master (`88234261a`), VPS deploy pending. Admin CSP image
+> fix `446c79eff` is on master (`img-src` now allows https product
+> imagery) — ships with the next admin build. `promotion` Wave-12
+> (`69d0aeb9d` on fix/promotion) still awaits merge — do not reassign
+> that worktree.
+>
+> **Wave 14 (2026-07-29) — INVENTORY GOVERNANCE: 12k catalog target,
+> retirement pipeline, arrival-category insight, auto daily deals,
+> per-category margin tuning.** User asks + DECISIONS (2026-07-29):
+> hold the catalog at ~**12,000** on-sale CJ goods — arrivals keep
+> flowing in, weak products get retired. Retirement = **OFF-SALE**
+> (reversible; viewable-unbuyable rule stays), candidates chosen +
+> approved in admin, executed on a schedule (default Wednesday before
+> the 03:30 enrichment, per-batch date override). Rank categories by
+> NEW ARRIVALS since the last 1–2 catalog runs and by their deal
+> quality (price/margin). Today's Deals gets **AUTO top-N daily deals**
+> (cap + env kill-switch; price floor = max(suggestedDealPrice,
+> cost×1.05) so an auto deal can never sell at a loss — SUPERSEDES
+> Wave-12's manual-only rule, user re-approved 2026-07-29). Margin
+> tuning = per-category **SIMULATE + APPLY** override (global 1.25
+> stays the default).
+> Audit facts (2026-07-29; full as-built map in the main session's
+> component report):
+> - **Inflow ceiling gotcha:** `CatalogTarget.limit` defaults to 200
+>   (`CJDropshippingConfig.java:145`, consumed as an overall per-target
+>   cap at `CjSnapshotSyncService.java:337`) — the 14 per-leaf fill
+>   targets inherit it, so one full run lands ≈3,500 products, not the
+>   ~5,400 the yml comment implies. Holding 12k needs explicit
+>   `limit:` values per target.
+> - Insight thresholds as built: low stock = stock_total ≤
+>   `litemall.goods.stock-low-threshold` (5); unavailable = today's
+>   metric row `available=0` (product vanished from CJ's live
+>   catalog); potentialProfit = Σ(retail−cost)×min(stock, 50).
+> - Deal chain to the storefront: `/deals` reads OCS `deal_flag=1`
+>   (markdown ≥10% vs counter anchor); CJ goods qualify only while a
+>   flash-deal price swap is live; lifecycle tick + reindex already
+>   propagate swaps. Auto deals are enough to light the page — **NO
+>   gateway-api work in this wave**.
+> - Deal candidates as built: tiers hot ≥100 / featured ≥70 / watch;
+>   proposal upsert never clobbers an admin decision; approve = the
+>   `FlashDealService` author path, CJ floor at captured cost (652
+>   when cost unknown).
+> - Catalog-run boundaries live in `litemall_cj_sync_run` — use them
+>   for "since last N runs" arrival windows.
+> - Flyway: **V45 is taken** (Wave 12). Wave 14 claims **V46** after
+>   checking `flyway_schema_history`; single migration,
+>   goods-management scope.
+> **Wave-14 CONTRACT (gateway-admin codes to THIS):** additions under
+> `/srv/private/admin/insight` (existing routing; errno envelope; money
+> plain decimals; margin null when cost uncaptured):
+> - `GET /retire-candidates?status=proposed|approved|dismissed|executed`
+>   → `{list:[{goodsId, name, picUrl, categoryId, cost, retailPrice,
+>   marginPct, stockTotal, unavailableDays, views, salesQty, score,
+>   reasons[], status, executeOn}]}` (higher score = retire sooner).
+> - `POST /retire-candidates/approve` body `{goodsIds[], executeOn?}`
+>   (executeOn defaults to the next scheduled day);
+>   `POST /retire-candidates/{goodsId}/dismiss`. Both CAS from
+>   `proposed`; errno 653 on lost race.
+> - `GET /arrivals?runs=1|2` → `{since, runs, categories:[{categoryId,
+>   name, arrivals, avgMarginPct, avgRetailPrice, dealScore}]}` sorted
+>   dealScore desc (avg candidate score of the window's arrivals;
+>   categories with zero arrivals omitted).
+> - `GET /categories/{id}/simulate?margin=` → `{currentMargin,
+>   simulatedMargin, goodsCount, avgPriceNow, avgPriceAt,
+>   potentialProfitNow, potentialProfitAt}` (costed goods only; no
+>   price mutation).
+> - `PUT /categories/{id}/margin` body `{margin}` (bounds 1.05–3.0),
+>   `DELETE /categories/{id}/margin`, `GET /margin-overrides` → list.
+>   Overrides key on the L1 root and take effect at the nightly
+>   reprice; global default stays `spring.cjdropship.pricing.margin`.
+> - Auto-deal knobs (goods-management): `litemall.deals.auto-daily-
+>   enabled` (default true — env kill-switch), `auto-daily-cap`
+>   (default 12), `auto-daily-window-hours` (default 24).
+>
 > **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
 > verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
 > is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
@@ -309,83 +385,85 @@
 
 ### Worktree: `goods-management`
 - **Branch:** `fix/goods-management` — FIRST: `git merge master`. ·
-  **Scope:** `litemall-goods-management/` only. NO migration expected
-  (V45 was consumed by Wave 12; if one becomes truly necessary, claim
-  V46+ after checking `flyway_schema_history`).
-- **History:** Wave 12 CJ inventory intelligence SHIPPED (2026-07-28,
-  master `68ebcbb38`, repricing live); Wave 11 banners SHIPPED
-  (`308082607`). Specs in git history.
-- **Task — Wave 13 (backend): product meta + sitemap serving.** Serve
-  the Wave-13 CONTRACT in the preamble note.
-  1. **`GET /srv/goods/meta/{id}`:** slim, cache-friendly (in-memory
-     TTL ~5 min is fine), local tables only; `updateTime` explicitly an
-     ISO-8601 string (the module now serializes LocalDateTime as arrays
-     — this contract field must not); missing/deleted goods ⇒ errno
-     envelope. `currency` = what the storefront actually charges —
-     verify against the order/Stripe config, do not guess.
-  2. **Sitemap generation:** builder walks on-sale goods (id, name →
-     contract slug, update_time) + on-sale category landings;
-     regenerate after the nightly `CjCatalogRefreshTask` chain
-     completes (hook alongside the Wave-12 flow notification) and
-     lazily-if-stale on first read; serve cached bytes at
-     `GET /srv/goods/sitemap.xml` (application/xml). Base URL from
-     `litemall.public-base-url` (env `LITEMALL_PUBLIC_BASE_URL`).
-  3. **Honesty:** off-sale products excluded from the sitemap but
-     `/meta/{id}` stays serveable for them (crawlers may still visit;
-     PDPs stay viewable-unbuyable). No live CJ calls in this wave.
-  4. **Tests:** slugger edge cases (unicode, symbols, length cap),
-     sitemap XML validity + only-on-sale + slugged absolute URLs +
-     lastmod format, meta ISO date + null-cost-safe fields. Mind the
-     surefire/@Nested "Tests run:" gotcha.
-- **Acceptance:** through `:9000` (public `/srv/goods/**` reads already
-  route): `/srv/goods/meta/<id>` returns the contract JSON with a
-  STRING updateTime; `/srv/goods/sitemap.xml` validates (xmllint),
-  lists only on-sale products at slugged absolute URLs plus `/` and
-  category landings; regenerates after a catalog refresh; module tests
-  green with real "Tests run" counts; no migration.
+  **Scope:** `litemall-goods-management/` + `litemall-db` (**V46**
+  migration + retire/margin mappers — shared-db discipline: hand-edit
+  entities + mapper XMLs together, `mvn install` litemall-db, restart
+  EVERY dependent, verify the nested `BOOT-INF/lib` copy).
+- **History:** Wave 13 SEO backend SHIPPED (2026-07-29, `b4ca2d557`);
+  Wave 12 inventory intelligence SHIPPED (`68ebcbb38`); Wave 11
+  banners SHIPPED (`308082607`). Specs in git history.
+- **Task — Wave 14 (backend): inventory governance.** Serve the
+  Wave-14 CONTRACT in the preamble note.
+  1. **Inflow to 12k:** set explicit `limit:` values on the 14
+     catalog-target entries (the 200-default cap gotcha) so full
+     cycles can grow and then sustain ~12,000 on-sale goods; add
+     `litemall.inventoryflow.catalog-target` (default 12000) — the
+     governor reads it to size retirement (propose roughly the
+     overage, never below it in one batch).
+  2. **V46 (litemall-db):** `litemall_retire_candidate` (goods_id,
+     day, score, reasons, status proposed|approved|dismissed|executed,
+     execute_on DATE, timestamps, deleted; unique (goods_id, day)) +
+     `litemall_category_margin` (category_id PK, margin decimal(4,2),
+     timestamps). Claim V46 after checking `flyway_schema_history`.
+  3. **Retirement scorer** — new service-activator lane in the
+     inventory flow (UPDATED + VANISHED paths feed it): score from
+     unavailable streak (metric history), stock ≤ low-stock threshold,
+     weak/null margin, zero views+sales over the window. Proposal
+     upsert with the same never-clobber-admin-decisions guard as deal
+     candidates. Proposes only; never executes.
+  4. **Retirement executor** — daily `@Scheduled` (default cron
+     `0 0 2 * * *`, config) flips APPROVED batches whose
+     `execute_on <= today` to off-sale (+ per-goods reindex so search/
+     deals drop them; sitemap already filters on-sale), marks rows
+     `executed`. Default `execute_on` when approving = next Wednesday
+     (`litemall.inventoryflow.retire-default-day: WED`, config).
+     Reversal = existing admin goods on-sale toggle.
+  5. **Auto daily deals:** morning `@Scheduled` (e.g. 05:00, clear of
+     02:00/02:45/03:00/03:30/04:15) picks the top-N `hot`-tier
+     proposed candidates (today ∪ yesterday), creates deals via the
+     existing `FlashDealService` author path (price =
+     max(suggestedDealPrice, cost×1.05), window `auto-daily-window-
+     hours`), CAS-marks them approved; cap `auto-daily-cap` (12),
+     kill-switch `litemall.deals.auto-daily-enabled` (env-overridable,
+     default true); never touches dismissed rows; skips cost-unknown
+     goods (652 path) without counting them against the cap.
+  6. **Arrivals windows:** `GET /arrivals?runs=` per the CONTRACT,
+     window boundaries from `litemall_cj_sync_run` (last N complete
+     `flow` runs); dealScore = avg deal-candidate score of the
+     window's arrivals per L1.
+  7. **Margin overrides + simulator:** resolution order at every
+     reprice site (snapshot `toRow`, enrichment variant reprice,
+     CJ→native promote) = category override by the goods' L1 root
+     (via linkage) else global `pricing.margin`; effective within one
+     nightly cycle. `simulate` endpoint is pure read (SQL aggregate
+     over costed goods). CRUD per CONTRACT, bounds 1.05–3.0.
+  8. **Honesty:** retirement executor and auto-deal tick are separate
+     from the request path; CJ down changes nothing they do; no fake
+     margins/stock; every skipped/dropped item logged with a reason.
+  9. **Tests:** retire scorer gates + governor sizing, executor date
+     semantics (executeOn today/future/absent), auto-deal cap/floor/
+     kill-switch/dismissed-untouched, margin resolution + simulate
+     math, arrivals window boundaries. Mind the surefire/@Nested
+     "Tests run:" gotcha.
+- **Acceptance:** dev through `:18080`: weak goods appear as retire
+  proposals with reasons; batch-approve with `executeOn=today` ⇒ 02:00
+  executor (or manual trigger in dev) flips them off-sale, they leave
+  search + deals + sitemap but PDP stays viewable; auto-deal tick
+  creates ≤cap deals with floors ≥ cost×1.05 and `/deals` through
+  `:9000` shows them after reindex; `simulate` returns consistent
+  numbers and `PUT margin` + nightly reprice lands retail =
+  cost×override (spot-check); `arrivals?runs=2` ranked per contract;
+  kill-switch env off ⇒ no auto deals, everything else intact; module
+  tests green with real "Tests run" counts; V46 claimed after checking
+  `flyway_schema_history`.
 
-### Worktree: `gateway-api`
-- **Branch:** `fix/gateway-api` — FIRST: `git merge master`. ·
-  **Scope:** `litemall-gateway-api/` (edge Java + customer SPA). NO
-  migration, no new anonymous DOWNSTREAM service paths (`/srv/goods/**`
-  public reads already exist). Code to the Wave-13 CONTRACT.
-- **History:** Wave 11 banner SPA SHIPPED (master `308082607`); Wave
-  9.1 trust surfaces SHIPPED (`3989e2053`). Specs in git history.
-- **Task — Wave 13 (edge + SPA): crawlable PDPs, slugged URLs, robots +
-  sitemap.**
-  1. **Head injection at the fallback seam:** for SPA navigations
-     matching `/product/<id>[-slug]` (and `/category/<id>`), serve the
-     shell with an injected head: `<title>`, meta description (brief),
-     `<link rel=canonical>` (slugged absolute URL), OpenGraph
-     (og:title/description/image/url, og:type=product — og:image must
-     be an ABSOLUTE `https://…/_cdn/...` URL), twitter:card, and
-     JSON-LD `Product` (name, image, description, productID, offers:
-     price + priceCurrency + availability from onSale, aggregateRating
-     only when reviewCount > 0). Implementation: REACTIVE — the
-     gateway is WebFlux, no blocking; meta fetched from
-     `/srv/goods/meta/{id}` via WebClient, short timeout (~300ms) +
-     small TTL cache; ANY failure ⇒ plain shell, 200, fail-open.
-     IDENTICAL HTML for bots and humans. While in there, give the
-     default shell (webapp/public/index.html) a real site
-     title/description as the sitewide fallback.
-  2. **Slug routing:** the `product/:id` route (App.tsx:98) accepts
-     `<id>-<slug>` (parse leading digits); catalog surfaces emit
-     slugged hrefs (ProductHit, related items, home/category grids;
-     cart/order internals may stay bare-id — canonical absorbs the
-     difference). Client keeps setting document.title on navigation.
-  3. **robots.txt + sitemap route:** static `/robots.txt` per CONTRACT;
-     edge route proxies `/sitemap.xml` → goods-management
-     `/srv/goods/sitemap.xml`.
-  4. **Regression:** PDP deep-link + refresh on slugged AND bare URLs,
-     search/category/cart/checkout green through `:9000`; the `:9001`
-     dev-server flow must not break.
-- **Acceptance:** through `:9000`: `curl -H "Accept: text/html"` on
-  `/product/<id>` AND its slugged form returns HTML whose head has the
-  real product name, OG tags, canonical slugged URL, and JSON-LD that
-  passes a validator; goods service stopped ⇒ PDP navigation still
-  serves the shell 200 within the timeout; `/robots.txt` and
-  `/sitemap.xml` serve through the edge; SPA build clean; regression
-  list green.
+### Worktree: `gateway-api` — history (Wave 13, SHIPPED to master)
+- **Task — Wave 13 (edge + SPA): crawlable PDPs, slugged URLs, robots
+  + sitemap.** (Merged to master `88234261a` 2026-07-29, 14/14 e2e;
+  VPS deploy pending. Spec in git history.)
+- **No Wave-14 assignment** — Today's Deals fills through the existing
+  OCS `deal_flag` pipeline once auto deals run; no storefront change.
+  Do not start work here without a new instruction.
 
 ### Worktree: `gateway-api` — history (Wave 9.1, SHIPPED)
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
@@ -394,48 +472,45 @@
 ### Worktree: `gateway-admin`
 - **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
   **Scope:** `litemall-gateway-admin/` SPA only — no edge controllers,
-  no yml route changes (the `/srv/**` catch-all already reaches
-  goods-management; `/srv/private/admin/promotion/**` already routes to
-  promotion). NO migration. Code to the Wave-12 CONTRACT, not to other
-  branches.
-- **Task — Wave 12 (admin UI): goods-by-category insight navigation +
-  per-product decision page.**
-  1. **Nav** (`menu.config.ts` goods group :75-86): add wired leaves
-     "Goods by category" `/admin/goods/categories` and "Deal proposals"
-     `/admin/goods/deal-candidates`; hidden leaves
-     `/admin/goods/categories/:id` and `/admin/goods/:id/insight`. Keep
-     the flat "Goods list" untouched. Routes in `admin-routes.tsx` —
-     static segments BEFORE `:id` routes (comment at :91).
-  2. **Views** (`adminModule/Insight/`, reuse `_shared/crudUi.tsx` +
-     el-table/el-pagination conventions): `CategoryInsightList` — table
-     ranked by potentialProfit desc (name, on-sale, new arrivals 7d,
-     stock, low-stock, unavailable, avg margin %, potential profit); row
-     → category goods page; plus a "Launch category campaign" dialog
-     (POST `/campaign/from-category` per CONTRACT, rendering the honest
-     per-platform disabled/failed statuses). `CategoryGoodsList` —
-     DEFAULT sort = arrival date (`add_time desc`) with a sort box: date
-     (default) | price | stock availability | margin | sales, asc/desc,
-     paginated; row → insight page. `GoodsInsight`
-     (`/admin/goods/:id/insight`) — chart.js Line series (StatPage.tsx
-     pattern): price/cost/margin%, stock + availability, views/sales;
-     totals cards; per-variant table (price, cost, stock, available);
-     recommendation/deal panel with Approve-deal + Dismiss actions; link
-     to the existing Wave-6 `PromoteComposerDialog` for social
-     advertising. `DealCandidateList` — today's proposals with
-     tier/score/reasons + approve/dismiss.
-  3. **API:** new RTK Query `insightApi.ts` (baseUrl
-     `/srv/private/admin/insight`, `adminGoodsApi.ts` pattern: Bearer +
-     envelope unwrap); campaign-from-category on the existing promotion
-     API slice; register the new api in BOTH `shared/reducers/index.ts`
-     and `config/store.ts`.
-- **Acceptance:** SPA build clean; through `:18080` — new nav entries
-  render real payloads; category list ranked by potential profit;
-  category goods page defaults to newest-arrival and every sort option
-  round-trips server-side; insight page renders charts + variants +
-  recommendation with no console errors; approving a candidate creates a
-  deal visible in the existing deals panel; the campaign dialog creates
-  campaign + drafts with honest statuses; existing Goods list/CRUD and
-  all other panels regression-green.
+  no yml route changes. NO migration. Code to the Wave-14 CONTRACT,
+  not to the goods-management branch. (Note: master `446c79eff`
+  already fixed the CSP that blank-boxed product images — merge it in,
+  don't re-fix.)
+- **History:** Wave 12 insight UI SHIPPED (2026-07-29, master
+  `fbb29812e`, deployed to admin.trovemo.com); Wave 8 branding SHIPPED
+  (`72446568f`). Specs in git history.
+- **Task — Wave 14 (admin UI): retirement, arrivals insight, margin
+  tuning.**
+  1. **Retirement view** — new wired leaf under Goods: "Retirement"
+     `/admin/goods/retire` (`menu.config.ts` + `admin-routes.tsx`,
+     static before `:id`): status tabs (proposed | approved | dismissed
+     | executed), table with picture, name, category, cost/retail/
+     margin, stock, unavailable-days, views/sales, score + reasons;
+     multi-select → "Approve for retirement" with a date picker
+     defaulting to the next scheduled Wednesday (`POST
+     /retire-candidates/approve {goodsIds[], executeOn}`), per-row
+     Dismiss; rows link to the existing `/admin/goods/:id/insight`.
+  2. **New-arrivals view** — wired leaf "New arrivals"
+     `/admin/goods/arrivals`: runs=1|2 toggle (`GET /arrivals`),
+     ranked category table (arrivals, avg margin %, avg price,
+     dealScore); row click → the existing category goods page.
+  3. **Margin tuning** — on the category insight surface: margin input/
+     slider with a debounced `GET /categories/{id}/simulate?margin=`
+     preview (prices now vs at, potential profit now vs at), explicit
+     "Apply to this category" (`PUT`, confirm dialog stating it
+     reprices at the next nightly cycle), override badge on
+     overridden categories + an overrides list panel (`GET
+     /margin-overrides`) with remove (`DELETE`).
+  4. **Deal proposals view:** show an "auto" indicator on candidates
+     auto-approved by the daily deal tick (status approved without a
+     manual actor) so admins can tell auto deals from their own.
+- **Acceptance:** SPA build clean; through `:18080` against the real
+  backend — retirement flow e2e (propose → select → approve with date
+  → appears under approved with executeOn; dismiss works); arrivals
+  view ranks per contract for runs=1 and 2; margin simulate preview
+  updates live, apply sets the override and the overrides panel
+  lists/removes it; product images render everywhere (CSP fix
+  merged); existing insight/goods/deals panels regression-green.
 
 ### Worktree: `platform`
 - **No Wave-8 assignment.** The Wave-7 stack is merged and DEPLOYED (prod compose,

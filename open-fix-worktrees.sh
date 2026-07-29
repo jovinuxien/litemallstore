@@ -11,16 +11,16 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 13 (SEO foundation) active worktrees. Launch with FRESH=1 —
-# goods-management/gateway-admin Wave 12 is shipped, and a plain resume
-# would reopen the finished previous-wave conversations instead of
-# delivering Wave 13. "promotion" is still IN FLIGHT on Wave 12 in its
-# own open terminal — do NOT relaunch it here (FRESH=1 would bury its
-# live session). Parked: "order", "gateway-admin", "platform". Each name
-# must have a matching '### Worktree: `<short>`' block in CLAUDE.md.
+# Wave 14 (inventory governance) active worktrees. Launch with FRESH=1 —
+# Wave 13 is shipped, and a plain resume would reopen the finished
+# previous-wave conversations instead of delivering Wave 14.
+# "promotion" is still IN FLIGHT on Wave 12 (merge pending) in its own
+# terminal — do NOT relaunch it here. Parked: "order", "gateway-api",
+# "platform". Each name must have a matching '### Worktree: `<short>`'
+# block in CLAUDE.md.
 MODULES=(
-  "goods-management"  # /srv/goods/meta/{id} + nightly-regenerated /srv/goods/sitemap.xml
-  "gateway-api"       # head injection (title/OG/JSON-LD) at the SPA fallback, slugged URLs, robots.txt
+  "goods-management"  # 12k governor, retirement pipeline, auto daily deals, arrivals windows, margin overrides (V46)
+  "gateway-admin"     # retirement UI + new-arrivals insight + margin simulate/apply
 )
 
 mkdir -p "$WT_BASE"
