@@ -13,3 +13,12 @@ export const fmtDateTime = (v?: string): string => (v ? v.replace('T', ' ').slic
 
 // Arrival dates arrive as "2026-07-28" or a full LocalDateTime — keep the day.
 export const fmtDay = (v?: string): string => (v ? v.slice(0, 10) : '—');
+
+// Wave 14: default retirement date = the next STRICTLY future Wednesday (the
+// 02:00 executor has already run on the current day), as a local 'YYYY-MM-DD'.
+export const nextWednesday = (from: Date = new Date()): string => {
+  const d = new Date(from);
+  d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7 || 7));
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};

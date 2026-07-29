@@ -63,6 +63,8 @@ import CategoryInsightList from 'app/views/adminViews/adminModule/Insight/Catego
 import CategoryGoodsList from 'app/views/adminViews/adminModule/Insight/CategoryGoodsList';
 import GoodsInsight from 'app/views/adminViews/adminModule/Insight/GoodsInsight';
 import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCandidateList';
+import RetireCandidateList from 'app/views/adminViews/adminModule/Insight/RetireCandidateList';
+import ArrivalsList from 'app/views/adminViews/adminModule/Insight/ArrivalsList';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
 import MailOutboxList from 'app/views/adminViews/adminModule/Mail/MailOutboxList';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
@@ -96,6 +98,9 @@ export const AdminRoutes = () => (
       <Route path='goods/categories' element={<CategoryInsightList />} />
       <Route path='goods/categories/:id' element={<CategoryGoodsList />} />
       <Route path='goods/deal-candidates' element={<DealCandidateList />} />
+      {/* Wave 14: inventory governance — also static before ':id' */}
+      <Route path='goods/retire' element={<RetireCandidateList />} />
+      <Route path='goods/arrivals' element={<ArrivalsList />} />
       {/* static 'create' wins over the ':id' detail route in v6 ranking */}
       <Route path='goods/create' element={<GoodsForm />} />
       <Route path='goods/:id/edit' element={<GoodsForm />} />
