@@ -207,8 +207,9 @@ public class CjSnapshotSyncService {
         row.setBrand(null); // CJ has no brand for most items; brand facet stays sparse (acceptable)
 
         // Wave 12: persist the raw USD cost (range lower bound) alongside the marked-up retail.
+        // Wave 14: margin resolves per category (the L1 override else global) via the CJ leaf.
         BigDecimal cost = pricing.parseCost(p.getSellPrice());
-        BigDecimal retail = pricing.retail(cost);
+        BigDecimal retail = pricing.retailForCjLeaf(cost, p.getCategoryId());
         row.setSellPrice(cost);
         row.setPrice(retail);
         row.setDiscountPrice(null);

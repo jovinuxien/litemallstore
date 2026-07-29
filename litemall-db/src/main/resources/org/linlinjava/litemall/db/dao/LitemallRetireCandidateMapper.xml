@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 14). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallRetireCandidateMapper">
+
+  <sql id="Base_Column_List">
+    id, goods_id, `day`, score, reasons, status, execute_on, add_time, update_time, deleted
+  </sql>
+
+  <!-- Re-running the scorer/governor refreshes scoring fields only while status is still
+       'proposed'; an admin's approve/dismiss (and the executor's executed) is never clobbered. -->
+  <insert id="upsertProposal" parameterType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_retire_candidate
+      (goods_id, `day`, score, reasons, status, execute_on, add_time, update_time, deleted)
+    values
+      (#{goodsId}, #{day}, coalesce(#{score}, 0.00), #{reasons},
+       coalesce(#{status}, 'proposed'), #{executeOn}, now(), now(), 0)
+    on duplicate key update
+      score = if(status = 'proposed', values(score), score),
+      reasons = if(status = 'proposed', values(reasons), reasons),
+      update_time = if(status = 'proposed', now(), update_time)
+  </insert>
+
+  <select id="selectByDay" resultType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_retire_candidate
+    where `day` = #{day} and deleted = 0
+    <if test="status != null">and status = #{status}</if>
+    order by score desc, id asc
+  </select>
+
+  <select id="selectByStatus" resultType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_retire_candidate
+    where status = #{status} and deleted = 0
+    order by `day` desc, score desc, id asc
+    limit #{limit}
+  </select>
+
+  <select id="selectLatestByGoods" resultType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_retire_candidate
+    where goods_id = #{goodsId} and deleted = 0
+    order by `day` desc
+    limit 1
+  </select>
+
+  <select id="selectLatestProposedByGoods" resultType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_retire_candidate
+    where goods_id = #{goodsId} and status = 'proposed' and deleted = 0
+    order by `day` desc
+    limit 1
+  </select>
+
+  <select id="selectDueApproved" resultType="org.linlinjava.litemall.db.domain.LitemallRetireCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_retire_candidate
+    where status = 'approved' and execute_on is not null and execute_on &lt;= #{today} and deleted = 0
+    order by execute_on asc, score desc, id asc
+  </select>
+
+  <update id="updateStatus">
+    update litemall_retire_candidate
+    set status = #{status},
+    <if test="executeOn != null">execute_on = #{executeOn},</if>
+    update_time = now()
+    where id = #{id} and status = #{expect} and deleted = 0
+  </update>
+
+</mapper>

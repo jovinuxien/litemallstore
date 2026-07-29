@@ -248,7 +248,9 @@ public class CjGoodsDetailService {
         }
 
         String docId = CJ_ID_PREFIX + pid;
-        BigDecimal retail = retailPrice(d.getSellPrice());
+        // Wave 14: margin resolves per category (L1 override else global) via the CJ leaf.
+        BigDecimal effMargin = pricing.marginForCjLeaf(d.getCategoryId());
+        BigDecimal retail = retailPrice(d.getSellPrice(), effMargin);
         List<CJProductVariantData> variants = d.getVariants() != null ? d.getVariants() : List.of();
         List<String> images = imagesOf(d.getProductImage());
         String picUrl = images.isEmpty() ? null : images.get(0);
@@ -278,7 +280,7 @@ public class CjGoodsDetailService {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("goods", goods);
-        data.put("products", productList(docId, variants, retail));
+        data.put("products", productList(docId, variants, retail, effMargin));
         data.put("specifications", specificationList(variants));
         data.put("attributes", attributes(d));
         data.put("categoryIds", List.of());
@@ -319,9 +321,9 @@ public class CjGoodsDetailService {
         return d.getProductName();
     }
 
-    /** Retail = wholesale cost (USD) × margin (CjPricing, Wave 12); null on no cost. */
-    private BigDecimal retailPrice(Double sellPrice) {
-        return pricing.retail(pricing.cost(sellPrice));
+    /** Retail = wholesale cost (USD) × effective margin (CjPricing, Wave 12/14); null on no cost. */
+    private BigDecimal retailPrice(Double sellPrice, BigDecimal margin) {
+        return pricing.retail(pricing.cost(sellPrice), margin);
     }
 
     /**
@@ -329,14 +331,15 @@ public class CjGoodsDetailService {
      * variantKey values, {@code price} = the variant's retail price (falls back to the product
      * retail), {@code number} = the configured default stock.
      */
-    private List<Map<String, Object>> productList(String docId, List<CJProductVariantData> variants, BigDecimal productRetail) {
+    private List<Map<String, Object>> productList(String docId, List<CJProductVariantData> variants,
+                                                  BigDecimal productRetail, BigDecimal margin) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (CJProductVariantData v : variants) {
             Map<String, Object> p = new LinkedHashMap<>();
             p.put("goodsProductId", idMap(v.getVid()));
             p.put("goodsId", idMap(docId));
             p.put("specifications", variantValues(v));
-            BigDecimal price = retailPrice(v.getVariantSellPrice());
+            BigDecimal price = retailPrice(v.getVariantSellPrice(), margin);
             p.put("price", price != null ? price : productRetail);
             p.put("number", config.getDefaultStock());
             p.put("url", null);

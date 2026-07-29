@@ -148,6 +148,113 @@
     group by og.goods_id
   </select>
 
+  <!-- Wave 14: retirement + arrivals + margin simulation. Same conventions as above. -->
+
+  <sql id="Views_Subquery">
+    select goods_id, count(*) as views
+    from litemall_footprint
+    where deleted = 0
+    group by goods_id
+  </sql>
+
+  <select id="selectRetireCandidateRows" resultType="java.util.HashMap">
+    select
+      rc.id as id,
+      rc.goods_id as goodsId,
+      g.`name` as name,
+      g.pic_url as picUrl,
+      g.category_id as categoryId,
+      case when g.cost &gt; 0 then g.cost end as cost,
+      g.retail_price as retailPrice,
+      case when g.cost &gt; 0 and g.retail_price &gt; 0
+           then round((g.retail_price - g.cost) / g.retail_price * 100, 2) end as marginPct,
+      coalesce(p.stock_total, 0) as stockTotal,
+      case
+        when (select md.available from litemall_product_metric_daily md
+               where md.goods_id = g.id order by md.`day` desc limit 1) = 0
+        then coalesce(datediff(curdate(), (select max(md2.`day`) from litemall_product_metric_daily md2
+               where md2.goods_id = g.id and md2.available = 1)),
+             datediff(curdate(), g.add_time))
+        else 0
+      end as unavailableDays,
+      coalesce(v.views, 0) as views,
+      coalesce(s.sales_qty, 0) as salesQty,
+      rc.score as score,
+      rc.reasons as reasons,
+      rc.status as status,
+      rc.execute_on as executeOn,
+      rc.`day` as day
+    from litemall_retire_candidate rc
+    join litemall_goods g on g.id = rc.goods_id and g.deleted = 0
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = rc.goods_id
+    left join (<include refid="Sales_Subquery"/>) s on s.goods_id = rc.goods_id
+    left join (<include refid="Views_Subquery"/>) v on v.goods_id = rc.goods_id
+    where rc.deleted = 0 and rc.status = #{status}
+    order by rc.`day` desc, rc.score desc, rc.id asc
+    limit #{limit}
+  </select>
+
+  <select id="selectWeakestOnSale" resultType="java.util.HashMap">
+    select
+      g.id as goodsId,
+      case when g.cost &gt; 0 and g.retail_price &gt; 0
+           then round((g.retail_price - g.cost) / g.retail_price * 100, 2) end as marginPct,
+      coalesce(p.stock_total, 0) as stockTotal,
+      coalesce(s.sales_qty, 0) as salesQty,
+      coalesce(v.views, 0) as views,
+      (select md.available from litemall_product_metric_daily md
+        where md.goods_id = g.id order by md.`day` desc limit 1) as latestAvailable,
+      g.add_time as arrivalDate
+    from litemall_goods g
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = g.id
+    left join (<include refid="Sales_Subquery"/>) s on s.goods_id = g.id
+    left join (<include refid="Views_Subquery"/>) v on v.goods_id = g.id
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+    order by coalesce(s.sales_qty, 0) asc, coalesce(v.views, 0) asc,
+      case when g.cost &gt; 0 and g.retail_price &gt; 0
+           then (g.retail_price - g.cost) / g.retail_price else -1 end asc,
+      coalesce(p.stock_total, 0) asc, g.add_time asc, g.id asc
+    limit #{limit}
+  </select>
+
+  <select id="countOnSaleCj" resultType="long">
+    select count(*)
+    from litemall_goods g
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+  </select>
+
+  <select id="selectArrivalsAgg" resultType="java.util.HashMap">
+    select
+      count(*) as arrivals,
+      round(avg(case when g.cost &gt; 0 and g.retail_price &gt; 0
+                     then (g.retail_price - g.cost) / g.retail_price * 100 end), 2) as avgMarginPct,
+      round(avg(g.retail_price), 2) as avgRetailPrice,
+      round(coalesce(avg(dsc.score), 0), 2) as dealScore
+    from litemall_goods g
+    left join (select goods_id, max(score) as score
+               from litemall_deal_candidate
+               where deleted = 0 and `day` &gt;= #{sinceDay}
+               group by goods_id) dsc on dsc.goods_id = g.id
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+      and g.add_time &gt;= #{since}
+      and g.category_id in
+      <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+  </select>
+
+  <select id="selectMarginSimulate" resultType="java.util.HashMap">
+    select
+      count(*) as goodsCount,
+      round(avg(g.retail_price), 2) as avgPriceNow,
+      round(avg(g.cost * #{margin}), 2) as avgPriceAt,
+      round(coalesce(sum((g.retail_price - g.cost) * least(coalesce(p.stock_total, 0), #{stockCap})), 0), 2) as potentialProfitNow,
+      round(coalesce(sum((g.cost * #{margin} - g.cost) * least(coalesce(p.stock_total, 0), #{stockCap})), 0), 2) as potentialProfitAt
+    from litemall_goods g
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = g.id
+    where g.deleted = 0 and g.is_on_sale = 1 and g.cost &gt; 0
+      and g.category_id in
+      <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+  </select>
+
   <select id="selectTrackedDealVids" resultType="java.lang.String">
     select distinct gp.cj_vid
     from litemall_goods_product gp

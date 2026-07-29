@@ -216,7 +216,8 @@ public class InsightService {
             reasons.add("stock " + stockTotal);
         }
         Map<String, Object> rec = new LinkedHashMap<>();
-        rec.put("suggestedRetail", pricing.retail(cost)); // null when no cost — never a fake number
+        // null when no cost — never a fake number; margin is the category's effective one (Wave 14)
+        rec.put("suggestedRetail", pricing.retailForCategory(cost, goods.getCategoryId()));
         rec.put("marginPct", marginPct);
         rec.put("advertisable", advertisable);
         rec.put("reasons", reasons);

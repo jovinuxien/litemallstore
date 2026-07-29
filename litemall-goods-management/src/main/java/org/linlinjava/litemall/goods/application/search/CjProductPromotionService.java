@@ -75,6 +75,7 @@ public class CjProductPromotionService {
     private final CjProductToNativeAdapter adapter;
     private final CjCategoryTreeSyncService categoryTreeSync;
     private final CJDropshippingConfig config;
+    private final CjPricing pricing;
     private final TransactionTemplate txTemplate;
 
     public CjProductPromotionService(LitemallCjLinkageMapper linkageMapper,
@@ -88,6 +89,7 @@ public class CjProductPromotionService {
                                      CjProductToNativeAdapter adapter,
                                      CjCategoryTreeSyncService categoryTreeSync,
                                      CJDropshippingConfig config,
+                                     CjPricing pricing,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
         this.goodsMapper = goodsMapper;
@@ -100,6 +102,7 @@ public class CjProductPromotionService {
         this.adapter = adapter;
         this.categoryTreeSync = categoryTreeSync;
         this.config = config;
+        this.pricing = pricing;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -187,6 +190,12 @@ public class CjProductPromotionService {
         Integer brandId = resolveBrandId(aggregate.getBrand());
         goods.setBrandId(brandId != null ? brandId : 0);
 
+        // Wave 14: promote is a reprice site. Once the category is resolved, retail converges on
+        // cost × the category's EFFECTIVE margin (L1 override else global) in one nightly cycle —
+        // the sync/enrichment already priced this way off the CJ leaf, but the whole already-landed
+        // catalog reprices here when an override changes, without waiting on the enrichment rotation.
+        repriceForCategory(goods, aggregate.getProducts());
+
         // Match INCLUDING soft-deleted rows: a full sync's stale-prune (or an off-sale edit) may
         // have soft-deleted this pid, and uk_goods_source_cjpid makes a blind re-insert collide —
         // the row must be resurrected in place instead.
@@ -207,6 +216,10 @@ public class CjProductPromotionService {
             goods.setId(existingId);
             goods.setAddTime(null); // preserve the original creation time on update
             goods.setDeleted(false); // resurrect if the row was soft-deleted
+            // Wave 14: on-sale is an ADMIN decision on existing goods — the nightly promote must
+            // not resurrect retired (off-sale) goods back to on-sale, so the flag is withheld on
+            // updates (selective skips nulls). New inserts still land on-sale below.
+            goods.setIsOnSale(null);
             goodsMapper.updateByPrimaryKeySelective(goods);
         } else {
             goodsMapper.insertSelective(goods); // selectKey stamps goods.id
@@ -225,6 +238,29 @@ public class CjProductPromotionService {
         regenerateSpecifications(goodsId, aggregate.getSpecifications());
         regenerateAttributes(goodsId, aggregate.getAttributes());
         return goodsId;
+    }
+
+    /**
+     * Wave 14: recompute retail (and counter, CJ convention counter == retail) plus per-SKU prices
+     * from the captured costs with the resolved category's effective margin. No captured cost ⇒
+     * the snapshot prices stand untouched (never a fake reprice). SKUs without their own cost
+     * follow the product retail — same intent as the adapter's stale-basis guard.
+     * Package-visible for the unit test.
+     */
+    void repriceForCategory(LitemallGoods goods, List<LitemallGoodsProduct> products) {
+        BigDecimal cost = goods.getCost();
+        if (cost == null || cost.signum() <= 0) {
+            return;
+        }
+        BigDecimal margin = pricing.marginForCategory(goods.getCategoryId());
+        BigDecimal retail = pricing.retail(cost, margin);
+        goods.setRetailPrice(retail);
+        goods.setCounterPrice(retail);
+        for (LitemallGoodsProduct product : products) {
+            BigDecimal skuCost = product.getCost();
+            product.setPrice(skuCost != null && skuCost.signum() > 0
+                    ? pricing.retail(skuCost, margin) : retail);
+        }
     }
 
     /**

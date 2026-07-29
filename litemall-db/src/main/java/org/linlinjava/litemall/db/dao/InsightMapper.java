@@ -64,4 +64,42 @@ public interface InsightMapper {
 
     /** Per-goods paid sales quantity for one day (by order pay_time): rows of {goodsId, cnt}. */
     List<Map<String, Object>> selectDailySales(@Param("day") LocalDate day);
+
+    /**
+     * Retire-candidate rows in a status joined with goods context (Wave 14: id, goodsId, name,
+     * picUrl, categoryId, cost, retailPrice, marginPct, stockTotal, unavailableDays, views,
+     * salesQty, score, reasons, status, executeOn, day). unavailableDays = days since the last
+     * metric row with available = 1 (0 while the latest row says available).
+     */
+    List<Map<String, Object>> selectRetireCandidateRows(@Param("status") String status,
+                                                        @Param("limit") int limit);
+
+    /**
+     * ON-SALE CJ goods ranked weakest-first (sales, then views, then margin, then stock) with
+     * the scoring ingredients (goodsId, marginPct, stockTotal, salesQty, views, latestAvailable,
+     * arrivalDate) — the Wave-14 governor's top-up pool. Nightly use only; scans engagement.
+     */
+    List<Map<String, Object>> selectWeakestOnSale(@Param("limit") int limit);
+
+    /** Count of on-sale, non-deleted CJ goods — the governor's measure against the catalog target. */
+    long countOnSaleCj();
+
+    /**
+     * One aggregate row over the ON-SALE CJ goods of a category subtree that ARRIVED since
+     * {@code since} (Wave 14 arrivals insight): arrivals, avgMarginPct (costed only, else NULL),
+     * avgRetailPrice, dealScore (avg best deal-candidate score of those arrivals since
+     * {@code sinceDay}; 0 when none scored).
+     */
+    Map<String, Object> selectArrivalsAgg(@Param("categoryIds") List<Integer> categoryIds,
+                                          @Param("since") java.time.LocalDateTime since,
+                                          @Param("sinceDay") LocalDate sinceDay);
+
+    /**
+     * Margin-simulation aggregate over the COSTED on-sale goods of a category subtree
+     * (Wave 14): goodsCount, avgPriceNow, avgPriceAt (cost x margin), potentialProfitNow,
+     * potentialProfitAt. Pure read; no price mutation.
+     */
+    Map<String, Object> selectMarginSimulate(@Param("categoryIds") List<Integer> categoryIds,
+                                             @Param("margin") java.math.BigDecimal margin,
+                                             @Param("stockCap") int stockCap);
 }
