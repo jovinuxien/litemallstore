@@ -112,6 +112,17 @@ spring:
           filters:
             - SetPath=/srv/goods/sitemap.xml
 
+        # Wave-14.1: Meta Commerce Manager fetches the product feed at the
+        # site root (doc/meta-catalog-feed.md). Same shape as seo-sitemap —
+        # one cacheable public document, no new anonymous downstream path.
+        # 404s harmlessly until goods-management ships the generator.
+        - id: seo-meta-catalog
+          uri: lb://litemall-goods-management
+          predicates:
+            - Path=/meta-catalog.csv
+          filters:
+            - SetPath=/srv/goods/meta-catalog.csv
+
         # Bundled customer SPA (Phase 5 webapp build -> target/classes/static).
         # Root path only; in dev the webpack dev-server on :9000 is the front
         # door and proxies /auth,/srv,/wx here, so this is a prod/default serve.
