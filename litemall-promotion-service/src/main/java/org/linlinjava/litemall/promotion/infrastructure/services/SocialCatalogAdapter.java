@@ -1,8 +1,10 @@
 package org.linlinjava.litemall.promotion.infrastructure.services;
 
 import org.linlinjava.litemall.db.dao.LitemallSeckillMapper;
+import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallSeckill;
+import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
 import org.linlinjava.litemall.promotion.application.ports.SocialCatalogPort;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.ApiResponse;
@@ -13,9 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -31,13 +35,16 @@ public class SocialCatalogAdapter implements SocialCatalogPort {
     private static final Logger logger = LoggerFactory.getLogger(SocialCatalogAdapter.class);
 
     private final LitemallGoodsService goodsService;
+    private final LitemallCategoryService categoryService;
     private final LitemallSeckillMapper seckillMapper;
     private final GoodsServiceFeignClient goodsServiceFeignClient;
 
     public SocialCatalogAdapter(LitemallGoodsService goodsService,
+                                LitemallCategoryService categoryService,
                                 LitemallSeckillMapper seckillMapper,
                                 GoodsServiceFeignClient goodsServiceFeignClient) {
         this.goodsService = goodsService;
+        this.categoryService = categoryService;
         this.seckillMapper = seckillMapper;
         this.goodsServiceFeignClient = goodsServiceFeignClient;
     }
@@ -80,6 +87,32 @@ public class SocialCatalogAdapter implements SocialCatalogPort {
         return seckillMapper.selectSwapped().stream()
                 .map(this::toLiveDeal)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<CategoryLiveDeals> categoryLiveDeals(Integer categoryId) {
+        if (categoryId == null) {
+            return Optional.empty();
+        }
+        LitemallCategory category = categoryService.findById(categoryId);
+        if (category == null || Boolean.TRUE.equals(category.getDeleted())) {
+            return Optional.empty();
+        }
+        Set<Integer> treeIds = new HashSet<>();
+        treeIds.add(category.getId());
+        for (LitemallCategory child : categoryService.queryByPid(category.getId())) {
+            treeIds.add(child.getId());
+        }
+        // Live deals are a curated handful, so resolving each deal's goods is
+        // cheaper than paging the (potentially >1k) goods of an L1 tree.
+        List<LiveDeal> deals = new ArrayList<>();
+        for (LitemallSeckill deal : seckillMapper.selectSwapped()) {
+            LitemallGoods goods = goodsService.findById(deal.getGoodsId());
+            if (goods != null && goods.getCategoryId() != null && treeIds.contains(goods.getCategoryId())) {
+                deals.add(toLiveDeal(deal));
+            }
+        }
+        return Optional.of(new CategoryLiveDeals(category.getId(), category.getName(), deals));
     }
 
     /** First live product video's URL, or null (fail-soft — videos are a bonus surface). */

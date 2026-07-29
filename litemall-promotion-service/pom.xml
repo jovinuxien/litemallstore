@@ -308,7 +308,9 @@
 					<version>${maven-surefire-plugin.version}</version>
 					<configuration>
 						<argLine>-Xmx1024m -XX:MaxPermSize=256m</argLine>
-						<debugForkedProcess>true</debugForkedProcess>
+						<!-- debugForkedProcess=true made every `mvn test` fork suspend on
+						     jdwp :5005 waiting for a debugger — tests hung forever.
+						     Opt back in per-run with -Dmaven.surefire.debug when needed. -->
 					</configuration>
 				</plugin>
 				<!-- jacoco plugin management -->

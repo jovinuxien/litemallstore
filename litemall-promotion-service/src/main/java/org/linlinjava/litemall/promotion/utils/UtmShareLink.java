@@ -49,6 +49,16 @@ public final class UtmShareLink {
         return "goods-" + goodsId;
     }
 
+    /**
+     * Campaign slug for a Wave-12 scheduled category campaign's posts. Doubles
+     * as the durable campaign↔post correlation: draft rows carry it in
+     * {@code link_url}, which is how the schedule tick finds a campaign's
+     * drafts at activation (the V42 ledger has no campaign column).
+     */
+    public static String campaignSlug(Integer campaignId) {
+        return "campaign-" + campaignId;
+    }
+
     private static String encode(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
