@@ -10,6 +10,8 @@ import org.linlinjava.litemall.goods.application.inventoryflow.InventoryRecheckA
 import org.linlinjava.litemall.goods.application.inventoryflow.MarginRecorder;
 import org.linlinjava.litemall.goods.application.inventoryflow.ProductFlowEvent;
 import org.linlinjava.litemall.goods.application.inventoryflow.ProductInventoryContext;
+import org.linlinjava.litemall.goods.application.inventoryflow.RetireCandidateScorer;
+import org.linlinjava.litemall.goods.application.inventoryflow.RetirementGovernor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -157,31 +159,38 @@ public class InventoryFlowConfig {
 
     @Bean
     public IntegrationFlow updatedFlow(InventoryContextEnricher enricher,
-                                       MarginRecorder marginRecorder) {
+                                       MarginRecorder marginRecorder,
+                                       RetireCandidateScorer retireScorer) {
         return IntegrationFlow.from("invflow.updated")
                 .transform(ProductFlowEvent.class, enricher::enrich)
                 .<ProductInventoryContext, ProductFlowEvent>transform(marginRecorder::record)
+                // Wave 14: hard availability problems propose retirement (off-sale) here
+                .<ProductFlowEvent, ProductFlowEvent>transform(retireScorer::observe)
                 .channel("invflow.processed")
                 .get();
     }
 
     @Bean
-    public IntegrationFlow vanishedFlow(AvailabilityRecorder availabilityRecorder) {
+    public IntegrationFlow vanishedFlow(AvailabilityRecorder availabilityRecorder,
+                                        RetireCandidateScorer retireScorer) {
         return IntegrationFlow.from("invflow.vanished")
                 .<ProductFlowEvent, ProductFlowEvent>transform(availabilityRecorder::markVanished)
+                // Wave 14: the vanish that trips the streak threshold proposes retirement
+                .<ProductFlowEvent, ProductFlowEvent>transform(retireScorer::observe)
                 .channel("invflow.processed")
                 .get();
     }
 
     /** Aggregator: when a split group completes, refresh the rollup + close the run row. */
     @Bean
-    public IntegrationFlow processedFlow(CategoryInsightCache cache, CjSyncRunRecorder runRecorder) {
+    public IntegrationFlow processedFlow(CategoryInsightCache cache, CjSyncRunRecorder runRecorder,
+                                         RetirementGovernor governor) {
         return IntegrationFlow.from("invflow.processed")
                 .aggregate(a -> a
                         .groupTimeout(GROUP_TIMEOUT_MS)
                         .sendPartialResultOnExpiry(true)
                         .expireGroupsUponCompletion(true))
-                .handle(message -> finishRun(message, cache, runRecorder))
+                .handle(message -> finishRun(message, cache, runRecorder, governor))
                 .get();
     }
 
@@ -217,7 +226,7 @@ public class InventoryFlowConfig {
     }
 
     private static void finishRun(Message<?> message, CategoryInsightCache cache,
-                                  CjSyncRunRecorder runRecorder) {
+                                  CjSyncRunRecorder runRecorder, RetirementGovernor governor) {
         Integer runId = message.getHeaders().get("invFlowRunId", Integer.class);
         int newArrivals = 0;
         int updated = 0;
@@ -236,6 +245,10 @@ public class InventoryFlowConfig {
         }
         // Catalog runs (runId set) force a rebuild; enrichment trickle groups are debounced.
         cache.refresh(runId != null);
+        // Wave 14: only catalog runs re-measure the catalog against its target (self-guarded).
+        if (runId != null) {
+            governor.governAfterCatalogRun();
+        }
         runRecorder.close(runId, newArrivals + updated + vanished, newArrivals, updated, vanished,
                 true, null);
     }

@@ -154,12 +154,15 @@ public class CjDetailEnrichmentService {
         // with it: the nightly plan only rotates a slice of the catalog, so for the long tail
         // THIS is the repricing path — without it an on-demand-enriched product captures its
         // cost but keeps the pre-Wave-12 ×14.4 price until a sync happens to list it again.
+        // Wave 14: the effective margin is per-category (L1 override else global), resolved once
+        // per product off the snapshot row's CJ leaf UUID.
+        BigDecimal effMargin = pricing.marginForCjLeaf(firstCategoryId(row.getCategoryIds()));
         BigDecimal detailCost = pricing.cost(d.getSellPrice());
         if (detailCost != null) {
             row.setSellPrice(detailCost);
-            row.setPrice(pricing.retail(detailCost));
+            row.setPrice(pricing.retail(detailCost, effMargin));
         } else if (row.getSellPrice() != null) {
-            row.setPrice(pricing.retail(row.getSellPrice()));
+            row.setPrice(pricing.retail(row.getSellPrice(), effMargin));
         }
 
         // Real per-SKU variants: variant_sell_price (raw USD cost, Wave 12) + variant_price
@@ -173,7 +176,7 @@ public class CjDetailEnrichmentService {
             BigDecimal vCost = pricing.cost(v.getVariantSellPrice());
             if (vCost != null) {
                 vm.put("variant_sell_price", vCost);
-                vm.put("variant_price", pricing.retail(vCost));
+                vm.put("variant_price", pricing.retail(vCost, effMargin));
             }
             vm.put("stock", stockOf(v.getVid()));
             variantMaps.add(vm);
@@ -373,6 +376,24 @@ public class CjDetailEnrichmentService {
         if (readable != null && !readable.isBlank()) {
             attrs.put(name, readable);
         }
+    }
+
+    /** First CJ leaf category UUID off a snapshot row's category_ids JSON array; null when absent. */
+    private String firstCategoryId(String categoryIdsJson) {
+        if (categoryIdsJson == null || categoryIdsJson.isBlank()) {
+            return null;
+        }
+        try {
+            String[] ids = objectMapper.readValue(categoryIdsJson, String[].class);
+            for (String id : ids) {
+                if (id != null && !id.isBlank()) {
+                    return id.trim();
+                }
+            }
+        } catch (Exception e) {
+            // fall through — global margin applies
+        }
+        return null;
     }
 
     /** CJ {@code productImage} may be a plain URL or a JSON-stringified array; return a clean URL list. */

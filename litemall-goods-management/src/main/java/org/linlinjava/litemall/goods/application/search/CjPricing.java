@@ -1,8 +1,11 @@
 package org.linlinjava.litemall.goods.application.search;
 
+import org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -31,9 +34,21 @@ public class CjPricing {
     private static final Pattern FIRST_NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
 
     private final CJDropshippingConfig config;
+    private final CategoryMarginResolver marginResolver;
 
+    /** Global-margin-only pricing (tests and non-category contexts). */
     public CjPricing(CJDropshippingConfig config) {
+        this(config, (CategoryMarginResolver) null);
+    }
+
+    public CjPricing(CJDropshippingConfig config, CategoryMarginResolver marginResolver) {
         this.config = config;
+        this.marginResolver = marginResolver;
+    }
+
+    @Autowired
+    public CjPricing(CJDropshippingConfig config, ObjectProvider<CategoryMarginResolver> marginResolver) {
+        this(config, marginResolver.getIfAvailable());
     }
 
     /** Raw USD cost from a CJ {@code sellPrice} string (range → lower bound); null when unparseable. */
@@ -54,11 +69,45 @@ public class CjPricing {
         return sellPrice == null ? null : BigDecimal.valueOf(sellPrice).setScale(2, RoundingMode.HALF_UP);
     }
 
-    /** Retail = cost × margin (default 1.25), 2dp HALF_UP; null when the cost is unknown. */
+    /** Retail = cost × global margin (default 1.25), 2dp HALF_UP; null when the cost is unknown. */
     public BigDecimal retail(BigDecimal cost) {
+        return retail(cost, null);
+    }
+
+    /** Retail = cost × the given margin (null margin → global), 2dp HALF_UP; null on no cost. */
+    public BigDecimal retail(BigDecimal cost, BigDecimal margin) {
         if (cost == null) {
             return null;
         }
-        return cost.multiply(config.getPricing().getMargin()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal m = margin != null ? margin : config.getPricing().getMargin();
+        return cost.multiply(m).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Retail priced with the effective margin of the raw CJ leaf category (Wave 14: per-L1
+     * override, else global). Sync/enrichment reprice site — falls back to the global margin
+     * when no resolver is wired (tests) or the leaf is unknown.
+     */
+    public BigDecimal retailForCjLeaf(BigDecimal cost, String cjLeafUuid) {
+        return retail(cost, marginResolver != null ? marginResolver.effectiveForCjLeaf(cjLeafUuid) : null);
+    }
+
+    /** Retail priced with the effective margin of a local category id (promote/insight paths). */
+    public BigDecimal retailForCategory(BigDecimal cost, Integer categoryId) {
+        return retail(cost, marginResolver != null ? marginResolver.effectiveForCategory(categoryId) : null);
+    }
+
+    /** Effective margin for a local category id; global when no resolver is wired. */
+    public BigDecimal marginForCategory(Integer categoryId) {
+        return marginResolver != null
+                ? marginResolver.effectiveForCategory(categoryId)
+                : config.getPricing().getMargin();
+    }
+
+    /** Effective margin for a raw CJ leaf category UUID; global when no resolver is wired. */
+    public BigDecimal marginForCjLeaf(String cjLeafUuid) {
+        return marginResolver != null
+                ? marginResolver.effectiveForCjLeaf(cjLeafUuid)
+                : config.getPricing().getMargin();
     }
 }
