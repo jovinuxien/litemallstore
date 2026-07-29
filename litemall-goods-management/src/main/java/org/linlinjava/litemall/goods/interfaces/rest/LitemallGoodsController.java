@@ -20,6 +20,7 @@ import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsVideoService;
 import org.linlinjava.litemall.goods.application.discovery.DiscoveryService;
 import org.linlinjava.litemall.goods.application.search.SearchService;
 import org.linlinjava.litemall.goods.application.seo.GoodsMetaService;
+import org.linlinjava.litemall.goods.application.seo.MetaCatalogFeedService;
 import org.linlinjava.litemall.goods.application.seo.SitemapService;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallCategoryAggregate;
 import org.linlinjava.litemall.goods.domain.model.aggregates.LitemallGoodsAggregate;
@@ -100,6 +101,9 @@ public class LitemallGoodsController {
     private GoodsMetaService goodsMetaService;
     @Autowired
     private SitemapService sitemapService;
+    // Wave 14.1: cached Meta Commerce Manager catalogue feed.
+    @Autowired
+    private MetaCatalogFeedService metaCatalogFeedService;
 
     @Autowired
     private MessageProducer messageProducer;
@@ -553,6 +557,20 @@ public class LitemallGoodsController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_XML)
                 .body(sitemapService.sitemap());
+    }
+
+    /**
+     * Cached Meta Commerce Manager catalogue feed (Wave-14.1 contract,
+     * {@code doc/meta-catalog-feed.md}); the gateway-api edge proxies
+     * {@code /meta-catalog.csv} here. Snapshot bytes — no per-request DB sweep.
+     * One document for the whole catalogue, so edge/Cloudflare caching is safe.
+     */
+    @GetMapping(value = "/meta-catalog.csv")
+    public ResponseEntity<byte[]> metaCatalog() {
+        return ResponseEntity.ok()
+                .header("Cache-Control", "public, max-age=3600")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(metaCatalogFeedService.feed());
     }
 
     /**
