@@ -18,4 +18,10 @@ public interface LitemallCjSyncRunMapper {
 
     /** Latest runs, newest first; phase null = all phases. */
     List<LitemallCjSyncRun> selectRecent(@Param("phase") String phase, @Param("limit") int limit);
+
+    /**
+     * Latest COMPLETE runs of a phase, newest first — aborted runs (complete = 0) are not
+     * usable as window boundaries for "since the last N catalog runs" (Wave 14 arrivals).
+     */
+    List<LitemallCjSyncRun> selectRecentComplete(@Param("phase") String phase, @Param("limit") int limit);
 }
