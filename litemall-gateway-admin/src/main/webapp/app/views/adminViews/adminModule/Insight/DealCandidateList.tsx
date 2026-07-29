@@ -1,5 +1,6 @@
 import {
   IDealCandidate,
+  isAutoApprovedCandidate,
   useDismissDealCandidateMutation,
   useGetDealCandidatesQuery,
 } from 'app/shared/reducers/private/services/insightApi';
@@ -10,10 +11,12 @@ import * as React from 'react';
 import { Link } from 'react-router-dom';
 
 // Wave 12: daily deal proposals (/srv/private/admin/insight/deal-candidates).
-// Candidates are PROPOSED by the nightly classification and only become
-// flash deals after an explicit admin Approve here (user decision: never
-// auto-create). Dismiss records the decision; both actions round-trip the
-// litemall envelope and surface business errors inline.
+// Candidates are PROPOSED by the nightly classification and become flash
+// deals on an admin Approve here — or, since Wave 14 (user re-approved
+// 2026-07-29), via the capped daily auto-deal tick, whose approvals carry an
+// "auto" badge. Dismissed rows are never auto-approved. Dismiss records the
+// decision; both actions round-trip the litemall envelope and surface
+// business errors inline.
 
 const tierTag = (tier?: string): ElTag => {
   const t = (tier || '').toLowerCase();
@@ -72,7 +75,10 @@ const DealCandidateList: React.FC = () => {
         </Link>
         {isFetching && <Spinner />}
       </div>
-      <p className='text-muted small'>Nightly classification proposes; nothing goes live without an approval here.</p>
+      <p className='text-muted small'>
+        Nightly classification proposes; deals go live on approval here or via the capped daily auto-deal tick (badged “auto”). Dismissed
+        proposals are never auto-approved.
+      </p>
 
       {isError && <div className='alert alert-danger'>Failed to load deal proposals{errStatus ? ` (${errStatus})` : ''}.</div>}
       {actionError && <div className='alert alert-danger'>{actionError}</div>}
@@ -125,6 +131,13 @@ const DealCandidateList: React.FC = () => {
                 <td className='text-end'>{c.rating != null ? Number(c.rating).toFixed(1) : '—'}</td>
                 <td>
                   <Tag tag={statusTag(c.status)}>{c.status || 'proposed'}</Tag>
+                  {/* Wave 14: the daily tick auto-approves top candidates —
+                      badge them so admins can tell auto deals from their own. */}
+                  {isAutoApprovedCandidate(c) && (
+                    <span className='ms-1' title='Approved by the daily auto-deal tick, not by an admin'>
+                      <Tag tag='info'>auto</Tag>
+                    </span>
+                  )}
                 </td>
                 <td>
                   {(c.reasons ?? []).length > 0 ? (

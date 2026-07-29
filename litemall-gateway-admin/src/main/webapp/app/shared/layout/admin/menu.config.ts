@@ -86,6 +86,9 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/goods/categories/:id', title: 'Category goods', wired: true, hidden: true },
       { path: '/admin/goods/:id/insight', title: 'Goods insight', wired: true, hidden: true },
       { path: '/admin/goods/deal-candidates', title: 'Deal proposals', wired: true },
+      // Wave 14: inventory governance (goods-management insight backend).
+      { path: '/admin/goods/retire', title: 'Retirement', wired: true },
+      { path: '/admin/goods/arrivals', title: 'New arrivals', wired: true },
       { path: '/admin/goods/comment', title: 'Comments', wired: true },
     ],
   },
