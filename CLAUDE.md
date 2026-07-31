@@ -456,7 +456,20 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — Wave 15 SHIPPED; ACTIVE: Wave 16
+### Worktree: `gateway-api` — Waves 15+16 SHIPPED
+- **Wave 16 STATUS: MERGED to master `1a157a78e` (2026-07-31).** Guest
+  checkout (per-checkout shadow accounts — a repeated email NEVER opens an
+  earlier guest's session; real-account email ⇒ 706 sign-in prompt; claim =
+  authenticated `/auth/guest/claim`, policy-tested), Google Sign-In
+  (`LITEMALL_GOOGLE_CLIENT_ID` env-gated; server-side tokeninfo verify,
+  707/708 typed; links google_sub → verified email → guest upgrade), teal
+  AuthShell on login/register/reset, country dial-code phone input (static
+  ITU map + Intl.DisplayNames, E.164), env-gated Places autocomplete
+  (`LITEMALL_PLACES_API_KEY`). **V47 applied via the flyway-OWNING services
+  (order/goods) — the edge keeps flyway disabled; prod deploy must rebuild+
+  recreate the order container BEFORE the gateway.** Dev acceptance: guest
+  e2e 13/13 (order 107 wallet-paid by a fresh guest, claimed, DB-verified);
+  GIS loads only when configured; Wave-15 regression 17/17.
 - **Wave 15 STATUS: MERGED to master `e8adec3fe` (2026-07-31).** All four
   items done: promo-code box (auto-select on redeem), Matomo ecommerce
   events + env-gated Meta Pixel (`LITEMALL_META_PIXEL_ID`; pending-state
