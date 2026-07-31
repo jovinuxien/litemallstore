@@ -23,6 +23,10 @@ export interface SiteConfig {
   stripePublishableKey: string | null;
   /** Meta Pixel id (Wave 15). Null ⇒ no pixel is injected, ever. */
   metaPixelId: string | null;
+  /** Google OAuth client id (Wave 16). Null ⇒ no Google button anywhere. */
+  googleClientId: string | null;
+  /** Places autocomplete key (Wave 16). Null ⇒ plain manual address fields. */
+  placesApiKey: string | null;
   /** Social profile URLs (Wave-9.1). Null ⇒ that network's icon is not rendered. */
   socialFacebookUrl: string | null;
   socialInstagramUrl: string | null;
@@ -36,6 +40,8 @@ const EMPTY: SiteConfig = {
   matomoSiteId: null,
   stripePublishableKey: null,
   metaPixelId: null,
+  googleClientId: null,
+  placesApiKey: null,
   socialFacebookUrl: null,
   socialInstagramUrl: null,
   socialTiktokUrl: null,

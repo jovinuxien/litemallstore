@@ -40,6 +40,10 @@
     <result column="pay_count" jdbcType="INTEGER" property="payCount" />
     <result column="spread_count" jdbcType="INTEGER" property="spreadCount" />
     <result column="path" jdbcType="VARCHAR" property="path" />
+    <!-- V47 (Wave 16): guest shadow accounts + Google identity — same hand-added
+         rule as email/now_money above: a column missing here is silently dropped. -->
+    <result column="is_guest" jdbcType="BIT" property="isGuest" />
+    <result column="google_sub" jdbcType="VARCHAR" property="googleSub" />
   </resultMap>
   <sql id="Example_Where_Clause">
     <!--
@@ -115,7 +119,7 @@
     id, username, `password`, gender, birthday, last_login_time, last_login_ip, user_level,
     nickname, mobile, email, avatar, weixin_openid, session_key, `status`, add_time, update_time,
     deleted, now_money, brokerage_price, spread_uid, spread_time, is_promoter,
-    pay_count, spread_count, `path`
+    pay_count, spread_count, `path`, is_guest, google_sub
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallUserExample" resultMap="BaseResultMap">
     <!--
@@ -241,13 +245,13 @@
       user_level, nickname, mobile, email,
       avatar, weixin_openid, session_key,
       `status`, add_time, update_time,
-      deleted)
+      deleted, is_guest, google_sub)
     values (#{username,jdbcType=VARCHAR}, #{password,jdbcType=VARCHAR}, #{gender,jdbcType=TINYINT},
       #{birthday,jdbcType=DATE}, #{lastLoginTime,jdbcType=TIMESTAMP}, #{lastLoginIp,jdbcType=VARCHAR},
       #{userLevel,jdbcType=TINYINT}, #{nickname,jdbcType=VARCHAR}, #{mobile,jdbcType=VARCHAR}, #{email,jdbcType=VARCHAR},
       #{avatar,jdbcType=VARCHAR}, #{weixinOpenid,jdbcType=VARCHAR}, #{sessionKey,jdbcType=VARCHAR},
       #{status,jdbcType=TINYINT}, #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP},
-      #{deleted,jdbcType=BIT})
+      #{deleted,jdbcType=BIT}, #{isGuest,jdbcType=BIT}, #{googleSub,jdbcType=VARCHAR})
   </insert>
   <insert id="insertSelective" parameterType="org.linlinjava.litemall.db.domain.LitemallUser">
     <!--
@@ -328,6 +332,12 @@
       <if test="deleted != null">
         deleted,
       </if>
+      <if test="isGuest != null">
+        is_guest,
+      </if>
+      <if test="googleSub != null">
+        google_sub,
+      </if>
     </trim>
     <trim prefix="values (" suffix=")" suffixOverrides=",">
       <if test="username != null">
@@ -398,6 +408,12 @@
       </if>
       <if test="deleted != null">
         #{deleted,jdbcType=BIT},
+      </if>
+      <if test="isGuest != null">
+        #{isGuest,jdbcType=BIT},
+      </if>
+      <if test="googleSub != null">
+        #{googleSub,jdbcType=VARCHAR},
       </if>
     </trim>
   </insert>
@@ -490,6 +506,12 @@
       <if test="row.deleted != null">
         deleted = #{row.deleted,jdbcType=BIT},
       </if>
+      <if test="row.isGuest != null">
+        is_guest = #{row.isGuest,jdbcType=BIT},
+      </if>
+      <if test="row.googleSub != null">
+        google_sub = #{row.googleSub,jdbcType=VARCHAR},
+      </if>
     </set>
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
@@ -518,7 +540,9 @@
       `status` = #{row.status,jdbcType=TINYINT},
       add_time = #{row.addTime,jdbcType=TIMESTAMP},
       update_time = #{row.updateTime,jdbcType=TIMESTAMP},
-      deleted = #{row.deleted,jdbcType=BIT}
+      deleted = #{row.deleted,jdbcType=BIT},
+      is_guest = #{row.isGuest,jdbcType=BIT},
+      google_sub = #{row.googleSub,jdbcType=VARCHAR}
     <if test="example != null">
       <include refid="Update_By_Example_Where_Clause" />
     </if>
@@ -599,6 +623,12 @@
       <if test="deleted != null">
         deleted = #{deleted,jdbcType=BIT},
       </if>
+      <if test="isGuest != null">
+        is_guest = #{isGuest,jdbcType=BIT},
+      </if>
+      <if test="googleSub != null">
+        google_sub = #{googleSub,jdbcType=VARCHAR},
+      </if>
     </set>
     where id = #{id,jdbcType=INTEGER}
   </update>
@@ -624,7 +654,9 @@
       `status` = #{status,jdbcType=TINYINT},
       add_time = #{addTime,jdbcType=TIMESTAMP},
       update_time = #{updateTime,jdbcType=TIMESTAMP},
-      deleted = #{deleted,jdbcType=BIT}
+      deleted = #{deleted,jdbcType=BIT},
+      is_guest = #{isGuest,jdbcType=BIT},
+      google_sub = #{googleSub,jdbcType=VARCHAR}
     where id = #{id,jdbcType=INTEGER}
   </update>
   <select id="selectOneByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallUserExample" resultMap="BaseResultMap">

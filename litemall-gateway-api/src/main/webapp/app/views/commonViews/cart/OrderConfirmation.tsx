@@ -3,9 +3,87 @@ import { Link, useParams } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { orderApi } from 'app/shared/api';
+import { authApi, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
 import { trackPurchase } from 'app/shared/tracking/ecommerce';
+
+/**
+ * Wave 16: guest claim — shown only when the current session is a guest
+ * shadow account. Setting a password turns it into a real account without
+ * losing the session or the just-placed order.
+ */
+const GuestClaimCard: React.FC = () => {
+  const [state, setState] = useState<'hidden' | 'offer' | 'busy' | 'done'>('hidden');
+  const [email, setEmail] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    authApi
+      .me()
+      .then(env => {
+        if (env.errno === 0 && env.data?.isGuest) {
+          setEmail(env.data.email ?? null);
+          setState('offer');
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  if (state === 'hidden') return null;
+  if (state === 'done') {
+    return (
+      <div className='alert alert-success text-start mx-auto my-3' style={{ maxWidth: 420 }}>
+        <i className='bi bi-check-circle me-2' />
+        Account created — next time, sign in with <strong>{email}</strong> to see your orders.
+      </div>
+    );
+  }
+  const submit = async () => {
+    if (password.length < 8 || state === 'busy') return;
+    setState('busy');
+    setError(null);
+    try {
+      const env = await authApi.guestClaim({ password });
+      if (env.errno === 0) {
+        setState('done');
+      } else {
+        setError(env.errmsg ?? 'Could not create the account.');
+        setState('offer');
+      }
+    } catch {
+      setError('Could not create the account — please try again.');
+      setState('offer');
+    }
+  };
+  return (
+    <div className='border rounded p-3 text-start mx-auto my-3' style={{ maxWidth: 420 }}>
+      <div className='fw-semibold mb-1'>Keep your order history</div>
+      <p className='small text-muted mb-2'>
+        Create a password for <strong>{email ?? 'your email'}</strong> to track this order and check out faster next
+        time.
+      </p>
+      <input
+        type='password'
+        className='form-control mb-2'
+        placeholder='Choose a password (min 8 characters)'
+        value={password}
+        onChange={e => setPassword(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') submit();
+        }}
+      />
+      {error && (
+        <div className='small text-danger mb-2' role='status'>
+          {error}
+        </div>
+      )}
+      <button type='button' className='btn btn-lm-primary w-100' disabled={password.length < 8 || state === 'busy'} onClick={submit}>
+        {state === 'busy' ? 'Creating…' : 'Create account'}
+      </button>
+    </div>
+  );
+};
 import { OrderSummary, Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
@@ -102,6 +180,7 @@ const OrderConfirmation: React.FC = () => {
         )
       )}
       {paymentMethod && <p className='mb-0'>Paid via {paymentMethod === 'WALLET' ? 'digital wallet' : 'card'}.</p>}
+      <GuestClaimCard />
     </>
   );
 

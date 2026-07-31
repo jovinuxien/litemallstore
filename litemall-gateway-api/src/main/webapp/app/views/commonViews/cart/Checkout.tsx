@@ -15,6 +15,9 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
+import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
+import GoogleSignInButton from 'app/auth/GoogleSignInButton';
+import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
 import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
   CheckoutPaymentMethod,
@@ -816,7 +819,25 @@ const CheckoutView: React.FC = () => {
               </div>
               <div className='col-12'>
                 <Form.Label>Address line 1 *</Form.Label>
-                <Form.Control name='address' value={shipping.address} onChange={handleInputChange} required />
+                {/* Wave 16: env-gated Places suggestions scoped to the CJ
+                    destination country when one is picked; unset key ⇒ the
+                    same plain input as before. */}
+                <AddressAutocompleteInput
+                  name='address'
+                  value={shipping.address}
+                  onChange={text => setShipping(prev => ({ ...prev, address: text }))}
+                  onResolved={parts =>
+                    setShipping(prev => ({
+                      ...prev,
+                      address: parts.line,
+                      kommune: parts.city ?? prev.kommune,
+                      region: parts.region ?? prev.region,
+                      zip: parts.postalCode ?? prev.zip,
+                    }))
+                  }
+                  countryCode={country.code || undefined}
+                  required
+                />
               </div>
               <div className='col-12'>
                 <Form.Label>Address line 2</Form.Label>
@@ -1163,4 +1184,103 @@ const CheckoutView: React.FC = () => {
   );
 };
 
-export default CheckoutView;
+/**
+ * Wave 16: logged-out checkout gate — guest email, sign-in, or Google, in
+ * place of the old redirect-to-login wall. A successful guest/Google auth
+ * flips `isAuthenticated`, which mounts the real checkout fresh (all fetches
+ * run with the new session). The local cart survives in redux either way.
+ */
+const GuestCheckoutGate: React.FC = () => {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const { cartList } = useAppSelector(state => state.cart.data);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [gateError, setGateError] = useState<{ hasAccount: boolean; text: string } | null>(null);
+
+  const emailOk = /^\S+@\S+\.\S+$/.test(email.trim());
+
+  const continueAsGuest = async () => {
+    if (!emailOk || busy) return;
+    setBusy(true);
+    setGateError(null);
+    const result = await dispatch(guestCheckoutThunk({ email: email.trim() }));
+    if (!guestCheckoutThunk.fulfilled.match(result)) {
+      const { errno = -1, errmsg = '' } = (result.payload as { errno?: number; errmsg?: string } | undefined) ?? {};
+      setGateError({
+        hasAccount: errno === 706,
+        text: errno === 706 ? 'This email already has an account — please sign in to continue.' : errmsg || 'Guest checkout failed — please try again.',
+      });
+      setBusy(false);
+    }
+    // fulfilled: isAuthenticated flips and the parent mounts the real checkout.
+  };
+
+  return (
+    <Page>
+      <div className='container my-4' style={{ maxWidth: 480 }}>
+        <h1 className='h4 mb-3'>Checkout</h1>
+        {cartList.length === 0 && (
+          <Alert variant='light' className='border'>
+            Your cart is empty. <Link to='/'>Continue shopping</Link>
+          </Alert>
+        )}
+        <CellGroup>
+          <div className='p-3'>
+            <div className='fw-semibold mb-2'>Continue as guest</div>
+            <Form.Label>Email *</Form.Label>
+            <Form.Control
+              type='email'
+              value={email}
+              onChange={e => {
+                setEmail(e.target.value);
+                if (gateError) setGateError(null);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  continueAsGuest();
+                }
+              }}
+              placeholder='you@example.com'
+              autoFocus
+            />
+            <div className='form-text'>Your order confirmation goes here. No password needed — you can create one after buying.</div>
+            {gateError && (
+              <div className='small text-danger mt-1' role='status'>
+                {gateError.text}{' '}
+                {gateError.hasAccount && (
+                  <Link to='/login' state={{ from: { pathname: '/checkout' } }}>
+                    Sign in
+                  </Link>
+                )}
+              </div>
+            )}
+            <button type='button' className='btn btn-lm-primary w-100 mt-2' disabled={!emailOk || busy} onClick={continueAsGuest}>
+              {busy ? 'One moment…' : 'Continue as guest'}
+            </button>
+          </div>
+          <div className='px-3 pb-3'>
+            <div className='text-center text-muted small my-2'>— or —</div>
+            <GoogleSignInButton />
+            <button
+              type='button'
+              className='btn btn-lm-outline w-100'
+              onClick={() => navigate('/login', { state: { from: { pathname: '/checkout' } } })}
+            >
+              Sign in to your account
+            </button>
+          </div>
+        </CellGroup>
+      </div>
+    </Page>
+  );
+};
+
+/** Route entry: authenticated customers (and provisioned guests) see the real checkout. */
+const CheckoutGate: React.FC = () => {
+  const { isAuthenticated } = useAppSelector(state => state.customerAuth.data);
+  return isAuthenticated ? <CheckoutView /> : <GuestCheckoutGate />;
+};
+
+export default CheckoutGate;

@@ -1,0 +1,68 @@
+/* Wave 16: auth pages join the storefront's Teal & Coral theme. */
+.lm-auth {
+  max-width: 440px;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+
+  &__card {
+    background: #fff;
+    border: 1px solid #e4ebec;
+    border-radius: 0.75rem;
+    box-shadow: 0 6px 24px rgba(14, 124, 134, 0.08);
+    overflow: hidden;
+  }
+
+  /* Teal brand bar — the visual tie to the header. */
+  &__accent {
+    height: 4px;
+    background: linear-gradient(90deg, var(--lm-primary, #0e7c86), var(--lm-accent, #ff5a5f));
+  }
+
+  &__body {
+    padding: 1.75rem 1.5rem;
+  }
+
+  &__title {
+    color: var(--lm-primary-dark, #0a5d65);
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  &__sub {
+    color: var(--lm-muted, #6b7b82);
+    font-size: 0.875rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .form-label {
+    font-weight: 600;
+    color: var(--lm-text, #1f2a2e);
+    font-size: 0.875rem;
+  }
+
+  .form-control:focus,
+  .form-select:focus {
+    border-color: var(--lm-primary, #0e7c86);
+    box-shadow: 0 0 0 0.2rem rgba(14, 124, 134, 0.15);
+  }
+
+  a {
+    color: var(--lm-primary, #0e7c86);
+  }
+
+  &__divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--lm-muted, #6b7b82);
+    font-size: 0.8rem;
+    margin: 1rem 0;
+
+    &::before,
+    &::after {
+      content: '';
+      flex: 1;
+      border-top: 1px solid #e4ebec;
+    }
+  }
+}
