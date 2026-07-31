@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Card, Container, Form, Nav, Spinner } from 'react-bootstrap';
+import { Alert, Button, Form, Nav, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+
+import AuthShell from 'app/modules/login/AuthShell';
 
 import { useAppSelector } from 'app/config/store';
 import { authApi } from 'app/shared/api';
@@ -121,10 +123,7 @@ const ResetPassword: React.FC = () => {
   };
 
   return (
-    <Container className='my-5' style={{ maxWidth: '480px' }}>
-      <Card className='shadow-sm'>
-        <Card.Body>
-          <h3 className='mb-3'>Password</h3>
+    <AuthShell title='Password' sub='Change your password, or recover a forgotten one.'>
           {forgotAvailable && (
             <Nav variant='tabs' activeKey={tab} onSelect={k => setTab((k as 'change' | 'forgot') ?? 'change')} className='mb-3'>
               <Nav.Item>
@@ -223,9 +222,7 @@ const ResetPassword: React.FC = () => {
               )}
             </>
           )}
-        </Card.Body>
-      </Card>
-    </Container>
+    </AuthShell>
   );
 };
 

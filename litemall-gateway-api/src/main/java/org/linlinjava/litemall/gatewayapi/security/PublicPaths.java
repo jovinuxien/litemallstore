@@ -50,6 +50,12 @@ public final class PublicPaths {
             "/auth/reset/request",
             "/auth/reset/confirm",
             "/auth/site-config",
+            // Wave 16: guest provisioning + Google Sign-In are login ENTRY
+            // points — public by nature, exactly like /auth/login.
+            // /auth/guest/claim is deliberately NOT here: claiming requires the
+            // guest's own authenticated session (X-User-Id), like /auth/profile.
+            "/auth/guest",
+            "/auth/google",
     };
 
     /**

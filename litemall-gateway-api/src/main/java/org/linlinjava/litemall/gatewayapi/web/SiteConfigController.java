@@ -56,6 +56,8 @@ public class SiteConfigController {
     private final int matomoGoodsDimension;
     private final String stripePublishableKey;
     private final String metaPixelId;
+    private final String googleClientId;
+    private final String placesApiKey;
     private final String socialFacebookUrl;
     private final String socialInstagramUrl;
     private final String socialTiktokUrl;
@@ -68,6 +70,8 @@ public class SiteConfigController {
             @Value("${litemall.tracking.matomo.goods-dimension:1}") int matomoGoodsDimension,
             @Value("${litemall.stripe.publishable-key:}") String stripePublishableKey,
             @Value("${litemall.meta.pixel-id:}") String metaPixelId,
+            @Value("${litemall.google.client-id:}") String googleClientId,
+            @Value("${litemall.places.api-key:}") String placesApiKey,
             @Value("${litemall.social.facebook-url:}") String socialFacebookUrl,
             @Value("${litemall.social.instagram-url:}") String socialInstagramUrl,
             @Value("${litemall.social.tiktok-url:}") String socialTiktokUrl,
@@ -78,6 +82,8 @@ public class SiteConfigController {
         this.matomoGoodsDimension = matomoGoodsDimension;
         this.stripePublishableKey = blankToNull(stripePublishableKey);
         this.metaPixelId = blankToNull(metaPixelId);
+        this.googleClientId = blankToNull(googleClientId);
+        this.placesApiKey = blankToNull(placesApiKey);
         this.socialFacebookUrl = blankToNull(socialFacebookUrl);
         this.socialInstagramUrl = blankToNull(socialInstagramUrl);
         this.socialTiktokUrl = blankToNull(socialTiktokUrl);
@@ -93,6 +99,11 @@ public class SiteConfigController {
         data.put("matomoGoodsDimension", matomoGoodsDimension);
         data.put("stripePublishableKey", stripePublishableKey);
         data.put("metaPixelId", metaPixelId);
+        // Wave 16: both are public-by-design ids/keys on the same null-gated
+        // terms — absent env ⇒ null ⇒ the SPA renders no Google button and
+        // plain address fields.
+        data.put("googleClientId", googleClientId);
+        data.put("placesApiKey", placesApiKey);
         data.put("socialFacebookUrl", socialFacebookUrl);
         data.put("socialInstagramUrl", socialInstagramUrl);
         data.put("socialTiktokUrl", socialTiktokUrl);

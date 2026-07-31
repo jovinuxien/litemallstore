@@ -42,15 +42,18 @@ public class AuthController {
     private final RefreshTokenService refreshTokens;
     private final AccountService account;
     private final JwtService jwt;
+    private final GoogleTokenVerifier googleVerifier;
 
     public AuthController(CustomerCredentialsService credentials,
                           RefreshTokenService refreshTokens,
                           AccountService account,
-                          JwtService customerJwtService) {
+                          JwtService customerJwtService,
+                          GoogleTokenVerifier googleVerifier) {
         this.credentials = credentials;
         this.refreshTokens = refreshTokens;
         this.account = account;
         this.jwt = customerJwtService;
+        this.googleVerifier = googleVerifier;
     }
 
     @PostMapping("/login")
@@ -77,6 +80,51 @@ public class AuthController {
             LitemallUser user = account.register(
                     body.get("username"), body.get("password"), body.get("nickname"),
                     body.get("email"), body.get("mobile"), body.get("inviteCode"));
+            return ApiResponse.ok(loginPayload(user));
+        }).subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(AccountService.AccountException.class, this::fail);
+    }
+
+    /**
+     * Wave 16: guest checkout — provision a fresh password-less shadow account
+     * for an email and auto-login (login's exact {@code {token, refreshToken,
+     * userInfo}} shape). Email owned by a real account → 706, the SPA prompts
+     * sign-in. Every call makes a NEW shadow account — see
+     * {@link AccountService#provisionGuest}.
+     */
+    @PostMapping("/guest")
+    public Mono<Map<String, Object>> guest(@RequestBody Map<String, String> body) {
+        return Mono.fromCallable(() -> {
+            LitemallUser user = account.provisionGuest(body.get("email"));
+            return ApiResponse.ok(loginPayload(user));
+        }).subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(AccountService.AccountException.class, this::fail);
+    }
+
+    /**
+     * Wave 16: an authenticated guest claims the account by setting a password
+     * ({@code {password}}); the session stays live. Non-guest → 402.
+     */
+    @PostMapping("/guest/claim")
+    public Mono<Map<String, Object>> guestClaim(
+            @RequestHeader(value = IdentityForwardingFilter.HDR_USER_ID, required = false) String userId,
+            @RequestBody Map<String, String> body) {
+        return Mono.fromCallable(() -> {
+            LitemallUser user = account.claimGuest(parseUserId(userId), body.get("password"));
+            return ApiResponse.ok(userInfo(user));
+        }).subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(AccountService.AccountException.class, this::fail);
+    }
+
+    /**
+     * Wave 16: Google Sign-In ({@code {credential}} = the GIS ID token).
+     * Verified server-side (audience/issuer/email_verified), then provisioned
+     * or linked by verified email. Disabled deployment → 707; bad token → 708.
+     */
+    @PostMapping("/google")
+    public Mono<Map<String, Object>> google(@RequestBody Map<String, String> body) {
+        return Mono.fromCallable(() -> {
+            LitemallUser user = account.googleSignIn(googleVerifier.verify(body.get("credential")));
             return ApiResponse.ok(loginPayload(user));
         }).subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(AccountService.AccountException.class, this::fail);
@@ -197,6 +245,9 @@ public class AuthController {
     private Map<String, Object> userInfo(LitemallUser user) {
         Map<String, Object> info = new HashMap<>();
         info.put("username", user.getUsername());
+        // Wave 16: the SPA offers "set a password to keep your order history"
+        // only to guest shadow accounts.
+        info.put("isGuest", Boolean.TRUE.equals(user.getIsGuest()));
         // Real nickname on BOTH register and login; username only as fallback.
         info.put("nickName", user.getNickname() == null || user.getNickname().isBlank()
                 ? user.getUsername() : user.getNickname());
