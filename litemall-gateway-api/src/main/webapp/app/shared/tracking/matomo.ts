@@ -171,6 +171,52 @@ const forget = (): void => {
  * configured custom dimension; non-product views delete the dimension so a goods id
  * never leaks onto the next page view.
  */
+/**
+ * Track a discrete funnel event (Wave 15). Granted-only — unlike page views,
+ * funnel events are NOT buffered across the consent decision: replaying a
+ * pre-consent action after acceptance would claim it happened now.
+ */
+export const trackEvent = (category: string, action: string, name?: string, value?: number): void => {
+  if (state !== 'granted') return;
+  const entry: unknown[] = ['trackEvent', category, action];
+  if (name != null) entry.push(name);
+  if (name != null && value != null) entry.push(value);
+  window._paq!.push(entry);
+};
+
+/** Ecommerce cart update: one added line + the new cart line-total. Granted-only. */
+export const trackCartAdd = (item: { id: string; name: string; price: number; quantity: number }, cartTotal: number): void => {
+  if (state !== 'granted') return;
+  const paq = window._paq!;
+  paq.push(['addEcommerceItem', item.id, item.name, undefined, item.price, item.quantity]);
+  paq.push(['trackEcommerceCartUpdate', cartTotal]);
+};
+
+/**
+ * Ecommerce order conversion. Matomo dedupes by order id per visitor, but the
+ * facade (ecommerce.ts) additionally session-guards so a confirmation-page
+ * reload never re-reports revenue. Granted-only.
+ */
+export const trackOrder = (o: {
+  orderId: number;
+  revenue: number;
+  subtotal?: number;
+  tax?: number;
+  shipping?: number;
+  discount?: number;
+}): void => {
+  if (state !== 'granted') return;
+  window._paq!.push([
+    'trackEcommerceOrder',
+    String(o.orderId),
+    o.revenue,
+    o.subtotal,
+    o.tax,
+    o.shipping,
+    o.discount && o.discount > 0 ? o.discount : false,
+  ]);
+};
+
 export const trackPageView = (url: string, title: string, goodsId?: string): void => {
   if (state === 'unavailable' || state === 'denied') return;
   if (state === 'pending') {

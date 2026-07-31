@@ -21,6 +21,8 @@ export interface SiteConfig {
   matomoGoodsDimension?: number;
   /** Stripe publishable key. Null ⇒ card payment unavailable — never stub it. */
   stripePublishableKey: string | null;
+  /** Meta Pixel id (Wave 15). Null ⇒ no pixel is injected, ever. */
+  metaPixelId: string | null;
   /** Social profile URLs (Wave-9.1). Null ⇒ that network's icon is not rendered. */
   socialFacebookUrl: string | null;
   socialInstagramUrl: string | null;
@@ -33,6 +35,7 @@ const EMPTY: SiteConfig = {
   matomoUrl: null,
   matomoSiteId: null,
   stripePublishableKey: null,
+  metaPixelId: null,
   socialFacebookUrl: null,
   socialInstagramUrl: null,
   socialTiktokUrl: null,

@@ -185,6 +185,10 @@ litemall:
   # committed pk_test_/sk_test_ values — see SiteConfigController's javadoc.
   stripe:
     publishable-key: ""
+  # Wave-15: Meta Pixel id served to the SPA via /auth/site-config. Public by
+  # design; blank ⇒ null ⇒ no pixel injected. ENV: LITEMALL_META_PIXEL_ID.
+  meta:
+    pixel-id: ""
   tracking:
     matomo:
       base-url: ""

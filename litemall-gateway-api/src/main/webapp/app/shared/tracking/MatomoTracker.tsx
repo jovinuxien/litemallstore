@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import { consentSnapshot, subscribeConsent } from 'app/shared/tracking/consent';
 import { applyConsent, initMatomo, trackPageView } from 'app/shared/tracking/matomo';
+import { applyPixelConsent, initMetaPixel, pixelPageView } from 'app/shared/tracking/metaPixel';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 
 /**
@@ -37,14 +38,20 @@ const MatomoTracker: React.FC = () => {
   useEffect(() => {
     // Shared with Checkout's Stripe key — one /auth/site-config fetch, not two.
     // loadSiteConfig never rejects: a failure resolves to "nothing configured".
-    loadSiteConfig().then(initMatomo);
+    // Matomo first: it renders the unconfigured/dnt consent verdicts, which the
+    // pixel then only ever upgrades to "available" (see metaPixel.ts).
+    loadSiteConfig().then(cfg => {
+      initMatomo(cfg);
+      initMetaPixel(cfg);
+    });
   }, []);
 
   // Accepting from the banner (or withdrawing on /cookies) takes effect immediately,
-  // without a reload. initMatomo applies any stored choice itself, so this only
-  // carries later changes.
+  // without a reload. The init functions apply any stored choice themselves, so this
+  // only carries later changes.
   useEffect(() => {
     applyConsent(choice);
+    applyPixelConsent(choice);
   }, [choice]);
 
   useEffect(() => {
@@ -56,6 +63,9 @@ const MatomoTracker: React.FC = () => {
     // the Matomo dimension must keep receiving the bare id.
     const goodsId = goodsIdFromRoute(PRODUCT_PATH.exec(pathname)?.[1]);
     trackPageView(url, document.title, goodsId);
+    // Pixel page views skip auth pages entirely: fbq reports the browser URL on
+    // its own, and reset tokens/invite codes must never reach a third party.
+    if (!AUTH_PATHS.has(pathname)) pixelPageView();
   }, [location]);
 
   return null;

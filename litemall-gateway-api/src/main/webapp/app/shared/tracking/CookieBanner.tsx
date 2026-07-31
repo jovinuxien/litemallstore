@@ -34,8 +34,8 @@ const CookieBanner: React.FC = () => {
       <div className='container d-flex flex-column flex-md-row align-items-md-center gap-3'>
         <div className='small flex-grow-1'>
           <i className='bi bi-shield-check me-2 text-primary' />
-          We&apos;d like to use analytics cookies to understand how the store is used, so we can improve
-          it. They are optional — decline and nothing is collected. See our{' '}
+          We&apos;d like to use analytics and marketing cookies to understand how the store is used and
+          measure our advertising. They are optional — decline and nothing is collected. See our{' '}
           <Link to='/cookies'>Cookie Policy</Link>.
         </div>
         <div className='d-flex gap-2 flex-shrink-0'>
