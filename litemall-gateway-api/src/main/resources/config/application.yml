@@ -189,6 +189,14 @@ litemall:
   # design; blank ⇒ null ⇒ no pixel injected. ENV: LITEMALL_META_PIXEL_ID.
   meta:
     pixel-id: ""
+  # Wave-16: Google Sign-In OAuth client id (public by design). Blank ⇒ null ⇒
+  # no Google button, and /auth/google answers 707. ENV: LITEMALL_GOOGLE_CLIENT_ID.
+  google:
+    client-id: ""
+  # Wave-16: Places autocomplete browser key (public, referrer-restricted).
+  # Blank ⇒ null ⇒ plain manual address fields. ENV: LITEMALL_PLACES_API_KEY.
+  places:
+    api-key: ""
   tracking:
     matomo:
       base-url: ""

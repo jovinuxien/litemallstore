@@ -123,14 +123,10 @@ const App: React.FC = () => (
           {/* Public: the forgot-password tab must work logged-out; the change
               tab checks auth itself. */}
           <Route path='reset' element={<ResetPassword />} />
-          <Route
-            path='checkout'
-            element={
-              <CustomerProtectedRoute>
-                <Checkout />
-              </CustomerProtectedRoute>
-            }
-          />
+          {/* Wave 16: checkout is reachable logged-out — the page itself gates
+              on auth and offers guest checkout (email ⇒ shadow account) or
+              sign-in, instead of a login wall. */}
+          <Route path='checkout' element={<Checkout />} />
           <Route
             path='order-confirmation/:id'
             element={

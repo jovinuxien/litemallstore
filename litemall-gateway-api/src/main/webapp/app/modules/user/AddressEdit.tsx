@@ -3,6 +3,8 @@ import { Alert, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { contentApi, IAddress, IRegionNode, userApi } from 'app/shared/api';
+import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
+import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -99,7 +101,14 @@ const AddressEdit: React.FC = () => {
               </div>
               <div className='col-md-6'>
                 <Form.Label>Phone *</Form.Label>
-                <Form.Control value={form.tel ?? ''} onChange={set('tel')} required />
+                {/* Wave 16: country dial-code selector, stores one E.164 number.
+                    Editing an existing address keeps its saved value until the
+                    field is retyped. */}
+                {form.tel ? (
+                  <Form.Control value={form.tel ?? ''} onChange={set('tel')} required />
+                ) : (
+                  <PhoneInput onChange={tel => setForm(prev => ({ ...prev, tel }))} />
+                )}
               </div>
               {regions.length > 0 && (
                 <div className='col-12'>
@@ -177,7 +186,21 @@ const AddressEdit: React.FC = () => {
               )}
               <div className='col-12'>
                 <Form.Label>Address detail *</Form.Label>
-                <Form.Control value={form.addressDetail ?? ''} onChange={set('addressDetail')} required />
+                {/* Wave 16: env-gated Places suggestions; unset key ⇒ plain input. */}
+                <AddressAutocompleteInput
+                  value={form.addressDetail ?? ''}
+                  onChange={text => setForm(prev => ({ ...prev, addressDetail: text }))}
+                  onResolved={parts =>
+                    setForm(prev => ({
+                      ...prev,
+                      addressDetail: parts.line,
+                      city: parts.city ?? prev.city,
+                      province: parts.region ?? prev.province,
+                      postalCode: parts.postalCode ?? prev.postalCode,
+                    }))
+                  }
+                  required
+                />
               </div>
               <div className='col-md-6'>
                 <Form.Label>Postal code</Form.Label>

@@ -29,6 +29,8 @@ export interface AccountInfo {
   avatarUrl?: string;
   email?: string | null;
   mobile?: string;
+  /** Wave 16: guest shadow account — offer "set a password" claims. */
+  isGuest?: boolean;
   gender?: number;
   birthday?: string | null;
 }
@@ -82,4 +84,7 @@ export const authApi = {
   me: () => getEnvelope<AccountInfo>('/auth/me'),
   /** Partial profile update; returns the refreshed account info. */
   profile: (body: ProfileBody) => postEnvelope<AccountInfo>('/auth/profile', body),
+
+  /** Wave 16: authenticated guest sets a password and keeps the session. 402 for non-guests. */
+  guestClaim: (body: { password: string }) => postEnvelope<AccountInfo>('/auth/guest/claim', body),
 };

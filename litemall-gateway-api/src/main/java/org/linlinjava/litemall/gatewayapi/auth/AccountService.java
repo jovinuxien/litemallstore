@@ -44,6 +44,12 @@ public class AccountService {
     public static final int ERR_INVALID_RESET_TOKEN = 703;
     public static final int ERR_USERNAME_TAKEN = 704;
     public static final int ERR_MOBILE_TAKEN = 705;
+    /** Wave 16: guest provisioning refused — the email already has a real account. */
+    public static final int ERR_EMAIL_HAS_ACCOUNT = 706;
+    /** Wave 16: Google Sign-In not configured on this deployment. */
+    public static final int ERR_GOOGLE_DISABLED = 707;
+    /** Wave 16: Google credential failed verification. */
+    public static final int ERR_GOOGLE_INVALID = 708;
 
     /** BCrypt truncates beyond 72 bytes; below 8 is policy-rejected. */
     private static final int PASSWORD_MIN_BYTES = 8;
@@ -301,6 +307,167 @@ public class AccountService {
             userService.updateById(patch);
         }
         return requireUser(userId);
+    }
+
+    /**
+     * Wave 16: guest-checkout shadow account. A password-less account keyed to
+     * the (normalized) email so the order attaches to a real user id and the
+     * mail pipeline has a recipient. An email that already belongs to a REAL
+     * (non-guest) account → 706, the SPA prompts sign-in instead — a guest
+     * flow must never become a way to act as someone else's account.
+     *
+     * <p>Every guest checkout gets a FRESH shadow account, even for a repeated
+     * email — never a session over an earlier guest's orders and address:
+     * knowing an email must grant nothing. Claiming (password or Google) binds
+     * history forward from the session that actually placed the order.
+     *
+     * <p>The stored password is the empty string: BCrypt's matcher can never
+     * accept it, so the account is unloginable by password until claimed.
+     */
+    public LitemallUser provisionGuest(String email) {
+        String normalized = normalizeEmail(email);
+        if (normalized == null) {
+            throw new AccountException(ERR_BAD_ARGUMENT, "a valid email is required");
+        }
+        boolean hasRealAccount = userService.queryByEmail(normalized).stream()
+                .anyMatch(u -> !Boolean.TRUE.equals(u.getIsGuest()));
+        if (hasRealAccount) {
+            throw new AccountException(ERR_EMAIL_HAS_ACCOUNT, "this email already has an account — please sign in");
+        }
+        LitemallUser user = newBlankUser(normalized);
+        user.setIsGuest(true);
+        try {
+            userService.add(user);
+        } catch (DuplicateKeyException e) {
+            // Username race — retry once with a random guest handle.
+            user = newBlankUser(normalized);
+            user.setUsername("guest-" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12));
+            user.setIsGuest(true);
+            userService.add(user);
+        }
+        return user;
+    }
+
+    /**
+     * Wave 16: an authenticated guest claims the account by setting a password.
+     * Refresh tokens are NOT revoked — the claimer is the current session.
+     */
+    public LitemallUser claimGuest(Integer userId, String password) {
+        LitemallUser user = requireUser(userId);
+        if (!Boolean.TRUE.equals(user.getIsGuest())) {
+            throw new AccountException(ERR_BAD_ARGUMENT, "this account is not a guest account");
+        }
+        checkPasswordPolicy(password, user.getUsername());
+        LitemallUser patch = new LitemallUser();
+        patch.setId(user.getId());
+        patch.setPassword(encoder.encode(password));
+        patch.setIsGuest(false);
+        userService.updateById(patch);
+        return requireUser(userId);
+    }
+
+    /**
+     * Wave 16: Google Sign-In on a VERIFIED identity (the caller has already
+     * validated the ID token — signature/audience/issuer/email_verified).
+     * Precedence: existing link by {@code google_sub} (Google's durable key —
+     * emails can change on their side) → link by email (a guest account is
+     * upgraded, a password account is linked; either way the owner proved
+     * control of the mailbox to Google) → fresh account.
+     */
+    public LitemallUser googleSignIn(GoogleIdentity identity) {
+        List<LitemallUser> bySub = userService.queryByGoogleSub(identity.sub());
+        if (bySub.size() == 1) {
+            return bySub.get(0);
+        }
+        String email = normalizeEmail(identity.email());
+        if (email == null) {
+            throw new AccountException(ERR_GOOGLE_INVALID, "Google account has no usable email");
+        }
+        // Linking targets: the email's REAL account first; else a single guest
+        // shadow account (upgraded — Google verified the mailbox). Several
+        // guest rows for one email (repeat guest buyer) are ambiguous — skip
+        // linking and open a fresh account rather than guess.
+        List<LitemallUser> byEmail = userService.queryByEmail(email);
+        List<LitemallUser> real = byEmail.stream().filter(u -> !Boolean.TRUE.equals(u.getIsGuest())).toList();
+        if (real.size() > 1) {
+            throw new AccountException(ERR_EMAIL_HAS_ACCOUNT, "this email is ambiguous — please sign in with your password");
+        }
+        LitemallUser linkTarget = real.size() == 1 ? real.get(0)
+                : byEmail.size() == 1 ? byEmail.get(0) : null;
+        if (linkTarget != null) {
+            LitemallUser user = linkTarget;
+            LitemallUser patch = new LitemallUser();
+            patch.setId(user.getId());
+            patch.setGoogleSub(identity.sub());
+            if (Boolean.TRUE.equals(user.getIsGuest())) {
+                patch.setIsGuest(false); // Google verified the mailbox — the shadow account is claimed
+            }
+            if ((user.getAvatar() == null || user.getAvatar().isBlank()) && identity.picture() != null) {
+                patch.setAvatar(identity.picture());
+            }
+            try {
+                userService.updateById(patch);
+            } catch (DuplicateKeyException e) {
+                // google_sub raced onto another row; that row wins.
+                List<LitemallUser> again = userService.queryByGoogleSub(identity.sub());
+                if (again.size() == 1) {
+                    return again.get(0);
+                }
+                throw new AccountException(ERR_GOOGLE_INVALID, "could not link Google account");
+            }
+            return requireUser(user.getId());
+        }
+        LitemallUser user = newBlankUser(email);
+        user.setGoogleSub(identity.sub());
+        user.setIsGuest(false);
+        if (identity.name() != null && !identity.name().isBlank()) {
+            user.setNickname(identity.name().trim());
+        }
+        if (identity.picture() != null && !identity.picture().isBlank()) {
+            user.setAvatar(identity.picture().trim());
+        }
+        try {
+            userService.add(user);
+        } catch (DuplicateKeyException e) {
+            List<LitemallUser> again = userService.queryByGoogleSub(identity.sub());
+            if (again.size() == 1) {
+                return again.get(0);
+            }
+            throw new AccountException(ERR_GOOGLE_INVALID, "could not create the Google-linked account");
+        }
+        return user;
+    }
+
+    /** Verified facts from a Google ID token (see GoogleTokenVerifier). */
+    public record GoogleIdentity(String sub, String email, String name, String picture) {
+    }
+
+    /**
+     * A fresh account row keyed to an email, with every NOT-NULL column filled
+     * and an UNMATCHABLE password (empty string — BCrypt never accepts it).
+     * Username: the email when it fits and is free, else a random guest handle;
+     * usernames are display/login handles, the email is the durable key here.
+     */
+    private LitemallUser newBlankUser(String email) {
+        String username = email.length() <= 63 && !userService.checkByUsername(email)
+                ? email
+                : "guest-" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        LitemallUser user = new LitemallUser();
+        user.setUsername(username);
+        user.setPassword("");
+        user.setNickname(email.substring(0, email.indexOf('@')));
+        user.setEmail(email);
+        user.setMobile("");
+        user.setAvatar("");
+        user.setWeixinOpenid("");
+        user.setSessionKey("");
+        user.setLastLoginIp("");
+        user.setGender((byte) 0);
+        user.setUserLevel((byte) 0);
+        user.setStatus((byte) 0);
+        user.setLastLoginTime(LocalDateTime.now());
+        user.setDeleted(false);
+        return user;
     }
 
     /** Load the live account behind a token; deleted/missing → 501 unlogin. */

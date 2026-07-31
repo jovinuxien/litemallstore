@@ -1131,6 +1131,17 @@ public class LitemallUserExample {
             return (Criteria) this;
         }
 
+        /** V47: hand-added — guest/google identity columns (Wave 16). */
+        public Criteria andIsGuestEqualTo(Boolean value) {
+            addCriterion("is_guest =", value, "isGuest");
+            return (Criteria) this;
+        }
+
+        public Criteria andGoogleSubEqualTo(String value) {
+            addCriterion("google_sub =", value, "googleSub");
+            return (Criteria) this;
+        }
+
         public Criteria andMobileIsNull() {
             addCriterion("mobile is null");
             return (Criteria) this;

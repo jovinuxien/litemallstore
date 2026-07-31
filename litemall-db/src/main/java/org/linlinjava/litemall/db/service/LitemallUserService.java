@@ -98,6 +98,13 @@ public class LitemallUserService {
         return userMapper.selectByExample(example);
     }
 
+    /** V47 (Wave 16): Google Sign-In lookup by the ID-token subject. */
+    public List<LitemallUser> queryByGoogleSub(String googleSub) {
+        LitemallUserExample example = new LitemallUserExample();
+        example.or().andGoogleSubEqualTo(googleSub).andDeletedEqualTo(false);
+        return userMapper.selectByExample(example);
+    }
+
     public List<LitemallUser> queryByOpenid(String openid) {
         LitemallUserExample example = new LitemallUserExample();
         example.or().andWeixinOpenidEqualTo(openid).andDeletedEqualTo(false);
