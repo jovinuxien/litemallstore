@@ -5,6 +5,7 @@ import { useAppSelector } from 'app/config/store';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
+import { trackPurchase } from 'app/shared/tracking/ecommerce';
 import { OrderSummary, Page, ResultPanel } from 'app/components/commonComponents/storefront';
 
 /**
@@ -35,7 +36,18 @@ const OrderConfirmation: React.FC = () => {
       orderApi
         .detail(orderId)
         .then(d => {
-          if (!cancelled && d?.id != null) setDetails(prev => ({ ...prev, [orderId]: d }));
+          if (!cancelled && d?.id != null) {
+            setDetails(prev => ({ ...prev, [orderId]: d }));
+            // Funnel purchase (Wave 15): server-computed money; the facade
+            // session-guards per order id so reloads never double-count.
+            trackPurchase({
+              orderId,
+              revenue: priceNum(d.actualPrice ?? 0),
+              subtotal: priceNum(d.goodsPrice ?? 0),
+              shipping: priceNum(d.freightPrice ?? 0),
+              discount: priceNum(d.couponPrice ?? 0),
+            });
+          }
         })
         .catch(() => undefined);
     });

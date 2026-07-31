@@ -8,6 +8,7 @@ import { addItem } from 'app/shared/reducers/cartSlice';
 import { goodId, priceNum } from 'app/components/userComponents/card/ProductCard';
 import ProductCard from 'app/components/userComponents/card/ProductCard';
 import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
+import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
@@ -77,6 +78,16 @@ const ProductDetailView: React.FC = () => {
     if (goods?.goodsName) setPageTitle(goods.goodsName);
     return resetPageTitle;
   }, [goods?.goodsName]);
+
+  // Conversion funnel (Wave 15): one ProductView per loaded goods, change-guarded
+  // on the resolved goods id so re-renders and variant picks never re-fire it.
+  const loadedGid = goods ? goodId(goods) : null;
+  useEffect(() => {
+    if (loadedGid != null && goods) {
+      trackProductView({ id: String(loadedGid), name: goods.goodsName ?? '', price: priceNum(goods.retailPrice) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedGid]);
 
   // Option groups: preserve backend order, collect distinct values per group.
   const specGroups = useMemo(() => {
@@ -185,15 +196,23 @@ const ProductDetailView: React.FC = () => {
     source: isCj ? goods.source : undefined,
   });
 
+  // Funnel add-to-cart (Wave 15): the added line + its line total. Display
+  // money only — the charged figures always come from the server.
+  const trackAdd = () => {
+    trackAddToCart({ id: String(gid), name: goods.goodsName ?? '', price: retail, quantity }, retail * quantity);
+  };
+
   const handleAddToCart = () => {
     if (!inStock) return;
     dispatch(addItem(buildCartItem()));
+    trackAdd();
     navigate('/cart');
   };
 
   const handleBuyNow = () => {
     if (!inStock) return;
     dispatch(addItem(buildCartItem()));
+    trackAdd();
     navigate('/checkout');
   };
 
