@@ -336,7 +336,7 @@ const ProductDetailView: React.FC = () => {
               <i className='bi bi-truck' /> Fast dispatch
             </li>
             <li>
-              <i className='bi bi-arrow-counterclockwise' /> 7-day returns
+              <i className='bi bi-arrow-counterclockwise' /> 30-day returns
             </li>
             <li>
               <i className='bi bi-shield-check' /> Buyer protection
