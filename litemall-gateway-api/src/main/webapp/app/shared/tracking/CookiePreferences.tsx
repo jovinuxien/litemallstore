@@ -22,8 +22,8 @@ const CookiePreferences: React.FC = () => {
     return (
       <div className='alert alert-light border'>
         <i className='bi bi-info-circle me-2' />
-        This site has no analytics configured, so no analytics cookies are set and there is nothing to
-        consent to.
+        This site has no analytics or marketing tools configured, so no optional cookies are set and
+        there is nothing to consent to.
       </div>
     );
   }
@@ -40,10 +40,10 @@ const CookiePreferences: React.FC = () => {
 
   return (
     <div className='border rounded p-3'>
-      <div className='fw-semibold mb-1'>Analytics cookies</div>
+      <div className='fw-semibold mb-1'>Analytics &amp; marketing cookies</div>
       <p className='text-muted small mb-3'>
         {choice === 'granted'
-          ? 'Currently ON — you have accepted analytics cookies. Withdrawing stops tracking immediately and deletes the cookies already set.'
+          ? 'Currently ON — you have accepted analytics and marketing cookies. Withdrawing stops tracking immediately and deletes the analytics cookies already set.'
           : choice === 'denied'
             ? 'Currently OFF — you have declined. Nothing is collected.'
             : 'No choice recorded yet, so nothing is being collected.'}
@@ -51,7 +51,7 @@ const CookiePreferences: React.FC = () => {
       <div className='d-flex gap-2 flex-wrap'>
         {choice !== 'granted' && (
           <button type='button' className='btn btn-primary btn-sm' onClick={() => chooseConsent('granted')}>
-            Accept analytics cookies
+            Accept analytics &amp; marketing cookies
           </button>
         )}
         {choice === 'granted' && (

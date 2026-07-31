@@ -66,6 +66,11 @@ let scriptInjected = false;
 let goodsDimension = 1;
 let lastUrl: string | null = null;
 let pendingViews: { url: string; title: string; goodsId?: string }[] = [];
+// Funnel events fired before site-config resolves (Wave 15). Flushed only when
+// a STORED grant carries straight through init; dropped the moment the state
+// becomes awaiting-consent/denied/unavailable — an event that happened before
+// an affirmative decision must never be replayed after one.
+let pendingCommands: unknown[][] = [];
 
 const doNotTrack = (): boolean => {
   const dnt =
@@ -85,6 +90,7 @@ export const initMatomo = (cfg: SiteTrackingConfig): void => {
   if (!cfg.matomoUrl || !cfg.matomoSiteId || doNotTrack()) {
     state = 'unavailable';
     pendingViews = [];
+    pendingCommands = [];
     setTrackingReason(!cfg.matomoUrl || !cfg.matomoSiteId ? 'unconfigured' : 'dnt');
     return;
   }
@@ -123,6 +129,9 @@ const grant = (): void => {
   const queued = pendingViews;
   pendingViews = [];
   queued.forEach(v => trackPageView(v.url, v.title, v.goodsId));
+  const commands = pendingCommands;
+  pendingCommands = [];
+  commands.forEach(c => paq.push(c));
 
   if (!scriptInjected) {
     scriptInjected = true;
@@ -151,6 +160,7 @@ const deny = (): void => {
 const revokeToAwaiting = (): void => {
   const wasGranted = state === 'granted';
   state = 'awaiting-consent';
+  pendingCommands = []; // undecided ⇒ pre-decision funnel actions are gone for good
   if (wasGranted) forget();
   else pendingViews = pendingViews.slice(-1);
 };
@@ -162,6 +172,7 @@ const revokeToAwaiting = (): void => {
  */
 const forget = (): void => {
   pendingViews = [];
+  pendingCommands = [];
   lastUrl = null;
   if (window._paq) window._paq.push(['forgetConsentGiven']);
 };
@@ -171,6 +182,58 @@ const forget = (): void => {
  * configured custom dimension; non-product views delete the dimension so a goods id
  * never leaks onto the next page view.
  */
+/**
+ * Push a funnel command (Wave 15). Granted ⇒ straight to `_paq`; pending
+ * (site-config unresolved) ⇒ buffered, flushed only if a STORED grant carries
+ * through init; any other state drops it — unlike page views, funnel events
+ * are never replayed across a consent decision: a pre-consent action reported
+ * after acceptance would claim it happened now.
+ */
+const pushCommands = (...entries: unknown[][]): void => {
+  if (state === 'granted') entries.forEach(e => window._paq!.push(e));
+  else if (state === 'pending') pendingCommands.push(...entries);
+};
+
+/** Track a discrete funnel event (Wave 15). */
+export const trackEvent = (category: string, action: string, name?: string, value?: number): void => {
+  const entry: unknown[] = ['trackEvent', category, action];
+  if (name != null) entry.push(name);
+  if (name != null && value != null) entry.push(value);
+  pushCommands(entry);
+};
+
+/** Ecommerce cart update: one added line + the new cart line-total. */
+export const trackCartAdd = (item: { id: string; name: string; price: number; quantity: number }, cartTotal: number): void => {
+  pushCommands(
+    ['addEcommerceItem', item.id, item.name, undefined, item.price, item.quantity],
+    ['trackEcommerceCartUpdate', cartTotal]
+  );
+};
+
+/**
+ * Ecommerce order conversion. Matomo dedupes by order id per visitor, but the
+ * facade (ecommerce.ts) additionally session-guards so a confirmation-page
+ * reload never re-reports revenue.
+ */
+export const trackOrder = (o: {
+  orderId: number;
+  revenue: number;
+  subtotal?: number;
+  tax?: number;
+  shipping?: number;
+  discount?: number;
+}): void => {
+  pushCommands([
+    'trackEcommerceOrder',
+    String(o.orderId),
+    o.revenue,
+    o.subtotal,
+    o.tax,
+    o.shipping,
+    o.discount && o.discount > 0 ? o.discount : false,
+  ]);
+};
+
 export const trackPageView = (url: string, title: string, goodsId?: string): void => {
   if (state === 'unavailable' || state === 'denied') return;
   if (state === 'pending') {

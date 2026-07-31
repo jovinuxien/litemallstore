@@ -3,7 +3,7 @@
  * `/service` (top questions) so the two surfaces cannot drift.
  *
  * Honesty rule (same as payments): every answer states only what the store
- * actually does — card via Stripe + wallet balance, the 7-day return window
+ * actually does — card via Stripe + wallet balance, the 30-day return window
  * from Returns.tsx, order actions that exist in OrderList/OrderDetail
  * (server-driven handleOption), honest dropshipping delivery framing. No
  * invented policies, no invented contact channels.
@@ -113,7 +113,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       {
         id: 'return-window',
         q: 'What is the return policy?',
-        a: 'Most items can be returned within 7 days of delivery. Start a request from the order’s after-sales section in My orders. The full policy is on the Returns & Refunds page.',
+        a: 'Most items can be returned within 30 days of delivery. Start a request from the order’s after-sales section in My orders. The full policy is on the Returns & Refunds page.',
         links: [
           { label: 'Returns & Refunds policy', to: '/returns' },
           { label: 'My orders', to: '/orders' },

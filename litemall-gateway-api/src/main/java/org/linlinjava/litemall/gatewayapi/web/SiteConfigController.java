@@ -41,6 +41,11 @@ import org.springframework.web.bind.annotation.RestController;
  * live); the rest go live via ENV ({@code LITEMALL_SOCIAL_INSTAGRAM_URL} etc.)
  * plus a container recreate — no image rebuild, since the SPA reads these at
  * runtime from this endpoint.
+ *
+ * <p>Wave-15 adds {@code metaPixelId} on the same terms: a pixel id is public
+ * by design, null ⇒ the SPA injects no pixel and makes no Meta request (and the
+ * pixel is additionally consent-gated client-side either way). Goes live via
+ * ENV ({@code LITEMALL_META_PIXEL_ID}) plus a container recreate.
  */
 @RestController
 @RequestMapping("/auth")
@@ -50,6 +55,7 @@ public class SiteConfigController {
     private final String matomoSiteId;
     private final int matomoGoodsDimension;
     private final String stripePublishableKey;
+    private final String metaPixelId;
     private final String socialFacebookUrl;
     private final String socialInstagramUrl;
     private final String socialTiktokUrl;
@@ -61,6 +67,7 @@ public class SiteConfigController {
             @Value("${litemall.tracking.matomo.site-id:}") String matomoSiteId,
             @Value("${litemall.tracking.matomo.goods-dimension:1}") int matomoGoodsDimension,
             @Value("${litemall.stripe.publishable-key:}") String stripePublishableKey,
+            @Value("${litemall.meta.pixel-id:}") String metaPixelId,
             @Value("${litemall.social.facebook-url:}") String socialFacebookUrl,
             @Value("${litemall.social.instagram-url:}") String socialInstagramUrl,
             @Value("${litemall.social.tiktok-url:}") String socialTiktokUrl,
@@ -70,6 +77,7 @@ public class SiteConfigController {
         this.matomoSiteId = blankToNull(matomoSiteId);
         this.matomoGoodsDimension = matomoGoodsDimension;
         this.stripePublishableKey = blankToNull(stripePublishableKey);
+        this.metaPixelId = blankToNull(metaPixelId);
         this.socialFacebookUrl = blankToNull(socialFacebookUrl);
         this.socialInstagramUrl = blankToNull(socialInstagramUrl);
         this.socialTiktokUrl = blankToNull(socialTiktokUrl);
@@ -84,6 +92,7 @@ public class SiteConfigController {
         data.put("matomoSiteId", matomoSiteId);
         data.put("matomoGoodsDimension", matomoGoodsDimension);
         data.put("stripePublishableKey", stripePublishableKey);
+        data.put("metaPixelId", metaPixelId);
         data.put("socialFacebookUrl", socialFacebookUrl);
         data.put("socialInstagramUrl", socialInstagramUrl);
         data.put("socialTiktokUrl", socialTiktokUrl);
