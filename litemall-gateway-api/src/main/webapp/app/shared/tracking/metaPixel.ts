@@ -41,6 +41,10 @@ declare global {
 let state: PixelState = 'pending';
 let pixelId: string | null = null;
 let scriptInjected = false;
+// Events fired before site-config resolves — same contract as matomo.ts's
+// pendingCommands: flushed only when a STORED grant carries through init,
+// dropped on any other outcome.
+let pendingEvents: { event: string; payload?: Record<string, unknown> }[] = [];
 
 const doNotTrack = (): boolean => {
   const dnt = navigator.doNotTrack ?? (window as unknown as { doNotTrack?: string }).doNotTrack;
@@ -55,6 +59,7 @@ export const initMetaPixel = (cfg: { metaPixelId?: string | null }): void => {
   if (state !== 'pending') return;
   if (!cfg.metaPixelId || doNotTrack()) {
     state = 'unavailable';
+    pendingEvents = [];
     return;
   }
   pixelId = cfg.metaPixelId;
@@ -67,8 +72,12 @@ export const initMetaPixel = (cfg: { metaPixelId?: string | null }): void => {
 /** Apply the visitor's decision. No-op while unconfigured or under DNT. */
 export const applyPixelConsent = (choice: ConsentChoice | null): void => {
   if (state === 'pending' || state === 'unavailable') return;
-  if (choice === 'granted') grant();
-  else state = choice === 'denied' ? 'denied' : 'awaiting-consent';
+  if (choice === 'granted') {
+    grant();
+  } else {
+    state = choice === 'denied' ? 'denied' : 'awaiting-consent';
+    pendingEvents = []; // no decision (or refusal) ⇒ pre-decision events are gone
+  }
 };
 
 const grant = (): void => {
@@ -96,6 +105,9 @@ const grant = (): void => {
     window.fbq!('init', pixelId!);
     window.fbq!('track', 'PageView');
   }
+  const queued = pendingEvents;
+  pendingEvents = [];
+  queued.forEach(e => window.fbq!('track', e.event, e.payload));
 };
 
 /** SPA route-change page view. The initial view rides `grant()`. */
@@ -104,8 +116,11 @@ export const pixelPageView = (): void => {
   window.fbq?.('track', 'PageView');
 };
 
-/** Track a standard event with its payload. Dropped unless consent is granted. */
+/**
+ * Track a standard event with its payload. Granted ⇒ sent; pending ⇒ buffered
+ * (flushed only by a stored grant); otherwise dropped.
+ */
 export const pixelTrack = (event: string, payload?: Record<string, unknown>): void => {
-  if (state !== 'granted') return;
-  window.fbq?.('track', event, payload);
+  if (state === 'granted') window.fbq?.('track', event, payload);
+  else if (state === 'pending') pendingEvents.push({ event, payload });
 };

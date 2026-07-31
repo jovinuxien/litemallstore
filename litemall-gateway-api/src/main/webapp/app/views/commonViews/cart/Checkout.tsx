@@ -230,14 +230,17 @@ const CheckoutView: React.FC = () => {
   }, []);
 
   // Funnel begin-checkout (Wave 15): once per checkout visit, with the display
-  // subtotal — never the charged amount, which only the server computes.
+  // subtotal — never the charged amount, which only the server computes. Fires
+  // when the cart FIRST populates, not on mount: after a full-page load the
+  // cart arrives async and a mount-only effect would drop the event.
+  const beganCheckoutRef = useRef(false);
   useEffect(() => {
-    if (cartList.length > 0) {
+    if (!beganCheckoutRef.current && cartList.length > 0) {
+      beganCheckoutRef.current = true;
       const subtotal = cartList.reduce((sum, it) => sum + priceNum(it.price) * (it.number ?? 0), 0);
       trackBeginCheckout(Number(subtotal.toFixed(2)), cartList.length);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cartList]);
 
   // Freight/logistics quote per cart group (submit creates one order per group, each
   // charged its own freight). The CJ quote additionally carries the informational
