@@ -27,6 +27,8 @@ interface Credentials {
 interface CustomerInfo {
   nickName: string;
   avatarUrl: string;
+  /** Wave 16: guest shadow account — the SPA offers "set a password" claims. */
+  isGuest?: boolean;
 }
 
 export interface CustomerAuthData {
@@ -57,6 +59,43 @@ export const loginCustomerThunk = createAsyncThunk<
     return thunkApi.rejectWithValue({ errno: -1, errmsg: 'Login failed', data: null });
   }
 });
+
+/** Shared shape of every auth entry point's fulfilled payload. */
+type AuthPayload = ApiResult<{ token: string; refreshToken: string; userInfo: CustomerInfo }>;
+
+/** Raw same-origin POST to an /auth entry point, envelope in, envelope out. */
+async function postAuth(path: string, body: unknown, thunkApi: { rejectWithValue: (v: ApiResult<null>) => unknown }, fallback: string) {
+  try {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const env = await res.json();
+    if (env.errno !== 0) {
+      return thunkApi.rejectWithValue({ errno: env.errno, errmsg: env.errmsg, data: null });
+    }
+    return env;
+  } catch {
+    return thunkApi.rejectWithValue({ errno: -1, errmsg: fallback, data: null });
+  }
+}
+
+/**
+ * Wave 16: guest checkout — a fresh password-less shadow account for this
+ * email, logged straight in. errno 706 = the email has a real account; the
+ * checkout gate switches to a sign-in prompt on it.
+ */
+export const guestCheckoutThunk = createAsyncThunk<AuthPayload, { email: string }, { rejectValue: ApiResult<null> }>(
+  'customerAuth/guest',
+  async (body, thunkApi) => postAuth('/auth/guest', body, thunkApi, 'Guest checkout failed') as Promise<AuthPayload>
+);
+
+/** Wave 16: Google Sign-In — the GIS credential verified at the edge. */
+export const googleSignInThunk = createAsyncThunk<AuthPayload, { credential: string }, { rejectValue: ApiResult<null> }>(
+  'customerAuth/google',
+  async (body, thunkApi) => postAuth('/auth/google', body, thunkApi, 'Google sign-in failed') as Promise<AuthPayload>
+);
 
 export const registerCustomerThunk = createAsyncThunk<
   ApiResult<{ token: string; refreshToken: string; userInfo: CustomerInfo }>,
@@ -165,6 +204,34 @@ const customerAuthSlice = createSlice({
       .addCase(logoutCustomerThunk.fulfilled, state => {
         state.data = loggedOutData;
         state.loading = 'idle';
+      })
+      // Wave 16: guest + Google entry points persist the session exactly like
+      // login/register — one storage contract for every way in.
+      .addCase(guestCheckoutThunk.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        const d = action.payload.data;
+        state.data = { ...d, isAuthenticated: true };
+        if (d.token) sessionStorage.setItem(TOKEN_KEY, d.token);
+        if (d.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, d.refreshToken);
+        if (d.userInfo) sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(d.userInfo));
+      })
+      .addCase(guestCheckoutThunk.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.errorMessage = action.payload?.errmsg ?? 'Guest checkout failed';
+        state.errorNumber = action.payload?.errno ?? -1;
+      })
+      .addCase(googleSignInThunk.fulfilled, (state, action) => {
+        state.loading = 'succeeded';
+        const d = action.payload.data;
+        state.data = { ...d, isAuthenticated: true };
+        if (d.token) sessionStorage.setItem(TOKEN_KEY, d.token);
+        if (d.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, d.refreshToken);
+        if (d.userInfo) sessionStorage.setItem(USER_INFO_KEY, JSON.stringify(d.userInfo));
+      })
+      .addCase(googleSignInThunk.rejected, (state, action) => {
+        state.loading = 'failed';
+        state.errorMessage = action.payload?.errmsg ?? 'Google sign-in failed';
+        state.errorNumber = action.payload?.errno ?? -1;
       });
   },
 });

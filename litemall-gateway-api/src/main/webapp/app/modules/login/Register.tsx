@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
+import { Alert, Form, Spinner } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { registerCustomerThunk } from 'app/auth/customerAuthSlice';
+import GoogleSignInButton from 'app/auth/GoogleSignInButton';
+import AuthShell from 'app/modules/login/AuthShell';
+import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { clearStashedInviteCode, getStashedInviteCode } from 'app/shared/util/invite';
 
@@ -13,6 +16,9 @@ import { clearStashedInviteCode, getStashedInviteCode } from 'app/shared/util/in
  *
  * Duplicate errors surface inline on the offending field: errno 704 = username
  * taken, errno 705 = mobile taken (docs/handoff-auth-account.md).
+ *
+ * Wave 16: storefront-themed shell, env-gated Google sign-up, and the mobile
+ * field is a country dial-code selector storing one canonical E.164 number.
  */
 const Register: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -77,68 +83,66 @@ const Register: React.FC = () => {
   };
 
   return (
-    <Container className='my-5' style={{ maxWidth: '420px' }}>
-      <Card className='shadow-sm'>
-        <Card.Body>
-          <h3 className='mb-3'>Create your account</h3>
-          {inviteCode && (
-            <Alert variant='info' dismissible onClose={dismissInvite} className='py-2'>
-              🎉 Invited by a friend
-            </Alert>
-          )}
-          {generalError && <Alert variant='danger'>{generalError}</Alert>}
-          <Form onSubmit={handleSubmit}>
-            <Form.Group className='mb-3'>
-              <Form.Label>Username</Form.Label>
-              <Form.Control
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                isInvalid={usernameTaken}
-                required
-                autoFocus
-              />
-              <Form.Control.Feedback type='invalid'>This username is already registered.</Form.Control.Feedback>
-            </Form.Group>
-            <Form.Group className='mb-3'>
-              <Form.Label>
-                Nickname <span className='text-muted'>(optional)</span>
-              </Form.Label>
-              <Form.Control value={nickname} onChange={e => setNickname(e.target.value)} />
-            </Form.Group>
-            <Form.Group className='mb-3'>
-              <Form.Label>
-                Email <span className='text-muted'>(optional)</span>
-              </Form.Label>
-              <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} />
-            </Form.Group>
-            <Form.Group className='mb-3'>
-              <Form.Label>
-                Mobile <span className='text-muted'>(optional)</span>
-              </Form.Label>
-              <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} isInvalid={mobileTaken} />
-              <Form.Control.Feedback type='invalid'>This mobile number is already registered.</Form.Control.Feedback>
-            </Form.Group>
-            <Form.Group className='mb-3'>
-              <Form.Label>Password</Form.Label>
-              <Form.Control type='password' value={password} onChange={e => setPassword(e.target.value)} required />
-              <Form.Text className='text-muted'>At least 8 characters, different from your username.</Form.Text>
-            </Form.Group>
-            <Form.Group className='mb-3'>
-              <Form.Label>Confirm password</Form.Label>
-              <Form.Control type='password' value={confirm} onChange={e => setConfirm(e.target.value)} required />
-            </Form.Group>
-            <Button type='submit' variant='primary' className='w-100' disabled={loading === 'pending'}>
-              {loading === 'pending' ? <Spinner animation='border' size='sm' /> : 'Create account'}
-            </Button>
-          </Form>
-          <div className='text-center mt-3'>
-            <small className='text-muted'>
-              Already have an account? <Link to='/login'>Sign in</Link>
-            </small>
-          </div>
-        </Card.Body>
-      </Card>
-    </Container>
+    <AuthShell title='Create your account' sub='Shop faster, track orders, and keep your history.'>
+      {inviteCode && (
+        <Alert variant='info' dismissible onClose={dismissInvite} className='py-2'>
+          🎉 Invited by a friend
+        </Alert>
+      )}
+      {generalError && <Alert variant='danger'>{generalError}</Alert>}
+      <Form onSubmit={handleSubmit}>
+        <Form.Group className='mb-3'>
+          <Form.Label>Username</Form.Label>
+          <Form.Control
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            isInvalid={usernameTaken}
+            required
+            autoFocus
+          />
+          <Form.Control.Feedback type='invalid'>This username is already registered.</Form.Control.Feedback>
+        </Form.Group>
+        <Form.Group className='mb-3'>
+          <Form.Label>
+            Nickname <span className='text-muted'>(optional)</span>
+          </Form.Label>
+          <Form.Control value={nickname} onChange={e => setNickname(e.target.value)} />
+        </Form.Group>
+        <Form.Group className='mb-3'>
+          <Form.Label>
+            Email <span className='text-muted'>(optional)</span>
+          </Form.Label>
+          <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} />
+          <Form.Text className='text-muted'>Order confirmations and shipping updates go here.</Form.Text>
+        </Form.Group>
+        <Form.Group className='mb-3'>
+          <Form.Label>
+            Mobile <span className='text-muted'>(optional)</span>
+          </Form.Label>
+          <PhoneInput onChange={setMobile} isInvalid={mobileTaken} />
+          {mobileTaken && <div className='invalid-feedback d-block'>This mobile number is already registered.</div>}
+        </Form.Group>
+        <Form.Group className='mb-3'>
+          <Form.Label>Password</Form.Label>
+          <Form.Control type='password' value={password} onChange={e => setPassword(e.target.value)} required />
+          <Form.Text className='text-muted'>At least 8 characters, different from your username.</Form.Text>
+        </Form.Group>
+        <Form.Group className='mb-3'>
+          <Form.Label>Confirm password</Form.Label>
+          <Form.Control type='password' value={confirm} onChange={e => setConfirm(e.target.value)} required />
+        </Form.Group>
+        <button type='submit' className='btn btn-lm-primary w-100' disabled={loading === 'pending'}>
+          {loading === 'pending' ? <Spinner animation='border' size='sm' /> : 'Create account'}
+        </button>
+      </Form>
+      <div className='lm-auth__divider'>or</div>
+      <GoogleSignInButton onSuccess={() => navigate(from, { replace: true })} />
+      <div className='text-center mt-3'>
+        <small className='text-muted'>
+          Already have an account? <Link to='/login'>Sign in</Link>
+        </small>
+      </div>
+    </AuthShell>
   );
 };
 

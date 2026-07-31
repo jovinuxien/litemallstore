@@ -103,6 +103,16 @@ class EdgeAuthorizationPolicyTest {
     }
 
     @Test
+    @DisplayName("guest claim requires the guest's own session (Wave 16)")
+    void guestClaimIsAuthenticatedOnly() {
+        // /auth/guest and /auth/google are asserted public by the AUTH_ANY_METHOD
+        // loop above; the claim endpoint must NOT ride along — an anonymous
+        // claim would let anyone set a password on a shadow account.
+        anonymous.post().uri("/auth/guest/claim").exchange().expectStatus().isUnauthorized();
+        customer.post().uri("/auth/guest/claim").exchange().expectStatus().isOk();
+    }
+
+    @Test
     @DisplayName("health is open but the route table is not")
     void healthIsOpenButTheRouteTableIsNot() {
         anonymous.get().uri("/actuator/health").exchange().expectStatus().isOk();

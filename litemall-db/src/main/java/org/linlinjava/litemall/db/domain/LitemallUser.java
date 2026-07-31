@@ -154,6 +154,12 @@ public class LitemallUser {
 
     /** V2: wallet balance — maps to litemall_user.now_money */
     private BigDecimal nowMoney;
+
+    /** V47: guest-checkout shadow account flag — maps to litemall_user.is_guest */
+    private Boolean isGuest;
+
+    /** V47: Google ID-token subject for account linking — maps to litemall_user.google_sub */
+    private String googleSub;
     /** V2: brokerage/commission balance — maps to litemall_user.brokerage_price */
     private BigDecimal brokeragePrice;
     /** V2: loyalty points — maps to litemall_user.integral */
@@ -544,6 +550,12 @@ public class LitemallUser {
 
     public BigDecimal getNowMoney() { return nowMoney; }
     public void setNowMoney(BigDecimal nowMoney) { this.nowMoney = nowMoney; }
+
+    /** V47 */
+    public Boolean getIsGuest() { return isGuest; }
+    public void setIsGuest(Boolean isGuest) { this.isGuest = isGuest; }
+    public String getGoogleSub() { return googleSub; }
+    public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
 
     public BigDecimal getBrokeragePrice() { return brokeragePrice; }
     public void setBrokeragePrice(BigDecimal brokeragePrice) { this.brokeragePrice = brokeragePrice; }
