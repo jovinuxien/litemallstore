@@ -456,7 +456,19 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — ACTIVE: Wave 15, then Wave 16
+### Worktree: `gateway-api` — Wave 15 SHIPPED; ACTIVE: Wave 16
+- **Wave 15 STATUS: MERGED to master `e8adec3fe` (2026-07-31).** All four
+  items done: promo-code box (auto-select on redeem), Matomo ecommerce
+  events + env-gated Meta Pixel (`LITEMALL_META_PIXEL_ID`; pending-state
+  event buffers flush only on a stored grant), checkout email capture
+  (required block when account email missing; partial `/auth/profile`
+  persist pre-submit), binding legal copy (seller identity in
+  `static/seller.ts`; 30-day returns on ALL surfaces incl. FAQ + PDP
+  badge; `LegalPlaceholder` DELETED; launch-blocker doc closed). Dev
+  e2e 17/17 + legal 5/5 (order 106: coupon discount + wallet pay +
+  email landed). Headless gotcha: React controlled inputs need
+  NATIVE-SETTER fills + in-page DOM clicks — `page.type`/hit-test
+  clicks silently no-op.
 - **Branch:** `fix/gateway-api` — FIRST: `git merge master`. Scope:
   `litemall-gateway-api/` only (SPA + edge + `/auth`), EXCEPT the
   Wave-16 migration which lands in litemall-db (shared-module
