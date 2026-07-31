@@ -370,10 +370,39 @@
 > catalogue feed, addendum above) is the next goods-management task;
 > its edge half is already on master (`0d8cdec96`).
 >
-> **USER-SIDE PREREQUISITES:** Stripe TEST keys are LIVE in prod (card pay
-> verified e2e); `CJ_CATALOG_*` (goods-management catalog/enrichment creds)
+> **Wave 15 (2026-07-31) — TRANSACT & CONVERT / Wave 16 — IDENTITY &
+> ONBOARDING.** Commissioned together (user approved the written plan
+> 2026-07-31). Both are gateway-api-heavy, so they run SEQUENTIALLY
+> in the `gateway-api` worktree — Wave 15 ships and merges first;
+> full task specs in the gateway-api worktree block below.
+> User decisions locked in: guest checkout = SHADOW ACCOUNTS keyed by
+> email (true guest flow, order service unchanged); Stripe Tax =
+> ENABLE (staged verify; fail-closed adapter); analytics = Matomo
+> ecommerce events + ENV-GATED Meta Pixel (consent-gated, hidden
+> until pixel id set); returns policy = 30-day window (buyer pays
+> return shipping on remorse, store pays on defects; EU 14-day
+> withdrawal stated). User additions: login/signup pages restyled to
+> the storefront teal theme; Google Sign-In (env-gated client id,
+> provision-or-link by verified email); register/address phone field
+> gets a searchable country dial-code selector (static dataset);
+> address autocomplete (env-gated Places key; unset ⇒ plain fields).
+> Main-session activation AFTER the Wave-15 merge (not worktree
+> work): SMTP env + `LITEMALL_CUSTOMERMAIL_ENABLED=true` + reset-mail
+> enable; `LITEMALL_ORDER_TAX_*` wiring into prod compose with an
+> immediate staged purchase test; Matomo prod config. USER-SIDE
+> inputs: SMTP creds; Stripe Tax dashboard activation +
+> registrations; legal entity name/address/jurisdiction (Wave-15
+> item 1 is BLOCKED on this); Google OAuth client id; Meta Pixel id;
+> Places API key (each env-gated — absent = feature hidden, never
+> broken).
+>
+> **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
+> (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
+> webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
+> catalog/enrichment creds)
 > is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
-> stays blocked by design. Everything must degrade honestly: typed errors,
+> stays blocked by design (⚠ real money now accepted while fulfilment
+> queues — user warned + accepted 2026-07-31; CJ key is urgent). Everything must degrade honestly: typed errors,
 > retryable states (an order paid today must be placeable at CJ tomorrow
 > when the key arrives), never a fake success, never a 5xx.
 >
@@ -427,13 +456,93 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — history (Wave 13, SHIPPED to master)
-- **Task — Wave 13 (edge + SPA): crawlable PDPs, slugged URLs, robots
-  + sitemap.** (Merged to master `88234261a` 2026-07-29, 14/14 e2e;
-  VPS deploy pending. Spec in git history.)
-- **No Wave-14 assignment** — Today's Deals fills through the existing
-  OCS `deal_flag` pipeline once auto deals run; no storefront change.
-  Do not start work here without a new instruction.
+### Worktree: `gateway-api` — ACTIVE: Wave 15, then Wave 16
+- **Branch:** `fix/gateway-api` — FIRST: `git merge master`. Scope:
+  `litemall-gateway-api/` only (SPA + edge + `/auth`), EXCEPT the
+  Wave-16 migration which lands in litemall-db (shared-module
+  discipline). Wave 15 has NO migration; Wave 16 claims **V47**
+  (check `flyway_schema_history` immediately before first boot).
+  Wave 15 merges to master BEFORE Wave 16 work starts.
+- **Task — Wave 15: Transact & Convert.**
+  1. **Legal copy** — replace the `LegalPlaceholder` banner pages
+     (`app/modules/static/{Terms,Privacy,Cookies,Returns}.tsx`,
+     `LegalPlaceholder.tsx`) with binding copy: 30-day returns
+     (remorse = buyer pays return shipping; defect = store pays; EU
+     14-day withdrawal right stated), dropshipping delivery-time
+     disclosure, Stripe as payment processor, Matomo + Meta Pixel
+     disclosure in the cookies policy. **BLOCKED-ON-USER:** legal
+     entity name, registered address, jurisdiction — do NOT merge
+     with placeholders; do the other items first if these are
+     missing. `docs/LAUNCH-BLOCKER-legal-copy.md` closes with this.
+  2. **Promo-code box at checkout** — input + Apply in the coupon
+     section of `views/commonViews/cart/Checkout.tsx` (picker at
+     :179-181), wired to the existing
+     `userApi.couponExchange` (`shared/api/userApi.ts:133` →
+     `POST /srv/coupon/exchange`, handler already live in
+     promotion-service); on success refresh `selectlist` and
+     auto-select the redeemed coupon; honest errno messages for
+     invalid/expired/already-claimed. NO backend work.
+  3. **Conversion events** — wire ecommerce events into the EXISTING
+     consent-gated Matomo seam (`shared/tracking/matomo.ts` +
+     `MatomoTracker.tsx`): product view (PDP), add-to-cart,
+     begin-checkout, `trackEcommerceOrder` on the confirmation page.
+     Plus an env-gated **Meta Pixel**: new `litemall.meta.pixel-id`
+     @Value in `SiteConfigController` (the proven Stripe/social
+     pattern — blank ⇒ null ⇒ nothing injected), compose env
+     `LITEMALL_META_PIXEL_ID`; pixel script injection + ViewContent /
+     AddToCart / InitiateCheckout / Purchase, gated behind the SAME
+     cookie consent as Matomo — no consent, no pixel. Activation
+     later = env + recreate, NO rebuild.
+  4. **Checkout email capture** — make the existing shipping email
+     field (`Checkout.tsx:722`) required; on submit, if the account
+     has no email, persist it via the existing `POST /auth/profile`
+     (`AuthController:165`) so the Wave-10 mail listener (recipient
+     = `litemall_user.email`) stops silently skipping buyers.
+- **Acceptance (15):** legal pages render binding copy (no
+  placeholder banner); a code-type coupon redeems from the checkout
+  box and applies to the total; with consent granted, Matomo dev
+  console shows view/cart/checkout/purchase events and the pixel
+  fires only when `LITEMALL_META_PIXEL_ID` is set; an order placed
+  by an email-less account lands the email on the user row; existing
+  checkout/coupon e2e regression-green.
+- **Task — Wave 16 (start AFTER 15 merges): Identity & Onboarding.**
+  5. **Guest checkout (shadow accounts)** — `/checkout` reachable
+     without login: email + address in, edge auto-provisions a
+     password-less account keyed by the email (V47: guest flag +
+     `google_sub` column on `litemall_user`; hand-edit entity +
+     mapper XML together) and issues a normal customer JWT — the
+     ORDER SERVICE IS UNCHANGED (orders attach to a real user_id).
+     Confirmation page offers "set a password to track your order"
+     (reuse the reset-token flow, `AuthController:129-142`). Email
+     already registered with a password ⇒ prompt login instead.
+     Provisioning stays INSIDE the existing `/auth` public surface —
+     NO new anonymous `/srv` paths (svcsecurity deny-by-default).
+  6. **Google Sign-In** — env-gated `litemall.google.client-id` via
+     `/auth/site-config` (unset ⇒ button hidden). GIS button on
+     login + register; edge verifies the ID token server-side
+     (signature/audience/issuer) in the `auth` package, then
+     provisions or LINKS by verified email (existing password
+     account with same email ⇒ link + store `google_sub`; guest
+     shadow account ⇒ upgrade). Fetch name/email/avatar from the
+     token claims.
+  7. **Auth-page theming** — restyle `CustomerLogin.tsx`,
+     `Register.tsx`, `ResetPassword.tsx` to the storefront teal
+     theme (shared header/footer, buttons, typography).
+  8. **Phone country codes** — searchable country selector (flag +
+     name + dial code, STATIC dataset, no external service) on
+     register + address forms; store E.164-normalized.
+  9. **Address autocomplete** — env-gated Places suggestions on the
+     address form (`litemall.places.api-key` via site-config; unset
+     ⇒ plain manual fields, zero degradation); country selector
+     scopes suggestions.
+- **Acceptance (16):** fresh browser buys end-to-end with only
+  email + card; that email can later claim the account (password) or
+  sign in with Google and sees the order; Google button absent when
+  env unset; themed auth pages; country-coded phone on register;
+  all existing login/register/reset e2e green; no new anonymous
+  service paths.
+- **History:** Wave 13 SEO (edge+SPA) SHIPPED (`88234261a`); Wave
+  9.1 trust surfaces SHIPPED (`3989e2053`).
 
 ### Worktree: `gateway-api` — history (Wave 9.1, SHIPPED)
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
