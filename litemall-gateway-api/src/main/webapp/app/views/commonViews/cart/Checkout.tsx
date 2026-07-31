@@ -15,6 +15,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
+import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
   CheckoutPaymentMethod,
   CheckoutTotals,
@@ -27,7 +28,7 @@ import {
   ShippingInfo,
   TaxUnavailableError,
 } from 'app/shared/reducers/orderSlice';
-import { IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
+import { authApi, IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -181,6 +182,19 @@ const CheckoutView: React.FC = () => {
   // Server-side coupon rejection at submit (e.g. redeemed elsewhere meanwhile),
   // surfaced inline at the picker rather than only as the page-level alert.
   const [couponError, setCouponError] = useState<string | null>(null);
+  // Promo-code redemption (Wave 15): a code from an ad/mail redeems via the
+  // existing /srv/coupon/exchange, then the usable list refreshes and the new
+  // coupon is auto-selected when it applies to this cart.
+  const [promoCode, setPromoCode] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoNotice, setPromoNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Contact email (Wave 15): the paid-order confirmation mail's recipient is
+  // litemall_user.email, which registration leaves optional — an email-less
+  // account was silently skipped by the mail pipeline. undefined = /auth/me not
+  // resolved yet; null = resolved and MISSING ⇒ the required email block shows.
+  const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
@@ -201,6 +215,32 @@ const CheckoutView: React.FC = () => {
       .then(list => setStores(list ?? []))
       .catch(() => setStores([])); // endpoint absent → toggle stays hidden
   }, []);
+
+  // Resolve whether the account already has a contact email. A failed lookup
+  // counts as missing: asking once too often beats silently skipping the
+  // confirmation mail.
+  useEffect(() => {
+    authApi
+      .me()
+      .then(env => {
+        const email = env.errno === 0 ? env.data?.email?.trim() : undefined;
+        setAccountEmail(email ? email : null);
+      })
+      .catch(() => setAccountEmail(null));
+  }, []);
+
+  // Funnel begin-checkout (Wave 15): once per checkout visit, with the display
+  // subtotal — never the charged amount, which only the server computes. Fires
+  // when the cart FIRST populates, not on mount: after a full-page load the
+  // cart arrives async and a mount-only effect would drop the event.
+  const beganCheckoutRef = useRef(false);
+  useEffect(() => {
+    if (!beganCheckoutRef.current && cartList.length > 0) {
+      beganCheckoutRef.current = true;
+      const subtotal = cartList.reduce((sum, it) => sum + priceNum(it.price) * (it.number ?? 0), 0);
+      trackBeginCheckout(Number(subtotal.toFixed(2)), cartList.length);
+    }
+  }, [cartList]);
 
   // Freight/logistics quote per cart group (submit creates one order per group, each
   // charged its own freight). The CJ quote additionally carries the informational
@@ -346,18 +386,21 @@ const CheckoutView: React.FC = () => {
 
   // Usable-coupon query: the caller supplies the cart facts (promotion has no
   // cart access) — subtotal + the numeric goods ids. Re-runs when the cart
-  // changes so threshold coupons appear/disappear with the total.
-  useEffect(() => {
-    if (cartList.length === 0) {
-      setCoupons([]);
-      return;
-    }
+  // changes so threshold coupons appear/disappear with the total. Also called
+  // by the promo-code Apply handler, which needs the refreshed list in hand.
+  const queryUsableCoupons = async (): Promise<ICoupon[]> => {
+    if (cartList.length === 0) return [];
     const amount = cartList.reduce((sum, it) => sum + priceNum(it.price) * (it.number ?? 0), 0);
     const goodsIds = cartList.map(it => Number(it.goodsId)).filter(id => Number.isFinite(id));
-    userApi
-      .couponSelectList(Number(amount.toFixed(2)), goodsIds)
-      .then(list => setCoupons(list ?? []))
-      .catch(() => setCoupons([]));
+    try {
+      return (await userApi.couponSelectList(Number(amount.toFixed(2)), goodsIds)) ?? [];
+    } catch {
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    queryUsableCoupons().then(setCoupons);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartSignature]);
 
@@ -379,6 +422,38 @@ const CheckoutView: React.FC = () => {
   );
 
   const selectedCoupon = useMemo(() => coupons.find(c => c.id === selectedCouponId) ?? null, [coupons, selectedCouponId]);
+
+  /**
+   * Redeem a typed promo code, then refresh the usable list and auto-select the
+   * newly claimed coupon when it applies to THIS cart. A code that redeems but
+   * doesn't apply here (threshold/scope) says so honestly — it must not look
+   * like it discounted the order.
+   */
+  const handleApplyPromo = async () => {
+    const code = promoCode.trim();
+    if (!code || promoBusy) return;
+    setPromoBusy(true);
+    setPromoNotice(null);
+    try {
+      await userApi.couponExchange(code);
+      const prevIds = new Set(coupons.map(c => c.id));
+      const list = await queryUsableCoupons();
+      setCoupons(list);
+      const claimed = list.find(c => !prevIds.has(c.id));
+      if (claimed && (claimed.min ?? 0) <= cartLinesSubtotal) {
+        setSelectedCouponId(claimed.id ?? null);
+        setCouponError(null);
+        setPromoNotice({ ok: true, text: 'Code applied — the coupon has been added to this order.' });
+      } else {
+        setPromoNotice({ ok: true, text: 'Code redeemed — the coupon is in your account, but it does not apply to this cart.' });
+      }
+      setPromoCode('');
+    } catch (error) {
+      setPromoNotice({ ok: false, text: messageOf(error, "That code couldn't be redeemed.") });
+    } finally {
+      setPromoBusy(false);
+    }
+  };
 
   /** Card payment needs a publishable key. Absent ⇒ unavailable, never stubbed. */
   const cardAvailable = !!publishableKey;
@@ -432,7 +507,10 @@ const CheckoutView: React.FC = () => {
   const savedAddressId = typeof selectedAddressId === 'number' ? selectedAddressId : null;
   // Pickup needs a store + contact instead of a delivery address.
   const pickupValid = selectedStoreId != null && !!pickupName && !!pickupMobile;
-  const checkoutValid = isPickup ? pickupValid : addressValid;
+  // Accounts without a stored email must supply one — it is the confirmation
+  // mail's recipient. `undefined` (lookup still in flight) doesn't block.
+  const emailValid = accountEmail !== null || /^\S+@\S+\.\S+$/.test(shipping.email.trim());
+  const checkoutValid = (isPickup ? pickupValid : addressValid) && emailValid;
 
   const couponCellValue =
     (totals?.couponPrice ?? 0) > 0
@@ -475,6 +553,25 @@ const CheckoutView: React.FC = () => {
       } catch {
         setAddrError('Could not save the delivery address. Check the required fields and try again.');
         return;
+      }
+    }
+
+    // 1b. Land the contact email on the account (partial update) BEFORE placing,
+    //     so the order-paid confirmation mail has a recipient. Best-effort: a
+    //     server-side rejection warns inline but never blocks the purchase —
+    //     losing the sale over the mail address would be worse than the skip.
+    if (accountEmail === null) {
+      const email = shipping.email.trim();
+      try {
+        const env = await authApi.profile({ email });
+        if (env.errno === 0) {
+          setAccountEmail(email);
+          setEmailNotice(null);
+        } else {
+          setEmailNotice(env.errmsg ?? 'Could not save this email to your account — the order will still be placed.');
+        }
+      } catch {
+        setEmailNotice('Could not save this email to your account — the order will still be placed.');
       }
     }
 
@@ -718,10 +815,6 @@ const CheckoutView: React.FC = () => {
                 <Form.Control name='mobile' value={shipping.mobile} onChange={handleInputChange} required={hasCjItems} />
               </div>
               <div className='col-12'>
-                <Form.Label>Email</Form.Label>
-                <Form.Control name='email' type='email' value={shipping.email} onChange={handleInputChange} />
-              </div>
-              <div className='col-12'>
                 <Form.Label>Address line 1 *</Form.Label>
                 <Form.Control name='address' value={shipping.address} onChange={handleInputChange} required />
               </div>
@@ -801,9 +894,36 @@ const CheckoutView: React.FC = () => {
         </CellGroup>
         )}
 
-        {/* Coupon */}
-        {(coupons.length > 0 || couponError) && (
+        {/* Contact email (Wave 15) — only when the account has none on file.
+            Renders on BOTH address paths (saved and new): it is the order-mail
+            recipient, not part of the delivery address. */}
+        {accountEmail === null && (
           <CellGroup>
+            <div className='p-3'>
+              <Form.Label>Email for order updates *</Form.Label>
+              <Form.Control
+                name='email'
+                type='email'
+                value={shipping.email}
+                onChange={handleInputChange}
+                placeholder='you@example.com'
+                required
+              />
+              <div className='form-text'>We&apos;ll send your order confirmation and shipping updates here.</div>
+              {emailNotice && (
+                <div className='small text-danger mt-1' role='status'>
+                  {emailNotice}
+                </div>
+              )}
+            </div>
+          </CellGroup>
+        )}
+
+        {/* Coupon + promo code. The group always renders: a customer holding a
+            code from an ad/mail must be able to enter it even with zero claimed
+            coupons. */}
+        <CellGroup>
+            {coupons.length > 0 && (
             <Cell title='Coupon'>
               <Form.Select
                 size='sm'
@@ -821,6 +941,38 @@ const CheckoutView: React.FC = () => {
                 ))}
               </Form.Select>
             </Cell>
+            )}
+            <div className='px-3 py-2 d-flex gap-2'>
+              <Form.Control
+                size='sm'
+                placeholder='Promo code'
+                aria-label='Promo code'
+                value={promoCode}
+                onChange={e => {
+                  setPromoCode(e.target.value);
+                  if (promoNotice) setPromoNotice(null);
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleApplyPromo();
+                  }
+                }}
+              />
+              <button
+                type='button'
+                className='btn btn-sm btn-outline-primary flex-shrink-0'
+                disabled={!promoCode.trim() || promoBusy}
+                onClick={handleApplyPromo}
+              >
+                {promoBusy ? 'Applying…' : 'Apply'}
+              </button>
+            </div>
+            {promoNotice && (
+              <div className={`px-3 pb-2 small ${promoNotice.ok ? 'text-success' : 'text-danger'}`} role='status'>
+                {promoNotice.text}
+              </div>
+            )}
             {couponError && (
               <Alert variant='warning' className='m-3 mt-0 mb-3 d-flex justify-content-between align-items-center gap-2'>
                 <span>{couponError}</span>
@@ -836,8 +988,7 @@ const CheckoutView: React.FC = () => {
                 </button>
               </Alert>
             )}
-          </CellGroup>
-        )}
+        </CellGroup>
 
         {/* Goods */}
         <CellGroup title={`Items (${cartList.length})`}>
