@@ -432,6 +432,16 @@ services:
       # /auth/site-config so it can mount Stripe Elements. Blank ⇒ the card
       # option is hidden and checkout offers wallet only.
       LITEMALL_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      # Edge-local password-reset mail (Wave 6). Reads the SAME .env values as
+      # order's customer-mail block, but the edge sender's property keys are
+      # `user`/`pass` (not username/password) — mapped here so one .env set
+      # drives both. Disabled by default; enabling = env change + recreate.
+      LITEMALL_CUSTOMERMAIL_ENABLED: ${LITEMALL_CUSTOMERMAIL_ENABLED:-false}
+      LITEMALL_CUSTOMERMAIL_HOST: ${LITEMALL_CUSTOMERMAIL_HOST:-localhost}
+      LITEMALL_CUSTOMERMAIL_PORT: ${LITEMALL_CUSTOMERMAIL_PORT:-1025}
+      LITEMALL_CUSTOMERMAIL_FROM: ${LITEMALL_CUSTOMERMAIL_FROM:-noreply@trovemo.com}
+      LITEMALL_CUSTOMERMAIL_USER: ${LITEMALL_CUSTOMERMAIL_USERNAME:-}
+      LITEMALL_CUSTOMERMAIL_PASS: ${LITEMALL_CUSTOMERMAIL_PASSWORD:-}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8090/actuator/health"]}
     mem_limit: 1g
 
