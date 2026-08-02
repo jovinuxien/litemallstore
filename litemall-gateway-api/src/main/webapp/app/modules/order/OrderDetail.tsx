@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
+import { orderAddressLines } from 'app/shared/util/address';
 import { QRCodeSVG } from 'qrcode.react';
 
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
@@ -199,9 +200,19 @@ const OrderDetailView: React.FC = () => {
           </CellGroup>
         ) : (
           <CellGroup title='Delivery address'>
-            <Cell title={`${order.consignee ?? ''}${order.mobile ? ` · ${order.mobile}` : ''}`}>
-              <span className='text-muted'>{order.address}</span>
-            </Cell>
+            {/* Structured snapshot (V48) renders as stacked lines; legacy
+                unseparated rows fall back to one line. */}
+            <div className='p-3'>
+              <div className='fw-semibold'>
+                {order.consignee ?? ''}
+                {order.mobile ? <span className='text-muted fw-normal'> · {order.mobile}</span> : null}
+              </div>
+              <div className='text-muted mt-1'>
+                {orderAddressLines(order.address).map(line => (
+                  <div key={line}>{line}</div>
+                ))}
+              </div>
+            </div>
           </CellGroup>
         )}
 

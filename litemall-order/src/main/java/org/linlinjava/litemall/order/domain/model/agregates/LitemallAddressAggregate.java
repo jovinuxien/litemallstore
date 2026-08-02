@@ -23,6 +23,8 @@ public class LitemallAddressAggregate {
     private String addressDetail;
     private String areaCode;
     private String postalCode;
+    /** ISO-3166 alpha-2 destination country (V48; null on legacy rows). */
+    private String countryCode;
     private String tel;
     private Boolean isDefault;
     private LocalDateTime addTime;

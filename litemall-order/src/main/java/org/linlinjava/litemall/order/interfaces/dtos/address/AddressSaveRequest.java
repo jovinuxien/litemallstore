@@ -20,6 +20,7 @@ public class AddressSaveRequest {
     private String addressDetail;
     private String areaCode;
     private String postalCode;
+    private String countryCode;
     private Boolean isDefault;
 
     /**
@@ -40,6 +41,9 @@ public class AddressSaveRequest {
         a.setAddressDetail(addressDetail);
         a.setAreaCode(areaCode);
         a.setPostalCode(postalCode);
+        // Normalized ISO-3166 alpha-2; anything longer than the column is rejected as junk.
+        String cc = countryCode == null ? null : countryCode.trim().toUpperCase();
+        a.setCountryCode(cc == null || cc.isEmpty() || cc.length() > 8 ? null : cc);
         a.setIsDefault(isDefault != null ? isDefault : Boolean.FALSE);
         return a;
     }
@@ -62,6 +66,8 @@ public class AddressSaveRequest {
     public void setAreaCode(String areaCode) { this.areaCode = areaCode; }
     public String getPostalCode() { return postalCode; }
     public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
     public Boolean getIsDefault() { return isDefault; }
     public void setIsDefault(Boolean isDefault) { this.isDefault = isDefault; }
 }

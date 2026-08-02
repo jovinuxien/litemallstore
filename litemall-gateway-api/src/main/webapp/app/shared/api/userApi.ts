@@ -19,6 +19,8 @@ export interface IAddress {
   county?: string;
   areaCode?: string;
   postalCode?: string;
+  /** ISO-3166 alpha-2 destination country (V48). */
+  countryCode?: string;
   addressDetail?: string;
   isDefault?: boolean;
 }

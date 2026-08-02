@@ -5,10 +5,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { contentApi, IAddress, IRegionNode, userApi } from 'app/shared/api';
 import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
+import RegionInput from 'app/components/commonComponents/RegionInput';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
+import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
+import { regionsFor } from 'app/shared/data/regions';
 import './user.scss';
 
-const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '', addressDetail: '', postalCode: '', isDefault: false };
+const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '', addressDetail: '', postalCode: '', countryCode: '', isDefault: false };
 
 /**
  * Create/edit an address, modelled on litemall-vue `user/module-address-edit`.
@@ -109,6 +112,22 @@ const AddressEdit: React.FC = () => {
                     so mount-time seeding sees the saved value. */}
                 <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} />
               </div>
+              <div className='col-md-6'>
+                <Form.Label>Country</Form.Label>
+                {/* Same list as checkout (V48 country_code); powers the region
+                    type-ahead below and pre-fills checkout's destination country. */}
+                <Form.Select
+                  value={form.countryCode ?? ''}
+                  onChange={e => setForm(prev => ({ ...prev, countryCode: e.target.value }))}
+                >
+                  <option value=''>-- Country --</option>
+                  {SHIPPING_COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Form.Select>
+              </div>
               {regions.length > 0 && (
                 <div className='col-12'>
                   <Form.Check
@@ -171,7 +190,13 @@ const AddressEdit: React.FC = () => {
                 <>
                   <div className='col-md-4'>
                     <Form.Label>Province / Region</Form.Label>
-                    <Form.Control value={form.province ?? ''} onChange={set('province')} />
+                    {/* Type-ahead over the selected country's regions; free text
+                        stays valid (countries without data = plain input). */}
+                    <RegionInput
+                      value={form.province ?? ''}
+                      onChange={text => setForm(prev => ({ ...prev, province: text }))}
+                      suggestions={regionsFor(form.countryCode)}
+                    />
                   </div>
                   <div className='col-md-4'>
                     <Form.Label>City</Form.Label>
@@ -196,6 +221,9 @@ const AddressEdit: React.FC = () => {
                       city: parts.city ?? prev.city,
                       province: parts.region ?? prev.province,
                       postalCode: parts.postalCode ?? prev.postalCode,
+                      countryCode: SHIPPING_COUNTRIES.some(c => c.code === parts.countryCode)
+                        ? parts.countryCode
+                        : prev.countryCode,
                     }))
                   }
                   required

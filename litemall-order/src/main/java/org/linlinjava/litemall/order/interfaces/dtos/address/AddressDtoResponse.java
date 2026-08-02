@@ -18,6 +18,7 @@ public class AddressDtoResponse {
     private String addressDetail;
     private String areaCode;
     private String postalCode;
+    private String countryCode;
     private Boolean isDefault;
 
     public static AddressDtoResponse from(LitemallAddressAggregate a) {
@@ -31,6 +32,7 @@ public class AddressDtoResponse {
         dto.addressDetail = a.getAddressDetail();
         dto.areaCode = a.getAreaCode();
         dto.postalCode = a.getPostalCode();
+        dto.countryCode = a.getCountryCode();
         dto.isDefault = a.getIsDefault();
         return dto;
     }
@@ -44,5 +46,6 @@ public class AddressDtoResponse {
     public String getAddressDetail() { return addressDetail; }
     public String getAreaCode() { return areaCode; }
     public String getPostalCode() { return postalCode; }
+    public String getCountryCode() { return countryCode; }
     public Boolean getIsDefault() { return isDefault; }
 }

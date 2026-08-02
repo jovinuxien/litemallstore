@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DialCountry, dialCountries, toE164 } from 'app/shared/data/dialCodes';
 
@@ -10,6 +10,8 @@ import { DialCountry, dialCountries, toE164 } from 'app/shared/data/dialCodes';
 interface Props {
   value?: string;
   onChange: (e164: string) => void;
+  /** Fires with the selected ISO2 on mount and on every country pick, so callers can follow the phone country. */
+  onCountryChange?: (iso2: string) => void;
   defaultIso2?: string;
   isInvalid?: boolean;
   placeholder?: string;
@@ -40,13 +42,19 @@ const parseInitial = (value: string | undefined): { iso2?: string; national: str
   return { iso2: best.iso2, national: digits.slice(best.dial.length) };
 };
 
-const PhoneInput: React.FC<Props> = ({ value, onChange, defaultIso2, isInvalid, placeholder }) => {
+const PhoneInput: React.FC<Props> = ({ value, onChange, onCountryChange, defaultIso2, isInvalid, placeholder }) => {
   const [initial] = useState(() => parseInitial(value));
   const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? guessIso2());
   const [national, setNational] = useState(initial.national);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  const countryChangeRef = useRef(onCountryChange);
+  countryChangeRef.current = onCountryChange;
+  useEffect(() => {
+    countryChangeRef.current?.(iso2); // mount + every pick — one code path
+  }, [iso2]);
 
   const countries = dialCountries();
   const selected = countries.find(c => c.iso2 === iso2) ?? countries[0];

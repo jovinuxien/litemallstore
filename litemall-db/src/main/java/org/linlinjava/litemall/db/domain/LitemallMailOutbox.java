@@ -24,6 +24,8 @@ public class LitemallMailOutbox {
     private String subject;
     /** Rendered plain-text body. */
     private String body;
+    /** Rendered HTML body (V48); NULL = plain-text-only mail. */
+    private String bodyHtml;
     /** Shared template key (order-confirmation|shipped|refund-approved|pickup-code|password-reset). */
     private String templateKey;
     /** pending | sent | failed. */
@@ -49,6 +51,9 @@ public class LitemallMailOutbox {
 
     public String getBody() { return body; }
     public void setBody(String body) { this.body = body; }
+
+    public String getBodyHtml() { return bodyHtml; }
+    public void setBodyHtml(String bodyHtml) { this.bodyHtml = bodyHtml; }
 
     public String getTemplateKey() { return templateKey; }
     public void setTemplateKey(String templateKey) { this.templateKey = templateKey; }

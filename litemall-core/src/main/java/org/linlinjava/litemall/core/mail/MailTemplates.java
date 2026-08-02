@@ -105,12 +105,19 @@ public final class MailTemplates {
 
     public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn) {
         String subject = "Your Trovemo order " + nz(orderSn) + " has shipped";
-        String body = "Good news — your order " + nz(orderSn) + " is on its way!\n\n"
-                + "Carrier: " + nz(shipChannel) + "\n"
-                + "Tracking number: " + nz(shipSn) + "\n\n"
-                + "You can follow the shipment from the order detail page in your account.\n\n"
-                + FOOTER;
-        return new RenderedMail(KEY_SHIPPED, subject, body);
+        StringBuilder body = new StringBuilder("Good news — your order " + nz(orderSn) + " is on its way!\n\n");
+        if (notBlank(shipChannel)) {
+            body.append("Carrier: ").append(shipChannel).append('\n');
+        }
+        // CJ sometimes reports SHIPPED before assigning the tracking number; never
+        // render a blank "Tracking number:" line — promise the follow-up instead.
+        if (notBlank(shipSn)) {
+            body.append("Tracking number: ").append(shipSn).append('\n');
+        } else {
+            body.append("Your tracking number is being assigned — we will send it in a follow-up email.\n");
+        }
+        body.append("\nYou can follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
+        return new RenderedMail(KEY_SHIPPED, subject, body.toString());
     }
 
     public static RenderedMail refundApproved(String orderSn, String refundAmount) {

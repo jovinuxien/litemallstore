@@ -19,6 +19,9 @@ import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
+import RegionInput from 'app/components/commonComponents/RegionInput';
+import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
+import { regionsFor } from 'app/shared/data/regions';
 import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
   CheckoutPaymentMethod,
@@ -47,20 +50,9 @@ import {
   AddressCard,
 } from 'app/components/commonComponents/storefront';
 
-const REGIONS = ['Stockholm', 'Skåne', 'Göteborg', 'Uppsala'];
-
-// CJ createOrder needs a real destination country + ISO code. Small built-in list;
-// the selected option supplies both the country name and the countryCode.
-const COUNTRIES: Array<{ name: string; code: string }> = [
-  { name: 'United States', code: 'US' },
-  { name: 'United Kingdom', code: 'GB' },
-  { name: 'Sweden', code: 'SE' },
-  { name: 'Norway', code: 'NO' },
-  { name: 'Germany', code: 'DE' },
-  { name: 'France', code: 'FR' },
-  { name: 'Canada', code: 'CA' },
-  { name: 'Australia', code: 'AU' },
-];
+// Supported destination countries (CJ createOrder needs a real country + ISO code).
+// Shared with the address book; the selected option supplies name + countryCode.
+const COUNTRIES = SHIPPING_COUNTRIES;
 
 const isCjItem = (it: { source?: string; goodsId?: string }) =>
   it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
@@ -117,12 +109,12 @@ const addressToShipping = (a: IAddress): ShippingInfo => ({
   region: a.province ?? '',
   kommune: a.city ?? a.county ?? '',
   zip: a.postalCode ?? '',
-  country: '',
-  countryCode: '',
+  country: COUNTRIES.find(c => c.code === a.countryCode)?.name ?? '',
+  countryCode: a.countryCode ?? '',
 });
 
 /** Map a typed checkout address onto the AddressSaveRequest/IAddress shape. */
-const shippingToAddress = (s: ShippingInfo): IAddress => ({
+const shippingToAddress = (s: ShippingInfo, countryCode?: string): IAddress => ({
   name: s.name,
   tel: s.mobile,
   province: s.region,
@@ -130,8 +122,13 @@ const shippingToAddress = (s: ShippingInfo): IAddress => ({
   county: s.kommune,
   addressDetail: [s.address, s.addressTwo].filter(Boolean).join(', '),
   postalCode: s.zip,
+  countryCode: countryCode || undefined,
   isDefault: false,
 });
+
+/** The country a saved address carries, when it is one we ship to. */
+const countryOfAddress = (a: IAddress | undefined): { name: string; code: string } | undefined =>
+  COUNTRIES.find(c => c.code === a?.countryCode);
 
 /**
  * Customer checkout — a SINGLE order-confirm screen modelled on litemall-vue's
@@ -152,8 +149,11 @@ const CheckoutView: React.FC = () => {
   const [shipping, setShipping] = useState<ShippingInfo>(EMPTY_SHIPPING);
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
   const [message, setMessage] = useState('');
-  // CJ destination country, kept separate so picking a saved address doesn't clear it.
+  // Destination country, kept separate so picking a saved address doesn't clear it.
+  // Follows the phone dial-code country until the customer picks one explicitly
+  // (or a saved address supplies its own).
   const [country, setCountry] = useState<{ name: string; code: string }>({ name: '', code: '' });
+  const countryTouchedRef = useRef(false);
   // Orders created by submit, keyed by cart group — retained so a payment retry
   // pays the SAME order(s) and never re-submits an already-placed group.
   const [placed, setPlaced] = useState<{ local?: PlacedOrder; cj?: PlacedOrder }>({});
@@ -388,6 +388,11 @@ const CheckoutView: React.FC = () => {
         if (def?.id != null) {
           setSelectedAddressId(def.id);
           setShipping(addressToShipping(def));
+          const saved = countryOfAddress(def);
+          if (saved) {
+            countryTouchedRef.current = true;
+            setCountry(saved);
+          }
         } else {
           setSelectedAddressId('new');
         }
@@ -507,12 +512,26 @@ const CheckoutView: React.FC = () => {
   };
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const code = e.target.value;
+    countryTouchedRef.current = true;
     setCountry({ code, name: COUNTRIES.find(c => c.code === code)?.name ?? '' });
+  };
+
+  // The phone selector's country pre-fills the destination country (and with it
+  // the region suggestions) until an explicit choice is made.
+  const followPhoneCountry = (iso2: string) => {
+    if (countryTouchedRef.current) return;
+    const match = COUNTRIES.find(c => c.code === iso2);
+    if (match) setCountry(prev => (prev.code === match.code ? prev : match));
   };
 
   const pickAddress = (a: IAddress) => {
     setSelectedAddressId(a.id ?? 'new');
     setShipping(addressToShipping(a));
+    const saved = countryOfAddress(a);
+    if (saved) {
+      countryTouchedRef.current = true; // the address's own country is authoritative
+      setCountry(saved);
+    }
   };
 
   const usingNewAddress = selectedAddressId === 'new' || addresses.length === 0;
@@ -568,7 +587,7 @@ const CheckoutView: React.FC = () => {
     if (addressId == null && !isPickup) {
       if (!addressValid) return; // guarded by the disabled button below
       try {
-        const newId = await userApi.addressSave(shippingToAddress(shipping));
+        const newId = await userApi.addressSave(shippingToAddress(shipping, country.code));
         addressId = typeof newId === 'number' ? newId : Number(newId);
         if (!addressId) throw new Error('no id');
         setSelectedAddressId(addressId);
@@ -868,31 +887,50 @@ const CheckoutView: React.FC = () => {
                 {/* THE phone field of this checkout: stored on the address
                     (litemall_address.tel), copied to the order server-side and
                     backfilled onto the profile at submit. Dial-code + E.164 so
-                    checkout stores the same shape as register/address book. */}
+                    checkout stores the same shape as register/address book.
+                    Its dial-code country also pre-fills the destination country
+                    (and the region suggestions) until one is picked explicitly. */}
                 <PhoneInput
                   value={shipping.mobile}
                   onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
-                  defaultIso2={country.code || undefined}
+                  onCountryChange={followPhoneCountry}
                 />
+              </div>
+              <div className='col-md-6'>
+                <Form.Label>Country{hasCjItems ? ' *' : ''}</Form.Label>
+                <Form.Select value={country.code} onChange={handleCountryChange} required={hasCjItems}>
+                  <option value=''>-- Country --</option>
+                  {COUNTRIES.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Form.Select>
               </div>
               <div className='col-12'>
                 <Form.Label>Address line 1 *</Form.Label>
-                {/* Wave 16: env-gated Places suggestions scoped to the CJ
+                {/* Wave 16: env-gated Places suggestions scoped to the
                     destination country when one is picked; unset key ⇒ the
                     same plain input as before. */}
                 <AddressAutocompleteInput
                   name='address'
                   value={shipping.address}
                   onChange={text => setShipping(prev => ({ ...prev, address: text }))}
-                  onResolved={parts =>
+                  onResolved={parts => {
                     setShipping(prev => ({
                       ...prev,
                       address: parts.line,
                       kommune: parts.city ?? prev.kommune,
                       region: parts.region ?? prev.region,
                       zip: parts.postalCode ?? prev.zip,
-                    }))
-                  }
+                    }));
+                    // A resolved place knows its country better than any default.
+                    const resolved = COUNTRIES.find(c => c.code === parts.countryCode);
+                    if (resolved) {
+                      countryTouchedRef.current = true;
+                      setCountry(resolved);
+                    }
+                  }}
                   countryCode={country.code || undefined}
                   required
                 />
@@ -902,26 +940,21 @@ const CheckoutView: React.FC = () => {
                 <Form.Control name='addressTwo' value={shipping.addressTwo} onChange={handleInputChange} />
               </div>
               <div className='col-md-4'>
-                <Form.Label>Region *</Form.Label>
-                <Form.Select name='region' value={shipping.region} onChange={handleSelectChange} required>
-                  <option value=''>-- Region --</option>
-                  {REGIONS.map(r => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Form.Select>
+                <Form.Label>Region / State *</Form.Label>
+                {/* Type-ahead over the selected country's regions (static data);
+                    free text stays valid for anything outside the list. */}
+                <RegionInput
+                  name='region'
+                  value={shipping.region}
+                  onChange={text => setShipping(prev => ({ ...prev, region: text }))}
+                  suggestions={regionsFor(country.code)}
+                  placeholder={country.code ? 'Select or type a region' : 'Region'}
+                  required
+                />
               </div>
               <div className='col-md-4'>
-                <Form.Label>Kommune</Form.Label>
-                <Form.Select name='kommune' value={shipping.kommune} onChange={handleSelectChange}>
-                  <option value=''>-- Kommune --</option>
-                  {REGIONS.map(r => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Form.Select>
+                <Form.Label>City / Kommune</Form.Label>
+                <Form.Control name='kommune' value={shipping.kommune} onChange={handleInputChange} placeholder='City' />
               </div>
               <div className='col-md-4'>
                 <Form.Label>Zip *</Form.Label>
@@ -931,21 +964,26 @@ const CheckoutView: React.FC = () => {
           )}
 
           {/* CJ Dropshipping needs a destination country + phone regardless of which
-              address is used. */}
+              address is used. The country select renders here only for the
+              saved-address path — a new address already carries the field above. */}
           {hasCjItems && (
             <div className='px-3 pb-3'>
               <Alert variant='info' className='mb-2'>
                 Some items ship via <strong>CJ Dropshipping</strong> — please provide a <strong>country</strong> and a <strong>phone number</strong>.
               </Alert>
-              <Form.Label>Destination country *</Form.Label>
-              <Form.Select value={country.code} onChange={handleCountryChange} required>
-                <option value=''>-- Country --</option>
-                {COUNTRIES.map(c => (
-                  <option key={c.code} value={c.code}>
-                    {c.name}
-                  </option>
-                ))}
-              </Form.Select>
+              {!usingNewAddress && (
+                <>
+                  <Form.Label>Destination country *</Form.Label>
+                  <Form.Select value={country.code} onChange={handleCountryChange} required>
+                    <option value=''>-- Country --</option>
+                    {COUNTRIES.map(c => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </>
+              )}
               {/* Informational logistics line for the CJ group (carrier + delivery estimate). */}
               {country.code && (
                 <div className='mt-2 small'>

@@ -47,6 +47,8 @@ export interface IOrderDetail {
   consignee?: string;
   mobile?: string;
   address?: string;
+  /** ISO-3166 alpha-2 destination country (V27/V48); absent on legacy/pickup orders. */
+  countryCode?: string;
   orderStatusText?: string;
   handleOption?: IOrderHandleOption;
   goodsPrice?: number | { amount: number };
