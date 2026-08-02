@@ -18,6 +18,7 @@ import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
+import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
   CheckoutPaymentMethod,
@@ -198,6 +199,11 @@ const CheckoutView: React.FC = () => {
   // resolved yet; null = resolved and MISSING ⇒ the required email block shows.
   const [accountEmail, setAccountEmail] = useState<string | null | undefined>(undefined);
   const [emailNotice, setEmailNotice] = useState<string | null>(null);
+  // Account mobile, resolved alongside the email. Checkout collects the phone
+  // in ONE place (the shipping address / pickup contact); when the profile has
+  // no mobile yet it is backfilled from that single entry at submit — never
+  // asked for twice, never overwritten if the account already has one.
+  const [accountMobile, setAccountMobile] = useState<string | null>(null);
 
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
@@ -228,6 +234,8 @@ const CheckoutView: React.FC = () => {
       .then(env => {
         const email = env.errno === 0 ? env.data?.email?.trim() : undefined;
         setAccountEmail(email ? email : null);
+        const mobile = env.errno === 0 ? env.data?.mobile?.trim() : undefined;
+        setAccountMobile(mobile || null);
       })
       .catch(() => setAccountEmail(null));
   }, []);
@@ -383,6 +391,11 @@ const CheckoutView: React.FC = () => {
         } else {
           setSelectedAddressId('new');
         }
+        // Pickup contact defaults to the number already on file — the phone is
+        // asked for once (on the address); pickup merely reuses it, editable
+        // for whoever actually collects the parcel.
+        const knownTel = def?.tel?.trim();
+        if (knownTel) setPickupMobile(prev => prev || knownTel);
       })
       .catch(() => setSelectedAddressId('new'));
   }, [dispatch]);
@@ -503,6 +516,12 @@ const CheckoutView: React.FC = () => {
   };
 
   const usingNewAddress = selectedAddressId === 'new' || addresses.length === 0;
+  // The ONE phone gap a saved-address checkout can have: an address-book entry
+  // stored without a phone (the address service accepts a blank tel). Only then
+  // does checkout ask for a number — and it is written BACK to that address at
+  // submit, so it is asked exactly once, ever.
+  const selectedSavedAddress = typeof selectedAddressId === 'number' ? addresses.find(a => a.id === selectedAddressId) : undefined;
+  const savedAddressNeedsPhone = selectedSavedAddress != null && !(selectedSavedAddress.tel ?? '').trim();
   // Saved address is pre-validated; a new address needs the core fields. CJ orders
   // additionally need a phone and a destination country.
   const baseValid = usingNewAddress ? !!(shipping.name && shipping.address && shipping.region && shipping.zip) : selectedAddressId != null;
@@ -559,6 +578,22 @@ const CheckoutView: React.FC = () => {
       }
     }
 
+    // 1a. A saved address stored without a phone gets the number typed in the
+    //     checkout's single phone field written back to it BEFORE submit — the
+    //     order (and CJ placement) read the phone from litemall_address.tel
+    //     server-side, so skipping this write would silently place a phone-less
+    //     order and discard what the customer typed.
+    if (!isPickup && selectedSavedAddress != null && savedAddressNeedsPhone && shipping.mobile.trim()) {
+      const tel = shipping.mobile.trim();
+      try {
+        await userApi.addressSave({ ...selectedSavedAddress, tel });
+        setAddresses(prev => prev.map(a => (a.id === selectedSavedAddress.id ? { ...a, tel } : a)));
+      } catch {
+        setAddrError('Could not save the phone number to your delivery address — please try again.');
+        return;
+      }
+    }
+
     // 1b. Land the contact email on the account (partial update) BEFORE placing,
     //     so the order-paid confirmation mail has a recipient. Best-effort: a
     //     server-side rejection warns inline but never blocks the purchase —
@@ -575,6 +610,21 @@ const CheckoutView: React.FC = () => {
         }
       } catch {
         setEmailNotice('Could not save this email to your account — the order will still be placed.');
+      }
+    }
+
+    // 1c. Same single-entry principle for the phone: the number captured on the
+    //     address (or pickup contact) backfills litemall_user.mobile when the
+    //     profile has none. Fully silent — the number already reached the order
+    //     path above; a profile dedupe (705) or outage must not distract from
+    //     the purchase, and an existing account mobile is never overwritten.
+    const contactPhone = (isPickup ? pickupMobile : shipping.mobile).trim();
+    if (!accountMobile && contactPhone) {
+      try {
+        const env = await authApi.profile({ mobile: contactPhone });
+        if (env.errno === 0) setAccountMobile(contactPhone);
+      } catch {
+        /* silent by design */
       }
     }
 
@@ -815,7 +865,15 @@ const CheckoutView: React.FC = () => {
               </div>
               <div className='col-md-6'>
                 <Form.Label>Mobile{hasCjItems ? ' *' : ''}</Form.Label>
-                <Form.Control name='mobile' value={shipping.mobile} onChange={handleInputChange} required={hasCjItems} />
+                {/* THE phone field of this checkout: stored on the address
+                    (litemall_address.tel), copied to the order server-side and
+                    backfilled onto the profile at submit. Dial-code + E.164 so
+                    checkout stores the same shape as register/address book. */}
+                <PhoneInput
+                  value={shipping.mobile}
+                  onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
+                  defaultIso2={country.code || undefined}
+                />
               </div>
               <div className='col-12'>
                 <Form.Label>Address line 1 *</Form.Label>
@@ -904,10 +962,21 @@ const CheckoutView: React.FC = () => {
                   ) : null}
                 </div>
               )}
-              {!usingNewAddress && (
+              {/* One phone per checkout: a saved address normally brings its
+                  own number (shown on the card above — no second field). Only
+                  an address saved WITHOUT a phone prompts here, and the number
+                  is written back to that address at submit. The old always-on
+                  duplicate field silently discarded its edits. */}
+              {!usingNewAddress && savedAddressNeedsPhone && (
                 <div className='mt-2'>
                   <Form.Label>Phone *</Form.Label>
-                  <Form.Control name='mobile' value={shipping.mobile} onChange={handleInputChange} required />
+                  <PhoneInput
+                    key={selectedSavedAddress?.id ?? 'none'}
+                    value={shipping.mobile}
+                    onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
+                    defaultIso2={country.code || undefined}
+                  />
+                  <div className='form-text'>Your selected address has no phone number yet — we&apos;ll save this one to it.</div>
                 </div>
               )}
             </div>

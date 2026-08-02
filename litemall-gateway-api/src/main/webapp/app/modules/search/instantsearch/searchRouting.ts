@@ -12,33 +12,52 @@ import { PRIMARY_INDEX, sortIndex } from './litemallSearchClient';
  * (`/search?category_ids=<id>`), and "shop more" links. The `/category/:id`
  * PATH param is seeded separately via initialUiState in the page component.
  */
-type Route = { q?: string; category_ids?: string; brand?: string; price?: string; sort?: string; page?: string };
+type Route = Record<string, string | undefined>;
+
+// Keys with dedicated (non-facet) meaning in the route.
+const RESERVED_KEYS = new Set(['q', 'sort', 'page']);
+// An InstantSearch range refinement serialises as "min:max" (either side open).
+const RANGE_SHAPE = /^-?\d*(?:\.\d+)?:-?\d*(?:\.\d+)?$/;
 
 export const searchRouting = {
   router: historyRouter<Route>(),
   stateMapping: {
     stateToRoute(uiState: UiState): Route {
       const s = (uiState[PRIMARY_INDEX] ?? {}) as any;
-      const rl = s.refinementList ?? {};
       const route: Route = {};
       if (s.query) route.q = s.query;
-      if (rl.category_ids?.length) route.category_ids = rl.category_ids.join(',');
-      if (rl.brand?.length) route.brand = rl.brand.join(',');
-      if (s.range?.price) route.price = s.range.price;
+      // EVERY refinement-list facet (category_ids, brand, and the dynamic
+      // attribute facets like attr_material) gets its own query key; ranges
+      // (price, weight, …) keep their "min:max" value. Hardcoding just
+      // category_ids/brand/price silently dropped the dynamic facets from the
+      // URL, so back/refresh restored a different result set than on screen.
+      Object.entries(s.refinementList ?? {}).forEach(([attr, values]) => {
+        if (!RESERVED_KEYS.has(attr) && Array.isArray(values) && values.length) route[attr] = values.join(',');
+      });
+      Object.entries(s.range ?? {}).forEach(([attr, value]) => {
+        if (!RESERVED_KEYS.has(attr) && value) route[attr] = String(value);
+      });
       if (s.sortBy && s.sortBy !== PRIMARY_INDEX) route.sort = String(s.sortBy).split('/sort/')[1];
       if (s.page && s.page > 1) route.page = String(s.page);
       return route;
     },
     routeToState(route: Route = {}): UiState {
       const refinementList: Record<string, string[]> = {};
-      if (route.category_ids) refinementList.category_ids = route.category_ids.split(',');
-      if (route.brand) refinementList.brand = route.brand.split(',');
+      const range: Record<string, string> = {};
+      Object.entries(route).forEach(([key, value]) => {
+        if (RESERVED_KEYS.has(key) || !value) return;
+        if (RANGE_SHAPE.test(value)) range[key] = value;
+        else refinementList[key] = value.split(',');
+      });
+      // A foreign query param (e.g. ?utm_source=) lands in refinementList here,
+      // but InstantSearch drops uiState slices no mounted widget consumes, so
+      // it never reaches the backend.
       return {
         [PRIMARY_INDEX]: {
           query: route.q,
           page: route.page ? Number(route.page) : undefined,
           refinementList: Object.keys(refinementList).length ? refinementList : undefined,
-          range: route.price ? { price: route.price } : undefined,
+          range: Object.keys(range).length ? range : undefined,
           sortBy: route.sort ? sortIndex(route.sort) : undefined,
         },
       } as UiState;

@@ -20,9 +20,30 @@ const guessIso2 = (): string => {
   return dialCountries().some(c => c.iso2 === region) ? region : 'US';
 };
 
-const PhoneInput: React.FC<Props> = ({ onChange, defaultIso2, isInvalid, placeholder }) => {
-  const [iso2, setIso2] = useState<string>(() => defaultIso2 ?? guessIso2());
-  const [national, setNational] = useState('');
+// Split an existing stored value back into country + national digits so the
+// component can EDIT a pre-filled phone, not just capture a fresh one. E.164
+// values match the longest dial prefix; legacy non-"+" values keep their digits
+// under the guessed country (retyping normalizes them). Mount-time only — pass
+// a `key` to re-seed when the logical record behind the field changes.
+const parseInitial = (value: string | undefined): { iso2?: string; national: string } => {
+  const v = (value ?? '').trim();
+  if (!v.startsWith('+')) return { national: v };
+  const digits = v.slice(1);
+  const matches = dialCountries().filter(c => digits.startsWith(c.dial));
+  if (!matches.length) return { national: digits };
+  const longest = Math.max(...matches.map(c => c.dial.length));
+  const candidates = matches.filter(c => c.dial.length === longest);
+  // Shared dials (+1 US/CA, +7 RU/KZ, …) are genuinely ambiguous — break the
+  // tie with the browser locale's country so a US visitor sees 🇺🇸, not the
+  // dataset's first +1 entry.
+  const best = candidates.find(c => c.iso2 === guessIso2()) ?? candidates[0];
+  return { iso2: best.iso2, national: digits.slice(best.dial.length) };
+};
+
+const PhoneInput: React.FC<Props> = ({ value, onChange, defaultIso2, isInvalid, placeholder }) => {
+  const [initial] = useState(() => parseInitial(value));
+  const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? guessIso2());
+  const [national, setNational] = useState(initial.national);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
