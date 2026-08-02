@@ -26,6 +26,11 @@ public class CustomerMailProperties {
     /** SMTP username; blank = no SMTP auth (MailHog needs none). */
     private String username = "";
     private String password = "";
+    /**
+     * Absolute base URL used inside customer mails for links and hosted images
+     * (logo, product thumbnails whose pic_url is relative). No trailing slash.
+     */
+    private String publicBaseUrl = "https://trovemo.com";
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -44,4 +49,7 @@ public class CustomerMailProperties {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getPublicBaseUrl() { return publicBaseUrl; }
+    public void setPublicBaseUrl(String publicBaseUrl) { this.publicBaseUrl = publicBaseUrl; }
 }

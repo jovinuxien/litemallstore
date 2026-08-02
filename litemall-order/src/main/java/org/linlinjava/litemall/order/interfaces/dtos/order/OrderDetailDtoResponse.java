@@ -26,6 +26,8 @@ public class OrderDetailDtoResponse {
     private final String consignee;
     private final String mobile;
     private final String address;
+    /** ISO-3166 alpha-2 destination country (V27/V48); null on legacy/pickup orders. */
+    private final String countryCode;
     private final String orderStatusText;
     private final OrderHandleOptionDtoResponse handleOption;
     private final BigDecimal goodsPrice;
@@ -58,7 +60,7 @@ public class OrderDetailDtoResponse {
     private final LocalDateTime verifyTime;
 
     public OrderDetailDtoResponse(Integer id, String orderSn, LocalDateTime addTime, String consignee,
-                                  String mobile, String address, String orderStatusText,
+                                  String mobile, String address, String countryCode, String orderStatusText,
                                   OrderHandleOptionDtoResponse handleOption, BigDecimal goodsPrice,
                                   BigDecimal freightPrice, BigDecimal couponPrice, BigDecimal actualPrice,
                                   List<OrderGoodsDtoResponse> orderGoods,
@@ -72,6 +74,7 @@ public class OrderDetailDtoResponse {
         this.consignee = consignee;
         this.mobile = mobile;
         this.address = address;
+        this.countryCode = countryCode;
         this.orderStatusText = orderStatusText;
         this.handleOption = handleOption;
         this.goodsPrice = goodsPrice;
@@ -101,6 +104,7 @@ public class OrderDetailDtoResponse {
                 o.getConsignee(),
                 o.getMobile(),
                 o.getAddress(),
+                o.getCountryCode(),
                 OrderStatusText.of(o.getOrderStatus()),
                 OrderHandleOptionDtoResponse.fromDomain(LitemallOrderHandleOption.forStatus(o.getOrderStatus())),
                 o.getGoodsPrice() == null ? null : o.getGoodsPrice().getAmount(),

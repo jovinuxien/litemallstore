@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.application.internal;
 
 import org.linlinjava.litemall.core.mail.CustomerMailProperties;
+import org.linlinjava.litemall.core.mail.MailHtmlTemplates;
 import org.linlinjava.litemall.core.mail.MailTemplates;
 import org.linlinjava.litemall.db.dao.LitemallUserMapper;
 import org.linlinjava.litemall.db.dao.MailOutboxMapper;
@@ -147,12 +148,12 @@ public class CustomerMailEnqueueListener {
     // ------------------------------------------------------------------
 
     private void enqueuePaidMails(LitemallOrderAggregate order, String email) {
-        insertRow(email, renderConfirmation(order));
+        insertRow(email, renderConfirmation(order), renderConfirmationHtml(order));
         // Pickup orders get their redeem code at pay time (assigned inside the payment
         // transaction, so it is committed and readable here).
         if (order.isPickup()) {
             insertRow(email, MailTemplates.pickupCode(order.getOrderSn(),
-                    pickupLocation(order), order.getVerifyCode()));
+                    pickupLocation(order), order.getVerifyCode()), null);
         }
     }
 
@@ -187,6 +188,100 @@ public class CustomerMailEnqueueListener {
                     order.getOrderId().getId(), t.toString());
             return MailTemplates.orderConfirmation(order.getOrderSn(), money(order.getActualPrice()));
         }
+    }
+
+    /**
+     * HTML twin of {@link #renderConfirmation} (V48): classic branded layout with
+     * thumbnails. Renders independently so any failure degrades to plain-text-only
+     * (bodyHtml stays null) — never blocks the mail.
+     */
+    private String renderConfirmationHtml(LitemallOrderAggregate order) {
+        try {
+            List<LitemallOrderGoodsAggregate> orderGoods = orderGoodsRepository.findByOId(order.getOrderId());
+            List<MailHtmlTemplates.HtmlOrderLine> lines = new ArrayList<>();
+            for (LitemallOrderGoodsAggregate goods : orderGoods) {
+                lines.add(new MailHtmlTemplates.HtmlOrderLine(goods.getGoodsName(),
+                        specifications(goods.getSpecifications()),
+                        goods.getNumber() == null ? 0 : goods.getNumber(),
+                        money(goods.getPrice()),
+                        absolutize(goods.getPicUrl())));
+            }
+            return MailHtmlTemplates.orderConfirmation(new MailHtmlTemplates.OrderConfirmationHtml(
+                    order.getOrderSn(),
+                    payTime(order.getPayTime()),
+                    lines,
+                    money(order.getGoodsPrice()),
+                    money(order.getFreightPrice()),
+                    discount(order.getCouponPrice()),
+                    moneyNonZero(order.getTaxPrice()),
+                    money(order.getActualPrice()),
+                    deliveryLines(order),
+                    orderUrl(order),
+                    logoUrl()));
+        } catch (Throwable t) {
+            log.warn("HTML order-confirmation build failed for order {} — plain-text only: {}",
+                    order.getOrderId().getId(), t.toString());
+            return null;
+        }
+    }
+
+    /** Delivery block as display lines for the HTML card. */
+    private List<String> deliveryLines(LitemallOrderAggregate order) {
+        List<String> lines = new ArrayList<>();
+        if (order.isPickup()) {
+            lines.add("Pickup at: " + pickupLocation(order));
+            lines.add("Your pickup code arrives in a separate email.");
+            return lines;
+        }
+        addIfPresent(lines, order.getConsignee());
+        addIfPresent(lines, order.getMobile());
+        addIfPresent(lines, order.getAddress());
+        return lines;
+    }
+
+    private static void addIfPresent(List<String> lines, String value) {
+        if (value != null && !value.isBlank()) {
+            lines.add(value.trim());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Absolute URLs for mail clients (links + hosted images)
+    // ------------------------------------------------------------------
+
+    private String baseUrl() {
+        String base = mailProperties.getPublicBaseUrl();
+        if (base == null || base.isBlank()) {
+            return "";
+        }
+        base = base.trim();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    /** pic_url is often edge-relative (/_cdn/...); mail clients need absolute URLs. */
+    private String absolutize(String url) {
+        if (url == null || url.isBlank()) {
+            return "";
+        }
+        String u = url.trim();
+        if (u.startsWith("http://") || u.startsWith("https://")) {
+            return u;
+        }
+        String base = baseUrl();
+        if (base.isEmpty()) {
+            return "";
+        }
+        return u.startsWith("/") ? base + u : base + "/" + u;
+    }
+
+    private String orderUrl(LitemallOrderAggregate order) {
+        String base = baseUrl();
+        return base.isEmpty() ? "" : base + "/order/" + order.getOrderId().getId();
+    }
+
+    private String logoUrl() {
+        String base = baseUrl();
+        return base.isEmpty() ? "" : base + "/mail-logo.png";
     }
 
     private String deliveryBlock(LitemallOrderAggregate order) {
@@ -236,7 +331,9 @@ public class CustomerMailEnqueueListener {
     }
 
     private void enqueueShippedMail(LitemallOrderAggregate order, String email) {
-        insertRow(email, MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn()));
+        insertRow(email, MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn()),
+                MailHtmlTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(),
+                        orderUrl(order), logoUrl()));
     }
 
     private void enqueueRefundApprovedMail(LitemallOrderAggregate order, String email) {
@@ -246,7 +343,7 @@ public class CustomerMailEnqueueListener {
         if (amount.isEmpty()) {
             amount = money(order.getActualPrice());
         }
-        insertRow(email, MailTemplates.refundApproved(order.getOrderSn(), amount));
+        insertRow(email, MailTemplates.refundApproved(order.getOrderSn(), amount), null);
     }
 
     /** Pickup orders store {@code "PICKUP: <store name>"} in the address column. */
@@ -262,12 +359,13 @@ public class CustomerMailEnqueueListener {
         return value == null || value.getAmount() == null ? "" : "$" + value.getAmount().toPlainString();
     }
 
-    private void insertRow(String recipient, MailTemplates.RenderedMail mail) {
+    private void insertRow(String recipient, MailTemplates.RenderedMail mail, String bodyHtml) {
         LocalDateTime now = LocalDateTime.now();
         LitemallMailOutbox row = new LitemallMailOutbox();
         row.setRecipient(recipient);
         row.setSubject(mail.subject());
         row.setBody(mail.body());
+        row.setBodyHtml(bodyHtml);
         row.setTemplateKey(mail.templateKey());
         row.setStatus(LitemallMailOutbox.STATUS_PENDING);
         row.setAttempts(0);

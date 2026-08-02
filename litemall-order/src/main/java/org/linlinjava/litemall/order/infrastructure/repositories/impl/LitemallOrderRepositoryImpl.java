@@ -367,6 +367,15 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int updateShipTrackingIfShipped(LitemallOrderId orderId, String shipChannel, String shipSn) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setShipChannel(shipChannel);
+        patch.setShipSn(shipSn);
+        // No orderStatus on the patch: same guarded single-row UPDATE, status untouched.
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.SHIPPED);
+    }
+
+    @Override
     public int markDeliveredIfShipped(LitemallOrderId orderId, LocalDateTime confirmTime) {
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.DELIVERED.getCode());

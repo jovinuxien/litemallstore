@@ -60,6 +60,20 @@
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
 
+        <!-- Direct declaration so the Boot-managed (jakarta, Spring 6) version outranks
+             jhipster-framework's transitive spring-context-support 5.3.22 (javax) at
+             COMPILE time; services already resolve 6.x at runtime. Needed since the
+             V48 multipart sender references MimeMessage/MimeMessageHelper. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context-support</artifactId>
+            <!-- Explicit version REQUIRED: the root pom imports the jhipster-dependencies
+                 BOM first, which manages this to 5.3.22 (javax) even for direct deps
+                 without a version. spring-framework.version comes from the Boot parent
+                 (6.0.x for Boot 3.1.6) — the same line litemall-order already runs. -->
+            <version>${spring-framework.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-json</artifactId>

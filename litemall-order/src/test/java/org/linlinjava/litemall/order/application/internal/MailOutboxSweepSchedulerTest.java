@@ -32,6 +32,7 @@ class MailOutboxSweepSchedulerTest {
         row.setRecipient("buyer@example.com");
         row.setSubject("subject");
         row.setBody("body");
+        row.setBodyHtml("<html>body</html>");
         row.setTemplateKey("order-confirmation");
         row.setStatus(LitemallMailOutbox.STATUS_PENDING);
         row.setAttempts(attempts);
@@ -45,7 +46,7 @@ class MailOutboxSweepSchedulerTest {
 
         scheduler(true).sweep();
 
-        verify(mailSender).send("buyer@example.com", "subject", "body");
+        verify(mailSender).send("buyer@example.com", "subject", "body", "<html>body</html>");
         verify(mailOutboxMapper).markSent(eq(1), any(LocalDateTime.class));
         verify(mailOutboxMapper, never()).incrementAttempts(any(), any(), any());
         verify(mailOutboxMapper, never()).markFailed(any(), any(), any());
@@ -55,7 +56,7 @@ class MailOutboxSweepSchedulerTest {
     void sweep_failureIncrementsAttemptsForRetry() {
         when(mailOutboxMapper.findSendable(any(LocalDateTime.class), anyInt()))
                 .thenReturn(List.of(row(1, 0)));
-        doThrow(new RuntimeException("smtp down")).when(mailSender).send(any(), any(), any());
+        doThrow(new RuntimeException("smtp down")).when(mailSender).send(any(), any(), any(), any());
 
         scheduler(true).sweep();
 
@@ -68,7 +69,7 @@ class MailOutboxSweepSchedulerTest {
     void sweep_fifthFailureIsTerminal() {
         when(mailOutboxMapper.findSendable(any(LocalDateTime.class), anyInt()))
                 .thenReturn(List.of(row(1, MailOutboxSweepScheduler.MAX_ATTEMPTS - 1)));
-        doThrow(new RuntimeException("smtp down")).when(mailSender).send(any(), any(), any());
+        doThrow(new RuntimeException("smtp down")).when(mailSender).send(any(), any(), any(), any());
 
         scheduler(true).sweep();
 
@@ -82,13 +83,13 @@ class MailOutboxSweepSchedulerTest {
         second.setRecipient("other@example.com");
         when(mailOutboxMapper.findSendable(any(LocalDateTime.class), anyInt()))
                 .thenReturn(List.of(row(1, 0), second));
-        doThrow(new RuntimeException("smtp down")).when(mailSender).send(eq("buyer@example.com"), any(), any());
+        doThrow(new RuntimeException("smtp down")).when(mailSender).send(eq("buyer@example.com"), any(), any(), any());
         // even the bookkeeping UPDATE blowing up must not abort the sweep
         doThrow(new RuntimeException("db down")).when(mailOutboxMapper).incrementAttempts(any(), any(), any());
 
         scheduler(true).sweep();
 
-        verify(mailSender).send(eq("other@example.com"), any(), any());
+        verify(mailSender).send(eq("other@example.com"), any(), any(), any());
         verify(mailOutboxMapper).markSent(eq(2), any(LocalDateTime.class));
     }
 

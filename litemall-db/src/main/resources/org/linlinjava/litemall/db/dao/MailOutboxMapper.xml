@@ -8,17 +8,17 @@
 <mapper namespace="org.linlinjava.litemall.db.dao.MailOutboxMapper">
 
   <sql id="columns">
-    id, recipient, subject, body, template_key, status, attempts, send_at,
+    id, recipient, subject, body, body_html, template_key, status, attempts, send_at,
     last_error, add_time, update_time, deleted
   </sql>
 
   <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallMailOutbox"
           useGeneratedKeys="true" keyProperty="id">
     insert into litemall_mail_outbox
-      (recipient, subject, body, template_key, status, attempts, send_at,
+      (recipient, subject, body, body_html, template_key, status, attempts, send_at,
        last_error, add_time, update_time, deleted)
     values
-      (#{recipient}, #{subject}, #{body}, #{templateKey}, #{status}, #{attempts}, #{sendAt},
+      (#{recipient}, #{subject}, #{body}, #{bodyHtml}, #{templateKey}, #{status}, #{attempts}, #{sendAt},
        #{lastError}, #{addTime}, #{updateTime}, #{deleted})
   </insert>
 

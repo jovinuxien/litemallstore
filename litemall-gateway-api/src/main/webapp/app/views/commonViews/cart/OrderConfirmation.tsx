@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { authApi, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
 import { trackPurchase } from 'app/shared/tracking/ecommerce';
+import { orderAddressLines } from 'app/shared/util/address';
 
 /**
  * Wave 16: guest claim — shown only when the current session is a guest
@@ -171,6 +172,27 @@ const OrderConfirmation: React.FC = () => {
               <OrderSummary rows={breakdownRows(d)} />
             </div>
           ))}
+          {/* Delivery address (once — both orders of a split cart ship to the
+              same snapshot). Pickup orders show their store on the detail page. */}
+          {(() => {
+            const withAddress = fetchedDetails.find(d => d.consignee && d.address && !d.address.startsWith('PICKUP: '));
+            if (!withAddress) return null;
+            return (
+              <div className='border rounded p-3 mt-2 small'>
+                <div className='text-muted mb-1'>
+                  <i className='bi bi-geo-alt me-1' />
+                  Delivering to
+                </div>
+                <div className='fw-semibold'>
+                  {withAddress.consignee}
+                  {withAddress.mobile ? <span className='text-muted fw-normal'> · {withAddress.mobile}</span> : null}
+                </div>
+                {orderAddressLines(withAddress.address).map(line => (
+                  <div key={line}>{line}</div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         totalCharged > 0 && (

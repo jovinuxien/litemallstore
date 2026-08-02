@@ -129,6 +129,7 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
 
         dataModel.setAreaCode(addressAggregate.getAreaCode());
         dataModel.setPostalCode(addressAggregate.getPostalCode());
+        dataModel.setCountryCode(addressAggregate.getCountryCode());
         dataModel.setTel(addressAggregate.getTel());
         dataModel.setIsDefault(addressAggregate.getIsDefault());
         dataModel.setAddTime(addressAggregate.getAddTime());
@@ -157,6 +158,7 @@ public class LitemallAddressRepositoryImpl implements LitemallAddressRepository 
 
         domainModel.setAreaCode(record.getAreaCode());
         domainModel.setPostalCode(record.getPostalCode());
+        domainModel.setCountryCode(record.getCountryCode());
         domainModel.setTel(record.getTel());
         domainModel.setIsDefault(record.getIsDefault());
         domainModel.setAddTime(record.getAddTime());

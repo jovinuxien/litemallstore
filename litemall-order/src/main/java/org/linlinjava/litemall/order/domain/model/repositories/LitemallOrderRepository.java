@@ -82,6 +82,9 @@ public interface LitemallOrderRepository {
 
     int markShippedIfPaid(LitemallOrderId orderId, String shipChannel, String shipSn, java.time.LocalDateTime shipTime);
 
+    /** Late tracking backfill: stamp carrier/tracking on an order still in SHIPPED (no status change). */
+    int updateShipTrackingIfShipped(LitemallOrderId orderId, String shipChannel, String shipSn);
+
     int markDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);
 
     int markAutoDeliveredIfShipped(LitemallOrderId orderId, java.time.LocalDateTime confirmTime);

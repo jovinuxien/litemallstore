@@ -392,14 +392,20 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         } else {
             orderAggregate.setConsignee(addressAggregate.getName());
             orderAggregate.setMobile(addressAggregate.getTel());
-            String detailedAddress = addressAggregate.getProvince() + addressAggregate.getCity() + addressAggregate.getCounty() + " " + addressAggregate.getAddressDetail();
-            orderAggregate.setAddress(detailedAddress);
+            // The submit-body country (CJ group) wins; the V48 address-book country is
+            // the fallback so local/legacy submits still land a country on the order.
+            String effectiveCountry = firstNonBlank(command.getCountryCode(), addressAggregate.getCountryCode());
+            addressAggregate.setCountryCode(effectiveCountry);
+            orderAggregate.setAddress(composeShippingAddress(addressAggregate));
             // CJ-fulfillment linkage (V27): keep the structured-address key + checkout
             // country so the pay step can replay a source='cj' order to CJ createOrder.
             orderAggregate.setAddressId(addressAggregate.getAddressId());
             orderAggregate.setDeliveryType(LitemallOrderAggregate.DELIVERY_EXPRESS);
+            orderAggregate.setCountryCode(effectiveCountry);
         }
-        orderAggregate.setCountryCode(command.getCountryCode());
+        if (pickup) {
+            orderAggregate.setCountryCode(command.getCountryCode());
+        }
         orderAggregate.setSource(orderSource);
         orderAggregate.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
         orderAggregate.setFreightPrice(new LitemallMoney(freightPrice));
@@ -559,6 +565,64 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     private void publishAndClearEvents(LitemallOrderAggregate agg) {
         agg.getDomainEvents().forEach(domainEventPublisher::publish);
         agg.getDomainEvents().clear();
+    }
+
+    /**
+     * Human-readable shipping snapshot: "detail, city, province zip, Country".
+     * The checkout form mirrors the kommune into both city and county (and the
+     * region into city when kommune is blank), so equal parts are deduplicated
+     * case-insensitively. Capped to the 255-char order.address column (V48).
+     */
+    static String composeShippingAddress(LitemallAddressAggregate a) {
+        List<String> parts = new ArrayList<>();
+        addAddressPart(parts, a.getAddressDetail());
+        addAddressPart(parts, a.getCounty());
+        addAddressPart(parts, a.getCity());
+        String region = a.getProvince() == null ? "" : a.getProvince().trim();
+        String zip = a.getPostalCode() == null ? "" : a.getPostalCode().trim();
+        if (!region.isEmpty()) {
+            parts.removeIf(p -> p.equalsIgnoreCase(region)); // "Stockholm, Stockholm 111 22" -> once
+        }
+        String regionZip = (region + " " + zip).trim();
+        if (!regionZip.isEmpty()) {
+            parts.add(regionZip);
+        }
+        String country = countryDisplayName(a.getCountryCode());
+        if (!country.isEmpty()) {
+            parts.add(country);
+        }
+        String out = String.join(", ", parts);
+        return out.length() > 255 ? out.substring(0, 255) : out;
+    }
+
+    private static void addAddressPart(List<String> parts, String value) {
+        if (value == null) {
+            return;
+        }
+        String v = value.trim();
+        if (v.isEmpty() || parts.stream().anyMatch(p -> p.equalsIgnoreCase(v))) {
+            return;
+        }
+        parts.add(v);
+    }
+
+    /** English display name for an ISO-3166 alpha-2 code; the raw code when unknown. */
+    private static String countryDisplayName(String iso2) {
+        if (iso2 == null || iso2.isBlank()) {
+            return "";
+        }
+        String code = iso2.trim().toUpperCase();
+        String name = Locale.of("", code).getDisplayCountry(Locale.ENGLISH);
+        return (name == null || name.isEmpty()) ? code : name;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
     }
 
     /**
@@ -755,7 +819,13 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     /**
      * Admin/fulfillment ships a paid order (PAID → SHIPPED). Guarded so only a paid
      * order can ship; records the transition and publishes the shipped event.
+     *
+     * <p>{@code @Transactional} is load-bearing for the shipped EMAIL: the customer-mail
+     * listener is {@code @TransactionalEventListener(AFTER_COMMIT, fallbackExecution=false)},
+     * so an event published outside a transaction (both callers — the admin controller and
+     * the non-transactional CJ sync — used to do exactly that) is silently dropped.
      */
+    @Transactional
     public void shipOrder(LitemallOrderId orderId, String shipChannel, String shipSn) {
         LitemallOrderAggregate agg = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
@@ -766,6 +836,31 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         }
         persistStatusHistory(agg);
         publishAndClearEvents(agg);
+    }
+
+    /**
+     * CJ assigned the tracking number AFTER the order already shipped (CJ can report
+     * SHIPPED with a blank trackNumber; the ship pass records an empty ship_sn then).
+     * Stamps carrier + tracking on the still-SHIPPED order and re-publishes the
+     * shipped event so the customer gets the tracking-number email. Returns false
+     * when the order is no longer SHIPPED or already carries a tracking number.
+     */
+    @Transactional
+    public boolean backfillShipTracking(LitemallOrderId orderId, String shipChannel, String shipSn) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        if (agg.getOrderStatus() != LitemallOrderStatus.SHIPPED
+                || (agg.getShipSn() != null && !agg.getShipSn().isBlank())
+                || shipSn == null || shipSn.isBlank()) {
+            return false;
+        }
+        int updated = orderRepository.updateShipTrackingIfShipped(orderId, shipChannel, shipSn);
+        if (updated == 0) {
+            return false;
+        }
+        domainEventPublisher.publish(
+                new org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent(orderId));
+        return true;
     }
 
     /** Customer confirms receipt (SHIPPED → DELIVERED). */

@@ -72,7 +72,8 @@ public class MailOutboxSweepScheduler {
     /** Try one row; every failure path ends in a guarded bookkeeping UPDATE, never a throw. */
     private void deliver(LitemallMailOutbox row) {
         try {
-            mailSender.send(row.getRecipient(), row.getSubject(), row.getBody());
+            // 4-arg overload: null/blank body_html degrades to the plain-text send.
+            mailSender.send(row.getRecipient(), row.getSubject(), row.getBody(), row.getBodyHtml());
             mailOutboxMapper.markSent(row.getId(), LocalDateTime.now());
         } catch (RuntimeException e) {
             String error = truncate(e.toString());

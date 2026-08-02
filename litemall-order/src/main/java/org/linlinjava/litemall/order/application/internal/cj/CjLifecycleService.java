@@ -104,9 +104,11 @@ public class CjLifecycleService {
                 break;
             case "SHIPPED":
                 shipLocallyIfPaid(order, snapshot);
+                backfillTrackingIfMissing(order, snapshot);
                 break;
             case "DELIVERED":
                 shipLocallyIfPaid(order, snapshot);
+                backfillTrackingIfMissing(order, snapshot);
                 confirmLocallyIfShipped(order);
                 break;
             case "CANCELLED":
@@ -167,6 +169,36 @@ public class CjLifecycleService {
             log.info("CJ sync: order {} shipped via {} ({})", order.getOrderId().getId(), carrier, trackNumber);
         } catch (RuntimeException e) {
             log.warn("CJ sync: could not ship order {} locally: {}", order.getOrderId().getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * CJ can report SHIPPED before assigning a tracking number, so the ship pass may
+     * have written an empty ship_sn. Once CJ has the number, stamp it on the
+     * still-SHIPPED order — the service re-publishes the shipped event, which sends
+     * the customer the tracking-number email, and the hop lands on the timeline.
+     */
+    private void backfillTrackingIfMissing(LitemallOrderAggregate order, CjOrderSnapshot snapshot) {
+        if (order.getOrderStatus() != LitemallOrderStatus.SHIPPED
+                || StringUtils.hasText(order.getShipSn())
+                || !StringUtils.hasText(snapshot.getTrackNumber())) {
+            return;
+        }
+        String carrier = firstNonBlank(snapshot.getTrackingProvider(), snapshot.getLogisticName(),
+                order.getShipChannel(), "CJ");
+        try {
+            if (orderServiceImpl.backfillShipTracking(order.getOrderId(), carrier, snapshot.getTrackNumber())) {
+                order.setShipSn(snapshot.getTrackNumber()); // keep the in-memory view current
+                statusHistoryRepository.record(new LitemallOrderStatusChange(
+                        order.getOrderId(), LitemallOrderStatus.SHIPPED, LitemallOrderStatus.SHIPPED,
+                        CHANGE_TYPE_CJ_SYNC, "Tracking number assigned: " + snapshot.getTrackNumber()
+                        + " (" + carrier + ")", "system", LocalDateTime.now()));
+                log.info("CJ sync: order {} tracking backfilled: {} ({})",
+                        order.getOrderId().getId(), snapshot.getTrackNumber(), carrier);
+            }
+        } catch (RuntimeException e) {
+            log.warn("CJ sync: could not backfill tracking on order {}: {}",
+                    order.getOrderId().getId(), e.getMessage());
         }
     }
 
