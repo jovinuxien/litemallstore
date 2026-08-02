@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ClearRefinements,
   Configure,
@@ -17,8 +17,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
-import { useAppDispatch, useAppSelector } from 'app/config/store';
-import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
+import { useAppSelector } from 'app/config/store';
 import { fetchSearchIndex } from 'app/modules/search/searchIndexApi';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
@@ -26,7 +25,7 @@ import 'app/components/userComponents/card/product-card.scss';
 import CategoryTree from './instantsearch/CategoryTree';
 import CatalogTreeNav from './instantsearch/CatalogTreeNav';
 import ProductHit from './instantsearch/ProductHit';
-import { litemallSearchClient, PRIMARY_INDEX, sortIndex } from './instantsearch/litemallSearchClient';
+import { createSearchClient, PRIMARY_INDEX, sortIndex } from './instantsearch/litemallSearchClient';
 import { searchRouting } from './instantsearch/searchRouting';
 import './instantsearch/search.scss';
 
@@ -115,13 +114,16 @@ type FacetGroupMeta = { field: string; type: string };
  * Interval groups (`price`, `variant_price`) become a RangeInput; the rest a
  * RefinementList.
  */
-const DynamicExtraFacets: React.FC = () => {
+const DynamicExtraFacets: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
   const [groups, setGroups] = useState<FacetGroupMeta[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     baseAxios
-      .get(`${BASE_URL_CONTEXT}/search?q=&page=1&size=1`)
+      // Scope the probe on /category/:id so only facet groups that actually
+      // occur in this category are offered (no dead "Material" list on, say,
+      // a furniture category).
+      .get(`${BASE_URL_CONTEXT}/search?q=&page=1&size=1${categoryId ? `&category_ids=${encodeURIComponent(categoryId)}` : ''}`)
       .then(res => {
         const d = res.data?.data ?? res.data ?? {};
         const raw: any[] = Array.isArray(d.filters) ? d.filters : Array.isArray(d.facetGroups) ? d.facetGroups : [];
@@ -134,7 +136,7 @@ const DynamicExtraFacets: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [categoryId]);
 
   const extra = groups.filter(g => !KNOWN_FACETS.has(g.field));
   if (!extra.length) return null;
@@ -248,7 +250,6 @@ const SearchEmptyState: React.FC = () => {
 };
 
 const SearchView: React.FC = () => {
-  const dispatch = useAppDispatch();
   const params = useParams<{ id?: string }>();
   const location = useLocation();
   // The header search bar is THE search box (there is no SearchBox widget on
@@ -309,17 +310,40 @@ const SearchView: React.FC = () => {
     return map;
   }, [categoryState]);
 
-  useEffect(() => {
-    // Populate the category name map (no-ops if the home page already loaded it).
-    dispatch(getCatalogIndexData());
-    dispatch(getCatalogAllData());
-  }, [dispatch]);
+  // (The catalog thunks that populate the name map are dispatched by Layout on
+  // mount — re-dispatching them here just churned state.category.data and made
+  // every widget with a categoryNames-derived prop remount mid-session.)
 
-  // /category/:id scope is applied via <Configure facetFilters> below (not a
-  // RefinementList): on a category route the flat category facet is replaced by
-  // the subcategory tree, so there's no widget to carry an initialUiState
-  // refinement — Configure scopes the result set straight through the adapter.
+  // /category/:id scope is pinned INSIDE the search client (createSearchClient):
+  // every request — main query and facet-count queries alike — carries
+  // category_ids, so no widget refinement can drop the scope. (The previous
+  // <Configure facetFilters> injection was overwritten by the helper's merge as
+  // soon as any facet was refined, flipping the page to whole-catalog results.)
   // Query-string deep-links (?q=, ?category_ids=, …) are handled by searchRouting.
+  const searchClient = useMemo(() => createSearchClient(params.id), [params.id]);
+
+  // Stable identities for widget props: react-instantsearch diffs widget props
+  // with dequal (functions compare by REFERENCE) and remove+re-adds the widget
+  // when anything "changed" — each re-add schedules a fresh search. Inline
+  // arrows here made every render remount CurrentRefinements/RefinementList,
+  // and each search's meta dispatch re-rendered the page: a self-sustaining
+  // refetch loop. useCallback pins them between category-data updates.
+  const transformCategoryFacetItems = useCallback(
+    (items: any[]) => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label })),
+    [categoryNames]
+  );
+  const transformCurrentRefinements = useCallback(
+    (items: any[]) =>
+      items.map(item => ({
+        ...item,
+        label: item.attribute === 'category_ids' ? 'Category' : item.label,
+        refinements: item.refinements.map((r: any) => ({
+          ...r,
+          label: item.attribute === 'category_ids' ? categoryNames.get(String(r.value)) ?? r.label : r.label,
+        })),
+      })),
+    [categoryNames]
+  );
 
   return (
     <div className="lm-isearch">
@@ -329,12 +353,12 @@ const SearchView: React.FC = () => {
         // mount, would go stale on /category/:id → /category/:childId), and per
         // header-submitted query (see headerQuery above).
         key={`${params.id ?? 'search'}:${headerQuery}`}
-        searchClient={litemallSearchClient}
+        searchClient={searchClient}
         indexName={PRIMARY_INDEX}
         routing={searchRouting}
         future={{ preserveSharedStateOnUnmount: true }}
       >
-        <Configure hitsPerPage={12} {...(params.id ? { facetFilters: [`category_ids:${params.id}`] } : {})} />
+        <Configure hitsPerPage={12} />
         <VirtualSearchBox />
 
         <div className="lm-isearch__body">
@@ -358,12 +382,7 @@ const SearchView: React.FC = () => {
                 <CatalogTreeNav />
                 <section className="lm-isearch__facet">
                   <h3>Filter by category</h3>
-                  <RefinementList
-                    attribute="category_ids"
-                    limit={8}
-                    showMore
-                    transformItems={items => items.map(it => ({ ...it, label: categoryNames.get(it.label) ?? it.label }))}
-                  />
+                  <RefinementList attribute="category_ids" limit={8} showMore transformItems={transformCategoryFacetItems} />
                 </section>
               </>
             )}
@@ -380,7 +399,7 @@ const SearchView: React.FC = () => {
 
             {/* Every other facet group the backend returns (attributes, variant
                 fields, …) — rendered dynamically so new OCS facets need no SPA change. */}
-            <DynamicExtraFacets />
+            <DynamicExtraFacets categoryId={params.id} />
           </aside>
 
           {/* ── Results ─────────────────────────────────────────────────── */}
@@ -399,18 +418,7 @@ const SearchView: React.FC = () => {
               </div>
             )}
 
-            <CurrentRefinements
-              transformItems={items =>
-                items.map(item => ({
-                  ...item,
-                  label: item.attribute === 'category_ids' ? 'Category' : item.label,
-                  refinements: item.refinements.map(r => ({
-                    ...r,
-                    label: item.attribute === 'category_ids' ? categoryNames.get(String(r.value)) ?? r.label : r.label,
-                  })),
-                }))
-              }
-            />
+            <CurrentRefinements transformItems={transformCurrentRefinements} />
 
             <NoResultsBoundary fallback={<SearchEmptyState />}>
               <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />

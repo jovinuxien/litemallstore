@@ -101,14 +101,13 @@ const AddressEdit: React.FC = () => {
               </div>
               <div className='col-md-6'>
                 <Form.Label>Phone *</Form.Label>
-                {/* Wave 16: country dial-code selector, stores one E.164 number.
-                    Editing an existing address keeps its saved value until the
-                    field is retyped. */}
-                {form.tel ? (
-                  <Form.Control value={form.tel ?? ''} onChange={set('tel')} required />
-                ) : (
-                  <PhoneInput onChange={tel => setForm(prev => ({ ...prev, tel }))} />
-                )}
+                {/* Country dial-code selector, stores one E.164 number. An
+                    existing value is parsed back into country + digits, so
+                    editing keeps the saved number visible (a legacy non-E.164
+                    value keeps its digits and normalizes on retype). The form
+                    renders only after the record loads (spinner gate above),
+                    so mount-time seeding sees the saved value. */}
+                <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} />
               </div>
               {regions.length > 0 && (
                 <div className='col-12'>

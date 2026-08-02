@@ -106,7 +106,7 @@ const numericToPrice = (nf: AlgoliaParams['numericFilters']): [string, string] |
   return [lo ?? '0', hi ?? '999999'];
 };
 
-const buildQuery = (indexName: string, params: AlgoliaParams): string => {
+const buildQuery = (indexName: string, params: AlgoliaParams, pinnedCategoryId?: string): string => {
   const qs = new URLSearchParams();
   qs.set('q', params.query ?? '');
   // `??` does NOT catch an explicit 0 (InstantSearch sends hitsPerPage=0 on facet-probe renders),
@@ -131,6 +131,13 @@ const buildQuery = (indexName: string, params: AlgoliaParams): string => {
   // Price interval -> price=min,max.
   const price = numericToPrice(params.numericFilters);
   if (price) qs.set('price', `${price[0]},${price[1]}`);
+
+  // /category/:id scope. Pinned LAST, so no widget state can drop or override
+  // it. (Injecting it via <Configure facetFilters> is NOT safe: the Algolia
+  // helper merges refinement facetFilters over Configure's array index-by-index,
+  // so the first user refinement — e.g. Material — silently replaced the
+  // category entry and the request went out unscoped, whole-catalog.)
+  if (pinnedCategoryId) qs.set('category_ids', pinnedCategoryId);
 
   return qs.toString();
 };
@@ -211,10 +218,10 @@ const emptyResponse = (indexName: string, params: AlgoliaParams): SearchResponse
   exhaustiveNbHits: true,
 });
 
-const runSearch = async (indexName: string, params: AlgoliaParams): Promise<SearchResponse<any>> => {
+const runSearch = async (indexName: string, params: AlgoliaParams, pinnedCategoryId?: string): Promise<SearchResponse<any>> => {
   const size = params.hitsPerPage && params.hitsPerPage > 0 ? params.hitsPerPage : 12;
   try {
-    const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(indexName, params)}`);
+    const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(indexName, params, pinnedCategoryId)}`);
     const body = response.data ?? {};
     if (body.errno != null && body.errno !== 0) return emptyResponse(indexName, params);
     const d = body.data ?? body; // tolerate the {errno,data} envelope or a raw map
@@ -270,14 +277,24 @@ const runSearch = async (indexName: string, params: AlgoliaParams): Promise<Sear
  * request against `/srv/search` independently (typically just one for the single
  * OCS index). `searchForFacetValues` is a no-op — we don't enable searchable
  * facets, but the method must exist so widgets that probe for it don't throw.
+ *
+ * `createSearchClient(pinnedCategoryId)` is the /category/:id variant: every
+ * request it emits (main query AND per-facet count queries) carries the
+ * category scope, so facet refinements can never knock the page out of its
+ * category — the failure mode the old <Configure facetFilters> injection had.
  */
-export const litemallSearchClient: SearchClient = {
-  search(requests: any) {
-    return Promise.all(requests.map((r: any) => runSearch(r.indexName, r.params ?? {}))).then(results => ({ results }));
-  },
-  searchForFacetValues() {
-    return Promise.resolve([{ facetHits: [], exhaustiveFacetsCount: true, processingTimeMS: 0 }]);
-  },
-} as unknown as SearchClient;
+export const createSearchClient = (pinnedCategoryId?: string): SearchClient =>
+  ({
+    search(requests: any) {
+      return Promise.all(requests.map((r: any) => runSearch(r.indexName, r.params ?? {}, pinnedCategoryId))).then(results => ({
+        results,
+      }));
+    },
+    searchForFacetValues() {
+      return Promise.resolve([{ facetHits: [], exhaustiveFacetsCount: true, processingTimeMS: 0 }]);
+    },
+  }) as unknown as SearchClient;
+
+export const litemallSearchClient: SearchClient = createSearchClient();
 
 export default litemallSearchClient;
