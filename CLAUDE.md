@@ -692,8 +692,10 @@
   3. Scheduling: post i ⇒ `startTime + i×intervalMinutes`; batch cap
      25 per publish (Postiz ships `API_LIMIT=30`/h) — larger
      selections rejected with a clear typed error.
-  4. **Migration V49** — check `flyway_schema_history` immediately
-     before first boot (prod applied through V48):
+  4. **Migration V50** — V49 is CLAIMED by behavioral-targeting
+     Phase 0 (`fix/goods-management`, committed 2026-08-04, not yet
+     merged); check `flyway_schema_history` immediately before first
+     boot (prod applied through V48):
      `litemall_postiz_post` (goods_id, category_id, integration_id,
      channel identifier, postiz_post_id, schedule_time, status,
      error, add/update/deleted) — feeds `/log` + the dedup warning.
