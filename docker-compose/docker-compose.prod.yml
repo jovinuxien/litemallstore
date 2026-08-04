@@ -582,6 +582,13 @@ services:
       MATOMO_AUTH_TOKEN: ${MATOMO_AUTH_TOKEN:-}
       MAUTIC_USERNAME: ${MAUTIC_USERNAME:-}
       MAUTIC_PASSWORD: ${MAUTIC_PASSWORD:-}
+      # Wave-17 Postiz publishing: absent ⇒ feature hidden (errno 760), the
+      # safe default. Values live in .env (base url = the deployed Postiz,
+      # e.g. https://social.trovemo.com/api/public/v1; key from its
+      # Settings → Public API). Activation = env + `up -d promotion-service`
+      # (container recreate, NO rebuild).
+      LITEMALL_POSTIZ_BASE_URL: ${LITEMALL_POSTIZ_BASE_URL:-}
+      LITEMALL_POSTIZ_API_KEY: ${LITEMALL_POSTIZ_API_KEY:-}
       # Feign clients dial by DIRECT url; committed defaults are localhost with
       # ports that don't even match the real services (8083/8084). goods-service
       # → /srv/goods/videos on goods-management:8082; order-statistics → order:8085.

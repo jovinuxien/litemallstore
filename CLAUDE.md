@@ -208,8 +208,8 @@
 > UI are MERGED + DEPLOYED to trovemo.com (2026-07-28, master
 > `68ebcbb38`; repricing LIVE — costs land via the sync/enrichment
 > rotation, ~3.5k goods costed on day one, the rest reprice as rotation
-> covers them). The `promotion` worktree is still IN FLIGHT on its
-> Wave-12 block below — do not reassign it.
+> covers them). The promotion half (campaign scheduler) merged later
+> and went prod-live 2026-07-30.
 >
 > **Wave 13 (2026-07-28) — SEO FOUNDATION: crawlable product pages,
 > slugged URLs, sitemap + robots.** User ask: register trovemo.com in
@@ -268,8 +268,7 @@
 > MERGED to master (`88234261a`), VPS deploy pending. Admin CSP image
 > fix `446c79eff` is on master (`img-src` now allows https product
 > imagery) — ships with the next admin build. `promotion` Wave-12
-> (`69d0aeb9d` on fix/promotion) still awaits merge — do not reassign
-> that worktree.
+> (`69d0aeb9d`) has since merged (prod-live 2026-07-30).
 >
 > **Wave 14 (2026-07-29) — INVENTORY GOVERNANCE: 12k catalog target,
 > retirement pipeline, arrival-category insight, auto daily deals,
@@ -395,6 +394,68 @@
 > item 1 is BLOCKED on this); Google OAuth client id; Meta Pixel id;
 > Places API key (each env-gated — absent = feature hidden, never
 > broken).
+>
+> **Wave 17 (2026-08-04) — POSTIZ SOCIAL PUBLISHING: admin-picked
+> product posts by category, scheduled across channels via Postiz's
+> public API.** User approved the written plan 2026-08-04 (decisions:
+> DEV PILOT first — no prod deploy this wave; DYNAMIC channel list
+> from Postiz; START+INTERVAL scheduling). Postiz checkout:
+> `~/postiz_dir/postiz-app`, runs via its own docker compose, API
+> base `http://localhost:4007/api/public/v1`. Verified API facts
+> (code-audited 2026-08-04): public API is always-on; auth = BARE
+> key in `Authorization` (NO `Bearer` prefix); `POST /public/v1/posts`
+> targets N channels in ONE call via `posts[]` (one throttle hit per
+> CALL, not per channel); `date` = explicit UTC ISO with
+> `type:"schedule"` (`"now"` discards date; backend forces TZ=UTC);
+> images pass as external URLs ONLY when the path ends in a real
+> extension (.png/.jpg/.jpeg/.gif/.webp — our `/_cdn/...jpg` qualify;
+> query string ignored); `shortLink:false` + `tags:[]` are MANDATORY
+> keys (400 if omitted); content = DOMPurify-sanitized HTML (`p, br,
+> strong, u, a, ul, li, h1-h3, span`); per-provider `settings`
+> required EVEN FOR DRAFTS (facebook `{}`, instagram `{post_type}`,
+> x `{who_can_reply_post}`, tiktok ~9 fields; schema via
+> `GET /integration-settings/:id`); throttle = Postiz env `API_LIMIT`
+> (30/h in its shipped compose) per org; Temporal must be up or
+> scheduled posts sit in QUEUE forever (error swallowed); validation
+> errors return structured 400 `{provider, name, error}`.
+> **Wave-17 CONTRACT (gateway-admin codes to THIS, not the promotion
+> branch):** promotion-service serves
+> `/srv/private/admin/promotion/postiz/**`, env-gated on
+> `litemall.postiz.base-url` + `litemall.postiz.api-key`
+> (`LITEMALL_POSTIZ_BASE_URL`, `LITEMALL_POSTIZ_API_KEY`; either
+> absent ⇒ typed "not configured" errno, never 5xx). Errno envelope;
+> money plain decimals.
+> - `GET /status` → `{enabled}` (+ `channelCount` when enabled) —
+>   the UI visibility switch.
+> - `GET /channels` → `{list:[{integrationId, identifier, name,
+>   picture, supported, reason?}]}` — Postiz integrations, ~5-min
+>   cache; `supported:false` + reason when the composer can't satisfy
+>   that provider's required settings yet.
+> - `POST /preview` body `{goodsIds[], channelIds[], startTime,
+>   intervalMinutes}` → `{batch:[{goodsId, name, picUrl, scheduleAt,
+>   warnings[], perChannel:[{integrationId, content, settings}]}],
+>   warnings[]}` — ZERO side effects; includes non-blocking
+>   "posted N days ago" dedup warnings.
+> - `POST /publish` same body → `{results:[{goodsId, scheduleAt,
+>   channels:[{integrationId, ok, postizPostId?, error?}]}]}` — one
+>   Postiz call per product; batch cap 25; Postiz 400s surfaced
+>   verbatim per channel.
+> - `GET /log?page&limit` → standard page envelope over
+>   `litemall_postiz_post`.
+>
+> **Wave 17 STATUS: MERGED + DEPLOYED to production** (2026-08-04;
+> merges `8f19f2857` promotion + `b5dca8e7c` gateway-admin, compose
+> wiring `aa46273b2`). Module tests 69/0 real counts. Prod Postiz =
+> **https://social.trovemo.com** (user-deployed; Trovemo Facebook page
+> connected, integration `cms1876qi0001n86m5rub0w3g`). Direct prod
+> pipeline probe green pre-merge: composer-shaped payload scheduled →
+> visible via GET /posts (QUEUE, facebook) → deleted (Postiz DELETE
+> returns 200 with quirky `{"error":true}` body — verify by re-GET,
+> not by body). Prod schema at V50 (out-of-order; V49 behavioral
+> targeting still unmerged), both containers healthy, admin bundle
+> `main.769a4325.js`, `.env.prod` carries LITEMALL_POSTIZ_* (backup
+> `.env.prod.bak-postiz`). Final UI click-through acceptance =
+> user-side (admin creds not available to sessions).
 >
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
@@ -608,14 +669,34 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — history (Wave 14, SHIPPED)
-- **Task — Wave 14 (admin UI): retirement, arrivals insight, margin
-  tuning.** (Merged + deployed 2026-07-30 to admin.trovemo.com,
-  master `61992575c` / UI merge `02ed9eea8`. Spec in git history.)
-- **History:** Wave 12 insight UI SHIPPED (`fbb29812e`); Wave 8
+### Worktree: `gateway-admin`
+- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
+  **Scope:** `litemall-gateway-admin/` only. NO migration.
+- **Task — Wave 17 (admin UI): "Social Publishing (Postiz)" panel —
+  product choice happens HERE.** Code to the Wave-17 CONTRACT above;
+  do NOT read the promotion branch.
+  1. New sidebar panel, HIDDEN unless `GET
+     /srv/private/admin/promotion/postiz/status` reports enabled.
+  2. Category selector → product picker reusing the existing insight
+     goods list (`/srv/private/admin/insight/goods/list?categoryId=`):
+     picture, name, price, margin, deal badge, "posted N days ago"
+     badge (from preview warnings); multi-select capped at 25.
+  3. Channel checkboxes from `GET .../postiz/channels` (dynamic —
+     whatever is connected in Postiz appears; `supported:false` rows
+     rendered disabled with their reason).
+  4. Start time + interval controls → Preview (rendered post cards
+     per channel from `/preview`, incl. warnings) → Publish →
+     per-product/per-channel result table (errors shown verbatim).
+     History tab over `/log`.
+- **Acceptance:** panel hidden when status says disabled; with dev
+  Postiz up: pick a category, select 3 products + the Facebook
+  channel, set start+interval, preview matches the contract shapes,
+  publish shows ok rows with postizPostIds and the posts appear in
+  Postiz's calendar; a failing channel shows its error in the table;
+  history lists the batch; existing admin panels regression-green.
+- **History:** Wave 14 governance UI SHIPPED (`61992575c` /
+  `02ed9eea8`); Wave 12 insight UI SHIPPED (`fbb29812e`); Wave 8
   branding SHIPPED (`72446568f`).
-- **No new assignment.** Do not start work here without a new
-  instruction.
 
 ### Worktree: `platform`
 - **No Wave-8 assignment.** The Wave-7 stack is merged and DEPLOYED (prod compose,
@@ -628,36 +709,62 @@
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
 ### Worktree: `promotion`
-- **Branch:** `fix/promotion` — FIRST: `git merge master`. · **Scope:**
-  `litemall-promotion-service/` only. NO migration, no new anonymous
-  paths, fail-soft ACL discipline (Meta/TikTok/Mautic stay
-  disabled-by-default; enabling later = env + container recreate, NO
-  rebuild).
-- **Task — Wave 12: scheduled category campaigns on media platforms.**
-  1. **Campaign scheduler:** new
-     `infrastructure/scheduling/CampaignScheduleTick` (@Scheduled
-     fixedDelay `litemall.promotion.campaign.tick-ms:60000`,
-     enabled-guard + try/catch-swallow like `PromotionExpirySweeper`):
-     activate due draft campaigns whose schedule start has arrived
-     (`activateCampaign` + `evaluateCampaign`), mark past-end active
-     campaigns done. Today evaluation is admin-triggered only — keep the
-     admin endpoints working unchanged.
-  2. **Category campaign composer:**
-     `POST /srv/private/admin/promotion/campaign/from-category` per the
-     Wave-12 CONTRACT — target goods = the category's live-deal goods
-     via the existing `SocialCatalogAdapter` (fallback: explicit
-     goodsIds), campaign row linked to the deal mechanic, plus
-     per-platform `litemall_social_post` drafts via the existing
-     composer seams. Publishing honest-degrades (adapters disabled ⇒
-     failed rows with reason) until Meta/TikTok tokens land (USER-SIDE
-     PREREQUISITE).
-  3. Leave `SocialDealAutoPoster` and the Mautic delivery listener
-     untouched.
-  4. **Tests:** tick activates/completes by schedule; from-category
-     builds the right target set + drafts; disabled adapters ⇒ failed
-     rows, never exceptions. Mind the "Tests run:" gotcha.
-- **Acceptance:** through `:18080` — create a category campaign with a
-  near-term schedule ⇒ the tick activates + evaluates it on time; social
-  rows appear per platform with honest disabled/failed statuses;
-  existing campaign/seckill/social panels regression-green; no
-  migration; module tests green with real "Tests run" counts.
+- **Branch:** `fix/promotion` — FIRST: `git merge master` (Wave 12 is
+  merged; the branch must equal master before starting). · **Scope:**
+  `litemall-promotion-service/` + the single Wave-17 migration in
+  litemall-db (shared-module discipline: hand-edit entity + mapper
+  XML together, `mvn install`, restart every dependent). Fail-soft
+  discipline: Postiz env absent ⇒ typed errno + hidden feature;
+  enabling later = env + restart, NO rebuild. Do NOT touch
+  `SocialDealAutoPoster`, the Mautic listener, or the Wave-12
+  campaign endpoints.
+- **Task — Wave 17 (backend): Postiz publishing client + the five
+  CONTRACT endpoints (see Wave-17 CONTRACT above).**
+  1. `PostizClient` for the public API: bare-key `Authorization`
+     header (no `Bearer`); always sends `shortLink:false` +
+     `tags:[]`; explicit UTC ISO `date` + `type:"schedule"`;
+     surfaces Postiz's structured 400s (`{provider, name, error}`)
+     instead of wrapping them.
+  2. Endpoints `status`, `channels`, `preview`, `publish`, `log`
+     under `/srv/private/admin/promotion/postiz/`. Composer: content
+     = sanitizer-safe HTML (`<p>/<strong>/<a>`) with product name,
+     price (live flash-deal price when a swap is active, else
+     retail), canonical slugged link
+     `https://trovemo.com/product/<id>-<slug>` (Wave-13 slug rules);
+     image = absolutized picUrl; products whose image path lacks a
+     valid extension are SKIPPED with a per-product warning (no
+     upload-from-url fallback in v1). Settings map: facebook `{}`,
+     instagram `{post_type:"post"}`, x
+     `{who_can_reply_post:"everyone"}`, empty-settings providers
+     (threads, mastodon, bluesky, telegram, nostr, vk) `{}`; all
+     others ⇒ `supported:false` in `/channels`.
+  3. Scheduling: post i ⇒ `startTime + i×intervalMinutes`; batch cap
+     25 per publish (Postiz ships `API_LIMIT=30`/h) — larger
+     selections rejected with a clear typed error.
+  4. **Migration V50** — V49 is CLAIMED by behavioral-targeting
+     Phase 0 (`fix/goods-management`, committed 2026-08-04, not yet
+     merged); check `flyway_schema_history` immediately before first
+     boot (prod applied through V48):
+     `litemall_postiz_post` (goods_id, category_id, integration_id,
+     channel identifier, postiz_post_id, schedule_time, status,
+     error, add/update/deleted) — feeds `/log` + the dedup warning.
+  5. Goods data resolved through the existing catalog seam
+     (`SocialCatalogAdapter` / goods facade) from explicit goodsIds
+     only — no category browsing re-implementation.
+  6. **Tests:** composer output (content/link/image
+     skip/settings/schedule spread), disabled-env errno, batch cap,
+     client payload shape (mandatory keys). Mind the "Tests run:"
+     gotcha.
+- **Acceptance:** with dev Postiz up (`docker compose up -d` in
+  `~/postiz_dir/postiz-app`; API key from Settings → Public API) and
+  a Facebook page connected, through `:18080`: `/channels` lists the
+  FB integration; `/preview` of 3 products shows slugged links,
+  `/_cdn` images, spread UTC times, zero side effects; `/publish`
+  returns postizPostIds and the posts appear scheduled in Postiz's
+  calendar (≥1 actually publishes to the page); a forced-invalid
+  case surfaces the per-channel 400 honestly; env unset ⇒ typed
+  errno on every endpoint; existing campaign/seckill/social panels
+  regression-green; V49 applied cleanly; module tests green with
+  real "Tests run" counts.
+- **History:** Wave 12 campaign scheduler SHIPPED (`69d0aeb9d`,
+  merged to master, prod live 2026-07-30).
