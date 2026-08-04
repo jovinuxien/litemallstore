@@ -443,6 +443,20 @@
 > - `GET /log?page&limit` → standard page envelope over
 >   `litemall_postiz_post`.
 >
+> **Wave 17 STATUS: MERGED + DEPLOYED to production** (2026-08-04;
+> merges `8f19f2857` promotion + `b5dca8e7c` gateway-admin, compose
+> wiring `aa46273b2`). Module tests 69/0 real counts. Prod Postiz =
+> **https://social.trovemo.com** (user-deployed; Trovemo Facebook page
+> connected, integration `cms1876qi0001n86m5rub0w3g`). Direct prod
+> pipeline probe green pre-merge: composer-shaped payload scheduled →
+> visible via GET /posts (QUEUE, facebook) → deleted (Postiz DELETE
+> returns 200 with quirky `{"error":true}` body — verify by re-GET,
+> not by body). Prod schema at V50 (out-of-order; V49 behavioral
+> targeting still unmerged), both containers healthy, admin bundle
+> `main.769a4325.js`, `.env.prod` carries LITEMALL_POSTIZ_* (backup
+> `.env.prod.bak-postiz`). Final UI click-through acceptance =
+> user-side (admin creds not available to sessions).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
