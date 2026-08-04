@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (behavioral targeting Phase 0, V49). Relies on global
+     mapUnderscoreToCamelCase=true. All inserts are INSERT IGNORE against the
+     tables' unique keys — retries and re-deliveries are absorbed, never duplicated. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallUserEventMapper">
+
+  <sql id="Event_Column_List">
+    id, event_id, visitor_id, session_id, user_id, event_type, origin,
+    occurred_at, received_at, goods_id, product_id, category_id,
+    search_query, `position`, page_type, locale, country_code, device_type, payload
+  </sql>
+
+  <insert id="batchInsertIgnore">
+    insert ignore into litemall_user_event
+      (event_id, visitor_id, session_id, user_id, event_type, origin,
+       occurred_at, received_at, goods_id, product_id, category_id,
+       search_query, `position`, page_type, locale, country_code, device_type, payload)
+    values
+    <foreach collection="events" item="e" separator=",">
+      (#{e.eventId}, #{e.visitorId}, #{e.sessionId}, #{e.userId}, #{e.eventType}, #{e.origin},
+       #{e.occurredAt}, #{e.receivedAt}, #{e.goodsId}, #{e.productId}, #{e.categoryId},
+       #{e.searchQuery}, #{e.position}, #{e.pageType}, #{e.locale}, #{e.countryCode}, #{e.deviceType}, #{e.payload})
+    </foreach>
+  </insert>
+
+  <insert id="insertIgnore" parameterType="org.linlinjava.litemall.db.domain.LitemallUserEvent">
+    insert ignore into litemall_user_event
+      (event_id, visitor_id, session_id, user_id, event_type, origin,
+       occurred_at, received_at, goods_id, product_id, category_id,
+       search_query, `position`, page_type, locale, country_code, device_type, payload)
+    values
+      (#{eventId}, #{visitorId}, #{sessionId}, #{userId}, #{eventType}, #{origin},
+       #{occurredAt}, #{receivedAt}, #{goodsId}, #{productId}, #{categoryId},
+       #{searchQuery}, #{position}, #{pageType}, #{locale}, #{countryCode}, #{deviceType}, #{payload})
+  </insert>
+
+  <insert id="insertIdentityLinkIgnore">
+    insert ignore into litemall_visitor_identity (visitor_id, user_id, linked_at)
+    values (#{visitorId}, #{userId}, #{linkedAt})
+  </insert>
+
+  <insert id="insertConsentRecord" parameterType="org.linlinjava.litemall.db.domain.LitemallConsentRecord"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_consent_record
+      (visitor_id, user_id, choice, scope, occurred_at, received_at, country_code)
+    values
+      (#{visitorId}, #{userId}, #{choice}, coalesce(#{scope}, 'analytics'),
+       #{occurredAt}, #{receivedAt}, #{countryCode})
+  </insert>
+
+  <select id="selectByVisitor" resultType="org.linlinjava.litemall.db.domain.LitemallUserEvent">
+    select <include refid="Event_Column_List"/>
+    from litemall_user_event
+    where visitor_id = #{visitorId} and occurred_at &gt;= #{since}
+    order by occurred_at asc, id asc
+    limit #{limit}
+  </select>
+
+  <select id="selectByUser" resultType="org.linlinjava.litemall.db.domain.LitemallUserEvent">
+    select <include refid="Event_Column_List"/>
+    from litemall_user_event
+    where user_id = #{userId} and occurred_at &gt;= #{since}
+    order by occurred_at asc, id asc
+    limit #{limit}
+  </select>
+
+</mapper>

@@ -198,6 +198,11 @@ litemall:
   customer-mail:
     sweep-ms: 60000
     sweep-batch: 50
+  # Behavioral targeting Phase 0 (doc/behavioral-events.md): server-side value
+  # signals — AFTER_COMMIT listeners write purchase/refund rows to
+  # litemall_user_event. Same kill-switch name as goods-management's ingest.
+  tracking:
+    enabled: ${LITEMALL_TRACKING_ENABLED:true}
 
 # Freight templates (Wave 4, Task A — docs/adr-freight-templates.md). The CODE default
 # is enabled:false (legacy flat litemall_express_freight_min/value rule, byte-identical
