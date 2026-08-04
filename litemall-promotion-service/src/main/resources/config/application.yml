@@ -100,6 +100,17 @@ litemall:
       core: ${NUTCH_CORE:nutch}
       query: ${NUTCH_QUERY:*:*}
       rows: ${NUTCH_ROWS:1000}
+  # Wave 17 Postiz social publishing (out). Env-gated on BOTH base-url and
+  # api-key — either absent keeps every /postiz endpoint on the typed
+  # "not configured" errno and the admin panel hidden. Enabling later is an
+  # env change + restart, no rebuild. base-url includes /api/public/v1;
+  # the key is sent as a BARE Authorization header (no Bearer).
+  postiz:
+    base-url: ${LITEMALL_POSTIZ_BASE_URL:}
+    api-key: ${LITEMALL_POSTIZ_API_KEY:}
+    # Storefront origin for composed links AND images — the social platforms
+    # must be able to fetch both, so even the dev pilot points at prod.
+    public-base-url: ${LITEMALL_POSTIZ_PUBLIC_BASE_URL:https://trovemo.com}
 server:
   port: 8088
 eureka:
