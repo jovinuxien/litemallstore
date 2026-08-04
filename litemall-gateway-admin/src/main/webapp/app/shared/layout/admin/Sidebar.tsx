@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { AUTHORITIES } from 'app/config/constants';
 import { useAppSelector } from 'app/config/store';
 import { menuForAuthorities } from './menu.config';
+import { useGetPostizStatusQuery } from 'app/shared/reducers/private/services/postizApi';
 import SidebarItem from './SidebarItem';
 import TrovemoWordmark from 'app/shared/brand/trovemo-wordmark-dark.svg';
 import TrovemoMark from 'app/shared/brand/trovemo-mark.svg';
@@ -14,7 +15,18 @@ const Sidebar: React.FC = () => {
   const collapsed = useAppSelector(state => state.adminUi.sidebarCollapsed);
   const authorities = useAppSelector(state => state.adminAuth.authorities);
   const isAffiliate = authorities.includes(AUTHORITIES.AFFILIATE);
-  const menu = menuForAuthorities(authorities);
+  // Wave 17: feature-flagged leaves hide until their backend says enabled —
+  // loading, transport errors and the typed "not configured" errno all read
+  // as disabled (the slice normalises them), so the leaf fails hidden.
+  const { data: postiz } = useGetPostizStatusQuery(undefined, { skip: isAffiliate });
+  const postizEnabled = postiz?.enabled === true;
+  const menu = React.useMemo(
+    () =>
+      menuForAuthorities(authorities)
+        .map(group => ({ ...group, children: group.children.filter(leaf => leaf.feature !== 'postiz' || postizEnabled) }))
+        .filter(group => group.children.length > 0),
+    [authorities, postizEnabled]
+  );
 
   return (
     <div className='sidebar-container'>

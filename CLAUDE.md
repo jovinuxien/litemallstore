@@ -443,6 +443,20 @@
 > - `GET /log?page&limit` → standard page envelope over
 >   `litemall_postiz_post`.
 >
+> **Wave 17 STATUS: MERGED + DEPLOYED to production** (2026-08-04;
+> merges `8f19f2857` promotion + `b5dca8e7c` gateway-admin, compose
+> wiring `aa46273b2`). Module tests 69/0 real counts. Prod Postiz =
+> **https://social.trovemo.com** (user-deployed; Trovemo Facebook page
+> connected, integration `cms1876qi0001n86m5rub0w3g`). Direct prod
+> pipeline probe green pre-merge: composer-shaped payload scheduled →
+> visible via GET /posts (QUEUE, facebook) → deleted (Postiz DELETE
+> returns 200 with quirky `{"error":true}` body — verify by re-GET,
+> not by body). Prod schema at V50 (out-of-order; V49 behavioral
+> targeting still unmerged), both containers healthy, admin bundle
+> `main.769a4325.js`, `.env.prod` carries LITEMALL_POSTIZ_* (backup
+> `.env.prod.bak-postiz`). Final UI click-through acceptance =
+> user-side (admin creds not available to sessions).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -490,7 +504,16 @@
 - **No Wave-12 assignment.** Do not start work here without a new
   instruction.
 
-### Worktree: `goods-management` — history (Wave 14, SHIPPED)
+### Worktree: `goods-management` — Behavioral Phase 0 MERGED
+- **Behavioral targeting Phase 0 (backend + order halves): MERGED to
+  master `ac990d3ab` (2026-08-04).** V49 event log +
+  `POST /srv/track/{collect,consent}` ingest (goods-management) +
+  purchase/refund AFTER_COMMIT listeners (litemall-order). Contract:
+  `doc/behavioral-events.md`. Dev DB at V49, live-verified; goods
+  208/208, order 189/189. NOT yet deployed to prod — deploy rides the
+  gateway-api edge+SPA half (endpoints are edge-unreachable until
+  `PublicPaths` gains TRACK_POST, so shipping them together is
+  natural; V49 applies out-of-order after prod's V50 — expected).
 - **Task — Wave 14 (backend): inventory governance.** (Merged +
   deployed 2026-07-30, master `61992575c`; V46 applied in prod; dev
   acceptance green end-to-end incl. governor overage sizing, executor
@@ -503,7 +526,42 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — Waves 15+16 SHIPPED
+### Worktree: `gateway-api` — Waves 15+16 SHIPPED; NEXT: behavioral tracking edge+SPA
+- **Task — Behavioral targeting Phase 0, edge + emitter half.** The backend
+  half is DONE (goods-management branch `e4b7ffb5a`, V49 applied on dev,
+  live-verified): `POST /srv/track/{collect,consent}` is served by
+  goods-management through the existing `/srv/**` catch-all. **Code to the
+  committed contract `doc/behavioral-events.md`** (frozen vocabulary, cookie
+  names/attributes, header semantics, batch shape) — NOT to this summary.
+  1. **Edge (Java):** add `TRACK_POST = /srv/track/**` (POST-only) to
+     `PublicPaths` — the second sanctioned anonymous POST after the Stripe
+     webhook (user-approved exception 2026-08-04; mitigations in the doc).
+     New WebFilter (pattern: `IdentityForwardingFilter`): ALWAYS strip
+     inbound `X-Visitor-Id`/`X-Session-Id`; when cookie `lm_consent=granted`
+     mint `lm_vid` (13-month) / `lm_sid` (30-min rolling) HttpOnly cookies if
+     absent and forward them as those headers on `/srv/**`; when `denied`,
+     expire the identity cookies. STRICT prior consent (user decision): no
+     cookies, no events, any region, until grant.
+  2. **SPA (React):** `app/shared/tracking/firstParty.ts` emitter — buffer,
+     5 s / 20-event flush via axios, `navigator.sendBeacon` (Blob,
+     application/json) on pagehide/visibilitychange-hidden; whole emitter
+     try/catch fail-silent; gate on the EXISTING `consent.ts` store and
+     mirror the choice into the `lm_consent` cookie (+ POST
+     `/srv/track/consent` on every choice change). Wire client vocabulary:
+     existing `ecommerce.ts` call sites (view_item, add_to_cart,
+     begin_checkout) + new call sites (page_view via the MatomoTracker
+     route hook, view_category, search, click_result, remove_from_cart).
+     Client NEVER generates visitor ids and NEVER emits purchase/refund
+     (server-side, already done in litemall-order on the same branch).
+- **Acceptance (dev, through :9000/:8090):** pre-consent browse ⇒ zero
+  cookies, zero rows; grant ⇒ consent row + cookies minted + buffered-then
+  -flushed events land in `litemall_user_event` with visitor/session ids;
+  login ⇒ stitching row appears (backend does it — just verify); deny ⇒
+  cookies expired, no further events; page close mid-buffer ⇒ beacon
+  delivers; Matomo/Pixel Wave-15 regression untouched; edge policy tests
+  (`EdgeAuthorizationPolicyTest`) extended for TRACK_POST; module + webapp
+  tests green with real "Tests run:" counts.
+
 - **Wave 16 STATUS: MERGED to master `1a157a78e` (2026-07-31).** Guest
   checkout (per-checkout shadow accounts — a repeated email NEVER opens an
   earlier guest's session; real-account email ⇒ 706 sign-in prompt; claim =
@@ -692,8 +750,10 @@
   3. Scheduling: post i ⇒ `startTime + i×intervalMinutes`; batch cap
      25 per publish (Postiz ships `API_LIMIT=30`/h) — larger
      selections rejected with a clear typed error.
-  4. **Migration V49** — check `flyway_schema_history` immediately
-     before first boot (prod applied through V48):
+  4. **Migration V50** — V49 is CLAIMED by behavioral-targeting
+     Phase 0 (`fix/goods-management`, committed 2026-08-04, not yet
+     merged); check `flyway_schema_history` immediately before first
+     boot (prod applied through V48):
      `litemall_postiz_post` (goods_id, category_id, integration_id,
      channel identifier, postiz_post_id, schedule_time, status,
      error, add/update/deleted) — feeds `/log` + the dedup warning.
