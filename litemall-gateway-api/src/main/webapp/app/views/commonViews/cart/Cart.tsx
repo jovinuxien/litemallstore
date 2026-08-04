@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchCart, syncLocalCart, updateCartItem } from 'app/shared/reducers/cartSlice';
 import { CellGroup, EmptyState, GoodsLineCard, Page, PageHead, SubmitBar } from 'app/components/commonComponents/storefront';
+import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
 
 /**
  * Shopping cart — litemall-vue `tabbar-cart` layout: a list of goods line-cards
@@ -36,6 +37,9 @@ const CartView: React.FC = () => {
   };
 
   const removeItem = (id: number) => {
+    const removed = cartList.find(item => item.id === id);
+    const goodsId = numericGoodsId(removed?.goodsId);
+    if (goodsId) fpTrack('remove_from_cart', { goodsId, payload: { qty: removed?.number } });
     dispatch(syncLocalCart(cartList.filter(item => item.id !== id)));
   };
 

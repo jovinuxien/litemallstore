@@ -526,8 +526,18 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — Waves 15+16 SHIPPED; NEXT: behavioral tracking edge+SPA
-- **Task — Behavioral targeting Phase 0, edge + emitter half.** The backend
+### Worktree: `gateway-api` — behavioral tracking edge+SPA DONE
+- **STATUS: Phase-0 edge+SPA half BUILT + dev-verified on fix/gateway-api
+  (2026-08-04).** PublicPaths TRACK_POST + VisitorIdentityFilter (consent-
+  gated HttpOnly lm_vid/lm_sid, rolling session, spoof-strip), firstParty.ts
+  emitter wired at all client call sites, banner now shows whenever tracking
+  is possible (first-party needs no config; DNT still hides), /cookies policy
+  discloses the first-party cookies. Edge tests 54/54 (7 new filter + policy
+  case); headless e2e: pre-consent zero cookies/rows, accept -> minted
+  identity + page_view/view_item/search rows, stitching + denial expiry
+  curl-verified through :8090. Ships together with the pending checkout
+  step-flow on this branch.
+- **Task (as commissioned) — Behavioral targeting Phase 0, edge + emitter half.** The backend
   half is DONE (goods-management branch `e4b7ffb5a`, V49 applied on dev,
   live-verified): `POST /srv/track/{collect,consent}` is served by
   goods-management through the existing `/srv/**` catch-all. **Code to the

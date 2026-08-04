@@ -142,9 +142,11 @@ interface SubmitBarProps {
   loading?: boolean;
   /** Left-side content, e.g. a select-all checkbox. */
   left?: React.ReactNode;
+  /** Goes on the bar itself — a display-toggling wrapper would defeat position: sticky. */
+  className?: string;
 }
-export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label = 'Total:', buttonText, onSubmit, disabled, loading, left }) => (
-  <div className='lm-submit-bar'>
+export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label = 'Total:', buttonText, onSubmit, disabled, loading, left, className }) => (
+  <div className={`lm-submit-bar ${className ?? ''}`}>
     {left && <div className='lm-submit-bar__left'>{left}</div>}
     {total != null && (
       <div className='lm-submit-bar__totals'>
