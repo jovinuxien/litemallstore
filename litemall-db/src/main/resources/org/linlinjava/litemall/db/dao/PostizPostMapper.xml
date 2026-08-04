@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Hand-written mapper for litemall_postiz_post (Postiz publish ledger, V50).
+  NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
+  (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
+-->
+<mapper namespace="org.linlinjava.litemall.db.dao.PostizPostMapper">
+
+  <sql id="columns">
+    id, goods_id, category_id, integration_id, channel_identifier, postiz_post_id,
+    schedule_time, status, error, posted_by, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallPostizPost"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_postiz_post
+      (goods_id, category_id, integration_id, channel_identifier, postiz_post_id,
+       schedule_time, status, error, posted_by, add_time, update_time, deleted)
+    values
+      (#{goodsId}, #{categoryId}, #{integrationId}, #{channelIdentifier}, #{postizPostId},
+       #{scheduleTime}, #{status}, #{error}, #{postedBy}, #{addTime}, #{updateTime}, #{deleted})
+  </insert>
+
+  <select id="selectPage" resultType="org.linlinjava.litemall.db.domain.LitemallPostizPost">
+    select <include refid="columns" />
+    from litemall_postiz_post
+    where deleted = 0
+    order by id desc
+    limit #{offset}, #{limit}
+  </select>
+
+  <select id="countPage" resultType="int">
+    select count(*) from litemall_postiz_post where deleted = 0
+  </select>
+
+  <select id="selectScheduledSince" resultType="org.linlinjava.litemall.db.domain.LitemallPostizPost">
+    select <include refid="columns" />
+    from litemall_postiz_post
+    where deleted = 0 and status = 'scheduled'
+      and schedule_time &gt;= #{sinceUtc}
+      and goods_id in
+      <foreach collection="goodsIds" item="goodsId" open="(" separator="," close=")">
+        #{goodsId}
+      </foreach>
+  </select>
+
+</mapper>
