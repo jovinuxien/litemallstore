@@ -22,6 +22,7 @@ import { adminStatApi } from 'app/shared/reducers/private/services/adminStatApi'
 import { adminSysApi } from 'app/shared/reducers/private/services/adminSysApi';
 import { adminUsersApi } from 'app/shared/reducers/private/services/adminUsersApi';
 import { insightApi } from 'app/shared/reducers/private/services/insightApi';
+import { postizApi } from 'app/shared/reducers/private/services/postizApi';
 //import errorMiddleware from './error-middleware';
 //import loggerMiddleware from './logger-middleware';
 //import notificationMiddleware from './notification-middleware';
@@ -54,6 +55,7 @@ const store = configureStore({
       adminDealApi.middleware,
       adminParityApi.middleware,
       insightApi.middleware,
+      postizApi.middleware,
       adminAffiliateApi.middleware,
       affiliateApi.middleware,
     ),
