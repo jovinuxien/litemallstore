@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import { consentSnapshot, subscribeConsent } from 'app/shared/tracking/consent';
+import { fpTrackRoute, initFirstPartyTracking } from 'app/shared/tracking/firstParty';
 import { applyConsent, initMatomo, trackPageView } from 'app/shared/tracking/matomo';
 import { applyPixelConsent, initMetaPixel, pixelPageView } from 'app/shared/tracking/metaPixel';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
@@ -43,6 +44,11 @@ const MatomoTracker: React.FC = () => {
     loadSiteConfig().then(cfg => {
       initMatomo(cfg);
       initMetaPixel(cfg);
+      // First-party emitter (behavioral Phase 0): consent-gated, edge-owned
+      // identity, no config needed. Must run AFTER initMatomo so its
+      // 'available' upgrade is not clobbered by Matomo's unconfigured/dnt
+      // verdict (same ordering contract as the pixel).
+      initFirstPartyTracking();
     });
   }, []);
 
@@ -66,6 +72,10 @@ const MatomoTracker: React.FC = () => {
     // Pixel page views skip auth pages entirely: fbq reports the browser URL on
     // its own, and reset tokens/invite codes must never reach a third party.
     if (!AUTH_PATHS.has(pathname)) pixelPageView();
+    // First-party route events (page_view / view_category / search) — the payload
+    // carries the PATH only; the query string never enters the event log except
+    // the whitelisted search q (and auth pages contribute no query at all).
+    fpTrackRoute(pathname, AUTH_PATHS.has(pathname) ? '' : search);
   }, [location]);
 
   return null;

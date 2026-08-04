@@ -50,6 +50,8 @@ import {
   AddressCard,
 } from 'app/components/commonComponents/storefront';
 
+import './Checkout.scss';
+
 // Supported destination countries (CJ createOrder needs a real country + ISO code).
 // Shared with the address book; the selected option supplies name + countryCode.
 const COUNTRIES = SHIPPING_COUNTRIES;
@@ -130,6 +132,41 @@ const shippingToAddress = (s: ShippingInfo, countryCode?: string): IAddress => (
 const countryOfAddress = (a: IAddress | undefined): { name: string; code: string } | undefined =>
   COUNTRIES.find(c => c.code === a?.countryCode);
 
+type StepState = 'locked' | 'open' | 'complete';
+
+/**
+ * One checkout step: numbered badge, title, and a body that COLLAPSES VIA CSS,
+ * never unmounts — the payment step hosts the mounted Stripe Elements iframe,
+ * and unmounting it between "Continue to review" and "Place order" would break
+ * `cardRef.confirm()` (and the payment-retry path) at pay time.
+ */
+const StepSection: React.FC<{
+  index: number;
+  title: string;
+  state: StepState;
+  /** Collapsed one-glance recap shown once the step is complete. */
+  summary?: React.ReactNode;
+  onChange?: () => void;
+  changeDisabled?: boolean;
+  children?: React.ReactNode;
+}> = ({ index, title, state, summary, onChange, changeDisabled, children }) => (
+  <section id={`lm-step-${index}`} className={`lm-step lm-step--${state}`}>
+    <header className='lm-step__head'>
+      <span className='lm-step__badge'>{state === 'complete' ? <i className='bi bi-check-lg' /> : index}</span>
+      <span className='lm-step__title'>{title}</span>
+      {state === 'complete' && onChange && !changeDisabled && (
+        <button type='button' className='lm-step__change' onClick={onChange}>
+          Change
+        </button>
+      )}
+    </header>
+    {state === 'complete' && summary != null && <div className='lm-step__summary'>{summary}</div>}
+    <div className='lm-step__body' hidden={state !== 'open'}>
+      {children}
+    </div>
+  </section>
+);
+
 /**
  * Customer checkout — a SINGLE order-confirm screen modelled on litemall-vue's
  * `order/checkout`: an address cell, a coupon cell, the goods line-cards, a money
@@ -158,6 +195,19 @@ const CheckoutView: React.FC = () => {
   // pays the SAME order(s) and never re-submits an already-placed group.
   const [placed, setPlaced] = useState<{ local?: PlacedOrder; cj?: PlacedOrder }>({});
   const [addrError, setAddrError] = useState<string | null>(null);
+
+  // Progressive checkout (Amazon-style): delivery → payment → review. `openStep`
+  // is the one expanded step; `maxStep` is the furthest step reached, so "Change"
+  // can reopen an earlier step without re-locking the ones after it.
+  const [openStep, setOpenStep] = useState<1 | 2 | 3>(1);
+  const [maxStep, setMaxStep] = useState<1 | 2 | 3>(1);
+  const stepState = (i: 1 | 2 | 3): StepState => (i === openStep ? 'open' : i <= maxStep ? 'complete' : 'locked');
+  const advanceTo = (s: 2 | 3) => {
+    setMaxStep(m => (s > m ? s : m));
+    setOpenStep(s);
+    // After the collapse re-layout, bring the newly opened step into view.
+    setTimeout(() => document.getElementById(`lm-step-${s}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
 
   // Server-computed money (order Wave-7 §4). The client no longer totals anything: with
   // tax it provably cannot, and without tax it merely disagreed silently.
@@ -578,7 +628,10 @@ const CheckoutView: React.FC = () => {
     //     a placed-but-unpaid order.
     if (paymentMethod === 'CARD' && !anyPlaced) {
       const ok = await cardRef.current?.validate();
-      if (!ok) return; // reason rendered inline by StripeCardForm
+      if (!ok) {
+        setOpenStep(2); // the inline reason renders inside the (collapsed) payment step
+        return;
+      }
     }
 
     // 1. Resolve a saved addressId for the local order, persisting a typed address.
@@ -593,6 +646,7 @@ const CheckoutView: React.FC = () => {
         setSelectedAddressId(addressId);
       } catch {
         setAddrError('Could not save the delivery address. Check the required fields and try again.');
+        setOpenStep(1);
         return;
       }
     }
@@ -609,6 +663,7 @@ const CheckoutView: React.FC = () => {
         setAddresses(prev => prev.map(a => (a.id === selectedSavedAddress.id ? { ...a, tel } : a)));
       } catch {
         setAddrError('Could not save the phone number to your delivery address — please try again.');
+        setOpenStep(1);
         return;
       }
     }
@@ -726,6 +781,7 @@ const CheckoutView: React.FC = () => {
             messageOf(error, 'Card payment is unavailable right now. Your order is saved but not paid.'),
           );
           setPlaced(next);
+          setOpenStep(2);
           return;
         }
         // eslint-disable-next-line no-await-in-loop
@@ -734,6 +790,7 @@ const CheckoutView: React.FC = () => {
         // and the customer can retry, which pays this same order rather than re-placing.
         if (!confirmedId) {
           setPlaced(next);
+          setOpenStep(2); // the decline reason renders inline in the card form
           return;
         }
         paymentIntentId = confirmedId;
@@ -775,15 +832,144 @@ const CheckoutView: React.FC = () => {
   const paidOrder = placedList.find(o => o.paid);
   const unpaidOrders = placedList.filter(o => !o.paid);
 
+  const deliveryComplete = (isPickup ? pickupValid : addressValid) && emailValid;
+  const selectedStore = stores.find(s => s.id === selectedStoreId);
+
+  // Collapsed-step recaps (Amazon's "Deliver to / Paying with" rows).
+  const deliverySummary = isPickup ? (
+    <>
+      <div className='fw-semibold'>{pickupName || 'Store pickup'}</div>
+      <div className='small text-muted'>
+        Pickup at {selectedStore?.name}
+        {selectedStore?.address ? ` — ${selectedStore.address}` : ''}
+      </div>
+    </>
+  ) : (
+    <>
+      <div className='fw-semibold'>
+        {(usingNewAddress ? shipping.name : selectedSavedAddress?.name) ?? ''}
+        {(usingNewAddress ? shipping.mobile : selectedSavedAddress?.tel) && (
+          <span className='text-muted fw-normal ms-2'>{usingNewAddress ? shipping.mobile : selectedSavedAddress?.tel}</span>
+        )}
+      </div>
+      <div className='small text-muted'>
+        {(usingNewAddress
+          ? [shipping.address, shipping.addressTwo, shipping.kommune, shipping.region, shipping.zip, country.name]
+          : [
+              selectedSavedAddress?.addressDetail,
+              selectedSavedAddress?.county,
+              selectedSavedAddress?.city,
+              selectedSavedAddress?.province,
+              selectedSavedAddress?.postalCode,
+              countryOfAddress(selectedSavedAddress)?.name,
+            ]
+        )
+          .filter(Boolean)
+          .join(', ')}
+      </div>
+      {accountEmail === null && shipping.email.trim() && <div className='small text-muted'>{shipping.email.trim()}</div>}
+    </>
+  );
+
+  const paymentSummary = (
+    <>
+      <div className='d-flex align-items-center gap-2'>
+        {paymentMethod === 'CARD' ? (
+          <>
+            Credit / debit card <PaymentBrandIcons />
+          </>
+        ) : (
+          'Digital wallet (balance)'
+        )}
+      </div>
+      {(totals?.couponPrice ?? 0) > 0 && <div className='small text-success'>Coupon applied — −${totals!.couponPrice.toFixed(2)}</div>}
+    </>
+  );
+
+  /**
+   * "Use this payment method": card details validate on leaving the step so a
+   * typo is caught here rather than at place-order — the same elements.submit()
+   * runs again inside handlePlaceOrder, which Stripe permits. With the card form
+   * not yet mounted (totals still loading) the check simply defers to place-order.
+   */
+  const continueToReview = async () => {
+    if (paymentMethod === 'CARD' && cardAvailable && !anyPlaced && cardRef.current) {
+      const ok = await cardRef.current.validate();
+      if (!ok) return;
+    }
+    advanceTo(3);
+  };
+
+  // Money rows — rendered once, in the sticky aside (desktop) / stacked summary (mobile).
+  const summaryRows = [
+    { label: 'Goods total', value: money(totals?.goodsTotalPrice) },
+    {
+      label: 'Shipping',
+      value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : 'Free',
+      variant: 'muted' as const,
+    },
+    // Wave-4 template breakdown: detail rows only — the charged figure
+    // stays freightPrice (combine-mode max, not the breakdown sum).
+    ...(!quoteLoading && !isPickup
+      ? [...(quotes.local?.breakdown ?? []), ...(quotes.cj?.breakdown ?? [])].map(b => ({
+          label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? 'Standard shipping' : b.source ?? 'Shipping')}`,
+          value: `$${Number(b.amount ?? 0).toFixed(2)}${b.note ? ` — ${b.note}` : ''}`,
+          variant: 'muted' as const,
+        }))
+      : []),
+    ...(shippingFee > 0 && (quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold ?? 0) > 0
+      ? [
+          {
+            label: 'Free shipping',
+            value: `on orders over $${Number(
+              quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold
+            ).toFixed(2)}`,
+            variant: 'muted' as const,
+          },
+        ]
+      : []),
+    ...((totals?.taxPrice ?? 0) > 0 ? [{ label: 'Tax', value: money(totals?.taxPrice) }] : []),
+    ...((totals?.couponPrice ?? 0) > 0
+      ? [{ label: 'Coupon', value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
+      : []),
+    { label: 'Total', value: money(totals?.actualPrice), variant: 'total' as const },
+  ];
+
+  const placeButtonText = submitting
+    ? phase === 'paying'
+      ? hasCjItems
+        ? 'Processing payment… (dropship orders can take up to 30 seconds)'
+        : 'Processing payment…'
+      : 'Placing order…'
+    : anyPlaced
+      ? 'Retry payment'
+      : 'Place order';
+  // No server total ⇒ nothing we are allowed to charge (tax fails closed); the
+  // review step must also have been reached before the order can be placed.
+  const placeDisabled = !checkoutValid || !totals || !!totalsBlocked || totalsLoading || maxStep < 3;
+
   return (
     <Page>
       <PageHead title='Checkout' />
-      <div className='container'>
+      <div className='container lm-checkout'>
+        <div className='row g-3'>
+        <div className='col-lg-8'>
+        {/* STEP 1 — delivery. Collapses to a "deliver to" recap once complete;
+            frozen (no Change) while a placed order awaits a payment retry. */}
+        <StepSection
+          index={1}
+          title='Delivery'
+          state={stepState(1)}
+          summary={deliverySummary}
+          onChange={() => setOpenStep(1)}
+          changeDisabled={anyPlaced}
+        >
         {/* Delivery method (Wave 4 pickup — only offered when the order service
             has stores AND the cart is all-local; CJ lines always ship). */}
         {stores.length > 0 && !hasCjItems && (
-          <CellGroup title='Delivery method'>
-            <div className='p-3 d-flex gap-4'>
+          <div className='p-3 pb-0'>
+            <div className='small fw-semibold text-muted mb-2'>Delivery method</div>
+            <div className='d-flex gap-4'>
               <Form.Check
                 type='radio'
                 id='delivery-express'
@@ -801,12 +987,13 @@ const CheckoutView: React.FC = () => {
                 onChange={() => setDeliveryType('pickup')}
               />
             </div>
-          </CellGroup>
+          </div>
         )}
 
         {/* Pickup: store picker + pickup contact replace the address book. */}
         {isPickup && (
-          <CellGroup title='Pickup store'>
+          <div>
+            <div className='small fw-semibold text-muted p-3 pb-0'>Pickup store</div>
             <div className='p-2 d-grid gap-2'>
               {stores.map(s => (
                 <button
@@ -844,12 +1031,12 @@ const CheckoutView: React.FC = () => {
                 <Form.Control value={pickupMobile} onChange={e => setPickupMobile(e.target.value)} required />
               </div>
             </div>
-          </CellGroup>
+          </div>
         )}
 
         {/* Delivery address */}
         {!isPickup && (
-        <CellGroup title='Delivery address'>
+        <div>
           {addresses.length > 0 && (
             <div className='p-2 d-grid gap-2'>
               {addresses.map(a => (
@@ -1019,14 +1206,14 @@ const CheckoutView: React.FC = () => {
               )}
             </div>
           )}
-        </CellGroup>
+        </div>
         )}
 
         {/* Contact email (Wave 15) — only when the account has none on file.
             Renders on BOTH address paths (saved and new): it is the order-mail
             recipient, not part of the delivery address. */}
         {accountEmail === null && (
-          <CellGroup>
+          <div>
             <div className='p-3'>
               <Form.Label>Email for order updates *</Form.Label>
               <Form.Control
@@ -1044,13 +1231,74 @@ const CheckoutView: React.FC = () => {
                 </div>
               )}
             </div>
-          </CellGroup>
+          </div>
         )}
 
-        {/* Coupon + promo code. The group always renders: a customer holding a
+        <div className='lm-step__continue'>
+          <button type='button' className='btn btn-lm-primary' disabled={!deliveryComplete} onClick={() => advanceTo(2)}>
+            Continue to payment
+          </button>
+          {!deliveryComplete && <div className='form-text mt-1'>Fill in the delivery details above to continue.</div>}
+        </div>
+        </StepSection>
+
+        {/* STEP 2 — payment method + discounts. Locked until delivery completes,
+            so the card form always mounts against a destination-priced total. */}
+        <StepSection index={2} title='Payment' state={stepState(2)} summary={paymentSummary} onChange={() => setOpenStep(2)}>
+          <Cell>
+            <Form.Check
+              type='radio'
+              id='pay-card'
+              name='paymentMethod'
+              label={
+                <>
+                  Credit / debit card
+                  <PaymentBrandIcons muted={!cardAvailable} />
+                </>
+              }
+              checked={paymentMethod === 'CARD'}
+              disabled={!cardAvailable}
+              onChange={() => setPaymentMethod('CARD')}
+            />
+            {siteConfigLoaded && !cardAvailable && (
+              // No publishable key ⇒ card payment is honestly unavailable. It is NOT
+              // stubbed, and the customer is not told a placeholder authorisation "runs".
+              <div className='small text-muted ms-4'>
+                Card payment is temporarily unavailable — please check back soon.
+              </div>
+            )}
+          </Cell>
+          <Cell>
+            <Form.Check
+              type='radio'
+              id='pay-wallet'
+              name='paymentMethod'
+              label='Digital wallet (balance)'
+              checked={paymentMethod === 'WALLET'}
+              onChange={() => setPaymentMethod('WALLET')}
+            />
+          </Cell>
+          <div className='px-3 pb-3'>
+            {paymentMethod === 'CARD' && cardAvailable && stripeElementsOptions && (
+              <Elements stripe={stripePromiseFor(publishableKey!)} options={stripeElementsOptions}>
+                <StripeCardForm ref={cardRef} disabled={submitting} />
+              </Elements>
+            )}
+            {paymentMethod === 'CARD' && cardAvailable && !stripeElementsOptions && (
+              <div className='text-muted small'>Preparing secure card payment…</div>
+            )}
+            {paymentMethod === 'WALLET' && (
+              <Alert variant='light' className='border mb-0'>
+                Your wallet balance is debited when the order is placed. An insufficient balance leaves the order unpaid and shows an
+                error — nothing is charged.
+              </Alert>
+            )}
+          </div>
+
+        {/* Coupon + promo code. Always renders: a customer holding a
             code from an ad/mail must be able to enter it even with zero claimed
             coupons. */}
-        <CellGroup>
+        <div>
             {coupons.length > 0 && (
             <Cell title='Coupon'>
               <Form.Select
@@ -1116,10 +1364,18 @@ const CheckoutView: React.FC = () => {
                 </button>
               </Alert>
             )}
-        </CellGroup>
+        </div>
 
-        {/* Goods */}
-        <CellGroup title={`Items (${cartList.length})`}>
+        <div className='lm-step__continue'>
+          <button type='button' className='btn btn-lm-primary' onClick={continueToReview}>
+            Continue to review
+          </button>
+        </div>
+        </StepSection>
+
+        {/* STEP 3 — review the items and place the order. */}
+        <StepSection index={3} title={`Review items (${cartList.length})`} state={stepState(3)} onChange={() => setOpenStep(3)}>
+          <div>
           {cartList.map(item => (
             <GoodsLineCard
               key={item.id}
@@ -1131,10 +1387,9 @@ const CheckoutView: React.FC = () => {
               qty={item.number ?? 0}
             />
           ))}
-        </CellGroup>
+          </div>
 
-        {/* Order note */}
-        <CellGroup>
+          {/* Order note */}
           <div className='p-3'>
             <Form.Label className='small text-muted mb-1'>Order note</Form.Label>
             <Form.Control
@@ -1147,99 +1402,7 @@ const CheckoutView: React.FC = () => {
             />
             <div className='text-end small text-muted'>{message.length}/50</div>
           </div>
-        </CellGroup>
-
-        {/* Summary */}
-        <CellGroup>
-          <OrderSummary
-            rows={[
-              { label: 'Goods total', value: money(totals?.goodsTotalPrice) },
-              {
-                label: 'Shipping',
-                value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : 'Free',
-                variant: 'muted' as const,
-              },
-              // Wave-4 template breakdown: detail rows only — the charged figure
-              // stays freightPrice (combine-mode max, not the breakdown sum).
-              ...(!quoteLoading && !isPickup
-                ? [...(quotes.local?.breakdown ?? []), ...(quotes.cj?.breakdown ?? [])].map(b => ({
-                    label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? 'Standard shipping' : b.source ?? 'Shipping')}`,
-                    value: `$${Number(b.amount ?? 0).toFixed(2)}${b.note ? ` — ${b.note}` : ''}`,
-                    variant: 'muted' as const,
-                  }))
-                : []),
-              ...(shippingFee > 0 && (quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold ?? 0) > 0
-                ? [
-                    {
-                      label: 'Free shipping',
-                      value: `on orders over $${Number(
-                        quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold
-                      ).toFixed(2)}`,
-                      variant: 'muted' as const,
-                    },
-                  ]
-                : []),
-              ...((totals?.taxPrice ?? 0) > 0 ? [{ label: 'Tax', value: money(totals?.taxPrice) }] : []),
-              ...((totals?.couponPrice ?? 0) > 0
-                ? [{ label: 'Coupon', value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
-                : []),
-              { label: 'Total', value: money(totals?.actualPrice), variant: 'total' },
-            ]}
-          />
-        </CellGroup>
-
-        {/* Payment method */}
-        <CellGroup title='Payment method'>
-          <Cell>
-            <Form.Check
-              type='radio'
-              id='pay-card'
-              name='paymentMethod'
-              label={
-                <>
-                  Credit / debit card
-                  <PaymentBrandIcons muted={!cardAvailable} />
-                </>
-              }
-              checked={paymentMethod === 'CARD'}
-              disabled={!cardAvailable}
-              onChange={() => setPaymentMethod('CARD')}
-            />
-            {siteConfigLoaded && !cardAvailable && (
-              // No publishable key ⇒ card payment is honestly unavailable. It is NOT
-              // stubbed, and the customer is not told a placeholder authorisation "runs".
-              <div className='small text-muted ms-4'>
-                Card payment is temporarily unavailable — please check back soon.
-              </div>
-            )}
-          </Cell>
-          <Cell>
-            <Form.Check
-              type='radio'
-              id='pay-wallet'
-              name='paymentMethod'
-              label='Digital wallet (balance)'
-              checked={paymentMethod === 'WALLET'}
-              onChange={() => setPaymentMethod('WALLET')}
-            />
-          </Cell>
-          <div className='px-3 pb-3'>
-            {paymentMethod === 'CARD' && cardAvailable && stripeElementsOptions && (
-              <Elements stripe={stripePromiseFor(publishableKey!)} options={stripeElementsOptions}>
-                <StripeCardForm ref={cardRef} disabled={submitting} />
-              </Elements>
-            )}
-            {paymentMethod === 'CARD' && cardAvailable && !stripeElementsOptions && (
-              <div className='text-muted small'>Preparing secure card payment…</div>
-            )}
-            {paymentMethod === 'WALLET' && (
-              <Alert variant='light' className='border mb-0'>
-                Your wallet balance is debited when the order is placed. An insufficient balance leaves the order unpaid and shows an
-                error — nothing is charged.
-              </Alert>
-            )}
-          </div>
-        </CellGroup>
+        </StepSection>
 
         {/* Errors */}
         {anyPlaced && (orderError || addrError) && (
@@ -1267,24 +1430,39 @@ const CheckoutView: React.FC = () => {
             </button>
           </Alert>
         )}
+        </div>
+
+        {/* Sticky order summary — on desktop the place-order button lives here;
+            on mobile the aside stacks below the steps and the sticky bottom bar
+            carries the button instead. */}
+        <div className='col-lg-4'>
+          <aside className='lm-checkout__aside'>
+            <div className='lm-checkout__aside-title'>Order summary</div>
+            <OrderSummary rows={summaryRows} />
+            <button
+              type='button'
+              className='btn btn-lm-primary lm-checkout__aside-action d-none d-lg-block'
+              onClick={handlePlaceOrder}
+              disabled={placeDisabled || submitting}
+            >
+              {submitting && <span className='spinner-border spinner-border-sm me-2' role='status' aria-hidden='true' />}
+              {placeButtonText}
+            </button>
+            <div className='lm-checkout__aside-note d-none d-lg-block'>
+              <i className='bi bi-lock-fill me-1' />
+              Secure checkout — nothing is charged until you place the order.
+            </div>
+          </aside>
+        </div>
+        </div>
       </div>
 
       <SubmitBar
+        className='d-lg-none'
         total={totals?.actualPrice ?? 0}
-        buttonText={
-          submitting
-            ? phase === 'paying'
-              ? hasCjItems
-                ? 'Processing payment… (dropship orders can take up to 30 seconds)'
-                : 'Processing payment…'
-              : 'Placing order…'
-            : anyPlaced
-              ? 'Retry payment'
-              : 'Place order'
-        }
+        buttonText={placeButtonText}
         onSubmit={handlePlaceOrder}
-        // No server total ⇒ nothing we are allowed to charge (tax fails closed).
-        disabled={!checkoutValid || !totals || !!totalsBlocked || totalsLoading}
+        disabled={placeDisabled}
         loading={submitting}
       />
     </Page>

@@ -101,6 +101,19 @@ public final class PublicPaths {
     static final String STRIPE_WEBHOOK_POST = "/srv/order/webhook/stripe/**";
 
     /**
+     * Behavioral targeting Phase 0 (doc/behavioral-events.md): the first-party
+     * event ingest is anonymous by nature — pre-login intent is the point. The
+     * second sanctioned public POST after the Stripe webhook (user-approved
+     * exception, 2026-08-04). What keeps it safe: the goods-management handler
+     * is insert-only behind an event-type whitelist and hard size caps, identity
+     * is edge-owned ({@link org.linlinjava.litemall.gatewayapi.security.VisitorIdentityFilter}
+     * strips inbound {@code X-Visitor-Id}/{@code X-Session-Id} and injects them
+     * only under a granted consent cookie), and batches arriving without that
+     * attested identity are dropped server-side.
+     */
+    static final String TRACK_POST = "/srv/track/**";
+
+    /**
      * The API surface. Deny-by-default applies WITHIN these prefixes; a GET anywhere
      * else is the SPA shell — see {@link #spaShell()}.
      */
@@ -158,6 +171,7 @@ public final class PublicPaths {
             matchers.add(new PathPatternParserServerWebExchangeMatcher(p, HttpMethod.GET));
         }
         matchers.add(new PathPatternParserServerWebExchangeMatcher(STRIPE_WEBHOOK_POST, HttpMethod.POST));
+        matchers.add(new PathPatternParserServerWebExchangeMatcher(TRACK_POST, HttpMethod.POST));
         matchers.add(spaShell());
         return new OrServerWebExchangeMatcher(matchers);
     }

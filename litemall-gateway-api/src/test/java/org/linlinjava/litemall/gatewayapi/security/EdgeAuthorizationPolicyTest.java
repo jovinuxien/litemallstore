@@ -137,6 +137,20 @@ class EdgeAuthorizationPolicyTest {
         anonymous.post().uri("/srv/order/webhook/other").exchange().expectStatus().isUnauthorized();
     }
 
+    /**
+     * Behavioral Phase 0: the first-party event ingest is the SECOND sanctioned
+     * anonymous POST (user-approved 2026-08-04) — pre-login intent is the point.
+     * POST only: a GET under /srv/track/** stays deny-by-default.
+     */
+    @Test
+    @DisplayName("the tracking ingest is an anonymous POST, and only a POST")
+    void trackingIngestIsAnonymousPostOnly() {
+        anonymous.post().uri("/srv/track/collect").exchange().expectStatus().isOk();
+        anonymous.post().uri("/srv/track/consent").exchange().expectStatus().isOk();
+        customer.post().uri("/srv/track/collect").exchange().expectStatus().isOk();
+        anonymous.get().uri("/srv/track/collect").exchange().expectStatus().isUnauthorized();
+    }
+
     @Test
     @DisplayName("CORS preflight needs no credential")
     void corsPreflightNeedsNoCredential() {

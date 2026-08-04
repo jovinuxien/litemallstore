@@ -50,6 +50,12 @@ management:
       probes:
         enabled: true
 
+litemall:
+  tracking:
+    # Behavioral Phase 0: prod serves HTTPS behind Caddy/Cloudflare — the
+    # lm_vid/lm_sid identity cookies must carry Secure there.
+    cookie-secure: true
+
 logging:
   level:
     root: INFO
