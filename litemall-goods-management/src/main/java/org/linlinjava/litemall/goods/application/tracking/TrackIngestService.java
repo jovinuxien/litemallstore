@@ -41,7 +41,7 @@ public class TrackIngestService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TrackIngestService.class);
 
-    /** Client-emittable vocabulary; purchase/refund are server-only and dropped here. */
+    /** Client-emittable vocabulary; purchase/refund are server-only (BehaviorEventRecordListener) and dropped here. */
     static final Set<String> CLIENT_TYPES = Set.of(
             LitemallUserEvent.TYPE_PAGE_VIEW,
             LitemallUserEvent.TYPE_VIEW_ITEM,

@@ -456,7 +456,42 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — Waves 15+16 SHIPPED
+### Worktree: `gateway-api` — Waves 15+16 SHIPPED; NEXT: behavioral tracking edge+SPA
+- **Task — Behavioral targeting Phase 0, edge + emitter half.** The backend
+  half is DONE (goods-management branch `e4b7ffb5a`, V49 applied on dev,
+  live-verified): `POST /srv/track/{collect,consent}` is served by
+  goods-management through the existing `/srv/**` catch-all. **Code to the
+  committed contract `doc/behavioral-events.md`** (frozen vocabulary, cookie
+  names/attributes, header semantics, batch shape) — NOT to this summary.
+  1. **Edge (Java):** add `TRACK_POST = /srv/track/**` (POST-only) to
+     `PublicPaths` — the second sanctioned anonymous POST after the Stripe
+     webhook (user-approved exception 2026-08-04; mitigations in the doc).
+     New WebFilter (pattern: `IdentityForwardingFilter`): ALWAYS strip
+     inbound `X-Visitor-Id`/`X-Session-Id`; when cookie `lm_consent=granted`
+     mint `lm_vid` (13-month) / `lm_sid` (30-min rolling) HttpOnly cookies if
+     absent and forward them as those headers on `/srv/**`; when `denied`,
+     expire the identity cookies. STRICT prior consent (user decision): no
+     cookies, no events, any region, until grant.
+  2. **SPA (React):** `app/shared/tracking/firstParty.ts` emitter — buffer,
+     5 s / 20-event flush via axios, `navigator.sendBeacon` (Blob,
+     application/json) on pagehide/visibilitychange-hidden; whole emitter
+     try/catch fail-silent; gate on the EXISTING `consent.ts` store and
+     mirror the choice into the `lm_consent` cookie (+ POST
+     `/srv/track/consent` on every choice change). Wire client vocabulary:
+     existing `ecommerce.ts` call sites (view_item, add_to_cart,
+     begin_checkout) + new call sites (page_view via the MatomoTracker
+     route hook, view_category, search, click_result, remove_from_cart).
+     Client NEVER generates visitor ids and NEVER emits purchase/refund
+     (server-side, already done in litemall-order on the same branch).
+- **Acceptance (dev, through :9000/:8090):** pre-consent browse ⇒ zero
+  cookies, zero rows; grant ⇒ consent row + cookies minted + buffered-then
+  -flushed events land in `litemall_user_event` with visitor/session ids;
+  login ⇒ stitching row appears (backend does it — just verify); deny ⇒
+  cookies expired, no further events; page close mid-buffer ⇒ beacon
+  delivers; Matomo/Pixel Wave-15 regression untouched; edge policy tests
+  (`EdgeAuthorizationPolicyTest`) extended for TRACK_POST; module + webapp
+  tests green with real "Tests run:" counts.
+
 - **Wave 16 STATUS: MERGED to master `1a157a78e` (2026-07-31).** Guest
   checkout (per-checkout shadow accounts — a repeated email NEVER opens an
   earlier guest's session; real-account email ⇒ 706 sign-in prompt; claim =
