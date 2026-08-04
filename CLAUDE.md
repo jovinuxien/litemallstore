@@ -504,16 +504,19 @@
 - **No Wave-12 assignment.** Do not start work here without a new
   instruction.
 
-### Worktree: `goods-management` — Behavioral Phase 0 MERGED
-- **Behavioral targeting Phase 0 (backend + order halves): MERGED to
-  master `ac990d3ab` (2026-08-04).** V49 event log +
-  `POST /srv/track/{collect,consent}` ingest (goods-management) +
-  purchase/refund AFTER_COMMIT listeners (litemall-order). Contract:
-  `doc/behavioral-events.md`. Dev DB at V49, live-verified; goods
-  208/208, order 189/189. NOT yet deployed to prod — deploy rides the
-  gateway-api edge+SPA half (endpoints are edge-unreachable until
-  `PublicPaths` gains TRACK_POST, so shipping them together is
-  natural; V49 applies out-of-order after prod's V50 — expected).
+### Worktree: `goods-management` — Behavioral Phase 0 SHIPPED
+- **Behavioral targeting Phase 0: COMPLETE, MERGED + DEPLOYED to
+  trovemo.com (2026-08-05).** All three halves live: V49 event log +
+  `POST /srv/track/{collect,consent}` ingest (`ac990d3ab`), order
+  purchase/refund listeners (same merge), gateway-api edge+SPA
+  (`7ca8d4ca7` — also carried the checkout step-flow). Prod schema at
+  V49 (applied out-of-order after V50, clean); live-verified on
+  trovemo.com: consent-less batches drop with zero cookies, granted
+  consent mints Secure+HttpOnly lm_vid/lm_sid, GET 401s, event rows
+  land with CF-IPCountry geo. Contract: `doc/behavioral-events.md`.
+  Data ramps only as visitors accept the banner (strict prior
+  consent). Next phases (segments/recommendations reading the log)
+  are not yet commissioned — await a new Task.
 - **Task — Wave 14 (backend): inventory governance.** (Merged +
   deployed 2026-07-30, master `61992575c`; V46 applied in prod; dev
   acceptance green end-to-end incl. governor overage sizing, executor
