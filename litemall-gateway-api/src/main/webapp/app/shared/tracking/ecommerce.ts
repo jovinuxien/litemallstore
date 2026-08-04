@@ -9,6 +9,7 @@
  * server-computed totals) — analytics only, never anything we charge.
  */
 
+import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
 import { trackCartAdd, trackEvent, trackOrder } from 'app/shared/tracking/matomo';
 import { pixelTrack } from 'app/shared/tracking/metaPixel';
 
@@ -23,6 +24,7 @@ export interface ProductFacts {
 
 export const trackProductView = (p: ProductFacts): void => {
   trackEvent('Ecommerce', 'ProductView', `${p.id} ${p.name}`.trim(), p.price);
+  fpTrack('view_item', { goodsId: numericGoodsId(p.id), payload: { price: p.price } });
   pixelTrack('ViewContent', {
     content_ids: [p.id],
     content_type: 'product',
@@ -34,6 +36,7 @@ export const trackProductView = (p: ProductFacts): void => {
 
 export const trackAddToCart = (p: ProductFacts & { quantity: number }, cartTotal: number): void => {
   trackCartAdd(p, cartTotal);
+  fpTrack('add_to_cart', { goodsId: numericGoodsId(p.id), payload: { qty: p.quantity, price: p.price } });
   pixelTrack('AddToCart', {
     content_ids: [p.id],
     content_type: 'product',
@@ -45,8 +48,12 @@ export const trackAddToCart = (p: ProductFacts & { quantity: number }, cartTotal
 
 export const trackBeginCheckout = (subtotal: number, itemCount: number): void => {
   trackEvent('Ecommerce', 'BeginCheckout', `${itemCount} items`, subtotal);
+  fpTrack('begin_checkout', { payload: { subtotal, itemCount } });
   pixelTrack('InitiateCheckout', { num_items: itemCount, value: subtotal, currency: CURRENCY });
 };
+// First-party `purchase` is deliberately ABSENT here: it originates server-side
+// in litemall-order (doc/behavioral-events.md) — Matomo/Pixel keep their own
+// client purchase below for marketing attribution; no double counting.
 
 export interface PurchaseFacts {
   orderId: number;
