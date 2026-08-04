@@ -23,6 +23,11 @@ export interface MenuLeaf {
   title: string;
   wired?: boolean; // has a real view/backend here
   hidden?: boolean; // reachable by route but not shown in the sidebar
+  // Wave 17: leaf shown only while the named backend feature reports itself
+  // enabled (Sidebar queries the status endpoint; anything short of an
+  // explicit enabled:true keeps the leaf hidden). The route stays registered
+  // so deep links degrade inside the view instead of 404ing.
+  feature?: 'postiz';
 }
 
 export interface MenuGroup {
@@ -107,6 +112,9 @@ export const ADMIN_MENU: MenuGroup[] = [
       // (promotion-service backends).
       { path: '/admin/promotion/social', title: 'Social posts', wired: true },
       { path: '/admin/promotion/campaign', title: 'Campaigns', wired: true },
+      // Wave 17: Postiz-scheduled product posts (promotion-service backend);
+      // visible only while /postiz/status reports enabled.
+      { path: '/admin/promotion/postiz', title: 'Social publishing', wired: true, feature: 'postiz' },
     ],
   },
   {

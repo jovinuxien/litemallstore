@@ -59,6 +59,7 @@ import PromoterLedger from 'app/views/adminViews/adminModule/Affiliate/PromoterL
 import ExtractList from 'app/views/adminViews/adminModule/Affiliate/ExtractList';
 import ProfilePage from 'app/views/adminViews/adminModule/Profile/ProfilePage';
 import SocialPostList from 'app/views/adminViews/adminModule/Social/SocialPostList';
+import PostizPublish from 'app/views/adminViews/adminModule/Postiz/PostizPublish';
 import CategoryInsightList from 'app/views/adminViews/adminModule/Insight/CategoryInsightList';
 import CategoryGoodsList from 'app/views/adminViews/adminModule/Insight/CategoryGoodsList';
 import GoodsInsight from 'app/views/adminViews/adminModule/Insight/GoodsInsight';
@@ -169,6 +170,8 @@ export const AdminRoutes = () => (
       {/* Wave 6: social-posting ledger + targeting campaigns (promotion-service) */}
       <Route path='promotion/social' element={<SocialPostList />} />
       <Route path='promotion/campaign' element={<CampaignList />} />
+      {/* Wave 17: Postiz product-post scheduling (promotion-service backend) */}
+      <Route path='promotion/postiz' element={<PostizPublish />} />
       {/* System: admins / notices / logs / roles / storage */}
       <Route path='sys/admin' element={<AdminAccountList />} />
       <Route path='sys/admin/create' element={<AdminAccountForm />} />
