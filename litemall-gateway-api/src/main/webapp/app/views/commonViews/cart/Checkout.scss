@@ -1,0 +1,90 @@
+// Progressive (Amazon-style) checkout: numbered step cards in the main column,
+// sticky order-summary aside on desktop. Palette = the storefront --lm-* tokens.
+.lm-checkout {
+  .lm-step {
+    background: var(--lm-surface, #fff);
+    border: 1px solid var(--lm-border, #eceff1);
+    border-radius: var(--lm-radius, 10px);
+    margin-bottom: 14px;
+    overflow: hidden;
+
+    &__head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+    &__badge {
+      flex-shrink: 0;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--lm-primary, #0e7c86);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    &__title {
+      font-weight: 600;
+      color: var(--lm-text, #1f2a2e);
+    }
+    &__change {
+      margin-left: auto;
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--lm-primary, #0e7c86);
+      font-size: 0.9rem;
+      &:hover,
+      &:focus {
+        text-decoration: underline;
+      }
+    }
+    &__summary {
+      padding: 0 14px 12px 50px;
+      font-size: 0.95rem;
+    }
+    &__body {
+      border-top: 1px solid var(--lm-border, #eceff1);
+    }
+    &__continue {
+      margin: 4px 14px 14px;
+    }
+
+    &--locked {
+      opacity: 0.55;
+      .lm-step__badge {
+        background: var(--lm-muted, #9aa7ac);
+      }
+    }
+  }
+
+  &__aside {
+    // Below the sticky header; matches the buy-box treatment on the product page.
+    position: sticky;
+    top: 96px;
+    background: var(--lm-surface, #fff);
+    border: 1px solid var(--lm-border, #eceff1);
+    border-radius: var(--lm-radius, 10px);
+    padding-bottom: 14px;
+
+    &-title {
+      font-weight: 600;
+      padding: 12px 14px 4px;
+      color: var(--lm-text, #1f2a2e);
+    }
+    &-action {
+      margin: 6px 14px 0;
+      width: calc(100% - 28px);
+    }
+    &-note {
+      padding: 8px 14px 0;
+      color: var(--lm-muted, #6b7b82);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+  }
+}
