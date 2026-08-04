@@ -198,6 +198,10 @@ litemall:
   places:
     api-key: ""
   tracking:
+    # Behavioral Phase 0: Secure attribute on the edge-minted lm_vid/lm_sid
+    # identity cookies. False here (dev serves plain http on :9000/:8090);
+    # application-prod.yml turns it on behind the TLS edge.
+    cookie-secure: ${LITEMALL_TRACKING_COOKIE_SECURE:false}
     matomo:
       base-url: ""
       site-id: ""

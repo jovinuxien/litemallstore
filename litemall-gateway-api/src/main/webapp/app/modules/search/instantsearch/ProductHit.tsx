@@ -2,6 +2,7 @@ import React from 'react';
 
 import ProductCard from 'app/components/userComponents/card/ProductCard';
 import { IGood } from 'app/shared/model/product/product.model';
+import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
 
 import renderSnippet from './highlightSnippet';
 
@@ -32,8 +33,26 @@ const titleSnippet = (hit: unknown): React.ReactNode | undefined => {
   return undefined;
 };
 
+/**
+ * click_result (behavioral Phase 0): capture-phase so the card's own Link still
+ * navigates untouched. `__position` is InstantSearch's 1-based rank; the query
+ * is read from the URL at click time (optional by contract).
+ */
+const trackResultClick = (hit: IGood & { objectID: string }): void => {
+  const goodsId = numericGoodsId((hit as { goodsId?: unknown }).goodsId ?? hit.id ?? hit.objectID);
+  if (!goodsId) return;
+  const position = Number((hit as { __position?: unknown }).__position);
+  fpTrack('click_result', {
+    goodsId,
+    position: Number.isFinite(position) && position > 0 ? position : undefined,
+    searchQuery: new URLSearchParams(window.location.search).get('q')?.trim() || undefined,
+  });
+};
+
 const ProductHit: React.FC<{ hit: IGood & { objectID: string } }> = ({ hit }) => (
-  <ProductCard product={hit} nameNode={titleSnippet(hit)} />
+  <div onClickCapture={() => trackResultClick(hit)}>
+    <ProductCard product={hit} nameNode={titleSnippet(hit)} />
+  </div>
 );
 
 export default ProductHit;

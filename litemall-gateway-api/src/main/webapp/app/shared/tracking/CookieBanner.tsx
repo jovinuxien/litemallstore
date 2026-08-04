@@ -6,10 +6,10 @@ import { chooseConsent, consentSnapshot, subscribeConsent } from 'app/shared/tra
 /**
  * Opt-in analytics consent banner (Wave-7 Task C).
  *
- * <p>Shown only when there is a real choice to make: Matomo configured, no
- * Do-Not-Track, and no decision on record. A deployment with analytics unconfigured
- * (the committed default) never shows it — asking permission to do something we are
- * not doing would be theatre.
+ * <p>Shown only when there is a real choice to make: no Do-Not-Track and no decision
+ * on record. Since behavioral Phase 0 the first-party emitter (firstParty.ts) needs
+ * no configuration, so outside DNT there is always a real choice — it upgrades the
+ * reason to 'available' even when Matomo/Pixel are unconfigured.
  *
  * <p>Accept and Decline carry equal visual weight, and the banner does not block the
  * page. Consent that is easier to give than to refuse is not freely given, and a

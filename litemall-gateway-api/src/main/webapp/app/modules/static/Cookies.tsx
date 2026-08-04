@@ -32,6 +32,14 @@ const Cookies: React.FC = () => (
       campaigns are working. Nothing is loaded or set before you accept, and withdrawing deletes what was set.
       We never track what you type into forms. See our <Link to='/privacy'>Privacy Policy</Link>.
     </p>
+    <p className='text-muted small'>
+      Also only if you accept, we set two of our own analytics cookies: <code>lm_vid</code> (a random visitor
+      id, kept for 13 months) and <code>lm_sid</code> (a session id that expires after 30 minutes of
+      inactivity). They let us record, on our own servers and nowhere else, how the store is browsed — pages,
+      searches, products viewed and bought — to improve the shop and its recommendations. They contain no
+      name, email, or address; we do not store your IP address or browser signature, only a coarse country and
+      device type. Declining or withdrawing deletes both cookies immediately and stops all collection.
+    </p>
 
     <h2 className='h6 mt-4'>Marketing — optional, off by default</h2>
     <p className='text-muted small'>
