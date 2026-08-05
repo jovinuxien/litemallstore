@@ -457,6 +457,63 @@
 > `.env.prod.bak-postiz`). Final UI click-through acceptance =
 > user-side (admin creds not available to sessions).
 >
+> **Wave 18 (2026-08-06) — COUPON MERCHANDISING PHASE 1: scoped,
+> percent-capable, PROFIT-GUARDED coupons on the CJ catalog.** First of four
+> user-approved coupon/groupon phases (Phase 2: margin-driven coupon candidate
+> scorer + `coupon_flag` in search; Phase 3: groupon priced submit — already
+> specced in `litemall-order/docs/followup-groupon-priced-submit.md` +
+> `litemall-promotion-service/docs/spec-groupon-priced-submit-contract.md`;
+> Phase 4: RFM-targeted delivery via the existing targeting engine).
+> USER DECISIONS (2026-08-06): margin guard is a **HARD BLOCK** (no admin
+> override); floor `litemall.promotion.coupon.margin-floor` (env
+> `LITEMALL_PROMOTION_COUPON_MARGIN_FLOOR`, default 1.05); full scope approved
+> incl. percent-off, register-gift activation, public coupon center.
+> Audit facts (2026-08-06, verified against master): the coupon backend is
+> product-source-AGNOSTIC (no CJ check anywhere in promotion — the whole CJ
+> catalog is couponable); BUT `CouponForm.tsx:21` hardcodes `goodsType:0`
+> (scoping unreachable from admin); checkout selectlist omits `categoryIds`
+> (`Checkout.tsx:417`) while order submit resolves them — preview vs charge
+> disagree for scoped coupons; `matchesGoods`
+> (`LitemallCouponAggregate.java:97-115`) matches LEAF category ids only — an
+> L1-scoped coupon would silently match NOTHING; redeem
+> (`LitemallCouponServiceImpl.java:172-224`) re-checks threshold only, not
+> scope; `TYPE_REGISTER` has no issuance trigger; `discount` is flat-only.
+> **Wave-18 CONTRACTS (worktrees code to THESE, not to each other's
+> branches):**
+> - **Margin-guard basis:** goods-management serves
+>   `POST /srv/private/admin/insight/margin-basis` — FROZEN spec
+>   `litemall-goods-management/docs/handoff-coupon-margin-basis.md` (already
+>   BUILT on `fix/goods-management`, unit tests 4/4). Auth = machine token +
+>   forwarded `X-User-Roles: ROLE_ADMIN` (the order-service recipe for
+>   admin-prefixed paths). Promotion fails CLOSED (typed errno, never an
+>   unguarded save) when it is unreachable.
+> - **Category semantics:** coupons store the admin's picked category ids
+>   AS-IS (any level, L1 encouraged); promotion expands the CART's leaf ids up
+>   the `litemall_category` ancestor chain before `matchesGoods`, so L1-scoped
+>   coupons work and future CJ-sync leaves are covered automatically. When a
+>   caller omits `categoryIds`, promotion derives them server-side from the
+>   passed `goodsIds` (one batched read) — the SPA picker and order submit
+>   then agree by construction; NO SPA selectlist change needed.
+> - **Percent-off:** migration **V51** (promotion claims it; check
+>   `flyway_schema_history` immediately before first boot — prod applied
+>   through V50) adds `discount_type` (0 flat / 1 percent) + `discount_cap`
+>   decimal to `litemall_coupon`; when percent, `discount` holds the rate
+>   (validated 1–90). `usable`/`selectlist` return the COMPUTED effective
+>   discount for the passed amount (cap applied) so order-side math is
+>   UNCHANGED; redeem re-computes against `orderSubtotal`. List/read payloads
+>   expose `discountType`/`discountCap` for rendering.
+> - **Guard formula (promotion-side, on create AND update):** flat
+>   `D ≤ min × (1 − maxCostRatio × floor)`; percent
+>   `rate ≤ (1 − maxCostRatio × floor) × 100` (the cap bounds exposure but is
+>   NOT a substitute for the rate check); `maxCostRatio == null` ⇒ reject with
+>   typed "cost not yet captured for this scope". Rejections state the
+>   computed maximum so the admin can adjust; `uncostedCount > 0` rides along
+>   as a non-blocking warning.
+> - **Register-gift:** promotion `POST /srv/promotion/coupon/register-gifts`
+>   (machine token + `X-User-Id`) grants every active `TYPE_REGISTER` coupon
+>   to that user, idempotent via the per-user claim limit; gateway-api fires
+>   it once after successful registration, fail-silent.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -496,16 +553,30 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — history (Wave 10, SHIPPED)
-- **Task — Wave 10: rich order-confirmation email once an order is paid.**
-  (Merged + deployed 2026-07-26, `77c55e027` — DARK until SMTP creds
-  land; activation = SMTP env in `.env.prod` + container recreate, no
-  rebuild, keep 1 replica. Spec in git history.)
-- **No Wave-12 assignment.** Do not start work here without a new
-  instruction.
+### Worktree: `order` — Wave 18 mini-task
+- **Task — Wave 18 (mini): scope facts on coupon redeem.** Extend the
+  promotion Feign redeem call (`PromotionServiceFeignClient` +
+  `CouponRedemption` facade) to pass the cart's `goodsIds` +
+  `categoryIds` (both already resolved at the call site,
+  `LitemallOrderServiceImpl` coupon block) so promotion re-checks
+  goods scope at consumption (Wave-18 CONTRACT item 6 — the fields
+  are OPTIONAL, so this deploys safely in either order relative to
+  promotion). One DTO/facade change + `LitemallOrderPlaceCouponPathTest`
+  extension; nothing else in the money path moves.
+- **History — Wave 10: rich order-confirmation email once an order is
+  paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
+  Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — history (Wave 14, SHIPPED)
-- **Task — Wave 14 (backend): inventory governance.** (Merged +
+### Worktree: `goods-management` — Wave 18 margin-basis DONE
+- **Task — Wave 18: coupon margin-guard basis endpoint.** DONE on
+  `fix/goods-management` (2026-08-06): `POST /srv/private/admin/insight/
+  margin-basis` (`MarginBasisService` + `InsightMapper.selectMarginBasis`,
+  subtree expansion at query time, whole-catalog when scope empty; unit
+  tests 4/4, insight regression 17/17). FROZEN consumer spec:
+  `litemall-goods-management/docs/handoff-coupon-margin-basis.md`. Live
+  dev verification through the gateways happens at merge (run-from-MAIN
+  rule).
+- **History — Wave 14 (backend): inventory governance.** (Merged +
   deployed 2026-07-30, master `61992575c`; V46 applied in prod; dev
   acceptance green end-to-end incl. governor overage sizing, executor
   off-sale flip, margin override reprice at all sites, live-deal price
@@ -517,8 +588,34 @@
   `c5fdae86f`; live feed validated). No new assignment — do not start
   work here without a new instruction.
 
-### Worktree: `gateway-api` — Waves 15+16 SHIPPED; NEXT: behavioral tracking edge+SPA
-- **Task — Behavioral targeting Phase 0, edge + emitter half.** The backend
+### Worktree: `gateway-api` — behavioral Phase 0 SHIPPED; NEXT: Wave 18 coupon storefront
+- **Task — Wave 18 (storefront): coupon center + register-gift +
+  percent rendering.** Code to the Wave-18 CONTRACTS above. Scope:
+  `litemall-gateway-api/` SPA only; NO selectlist change (promotion
+  derives cart categories server-side); NO migration.
+  1. Public **`/coupons` coupon-center page**: claimable coupons from
+     `GET /srv/coupon/list` (already public + paged), claim via
+     `/srv/coupon/receive`, claimed state + "view my coupons" link;
+     scoped coupons deep-link "shop eligible items" → `/category/<id>`
+     (category scope) or `/search` (all); entry links from the header
+     account menu + the existing PDP `CouponStrip` "see all".
+  2. **Register-gift trigger**: after successful registration (and
+     Google-signup provisioning), fire-and-forget
+     `POST /srv/promotion/coupon/register-gifts` through the edge —
+     fail-silent, never blocks signup.
+  3. **Percent rendering**: `ICoupon` gains `discountType`/
+     `discountCap`; CouponStrip / user Coupons / checkout picker /
+     order breakdown render "N% off (up to $C)" vs "$D off" —
+     checkout keeps using the server-computed effective discount.
+- **Acceptance (dev, :9000/:8090):** fresh signup holds the
+  register-gift coupon; `/coupons` lists + claims and deep-links a
+  category-scoped coupon to its landing; a percent coupon shows the
+  right label everywhere and the paid total matches the server
+  discount; existing checkout/coupon e2e regression-green (headless:
+  native-setter fills + in-page DOM clicks).
+- **History — Behavioral targeting Phase 0, edge + emitter half:
+  SHIPPED + DEPLOYED** (2026-08-05, master `f04986fb8`, prod V49,
+  live-verified). Original task spec below for reference. The backend
   half is DONE (goods-management branch `e4b7ffb5a`, V49 applied on dev,
   live-verified): `POST /srv/track/{collect,consent}` is served by
   goods-management through the existing `/srv/**` catch-all. **Code to the
@@ -672,7 +769,28 @@
 ### Worktree: `gateway-admin`
 - **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
   **Scope:** `litemall-gateway-admin/` only. NO migration.
-- **Task — Wave 17 (admin UI): "Social Publishing (Postiz)" panel —
+- **Task — Wave 18 (admin UI): coupon scoping + percent + guard
+  surfacing.** Code to the Wave-18 CONTRACTS above; do NOT read the
+  promotion branch.
+  1. `CouponForm`: scope selector — All / **Category** (L1 roots
+     picker fed by `/srv/private/admin/insight/categories`, show
+     avgMarginPct per root) / **Products** (picker reusing the
+     insight goods list `/srv/private/admin/insight/goods/list
+     ?categoryId=` with picture/price/margin, multi-select cap 500);
+     sends `goodsType`/`goodsValue` (kill the `:21` hardcode). Plus
+     discount-type radio (flat / percent), rate + optional cap
+     fields with client-side 1–90 bounds.
+  2. Margin-guard rejections surfaced VERBATIM (they contain the
+     computed maximum discount/rate); `uncostedCount` warning shown
+     non-blocking on success.
+  3. `CouponList`: type (flat/percent) + scope (All/Category/
+     Products) columns.
+- **Acceptance:** create an L1-scoped 10% coupon → saved; an
+  over-generous one → inline guard message with the stated max; a
+  product-list coupon picks via the insight picker; existing coupon
+  CRUD + issued-users panels regression-green; webapp tests green
+  with real counts.
+- **History — Wave 17 (admin UI): "Social Publishing (Postiz)" panel —
   product choice happens HERE.** Code to the Wave-17 CONTRACT above;
   do NOT read the promotion branch.
   1. New sidebar panel, HIDDEN unless `GET
@@ -709,16 +827,54 @@
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
 ### Worktree: `promotion`
-- **Branch:** `fix/promotion` — FIRST: `git merge master` (Wave 12 is
+- **Branch:** `fix/promotion` — FIRST: `git merge master` (Wave 17 is
   merged; the branch must equal master before starting). · **Scope:**
-  `litemall-promotion-service/` + the single Wave-17 migration in
-  litemall-db (shared-module discipline: hand-edit entity + mapper
-  XML together, `mvn install`, restart every dependent). Fail-soft
-  discipline: Postiz env absent ⇒ typed errno + hidden feature;
-  enabling later = env + restart, NO rebuild. Do NOT touch
-  `SocialDealAutoPoster`, the Mautic listener, or the Wave-12
+  `litemall-promotion-service/` + the single Wave-18 **V51** migration
+  in litemall-db (shared-module discipline: hand-edit entity + mapper
+  XML together, `mvn install`, restart every dependent; check
+  `flyway_schema_history` immediately before first boot). Do NOT
+  touch Postiz, `SocialDealAutoPoster`, the Mautic listener, or the
   campaign endpoints.
-- **Task — Wave 17 (backend): Postiz publishing client + the five
+- **Task — Wave 18 (backend): scoped + percent + profit-guarded
+  coupons.** Code to the Wave-18 CONTRACTS above.
+  1. **V51**: `discount_type` (0 flat / 1 percent, default 0) +
+     `discount_cap` decimal(10,2) NULL on `litemall_coupon`; percent
+     rate rides the existing `discount` column (validate 1–90).
+  2. **Ancestor-aware scope matching**: expand cart leaf category ids
+     up the `litemall_category` chain before `matchesGoods`; derive
+     cart category ids server-side from `goodsIds` whenever the
+     caller omits `categoryIds` (usable/selectlist/redeem alike).
+  3. **Percent math server-side**: usable/selectlist return the
+     computed effective discount for the passed amount (cap applied);
+     redeem re-computes vs `orderSubtotal`; list/read expose
+     `discountType`/`discountCap`.
+  4. **Margin guard** on coupon create AND update (admin issue path):
+     call goods-management `POST /srv/private/admin/insight/
+     margin-basis` per the frozen handoff spec (machine token +
+     `X-User-Roles: ROLE_ADMIN`); hard-block per the guard formula;
+     floor config `litemall.promotion.coupon.margin-floor` (env
+     `LITEMALL_PROMOTION_COUPON_MARGIN_FLOOR`, default 1.05); FAIL
+     CLOSED when goods-management is unreachable; rejection messages
+     state the computed maximum discount/rate.
+  5. **Register-gifts**: `POST /srv/promotion/coupon/register-gifts`
+     (machine + `X-User-Id`) — grants all active `TYPE_REGISTER`
+     coupons, idempotent via per-user limit.
+  6. **Redeem scope re-check**: accept optional `goodsIds`/
+     `categoryIds` in the redeem body and re-check `matchesGoods`
+     when present (order passes them — see `order` mini-task).
+  7. **Tests**: guard bounds (flat + percent + null-ratio reject +
+     fail-closed), ancestor matching (L1 coupon matches leaf-cart),
+     derived-category parity, percent computation with cap,
+     register-gift idempotency. Mind the "Tests run:" gotcha.
+- **Acceptance (dev, through :18080/:9000):** L1-scoped percent
+  coupon created within guard limits → claim → appears in checkout
+  picker ONLY with a qualifying CJ product in cart → discounted
+  total charged and DB-verified ≥ cost×floor; over-generous coupon
+  rejected with the stated max; guard rejects an all-uncosted scope
+  with the typed errno; register-gift lands on a fresh signup;
+  existing coupon/checkout e2e regression-green; V51 applied
+  cleanly; module tests green with real "Tests run:" counts.
+- **History — Wave 17 (backend): Postiz publishing client + the five
   CONTRACT endpoints (see Wave-17 CONTRACT above).**
   1. `PostizClient` for the public API: bare-key `Authorization`
      header (no `Bearer`); always sends `shortLink:false` +
