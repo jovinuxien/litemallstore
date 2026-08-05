@@ -10,6 +10,7 @@ import {
   useUpdatePageMutation,
 } from 'app/shared/reducers/private/services/adminContentApi';
 import { useUploadStorageMutation } from 'app/shared/reducers/private/services/adminSysApi';
+import { money } from 'app/shared/util/money';
 import { errnoMessage, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -454,7 +455,7 @@ const GoodsCards: React.FC<{ goods: GoodsCard[] }> = ({ goods }) => (
           <div style={{ width: 96, height: 96, background: '#eee' }} />
         )}
         <div className='small text-truncate'>{g.name ?? `#${g.id}`}</div>
-        {g.retailPrice != null && <div className='small text-danger'>¥{Number(g.retailPrice).toFixed(2)}</div>}
+        {g.retailPrice != null && <div className='small text-danger'>{money(g.retailPrice)}</div>}
       </div>
     ))}
   </div>
@@ -581,8 +582,8 @@ const PreviewComponent: React.FC<{ comp: EditorComponent }> = ({ comp }) => {
           render={(c, i) => (
             <div key={(c.id as number) ?? i} className='border border-danger rounded px-2 py-1 small text-danger'>
               {String(c.name ?? c.title ?? 'Coupon')}
-              {c.discount != null && <span className='ms-1 fw-semibold'>-¥{String(c.discount)}</span>}
-              {c.min != null && <span className='text-muted ms-1'>over ¥{String(c.min)}</span>}
+              {c.discount != null && <span className='ms-1 fw-semibold'>-{money(c.discount as number)}</span>}
+              {c.min != null && <span className='text-muted ms-1'>over {money(c.min as number)}</span>}
             </div>
           )}
         />
@@ -595,7 +596,7 @@ const PreviewComponent: React.FC<{ comp: EditorComponent }> = ({ comp }) => {
           render={(s, i) => (
             <div key={(s.id as number) ?? i} className='border rounded px-2 py-1 small'>
               {String(s.goodsName ?? s.name ?? 'Seckill')}
-              {(s.seckillPrice ?? s.price) != null && <span className='text-danger ms-1'>¥{String(s.seckillPrice ?? s.price)}</span>}
+              {(s.seckillPrice ?? s.price) != null && <span className='text-danger ms-1'>{money((s.seckillPrice ?? s.price) as number)}</span>}
             </div>
           )}
         />

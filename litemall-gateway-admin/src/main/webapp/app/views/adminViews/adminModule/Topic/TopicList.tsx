@@ -4,6 +4,7 @@ import {
   useDeleteTopicMutation,
   useListTopicsQuery,
 } from 'app/shared/reducers/private/services/adminParityApi';
+import { money } from 'app/shared/util/money';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -192,7 +193,7 @@ const TopicList: React.FC = () => {
                   <Link to={`/admin/promotion/topic/${topic.id}`}>{topic.title || `#${topic.id}`}</Link>
                 </td>
                 <td className='text-muted small'>{topic.subtitle}</td>
-                <td className='text-end'>¥{Number(topic.price ?? 0).toFixed(2)}</td>
+                <td className='text-end'>{money(topic.price ?? 0)}</td>
                 <td className='text-end'>{topic.sortOrder ?? '—'}</td>
                 <td className='text-end'>
                   <Link to={`/admin/promotion/topic/${topic.id}`} className='btn btn-sm btn-outline-primary me-1'>

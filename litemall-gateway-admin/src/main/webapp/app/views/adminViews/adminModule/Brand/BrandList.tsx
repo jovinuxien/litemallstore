@@ -1,5 +1,6 @@
 import { IBrand } from 'app/shared/model/admin/catalog.model';
 import { useDeleteBrandMutation, useListBrandsQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
+import { money } from 'app/shared/util/money';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -134,7 +135,7 @@ const BrandList: React.FC = () => {
                   <Link to={`/admin/mall/brand/${brand.id}`}>{brand.name || `#${brand.id}`}</Link>
                 </td>
                 <td className='text-muted small'>{brand.desc}</td>
-                <td className='text-end'>¥{Number(brand.floorPrice ?? 0).toFixed(2)}</td>
+                <td className='text-end'>{money(brand.floorPrice ?? 0)}</td>
                 <td className='text-end'>{brand.sortOrder ?? '—'}</td>
                 <td className='text-end'>
                   <Link to={`/admin/mall/brand/${brand.id}`} className='btn btn-sm btn-outline-primary me-1'>

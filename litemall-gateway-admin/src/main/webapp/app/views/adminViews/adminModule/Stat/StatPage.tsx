@@ -1,5 +1,6 @@
 import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
 import { StatKind, useGetStatQuery } from 'app/shared/reducers/private/services/adminStatApi';
+import { money } from 'app/shared/util/money';
 import * as React from 'react';
 import { Line } from 'react-chartjs-2';
 
@@ -9,7 +10,7 @@ import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const SERIES_COLORS = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399'];
+const SERIES_COLORS = ['#0e7c86', '#67C23A', '#E6A23C', '#F56C6C', '#909399'];
 
 const TITLES: Record<StatKind, string> = {
   user: 'User statistics',
@@ -91,7 +92,7 @@ const StatPage: React.FC<{ kind: StatKind }> = ({ kind }) => {
                     <tr key={String(r.day ?? i)}>
                       {columns.map(col => (
                         <td key={col} className={col === 'day' ? undefined : 'text-end'}>
-                          {col === 'day' ? String(r[col] ?? '') : MONEY_COLUMNS.has(col) ? `¥${numeric(r[col]).toFixed(2)}` : numeric(r[col])}
+                          {col === 'day' ? String(r[col] ?? '') : MONEY_COLUMNS.has(col) ? money(numeric(r[col])) : numeric(r[col])}
                         </td>
                       ))}
                     </tr>

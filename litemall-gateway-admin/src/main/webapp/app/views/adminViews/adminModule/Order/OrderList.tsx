@@ -1,6 +1,7 @@
 import { IOrderVo, orderStatusInfo, ORDER_STATUS } from 'app/shared/model/admin/order.model';
 import { useListOrdersQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
 import { downloadOrderExport } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import { money } from 'app/shared/util/money';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -12,7 +13,6 @@ import { Link } from 'react-router-dom';
 // current filters (+ optional start/end range) and a deliveryType filter.
 
 // Read a BigDecimal-ish price (number or numeric string) defensively.
-const money = (v?: number | string): string => `¥${Number(v ?? 0).toFixed(2)}`;
 
 const OrderList: React.FC = () => {
   const [page, setPage] = React.useState(1);

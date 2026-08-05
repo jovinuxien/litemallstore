@@ -8,6 +8,7 @@ import {
   useMarkOrderPaidMutation,
   usePrintReceiptMutation,
 } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import { money } from 'app/shared/util/money';
 import { Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -19,7 +20,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 // receipt printing. Fetched per id from order-service
 // (/srv/private/admin/order/detail) as an authenticated admin.
 
-const money = (v?: number | string): string => `¥${Number(v ?? 0).toFixed(2)}`;
 
 const UNAVAILABLE: ITracking = { available: false, shipped: false, events: [] };
 

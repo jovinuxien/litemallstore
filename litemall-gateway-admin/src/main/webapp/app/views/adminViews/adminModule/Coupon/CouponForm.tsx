@@ -104,7 +104,7 @@ const CouponForm: React.FC = () => {
         </div>
         <div className='row'>
           <div className='col-md-3 mb-3'>
-            <label className='form-label'>Discount (¥ off)</label>
+            <label className='form-label'>Discount ($ off)</label>
             <input className='form-control' type='number' step='0.01' value={form.discount ?? 0} onChange={e => set({ discount: Number(e.target.value) })} />
           </div>
           <div className='col-md-3 mb-3'>

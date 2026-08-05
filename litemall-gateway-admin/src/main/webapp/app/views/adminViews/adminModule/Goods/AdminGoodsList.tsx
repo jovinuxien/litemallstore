@@ -3,6 +3,7 @@ import { ProductStatus } from 'app/shared/model/enumerations/product-status.mode
 import { IGood } from 'app/shared/model/product/product.model';
 import { setLimit, setPage, setSort } from 'app/shared/reducers/private/catalogMgn/adminGoodsSlice';
 import { useDeleteGoodsMutation, useGetAdminGoodsListQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
+import { money } from 'app/shared/util/money';
 import { errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import GoodsImportDialog from 'app/views/adminViews/adminModule/Goods/GoodsImportDialog';
 import PromoteComposerDialog from 'app/views/adminViews/adminModule/Social/PromoteComposerDialog';
@@ -93,7 +94,7 @@ const GoodsRow: React.FC<{ good: IGood; onDelete: (good: IGood) => void; onPromo
         <Link to={`/admin/goods/${good.id}`}>{good.name || `#${good.id}`}</Link>
         {good.brand && <div className='small text-muted'>{good.brand}</div>}
       </td>
-      <td className='text-end'>¥{priceNum(good.retailPrice).toFixed(2)}</td>
+      <td className='text-end'>{money(priceNum(good.retailPrice))}</td>
       <td className='text-end'>
         <Tag tag={isHotSeller ? 'primary' : 'info'}>sold {sold}</Tag>
       </td>

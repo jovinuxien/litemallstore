@@ -94,7 +94,7 @@
     &.el-tag--danger  { background: #fef0f0; border-color: #fde2e2; color: $lm-danger; }
     &.el-tag--warning { background: #fdf6ec; border-color: #faecd8; color: $lm-warning; }
     &.el-tag--info    { background: #f4f4f5; border-color: #e9e9eb; color: $lm-info; }
-    &.el-tag--primary { background: #ecf5ff; border-color: #d9ecff; color: $lm-primary; }
+    &.el-tag--primary { background: $lm-primary-soft; border-color: #c6e4e7; color: $lm-primary; }
   }
 
   // Element pagination

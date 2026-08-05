@@ -22,7 +22,7 @@ import { Link, useParams } from 'react-router-dom';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const COLORS = { price: '#409EFF', cost: '#E6A23C', margin: '#67C23A', stock: '#409EFF', available: '#67C23A', views: '#909399', sales: '#F56C6C' };
+const COLORS = { price: '#0e7c86', cost: '#E6A23C', margin: '#67C23A', stock: '#0e7c86', available: '#67C23A', views: '#909399', sales: '#F56C6C' };
 
 const numOrNull = (v: unknown): number | null => {
   if (v == null) return null;

@@ -1,5 +1,6 @@
 import { useGetAdminGoodsDetailQuery } from 'app/shared/reducers/private/services/admingoodsrv/adminGoodsApi';
 import { ProductStatus } from 'app/shared/model/enumerations/product-status.model';
+import { money } from 'app/shared/util/money';
 import PromoteComposerDialog from 'app/views/adminViews/adminModule/Social/PromoteComposerDialog';
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -102,11 +103,11 @@ const GoodsDetail: React.FC = () => {
               <div className='row g-3'>
                 <div className='col-6 col-sm-3'>
                   <div className='small text-muted'>Retail price</div>
-                  <div className='h5'>¥{priceNum(goods?.retailPrice).toFixed(2)}</div>
+                  <div className='h5'>{money(priceNum(goods?.retailPrice))}</div>
                 </div>
                 <div className='col-6 col-sm-3'>
                   <div className='small text-muted'>Counter price</div>
-                  <div className='h5'>¥{priceNum(goods?.counterPrice).toFixed(2)}</div>
+                  <div className='h5'>{money(priceNum(goods?.counterPrice))}</div>
                 </div>
                 <div className='col-6 col-sm-3'>
                   <div className='small text-muted'>Brand</div>
@@ -171,7 +172,7 @@ const GoodsDetail: React.FC = () => {
                 products.map((p, i) => (
                   <tr key={p.id ?? i}>
                     <td>{(p.specifications || []).map(s => (s as unknown as { typeProduct?: string }).typeProduct ?? String(s)).join(' / ') || '—'}</td>
-                    <td className='text-end'>¥{priceNum(p.price).toFixed(2)}</td>
+                    <td className='text-end'>{money(priceNum(p.price))}</td>
                     <td className='text-end'>{p.number ?? 0}</td>
                   </tr>
                 ))
