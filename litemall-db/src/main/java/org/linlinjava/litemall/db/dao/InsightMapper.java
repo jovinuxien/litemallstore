@@ -102,4 +102,15 @@ public interface InsightMapper {
     Map<String, Object> selectMarginSimulate(@Param("categoryIds") List<Integer> categoryIds,
                                              @Param("margin") java.math.BigDecimal margin,
                                              @Param("stockCap") int stockCap);
+
+    /**
+     * One aggregate row over the ON-SALE goods of a coupon scope — explicit goods ids and/or
+     * category ids (already subtree-expanded by the caller); BOTH empty = the whole on-sale
+     * catalog (ALL-scope coupons). Columns: onSaleCount, costedCount, uncostedCount,
+     * maxCostRatio (max cost/retail_price over costed goods, 4 dp, NULL when none costed),
+     * minRetailPrice (NULL when the scope matches nothing). Feeds the Wave-18 coupon margin
+     * guard (litemall-goods-management/docs/handoff-coupon-margin-basis.md).
+     */
+    Map<String, Object> selectMarginBasis(@Param("goodsIds") List<Integer> goodsIds,
+                                          @Param("categoryIds") List<Integer> categoryIds);
 }

@@ -7,6 +7,7 @@ import org.linlinjava.litemall.goods.application.insight.ArrivalInsightService;
 import org.linlinjava.litemall.goods.application.insight.CategoryMarginService;
 import org.linlinjava.litemall.goods.application.insight.GovernanceResult;
 import org.linlinjava.litemall.goods.application.insight.InsightService;
+import org.linlinjava.litemall.goods.application.insight.MarginBasisService;
 import org.linlinjava.litemall.goods.application.insight.RetirementAdminService;
 import org.linlinjava.litemall.goods.application.inventoryflow.RetirementExecutor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -59,25 +60,53 @@ public class AdminInsightController {
         public BigDecimal margin;
     }
 
+    public static class MarginBasisRequest {
+        public List<Integer> goodsIds;
+        public List<Integer> categoryIds;
+    }
+
     private final InsightService insightService;
     private final RetirementAdminService retirementAdminService;
     private final ArrivalInsightService arrivalInsightService;
     private final CategoryMarginService categoryMarginService;
     private final RetirementExecutor retirementExecutor;
     private final AutoDailyDealTask autoDailyDealTask;
+    private final MarginBasisService marginBasisService;
 
     public AdminInsightController(InsightService insightService,
                                   RetirementAdminService retirementAdminService,
                                   ArrivalInsightService arrivalInsightService,
                                   CategoryMarginService categoryMarginService,
                                   RetirementExecutor retirementExecutor,
-                                  AutoDailyDealTask autoDailyDealTask) {
+                                  AutoDailyDealTask autoDailyDealTask,
+                                  MarginBasisService marginBasisService) {
         this.insightService = insightService;
         this.retirementAdminService = retirementAdminService;
         this.arrivalInsightService = arrivalInsightService;
         this.categoryMarginService = categoryMarginService;
         this.retirementExecutor = retirementExecutor;
         this.autoDailyDealTask = autoDailyDealTask;
+        this.marginBasisService = marginBasisService;
+    }
+
+    /**
+     * Wave-18 coupon margin-guard basis. Service-facing (promotion-service calls it with its
+     * machine token + a forwarded {@code X-User-Roles: ROLE_ADMIN} — the established sister-
+     * service recipe for admin-prefixed paths), rides the same svcsecurity admin gate as the
+     * rest of this surface so captured costs stay off every customer-reachable path.
+     * Contract: {@code docs/handoff-coupon-margin-basis.md}.
+     */
+    @PostMapping("/margin-basis")
+    public Object marginBasis(@RequestBody(required = false) MarginBasisRequest body) {
+        List<Integer> goodsIds = body == null ? null : body.goodsIds;
+        List<Integer> categoryIds = body == null ? null : body.categoryIds;
+        if (goodsIds != null && goodsIds.size() > MarginBasisService.MAX_GOODS_IDS) {
+            return ResponseUtil.badArgument();
+        }
+        if (categoryIds != null && categoryIds.size() > MarginBasisService.MAX_CATEGORY_IDS) {
+            return ResponseUtil.badArgument();
+        }
+        return ResponseUtil.ok(marginBasisService.basis(goodsIds, categoryIds));
     }
 
     @GetMapping("/categories")
