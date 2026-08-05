@@ -1,0 +1,60 @@
+// Repaint precompiled Bootstrap 5.3 primary widgets to the Trovemo teal.
+// AdminLayout imports bootstrap.min.css (compiled), so Bootstrap's SCSS
+// $primary can't be overridden at build time — instead we override the CSS
+// custom properties Bootstrap 5.3 resolves at runtime.
+
+.btn-primary {
+  --bs-btn-bg: #{$lm-primary};
+  --bs-btn-border-color: #{$lm-primary};
+  --bs-btn-hover-bg: #{$lm-primary-dark};
+  --bs-btn-hover-border-color: #{$lm-primary-dark};
+  --bs-btn-active-bg: #{$lm-primary-dark};
+  --bs-btn-active-border-color: #{$lm-primary-dark};
+  --bs-btn-disabled-bg: #{$lm-primary};
+  --bs-btn-disabled-border-color: #{$lm-primary};
+  --bs-btn-focus-shadow-rgb: 14, 124, 134;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #{$lm-primary};
+  --bs-btn-border-color: #{$lm-primary};
+  --bs-btn-hover-bg: #{$lm-primary};
+  --bs-btn-hover-border-color: #{$lm-primary};
+  --bs-btn-active-bg: #{$lm-primary-dark};
+  --bs-btn-active-border-color: #{$lm-primary-dark};
+  --bs-btn-focus-shadow-rgb: 14, 124, 134;
+}
+
+body {
+  --bs-link-color: #{$lm-primary};
+  --bs-link-hover-color: #{$lm-primary-dark};
+  --bs-link-color-rgb: 14, 124, 134;
+  --bs-link-hover-color-rgb: 10, 93, 101;
+}
+
+.text-primary { color: $lm-primary !important; }
+.bg-primary { background-color: $lm-primary !important; }
+.border-primary { border-color: $lm-primary !important; }
+
+.form-check-input:checked {
+  background-color: $lm-primary;
+  border-color: $lm-primary;
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: #7fc2c8;
+  box-shadow: 0 0 0 0.25rem rgba(14, 124, 134, 0.25);
+}
+
+.nav-pills .nav-link.active { background-color: $lm-primary; }
+.nav-tabs .nav-link.active { color: $lm-primary; }
+
+.page-link { color: $lm-primary; }
+.page-item.active .page-link {
+  background-color: $lm-primary;
+  border-color: $lm-primary;
+}
+
+.progress-bar { background-color: $lm-primary; }

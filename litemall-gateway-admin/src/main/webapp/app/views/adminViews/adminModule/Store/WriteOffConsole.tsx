@@ -3,6 +3,7 @@ import {
   useCommitWriteoffMutation,
   useLazyPreviewWriteoffQuery,
 } from 'app/shared/reducers/private/services/adminStoreApi';
+import { money } from 'app/shared/util/money';
 import * as React from 'react';
 
 // Pickup write-off (核销) console — scanner-first workflow:
@@ -29,7 +30,6 @@ interface HistoryEntry {
 
 const HISTORY_LIMIT = 10;
 
-const money = (v?: number): string => (v == null ? '—' : `¥${Number(v).toFixed(2)}`);
 
 const WriteOffConsole: React.FC = () => {
   const inputRef = React.useRef<HTMLInputElement>(null);

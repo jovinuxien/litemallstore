@@ -11,21 +11,27 @@ $lm-green:      #30B08F;
 $lm-tiffany:    #4AB7BD;
 $lm-yellow:     #FEC171;
 
-// Element primary / status (used for buttons, tags, links)
-$lm-primary: #409EFF;
+// Trovemo primary / status. Primary family mirrors the storefront's teal
+// tokens (--lm-primary / -dark / -soft in litemall-gateway-api
+// product-card.scss) so the admin reads as the same brand; status colors keep
+// the Element semantics used by tags/badges everywhere.
+$lm-primary:      #0e7c86;
+$lm-primary-dark: #0a5d65;
+$lm-primary-soft: #e3f2f3;
+$lm-accent:       #ff5a5f;
 $lm-success: #67C23A;
 $lm-warning: #E6A23C;
 $lm-danger:  #F56C6C;
 $lm-info:    #909399;
 
-// sidebar (dark) — exact upstream values
-$lm-menu-text:            #bfcbd9;
-$lm-menu-active-text:     #409EFF;
+// sidebar (dark) — teal ramp derived from the storefront's dark teal #0a5d65
+$lm-menu-text:            #b7d3d6;
+$lm-menu-active-text:     #5fd0da;
 $lm-sub-menu-active-text: #f4f4f5;
-$lm-menu-bg:              #304156;
-$lm-menu-hover:           #263445;
-$lm-sub-menu-bg:          #1f2d3d;
-$lm-sub-menu-hover:       #001528;
+$lm-menu-bg:              #0d4650;
+$lm-menu-hover:           #0a3841;
+$lm-sub-menu-bg:          #082f37;
+$lm-sub-menu-hover:       #051f25;
 
 // dimensions
 $lm-sidebar-width:           210px;
@@ -34,5 +40,5 @@ $lm-navbar-height:           50px;
 $lm-tags-view-height:        34px;
 
 // content surface
-$lm-content-bg: #f0f2f5;
+$lm-content-bg: #f6f9fa;
 $lm-border:     #dfe6ec;

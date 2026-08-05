@@ -11,6 +11,7 @@ import {
   useBatchApproveAftersalesMutation,
   useBatchRejectAftersalesMutation,
 } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import { money } from 'app/shared/util/money';
 import { ElTag, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -80,7 +81,7 @@ const AftersaleList: React.FC = () => {
   };
 
   const onApprove = async (a: IAftersale) => {
-    if (!window.confirm(`Approve aftersale ${a.aftersaleSn ?? a.id} and refund ¥${a.amount ?? '?'} on order #${a.orderId}?`)) return;
+    if (!window.confirm(`Approve aftersale ${a.aftersaleSn ?? a.id} and refund ${money(a.amount)} on order #${a.orderId}?`)) return;
     setActionMsg(null);
     const msg = aftersaleOpMessage(await approveAftersale(a.id as number));
     setActionMsg(msg ? { ok: false, text: msg } : { ok: true, text: `Aftersale ${a.aftersaleSn ?? a.id} approved — refund issued.` });
@@ -252,7 +253,7 @@ const AftersaleList: React.FC = () => {
                   {a.reason || '—'}
                   {a.comment && <div className='text-muted small'>admin: {a.comment}</div>}
                 </td>
-                <td className='text-end'>{a.amount != null ? `¥${a.amount}` : '—'}</td>
+                <td className='text-end'>{money(a.amount)}</td>
                 <td>
                   <Tag tag={STATUS_TAG[a.status ?? 1] ?? 'info'}>{a.statusText || AFTERSALE_STATUS[a.status ?? 1] || a.status}</Tag>
                 </td>

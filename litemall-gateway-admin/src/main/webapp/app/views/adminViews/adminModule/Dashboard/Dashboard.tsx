@@ -2,6 +2,7 @@ import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, Linea
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchDashboardTotals, fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
 import { IChannelRow, useGetChannelStatQuery, useGetCjBalanceQuery } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import { money } from 'app/shared/util/money';
 import * as React from 'react';
 import { Line } from 'react-chartjs-2';
 
@@ -13,13 +14,22 @@ import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const PRIMARY = '#409EFF';
+const PRIMARY = '#0e7c86';
 const SUCCESS = '#67C23A';
 
 const chartOpts: ChartOptions<'line'> = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: { legend: { display: true } },
+};
+
+const moneyChartOpts: ChartOptions<'line'> = {
+  ...chartOpts,
+  scales: { y: { ticks: { callback: v => `$${v}` } } },
+  plugins: {
+    legend: { display: true },
+    tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
+  },
 };
 
 const StatTile: React.FC<{ value: React.ReactNode; label: string; color: string }> = ({ value, label, color }) => (
@@ -60,7 +70,7 @@ const ChannelTable: React.FC<{ title: string; keyHeader: string; rows: IChannelR
             <tr key={r.key}>
               <td>{r.key || 'UNPAID'}</td>
               <td className='text-end'>{r.count}</td>
-              <td className='text-end'>{r.amount != null ? `¥${r.amount.toFixed(2)}` : '—'}</td>
+              <td className='text-end'>{money(r.amount)}</td>
             </tr>
           ))
         )}
@@ -131,7 +141,7 @@ const Dashboard: React.FC = () => {
   // CJ dropship account balance (order's /srv/private/admin/order/cj/balance,
   // Wave-3 dependency — renders '—' until the order side ships it).
   const { data: cjBalance, isError: cjBalanceError } = useGetCjBalanceQuery();
-  const cjBalanceValue = !cjBalanceError && cjBalance?.available && cjBalance.amount != null ? `$${cjBalance.amount.toFixed(2)}` : '—';
+  const cjBalanceValue = !cjBalanceError && cjBalance?.available && cjBalance.amount != null ? money(cjBalance.amount) : '—';
 
   React.useEffect(() => {
     dispatch(fetchOrderStats());
@@ -182,7 +192,7 @@ const Dashboard: React.FC = () => {
           />
         </div>
         <div className='col-sm-3'>
-          <StatTile value={`¥${totals.amount.toFixed(2)}`} label='Revenue' color={SUCCESS} />
+          <StatTile value={money(totals.amount)} label='Revenue' color={SUCCESS} />
         </div>
         <div className='col-sm-3 mt-3'>
           <StatTile value={cjBalanceValue} label='CJ dropship balance' color='#F56C6C' />
@@ -211,7 +221,7 @@ const Dashboard: React.FC = () => {
                 <div className='box-card-header'>Revenue over time</div>
                 <div className='box-card-body'>
                   <div style={{ height: 300 }}>
-                    <Line data={amountChart} options={chartOpts} />
+                    <Line data={amountChart} options={moneyChartOpts} />
                   </div>
                 </div>
               </div>
@@ -236,7 +246,7 @@ const Dashboard: React.FC = () => {
                       <td>{r.day}</td>
                       <td className='text-end'>{r.orders}</td>
                       <td className='text-end'>{r.customers}</td>
-                      <td className='text-end'>¥{r.amount.toFixed(2)}</td>
+                      <td className='text-end'>{money(r.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
