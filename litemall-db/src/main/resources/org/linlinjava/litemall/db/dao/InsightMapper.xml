@@ -255,6 +255,32 @@
       <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
   </select>
 
+  <select id="selectMarginBasis" resultType="java.util.HashMap">
+    select
+      count(*) as onSaleCount,
+      coalesce(sum(case when g.cost &gt; 0 then 1 else 0 end), 0) as costedCount,
+      coalesce(sum(case when g.cost &gt; 0 then 0 else 1 end), 0) as uncostedCount,
+      round(max(case when g.cost &gt; 0 and g.retail_price &gt; 0
+                     then g.cost / g.retail_price end), 4) as maxCostRatio,
+      min(g.retail_price) as minRetailPrice
+    from litemall_goods g
+    where g.deleted = 0 and g.is_on_sale = 1
+    <if test="(goodsIds != null and goodsIds.size() > 0) or (categoryIds != null and categoryIds.size() > 0)">
+      and (
+      <trim prefixOverrides="or ">
+        <if test="goodsIds != null and goodsIds.size() > 0">
+          g.id in
+          <foreach collection="goodsIds" item="gid" open="(" separator="," close=")">#{gid}</foreach>
+        </if>
+        <if test="categoryIds != null and categoryIds.size() > 0">
+          or g.category_id in
+          <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">#{cid}</foreach>
+        </if>
+      </trim>
+      )
+    </if>
+  </select>
+
   <select id="selectTrackedDealVids" resultType="java.lang.String">
     select distinct gp.cj_vid
     from litemall_goods_product gp
