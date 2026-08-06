@@ -74,6 +74,17 @@ class AdminAuditLogFilterTest {
     }
 
     @Test
+    void cfConnectingIpWinsOverEverything() throws InterruptedException {
+        LitemallLog row = runFilter(MockServerHttpRequest
+                .post("/srv/private/admin/deal/create")
+                .header("CF-Connecting-IP", "192.0.2.44")
+                .header("X-Forwarded-For", "198.51.100.7")
+                .remoteAddress(InetSocketAddress.createUnresolved("172.68.243.239", 443))
+                .build());
+        assertEquals("192.0.2.44", row.getIp());
+    }
+
+    @Test
     void forwardedForHeaderWinsWhenPresent() throws InterruptedException {
         LitemallLog row = runFilter(MockServerHttpRequest
                 .post("/srv/private/admin/comment/reply")
