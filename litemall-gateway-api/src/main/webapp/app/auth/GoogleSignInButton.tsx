@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppDispatch } from 'app/config/store';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import { googleSignInThunk } from 'app/auth/customerAuthSlice';
+import { fireRegisterGifts } from 'app/shared/util/couponFormat';
 
 /**
  * "Sign in with Google" (Wave 16) — env-gated via /auth/site-config
@@ -67,6 +68,11 @@ const GoogleSignInButton: React.FC<{ onSuccess?: () => void }> = ({ onSuccess })
               const result = await dispatch(googleSignInThunk({ credential: r.credential }));
               if (googleSignInThunk.fulfilled.match(result)) {
                 setError(null);
+                // Wave 18: the SPA cannot tell a first-time Google provisioning
+                // from a repeat sign-in, so fire the register-gift grant on
+                // every success — idempotent server-side (per-user claim
+                // limit), fail-silent, never blocks the flow.
+                fireRegisterGifts();
                 onSuccess?.();
               } else {
                 setError((result.payload as { errmsg?: string } | undefined)?.errmsg ?? 'Google sign-in failed');
