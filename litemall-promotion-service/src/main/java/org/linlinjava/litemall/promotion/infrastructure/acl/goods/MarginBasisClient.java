@@ -9,6 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -63,6 +66,7 @@ public class MarginBasisClient implements CouponMarginBasisPort {
                         URI.create(goodsServiceUrl + "/srv/private/admin/insight/margin-basis"))
                 .timeout(Duration.ofSeconds(5))
                 .header("Authorization", "Bearer " + token)
+                .header("X-User-Id", forwardedUserId())
                 .header("X-User-Roles", "ROLE_ADMIN")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
@@ -95,6 +99,29 @@ public class MarginBasisClient implements CouponMarginBasisPort {
             log.warn("margin-basis call failed: {}", e.getMessage());
             throw new MarginBasisUnavailableException("margin-basis call failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * svcsecurity's {@code MachineTokenUserContextFilter} swaps in the forwarded
+     * user (with the {@code X-User-Roles} authorities) ONLY when {@code X-User-Id}
+     * is present — a bare machine token keeps its role-less {@code JwtAuthenticationToken}
+     * and the admin-gated path 403s. Forward the acting admin's id from the current
+     * request when available (gateway-admin injects it), else a {@code "0"} service
+     * sentinel so the roles header still takes effect.
+     */
+    private static String forwardedUserId() {
+        try {
+            RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
+            if (attrs instanceof ServletRequestAttributes servletAttrs) {
+                String userId = servletAttrs.getRequest().getHeader("X-User-Id");
+                if (userId != null && !userId.isBlank()) {
+                    return userId;
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through to sentinel
+        }
+        return "0";
     }
 
     private ArrayNode toArray(List<Integer> ids) {

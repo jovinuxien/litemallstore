@@ -17,6 +17,9 @@ numbers; the guard formula and floor live in promotion.
 ```
 POST /srv/private/admin/insight/margin-basis
 Headers: Authorization: Bearer <machine token>
+         X-User-Id: <acting admin id, or 0 sentinel>   // REQUIRED — svcsecurity only
+                                                       // honours X-User-Roles when
+                                                       // X-User-Id is present
          X-User-Roles: ROLE_ADMIN
 Body:    { "goodsIds": [1,2,3], "categoryIds": [1036007] }   // either, both, or {}
 → 200 errno envelope, data:
