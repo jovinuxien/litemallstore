@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.promotion.interfaces.rest;
 
 import org.linlinjava.litemall.promotion.application.LitemallPromotionOrchestratorService;
+import org.linlinjava.litemall.promotion.application.internal.LitemallCouponServiceImpl;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallCouponAggregate;
 import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallUserCouponAggregate;
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallExchangeCouponCommand;
@@ -86,9 +87,23 @@ public class LitemallCouponController {
             @RequestParam(required = false) List<Integer> categoryIds) {
         List<CouponDtoResponse> response = orchestratorService.getCouponService()
                 .getUsableForCheckout(new LitemallUserId(userId), amount, goodsIds, categoryIds).stream()
-                .map(view -> toUsableCouponDto(view.getUserCoupon(), view.getCoupon()))
+                .map(this::toUsableCouponDto)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Wave 18 register-gift: grant every active TYPE_REGISTER coupon to the
+     * given user. Fired by gateway-api once after successful registration
+     * (machine token + X-User-Id), fail-silent edge-side; idempotent here via
+     * the per-user claim limit.
+     */
+    @PostMapping("/register-gifts")
+    public ResponseEntity<PromotionOperationDtoResponse> registerGifts(
+            @RequestHeader("X-User-Id") Integer userId) {
+        LitemallPromotionOperationResult result =
+                orchestratorService.grantRegisterGifts(new LitemallUserId(userId));
+        return buildResponse(result);
     }
 
     /** Exchange a redemption code for its coupon (dedicated exchange-by-code). */
@@ -152,6 +167,8 @@ public class LitemallCouponController {
                 .description(c.getDescription())
                 .tag(c.getTag())
                 .discount(c.getDiscount() != null ? c.getDiscount().getAmount() : null)
+                .discountType(c.getDiscountType() != null ? c.getDiscountType().getCode() : 0)
+                .discountCap(c.getDiscountCap() != null ? c.getDiscountCap().getAmount() : null)
                 .min(c.getMin() != null ? c.getMin().getAmount() : null)
                 .type(c.getType() != null ? c.getType().getDisplayName() : null)
                 .goodsType(c.getGoodsType() != null ? c.getGoodsType().getDisplayName() : null)
@@ -161,13 +178,20 @@ public class LitemallCouponController {
                 .build();
     }
 
-    private CouponDtoResponse toUsableCouponDto(LitemallUserCouponAggregate held,
-                                                LitemallCouponAggregate c) {
+    private CouponDtoResponse toUsableCouponDto(LitemallCouponServiceImpl.UsableCouponView view) {
+        LitemallUserCouponAggregate held = view.getUserCoupon();
+        LitemallCouponAggregate c = view.getCoupon();
         CouponDtoResponse dto = toCouponDto(c);
         dto.setUserCouponId(held.getUserCouponId() != null ? held.getUserCouponId().getId() : null);
         // The held instance's validity window overrides the definition's.
         dto.setStartTime(held.getStartTime());
         dto.setEndTime(held.getEndTime());
+        // Wave 18: usable views carry the COMPUTED effective discount for the
+        // passed cart amount; the raw percent rate moves to discountRate.
+        if (c.isPercent()) {
+            dto.setDiscountRate(c.getDiscount() != null ? c.getDiscount().getAmount() : null);
+        }
+        dto.setDiscount(view.getEffectiveDiscount());
         return dto;
     }
 

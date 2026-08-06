@@ -8,11 +8,17 @@ import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserC
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Redeem-at-checkout command: apply a held coupon to an order. The order's
  * subtotal is validated against the coupon's spend threshold before the coupon
  * is marked used. {@code orderId} stamps the redemption.
+ *
+ * <p>Wave 18: {@code goodsIds}/{@code categoryIds} are the cart's scope facts,
+ * OPTIONAL so older callers keep working; when present, the coupon's goods
+ * scope is re-checked at consumption (category ids are derived from goods ids
+ * when omitted, and expanded up the category ancestor chain).
  */
 @Getter
 @Setter
@@ -24,4 +30,11 @@ public class LitemallRedeemCouponCommand {
     private LitemallUserId userId;
     private Integer orderId;
     private BigDecimal orderSubtotal;
+    private List<Integer> goodsIds;
+    private List<Integer> categoryIds;
+
+    public LitemallRedeemCouponCommand(LitemallUserCouponId userCouponId, LitemallUserId userId,
+                                       Integer orderId, BigDecimal orderSubtotal) {
+        this(userCouponId, userId, orderId, orderSubtotal, null, null);
+    }
 }
