@@ -174,14 +174,17 @@ export const FAQ_SECTIONS: FaqSection[] = [
       {
         id: 'use-coupon',
         q: 'How do I use a coupon?',
-        a: 'Available coupons appear at checkout and on eligible product pages — pick one to apply the discount. Coupons you have collected are listed under Coupons & rewards.',
-        links: [{ label: 'Coupons & rewards', to: '/user/coupons' }],
+        a: 'Browse claimable offers in the Coupon center and claim the ones you want — they then appear at checkout, where picking one applies the discount. Coupons you have collected are listed under Coupons & rewards.',
+        links: [
+          { label: 'Coupon center', to: '/coupons' },
+          { label: 'Coupons & rewards', to: '/user/coupons' },
+        ],
         top: true,
       },
       {
         id: 'coupon-not-applying',
         q: 'Why isn’t my coupon applying?',
-        a: 'Coupons have a validity window, and many have a minimum spend or only apply to certain items. Check the coupon’s conditions under Coupons & rewards and make sure the cart qualifies.',
+        a: 'Coupons have a validity window, and many have a minimum spend or only apply to certain items or categories. Check the coupon’s conditions under Coupons & rewards and make sure the cart qualifies.',
         links: [{ label: 'Coupons & rewards', to: '/user/coupons' }],
       },
       {

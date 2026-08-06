@@ -36,6 +36,7 @@ import {
   TaxUnavailableError,
 } from 'app/shared/reducers/orderSlice';
 import { authApi, IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
+import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -1310,9 +1311,12 @@ const CheckoutView: React.FC = () => {
                 }}
               >
                 <option value=''>No coupon ({couponCellValue})</option>
+                {/* Wave 18: selectlist `discount` is the server-COMPUTED dollar
+                    discount for this cart (percent coupons included) — the
+                    label renders dollars plus the coupon kind. */}
                 {coupons.map(c => (
                   <option key={c.id} value={c.id} disabled={(c.min ?? 0) > cartLinesSubtotal}>
-                    {c.name ? `${c.name} — ` : ''}−${c.discount} {c.min ? `(over $${c.min})` : ''}
+                    {couponPickerLabel(c)}
                   </option>
                 ))}
               </Form.Select>

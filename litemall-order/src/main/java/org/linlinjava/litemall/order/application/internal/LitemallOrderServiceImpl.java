@@ -289,6 +289,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // 503: never silently drop a discount the customer picked.
         BigDecimal couponPrice = new BigDecimal(0);
         UsableCoupon appliedCoupon = null;
+        // Cart scope facts, reused by the redeem call below (Wave 18) so promotion
+        // can re-check goods scope at consumption, not just at validation.
+        Set<Integer> cartGoodsIds = null;
+        Set<Integer> cartCategoryIds = null;
         boolean couponSelected = (cmdCouponId.getId() != 0 && cmdCouponId.getId() != -1)
                 || cmdCouponUserId.getId() > 0;
         if (couponSelected) {
@@ -296,10 +300,10 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 throw new LitemallInvalidCouponException(
                         "a coupon was selected but no userCouponId was supplied");
             }
-            Set<Integer> cartGoodsIds = cartList.stream()
+            cartGoodsIds = cartList.stream()
                     .map(item -> item.getGoodsId().getId())
                     .collect(Collectors.toSet());
-            Set<Integer> cartCategoryIds = goodsFacade.batchGetGoods(cartGoodsIds).values().stream()
+            cartCategoryIds = goodsFacade.batchGetGoods(cartGoodsIds).values().stream()
                     .map(LitemallGoodsAggregate::getCategoryId)
                     .filter(Objects::nonNull)
                     .map(LitemallCategoryId::getId)
@@ -467,7 +471,8 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if (appliedCoupon != null) {
             LitemallOrderId redeemOrderId = existingOrderAggregate.getOrderId();
             CouponRedemption redemption = promotionFacade.redeemCoupon(
-                    cmdUserId, appliedCoupon.getUserCouponId(), redeemOrderId, checkedGoodsPrice);
+                    cmdUserId, appliedCoupon.getUserCouponId(), redeemOrderId, checkedGoodsPrice,
+                    cartGoodsIds, cartCategoryIds);
             registerCouponReleaseOnRollback(cmdUserId, appliedCoupon.getUserCouponId(), redeemOrderId);
             // The order was priced with the validate-step discount; if promotion's
             // authoritative redeem-time discount disagrees, refuse to place a

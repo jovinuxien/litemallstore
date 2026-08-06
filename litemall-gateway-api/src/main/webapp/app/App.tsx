@@ -35,6 +35,8 @@ const AddressEdit = lazy(() => import('app/modules/user/AddressEdit'));
 const Favorites = lazy(() => import('app/modules/user/Favorites'));
 const Footprint = lazy(() => import('app/modules/user/Footprint'));
 const Coupons = lazy(() => import('app/modules/user/Coupons'));
+// Wave 18: public coupon center — claimable coupons, no login needed to browse.
+const CouponCenter = lazy(() => import('app/modules/coupon/CouponCenter'));
 const Feedback = lazy(() => import('app/modules/user/Feedback'));
 const GoodsListPage = lazy(() => import('app/modules/listing/GoodsListPage'));
 const DealsPage = lazy(() => import('app/modules/listing/DealsPage'));
@@ -109,6 +111,8 @@ const App: React.FC = () => (
           <Route path='articles' element={<ArticleList />} />
           <Route path='article/:id' element={<ArticleDetail />} />
           <Route path='groupon' element={<Groupon />} />
+          {/* Wave 18: public coupon center; claiming diverts to /login. */}
+          <Route path='coupons' element={<CouponCenter />} />
           <Route path='help' element={<Help />} />
           <Route path='service' element={<CustomerService />} />
           <Route path='terms' element={<Terms />} />
