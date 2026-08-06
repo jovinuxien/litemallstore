@@ -879,6 +879,186 @@ public class LitemallCouponExample {
             return (Criteria) this;
         }
 
+        public Criteria andDiscountTypeIsNull() {
+            addCriterion("discount_type is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeIsNotNull() {
+            addCriterion("discount_type is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeEqualTo(Short value) {
+            addCriterion("discount_type =", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeNotEqualTo(Short value) {
+            addCriterion("discount_type <>", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeNotEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeGreaterThan(Short value) {
+            addCriterion("discount_type >", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeGreaterThanColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeGreaterThanOrEqualTo(Short value) {
+            addCriterion("discount_type >=", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeGreaterThanOrEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeLessThan(Short value) {
+            addCriterion("discount_type <", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeLessThanColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeLessThanOrEqualTo(Short value) {
+            addCriterion("discount_type <=", value, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeLessThanOrEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_type <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeIn(List<Short> values) {
+            addCriterion("discount_type in", values, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeNotIn(List<Short> values) {
+            addCriterion("discount_type not in", values, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeBetween(Short value1, Short value2) {
+            addCriterion("discount_type between", value1, value2, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountTypeNotBetween(Short value1, Short value2) {
+            addCriterion("discount_type not between", value1, value2, "discountType");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapIsNull() {
+            addCriterion("discount_cap is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapIsNotNull() {
+            addCriterion("discount_cap is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapEqualTo(BigDecimal value) {
+            addCriterion("discount_cap =", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap = ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapNotEqualTo(BigDecimal value) {
+            addCriterion("discount_cap <>", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapNotEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap <> ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapGreaterThan(BigDecimal value) {
+            addCriterion("discount_cap >", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapGreaterThanColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap > ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapGreaterThanOrEqualTo(BigDecimal value) {
+            addCriterion("discount_cap >=", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapGreaterThanOrEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap >= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapLessThan(BigDecimal value) {
+            addCriterion("discount_cap <", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapLessThanColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap < ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapLessThanOrEqualTo(BigDecimal value) {
+            addCriterion("discount_cap <=", value, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapLessThanOrEqualToColumn(LitemallCoupon.Column column) {
+            addCriterion(new StringBuilder("discount_cap <= ").append(column.getEscapedColumnName()).toString());
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapIn(List<BigDecimal> values) {
+            addCriterion("discount_cap in", values, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapNotIn(List<BigDecimal> values) {
+            addCriterion("discount_cap not in", values, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapBetween(BigDecimal value1, BigDecimal value2) {
+            addCriterion("discount_cap between", value1, value2, "discountCap");
+            return (Criteria) this;
+        }
+
+        public Criteria andDiscountCapNotBetween(BigDecimal value1, BigDecimal value2) {
+            addCriterion("discount_cap not between", value1, value2, "discountCap");
+            return (Criteria) this;
+        }
+
         public Criteria andMinIsNull() {
             addCriterion("`min` is null");
             return (Criteria) this;
