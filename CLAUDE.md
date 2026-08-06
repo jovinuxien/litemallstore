@@ -514,20 +514,25 @@
 >   to that user, idempotent via the per-user claim limit; gateway-api fires
 >   it once after successful registration, fail-silent.
 >
-> **Wave 18 STATUS: ALL FOUR HALVES MERGED to master + pushed (2026-08-06,
-> merges `1d02deeab` promotion / `bc75d67b5` order / `9fbe80120` admin UI /
-> `c9b0848a6` storefront).** V51 verified applying cleanly on the
-> `litemall_test` schema during the litemall-db install; post-merge module
-> tests promotion 107/0, order 189/0; branch-side webapp checks jest 19/19 +
-> headless 16/16 (admin), 24/24 + 17/17 (storefront). Gotchas: guard
-> rejections ride as `guardError` in the admin envelope data (HTTP 400);
-> percent `discount_cap` can be raised but not cleared via selective update;
-> promotion's dev `goods.service.url` default fixed 8083→8082
-> (`GOODS_SERVICE_URL` env). REMAINING (main session): live dev acceptance
-> through :18080/:9000 (guard round-trip, claim→checkout→charge ≥ cost×floor,
-> register-gift on signup — only goods 10008302–10008305 costed on dev), then
-> prod deploy (rebuild+recreate promotion, order, both gateways; migrations
-> ride the flyway-owning containers — recreate order/goods BEFORE the edge).
+> **Wave 18 STATUS: SHIPPED + DEPLOYED to trovemo.com (2026-08-06, master
+> `3168148e7`, prod schema V51).** Merges `1d02deeab` promotion /
+> `bc75d67b5` order / `9fbe80120` admin UI / `c9b0848a6` storefront; module
+> tests promotion 107/0, order 189/0; webapp checks jest 19/19 + headless
+> 16/16 (admin), 24/24 + 17/17 (storefront). **Live dev acceptance PASSED**
+> (guard max stated 15.98% at floor 1.05 on the 0.8001 scope; SCOPE_UNCOSTED
+> typed reject; register-gift grant idempotent; order 111 wallet-paid with
+> capped percent coupon, DB-verified) — and CAUGHT a blocker, fixed as
+> `3168148e7`: `MarginBasisClient` must forward `X-User-Id` or svcsecurity
+> ignores `X-User-Roles` and every coupon create fails closed (handoff spec
+> corrected). Prod deploy staged order/promotion before edges; pass 2
+> converged promotion + gateway-admin on `3168148e7` (also carrying the
+> concurrent `6386f613c` admin audit-ip hotfix). Gotchas: guard rejections
+> ride as `guardError` in the admin envelope data (HTTP 400); percent
+> `discount_cap` can be raised but not cleared via selective update; dev's
+> 4 costed goods (10008302–05) have `cj_vid` NULL ⇒ unbuyable on dev — buy
+> an enriched same-L1 good for order-leg tests. USER-SIDE: prod admin
+> click-through (create a scoped/percent coupon against prod costs; view
+> /coupons on the storefront).
 >
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
