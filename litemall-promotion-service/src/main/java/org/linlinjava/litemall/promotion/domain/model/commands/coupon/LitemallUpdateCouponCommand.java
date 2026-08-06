@@ -24,6 +24,10 @@ public class LitemallUpdateCouponCommand {
     private String tag;
     private Integer total;
     private BigDecimal discount;
+    /** Wave 18: 0 = flat amount, 1 = percent rate (1-90); null = unchanged. */
+    private Integer discountType;
+    /** Wave 18: max absolute discount for percent coupons; null = unchanged. */
+    private BigDecimal discountCap;
     private BigDecimal min;
     private Integer limitPerUser;
     private Integer type;

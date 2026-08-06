@@ -31,6 +31,11 @@ export interface ICoupon {
   name?: string;
   desc?: string;
   tag?: string;
+  /**
+   * Flat coupons: the dollar amount off. Percent coupons (discountType 1): the
+   * rate (1–90) on list/mylist reads, but the COMPUTED effective dollar
+   * discount on selectlist — order math always consumes dollars (Wave 18).
+   */
   discount?: number;
   min?: number;
   type?: number;
@@ -38,6 +43,14 @@ export interface ICoupon {
   available?: boolean;
   startTime?: string;
   endTime?: string;
+  /** Wave 18: 0 flat (default when absent) / 1 percent-off. */
+  discountType?: number;
+  /** Wave 18: optional dollar cap for percent coupons ("up to $C"). */
+  discountCap?: number;
+  /** Scope: 0 all goods / 1 categories / 2 specific goods (absent ⇒ all). */
+  goodsType?: number;
+  /** Scoped ids (category ids for goodsType 1, goods ids for goodsType 2). */
+  goodsValue?: number[];
 }
 
 export interface ICommentUserInfo {
@@ -133,6 +146,12 @@ export const userApi = {
     ),
   couponReceive: (couponId: number) => unwrap(baseAxios.post(`${SRV}/coupon/receive`, { couponId })),
   couponExchange: (code: string) => unwrap(baseAxios.post(`${SRV}/coupon/exchange`, { code })),
+  // Wave 18: grants every active register-gift coupon to the CURRENT user
+  // (identity = the gateway-forwarded X-User-Id; the machine-token relay
+  // satisfies promotion's auth). Idempotent server-side via the per-user claim
+  // limit, so callers may fire it opportunistically. ALWAYS fire-and-forget —
+  // a failed gift grant must never block signup (use fireRegisterGifts()).
+  couponRegisterGifts: () => unwrap(baseAxios.post(`${SRV}/promotion/coupon/register-gifts`, {})),
 
   // TODO(/srv follow-up: user) — feedback.
   feedbackSubmit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/feedback/submit`, body)),

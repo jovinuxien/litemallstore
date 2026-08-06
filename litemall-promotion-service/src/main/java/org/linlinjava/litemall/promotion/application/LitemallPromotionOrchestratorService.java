@@ -259,6 +259,18 @@ public class LitemallPromotionOrchestratorService {
         }
     }
 
+    /** Wave 18 register-gift: grant all active TYPE_REGISTER coupons to a fresh user. */
+    public LitemallPromotionOperationResult grantRegisterGifts(org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId userId) {
+        try {
+            return couponService.grantRegisterGifts(userId);
+        } catch (IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.couponGrantFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error granting register gifts", e);
+            return LitemallPromotionOperationResult.couponGrantFailed("System error: " + e.getMessage());
+        }
+    }
+
     public LitemallPromotionOperationResult grantCoupon(LitemallGrantCouponCommand command) {
         try {
             return couponService.grantCoupon(command);
