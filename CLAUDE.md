@@ -514,6 +514,21 @@
 >   to that user, idempotent via the per-user claim limit; gateway-api fires
 >   it once after successful registration, fail-silent.
 >
+> **Wave 18 STATUS: ALL FOUR HALVES MERGED to master + pushed (2026-08-06,
+> merges `1d02deeab` promotion / `bc75d67b5` order / `9fbe80120` admin UI /
+> `c9b0848a6` storefront).** V51 verified applying cleanly on the
+> `litemall_test` schema during the litemall-db install; post-merge module
+> tests promotion 107/0, order 189/0; branch-side webapp checks jest 19/19 +
+> headless 16/16 (admin), 24/24 + 17/17 (storefront). Gotchas: guard
+> rejections ride as `guardError` in the admin envelope data (HTTP 400);
+> percent `discount_cap` can be raised but not cleared via selective update;
+> promotion's dev `goods.service.url` default fixed 8083→8082
+> (`GOODS_SERVICE_URL` env). REMAINING (main session): live dev acceptance
+> through :18080/:9000 (guard round-trip, claim→checkout→charge ≥ cost×floor,
+> register-gift on signup — only goods 10008302–10008305 costed on dev), then
+> prod deploy (rebuild+recreate promotion, order, both gateways; migrations
+> ride the flyway-owning containers — recreate order/goods BEFORE the edge).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
