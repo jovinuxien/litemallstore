@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 
 import { ICoupon, userApi } from 'app/shared/api';
 import { EmptyState, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
+import { couponConditionLabel, couponValueShort } from 'app/shared/util/couponFormat';
 import './user.scss';
 
 /** litemall-vue coupon-list status tabs: 0 unused, 1 used, 2 expired. */
@@ -11,7 +13,8 @@ const TABS = ['Unused', 'Used', 'Expired'];
 /**
  * My coupons, modelled on litemall-vue `user/coupon-list`. Sourced from
  * `/srv/coupon/mylist`. The tab index IS the status code the backend
- * expects (0 unused / 1 used / 2 expired).
+ * expects (0 unused / 1 used / 2 expired). Wave 18: percent coupons render
+ * "N%" + their cap; the coupon center is linked for claiming more.
  */
 const Coupons: React.FC = () => {
   const [status, setStatus] = useState(0);
@@ -40,7 +43,14 @@ const Coupons: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='My Coupons' />
+      <PageHead
+        title='My Coupons'
+        sub={
+          <>
+            Claim more in the <Link to='/coupons'>coupon center</Link>.
+          </>
+        }
+      />
       <div className='container'>
         <StatusTabs tabs={TABS} active={status} onChange={setStatus} />
 
@@ -49,14 +59,18 @@ const Coupons: React.FC = () => {
             <Spinner animation='border' />
           </div>
         ) : coupons.length === 0 ? (
-          <EmptyState icon='bi-ticket-perforated' text='No coupons here.' />
+          <EmptyState icon='bi-ticket-perforated' text='No coupons here.'>
+            <Link to='/coupons' className='btn btn-sm btn-outline-primary mt-2'>
+              Browse the coupon center
+            </Link>
+          </EmptyState>
         ) : (
           <div className='d-grid gap-3'>
             {coupons.map(c => (
               <div key={c.id} className={`lm-coupon-card${disabled ? ' is-disabled' : ''}`}>
                 <div className='lm-coupon-card__value'>
-                  <div className='lm-coupon-card__amt'>${c.discount}</div>
-                  <div className='lm-coupon-card__cond'>{c.min ? `Spend $${c.min}` : 'No minimum'}</div>
+                  <div className='lm-coupon-card__amt'>{couponValueShort(c)}</div>
+                  <div className='lm-coupon-card__cond'>{couponConditionLabel(c)}</div>
                 </div>
                 <div className='lm-coupon-card__body'>
                   <div className='lm-coupon-card__name'>{c.name}</div>

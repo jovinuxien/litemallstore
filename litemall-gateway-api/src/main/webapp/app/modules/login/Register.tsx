@@ -7,6 +7,7 @@ import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AuthShell from 'app/modules/login/AuthShell';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { fireRegisterGifts } from 'app/shared/util/couponFormat';
 import { clearStashedInviteCode, getStashedInviteCode } from 'app/shared/util/invite';
 
 /**
@@ -73,6 +74,9 @@ const Register: React.FC = () => {
     );
     if (registerCustomerThunk.fulfilled.match(result)) {
       clearStashedInviteCode();
+      // Wave 18: grant register-gift coupons. Fire-and-forget by contract —
+      // the session is already persisted, and a failure never blocks signup.
+      fireRegisterGifts();
       navigate(from, { replace: true });
     }
   };

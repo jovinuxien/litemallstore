@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { ICoupon, userApi } from 'app/shared/api';
+import { couponValueShort, isPercentCoupon } from 'app/shared/util/couponFormat';
 
 /**
  * Receivable-coupon strip on the detail page, mirroring litemall-vue's coupon
  * row. Reads public coupons (`/srv/coupon/list`) and lets the customer claim
  * one (`/srv/coupon/receive`). Renders nothing when no coupons are on offer.
+ * Wave 18: percent coupons render "−N%"; "see all" links the coupon center.
  */
 const CouponStrip: React.FC = () => {
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
@@ -42,11 +45,17 @@ const CouponStrip: React.FC = () => {
     <div className='lm-pdp__coupons'>
       {coupons.map(c => (
         <button key={c.id} type='button' className='lm-pdp__coupon' onClick={() => claim(c)} disabled={c.id != null && claimed[c.id]}>
-          <span className='lm-pdp__coupon-val'>−${c.discount ?? 0}</span>
-          <span className='lm-pdp__coupon-min'>{c.min ? `over $${c.min}` : 'no minimum'}</span>
+          <span className='lm-pdp__coupon-val'>−{couponValueShort(c)}</span>
+          <span className='lm-pdp__coupon-min'>
+            {c.min ? `over $${c.min}` : 'no minimum'}
+            {isPercentCoupon(c) && c.discountCap ? ` · up to $${c.discountCap}` : ''}
+          </span>
           <span className='lm-pdp__coupon-cta'>{c.id != null && claimed[c.id] ? 'Claimed' : 'Claim'}</span>
         </button>
       ))}
+      <Link to='/coupons' className='lm-pdp__coupon-all small text-decoration-none align-self-center flex-shrink-0'>
+        See all coupons <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
+      </Link>
     </div>
   );
 };
