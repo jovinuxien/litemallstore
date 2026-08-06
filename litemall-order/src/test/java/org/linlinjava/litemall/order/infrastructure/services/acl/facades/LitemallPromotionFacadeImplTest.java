@@ -12,6 +12,8 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUser
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.CouponRedemption;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.UsableCoupon;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.PromotionServiceFeignClient;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponRedeemRequest;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -107,12 +110,19 @@ class LitemallPromotionFacadeImplTest {
                 "{\"success\":true,\"operationType\":\"REDEEM_COUPON\",\"message\":\"ok\","
                 + "\"data\":{\"userCouponId\":3,\"couponId\":9,\"orderId\":77,\"discount\":15}}"));
 
-        CouponRedemption redemption = facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100"));
+        CouponRedemption redemption = facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100"),
+                Set.of(5), Set.of(10));
 
         assertEquals(3, redemption.getUserCouponId());
         assertEquals(9, redemption.getCouponId());
         assertEquals(77, redemption.getOrderId());
         assertEquals(0, redemption.getDiscount().compareTo(new BigDecimal("15")));
+        // Wave 18: the cart's scope facts ride the redeem body so promotion can
+        // re-check goods scope at consumption.
+        ArgumentCaptor<CouponRedeemRequest> body = ArgumentCaptor.forClass(CouponRedeemRequest.class);
+        verify(client).redeemCoupon(eq(42), eq(3), body.capture());
+        assertEquals(Set.of(5), body.getValue().goodsIds());
+        assertEquals(Set.of(10), body.getValue().categoryIds());
     }
 
     @Test
@@ -122,7 +132,8 @@ class LitemallPromotionFacadeImplTest {
                 + "\"message\":\"Failed to redeem coupon: Coupon is not usable\"}"));
 
         LitemallInvalidCouponException e = assertThrows(LitemallInvalidCouponException.class,
-                () -> facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100")));
+                () -> facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100"),
+                        Set.of(5), Set.of(10)));
         assertTrue(e.getMessage().contains("Coupon is not usable"));
     }
 
@@ -132,7 +143,8 @@ class LitemallPromotionFacadeImplTest {
                 .thenReturn(httpResponse(500, "boom"));
 
         assertThrows(LitemallPromotionServiceUnavailableException.class,
-                () -> facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100")));
+                () -> facade.redeemCoupon(USER, 3, ORDER, new BigDecimal("100"),
+                        Set.of(5), Set.of(10)));
     }
 
     // ---- releaseCoupon (compensation: never throws) ----------------------------
