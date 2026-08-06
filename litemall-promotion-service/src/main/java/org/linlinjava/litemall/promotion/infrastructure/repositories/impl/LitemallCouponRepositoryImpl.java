@@ -8,6 +8,7 @@ import org.linlinjava.litemall.promotion.domain.model.aggregates.LitemallCouponA
 import org.linlinjava.litemall.promotion.domain.model.repositories.LitemallCouponRepository;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponDiscountType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponGoodsType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponStatus;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponTimeType;
@@ -107,6 +108,10 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
                 .tag(r.getTag())
                 .total(r.getTotal())
                 .discount(r.getDiscount() != null ? new LitemallMoney(r.getDiscount()) : null)
+                .discountType(r.getDiscountType() != null
+                        ? LitemallCouponDiscountType.fromCode(r.getDiscountType())
+                        : LitemallCouponDiscountType.FLAT)
+                .discountCap(r.getDiscountCap() != null ? new LitemallMoney(r.getDiscountCap()) : null)
                 .min(r.getMin() != null ? new LitemallMoney(r.getMin()) : null)
                 .limitPerUser(r.getLimit() != null ? r.getLimit().intValue() : null)
                 .type(r.getType() != null ? LitemallCouponType.fromCode(r.getType()) : LitemallCouponType.COMMON)
@@ -129,6 +134,10 @@ public class LitemallCouponRepositoryImpl implements LitemallCouponRepository {
         r.setTag(agg.getTag());
         r.setTotal(agg.getTotal());
         r.setDiscount(agg.getDiscount() != null ? agg.getDiscount().getAmount() : null);
+        r.setDiscountType(agg.getDiscountType() != null
+                ? (short) agg.getDiscountType().getCode()
+                : (short) LitemallCouponDiscountType.FLAT.getCode());
+        r.setDiscountCap(agg.getDiscountCap() != null ? agg.getDiscountCap().getAmount() : null);
         r.setMin(agg.getMin() != null ? agg.getMin().getAmount() : null);
         r.setLimit(agg.getLimitPerUser() != null ? agg.getLimitPerUser().shortValue() : null);
         r.setType(agg.getType() != null ? (short) agg.getType().getCode() : null);

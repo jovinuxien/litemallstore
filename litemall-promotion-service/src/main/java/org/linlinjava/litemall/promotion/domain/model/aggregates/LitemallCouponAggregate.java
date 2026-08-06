@@ -6,6 +6,7 @@ import lombok.Setter;
 import org.linlinjava.litemall.core.events.LitemallDomainEvent;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallMoney;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponDiscountType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponGoodsType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponStatus;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponTimeType;
@@ -34,6 +35,14 @@ public class LitemallCouponAggregate {
     /** Total issuable quantity; 0 means unlimited. */
     private Integer total;
     private LitemallMoney discount;
+    /**
+     * Wave 18 (V51): how {@link #discount} is interpreted — FLAT (amount off,
+     * the pre-V51 default) or PERCENT (discount holds the rate 1-90).
+     */
+    @Builder.Default
+    private LitemallCouponDiscountType discountType = LitemallCouponDiscountType.FLAT;
+    /** Wave 18 (V51): max absolute discount for PERCENT coupons; null = uncapped. */
+    private LitemallMoney discountCap;
     /** Spend threshold (order subtotal must reach this to redeem). */
     private LitemallMoney min;
     /** Max held per user; 0 means unlimited. */
@@ -79,6 +88,40 @@ public class LitemallCouponAggregate {
         boolean afterStart = startTime == null || !now.isBefore(startTime);
         boolean beforeEnd = endTime == null || !now.isAfter(endTime);
         return afterStart && beforeEnd;
+    }
+
+    public boolean isPercent() {
+        return LitemallCouponDiscountType.PERCENT.equals(this.discountType);
+    }
+
+    /**
+     * The effective absolute discount this coupon takes off a given order
+     * subtotal (Wave 18). FLAT coupons return their configured amount
+     * unchanged; PERCENT coupons compute {@code subtotal × rate / 100}
+     * (2 dp, HALF_UP) and apply {@link #discountCap} when configured. The
+     * result is additionally clamped to the subtotal so a discount can never
+     * exceed what is being paid.
+     */
+    public java.math.BigDecimal computeEffectiveDiscount(LitemallMoney orderSubtotal) {
+        java.math.BigDecimal rate = this.discount != null
+                ? this.discount.getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal subtotal = orderSubtotal != null
+                ? orderSubtotal.getAmount() : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal effective;
+        if (isPercent()) {
+            effective = subtotal.multiply(rate)
+                    .divide(new java.math.BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+            if (this.discountCap != null
+                    && effective.compareTo(this.discountCap.getAmount()) > 0) {
+                effective = this.discountCap.getAmount();
+            }
+        } else {
+            effective = rate;
+        }
+        if (effective.compareTo(subtotal) > 0) {
+            effective = subtotal;
+        }
+        return effective.max(java.math.BigDecimal.ZERO).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     /** Whether an order subtotal meets this coupon's spend threshold. */

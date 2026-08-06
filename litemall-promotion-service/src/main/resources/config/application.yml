@@ -45,6 +45,14 @@ litemall:
     campaign:
       scheduler-enabled: ${PROMOTION_CAMPAIGN_SCHEDULER_ENABLED:true}
       tick-ms: 60000
+    # Wave 18 coupon merchandising Phase 1. margin-floor is the HARD profit
+    # guard (user decision 2026-08-06, no admin override): a coupon may never
+    # let in-scope goods sell below cost x floor. The worst-margin basis comes
+    # from goods-management POST /srv/private/admin/insight/margin-basis
+    # (frozen handoff spec); when that endpoint is unreachable coupon
+    # create/update FAILS CLOSED.
+    coupon:
+      margin-floor: ${LITEMALL_PROMOTION_COUPON_MARGIN_FLOOR:1.05}
     # Wave 2 group-buy participation ("pink") tuning: how long a group has to
     # fill (capped at the campaign end) and how often the expiry sweep runs.
     # Profile-overridable via the config server.
@@ -123,7 +131,13 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 goods:
   service:
-    url: http://localhost:8083
+    # Also the base URL for the Wave-18 margin-basis guard call (machine token
+    # + X-User-Roles: ROLE_ADMIN; token endpoint under litemall.goods.auth.*,
+    # dev defaults in GoodsMachineTokenProvider). Prod compose injects
+    # GOODS_SERVICE_URL (http://goods-management:8082); the dev default is
+    # goods-management's actual dev port 8082 (the old 8083 default predated
+    # any live caller of this property).
+    url: ${GOODS_SERVICE_URL:http://localhost:8082}
 order:
   service:
     # Phase 2: source of per-customer RFM statistics (read via Feign behind an

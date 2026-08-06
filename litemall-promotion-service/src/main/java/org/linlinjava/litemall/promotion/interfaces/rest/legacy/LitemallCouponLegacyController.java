@@ -114,6 +114,15 @@ public class LitemallCouponLegacyController {
                     item.put("cid", view.getCoupon().getCouponId().getId());
                     item.put("startTime", view.getUserCoupon().getStartTime());
                     item.put("endTime", view.getUserCoupon().getEndTime());
+                    // Wave 18: the checkout picker gets the COMPUTED effective
+                    // discount for this cart amount (percent rate + cap
+                    // resolved server-side) so order-side math is unchanged;
+                    // the raw rate stays available as discountRate.
+                    if (view.getCoupon().isPercent()) {
+                        item.put("discountRate", view.getCoupon().getDiscount() != null
+                                ? view.getCoupon().getDiscount().getAmount() : null);
+                    }
+                    item.put("discount", view.getEffectiveDiscount());
                     return item;
                 })
                 .collect(Collectors.toList());
@@ -162,6 +171,10 @@ public class LitemallCouponLegacyController {
         item.put("desc", c.getDescription());
         item.put("tag", c.getTag());
         item.put("discount", c.getDiscount() != null ? c.getDiscount().getAmount() : null);
+        // Wave 18: 0 = flat ($D off), 1 = percent (discount holds the rate;
+        // discountCap bounds the absolute amount, null = uncapped).
+        item.put("discountType", c.getDiscountType() != null ? c.getDiscountType().getCode() : 0);
+        item.put("discountCap", c.getDiscountCap() != null ? c.getDiscountCap().getAmount() : null);
         item.put("min", c.getMin() != null ? c.getMin().getAmount() : null);
         item.put("type", c.getType() != null ? c.getType().getCode() : null);
         item.put("status", c.getStatus() != null ? c.getStatus().getCode() : null);
