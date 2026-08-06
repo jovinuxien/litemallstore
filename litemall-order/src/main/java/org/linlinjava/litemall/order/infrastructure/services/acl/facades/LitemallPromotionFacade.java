@@ -36,12 +36,15 @@ public interface LitemallPromotionFacade {
 
     /**
      * Exactly-once redemption (USABLE→USED, stamps this order). Call once per
-     * placement attempt, after the order row exists. A business rejection (400)
+     * placement attempt, after the order row exists. The cart's goods/category ids
+     * ride along (Wave 18) so promotion re-checks goods scope at consumption —
+     * optional on the promotion side. A business rejection (400)
      * throws {@code LitemallInvalidCouponException} — the placement must abort;
      * a transport failure throws {@code LitemallPromotionServiceUnavailableException}.
      */
     CouponRedemption redeemCoupon(LitemallUserId userId, Integer userCouponId,
-                                  LitemallOrderId orderId, BigDecimal orderSubtotal);
+                                  LitemallOrderId orderId, BigDecimal orderSubtotal,
+                                  Set<Integer> goodsIds, Set<Integer> categoryIds);
 
     /**
      * Best-effort, idempotent compensation: return a redeemed coupon to USABLE after

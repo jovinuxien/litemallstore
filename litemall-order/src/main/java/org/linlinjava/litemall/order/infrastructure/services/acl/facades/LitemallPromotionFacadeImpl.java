@@ -79,9 +79,10 @@ public class LitemallPromotionFacadeImpl implements LitemallPromotionFacade {
 
     @Override
     public CouponRedemption redeemCoupon(LitemallUserId userId, Integer userCouponId,
-                                         LitemallOrderId orderId, BigDecimal orderSubtotal) {
+                                         LitemallOrderId orderId, BigDecimal orderSubtotal,
+                                         Set<Integer> goodsIds, Set<Integer> categoryIds) {
         try (Response response = promotionClient.redeemCoupon(userId.getId(), userCouponId,
-                new CouponRedeemRequest(orderId.getId(), orderSubtotal))) {
+                new CouponRedeemRequest(orderId.getId(), orderSubtotal, goodsIds, categoryIds))) {
             JsonNode envelope = readEnvelope(response, "redeem of user coupon " + userCouponId);
             if (response.status() == 200 && envelope.path("success").asBoolean(false)) {
                 JsonNode data = envelope.path("data");
