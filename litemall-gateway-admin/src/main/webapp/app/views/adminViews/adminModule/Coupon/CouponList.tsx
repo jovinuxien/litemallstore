@@ -1,6 +1,7 @@
 import { ICoupon } from 'app/shared/model/admin/promotion-system.model';
 import { promotionOpMessage, useDeleteCouponMutation, useListCouponsQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { couponScopeLabel, discountTypeLabel, fmtCouponDiscount } from './couponFormat';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -8,6 +9,8 @@ import { Link } from 'react-router-dom';
 // authenticated admin → promotion-service /srv/private/admin/promotion/coupon.
 // The list endpoint is page/limit only (no name filter or sort) and returns a
 // bare array, so the pager runs on the has-more heuristic.
+// Wave 18: discount column renders flat vs percent (incl. cap) and new
+// discount-type + scope (All/Category/Products) columns.
 
 const TYPE_LABEL: Record<number, string> = { 0: 'general', 1: 'on register', 2: 'exchange code' };
 const STATUS_TAG: Record<number, { tag: 'success' | 'warning' | 'info'; text: string }> = {
@@ -67,7 +70,9 @@ const CouponList: React.FC = () => {
           <tr>
             <th>Name</th>
             <th>Type</th>
+            <th>Discount type</th>
             <th className='text-end'>Discount</th>
+            <th>Scope</th>
             <th className='text-end'>Min spend</th>
             <th className='text-end'>Total</th>
             <th>Status</th>
@@ -77,13 +82,13 @@ const CouponList: React.FC = () => {
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={7} className='text-center p-5'>
+              <td colSpan={9} className='text-center p-5'>
                 <span className='spinner-border text-primary' role='status' />
               </td>
             </tr>
           ) : list.length === 0 ? (
             <tr>
-              <td colSpan={7} className='text-center text-muted py-5'>
+              <td colSpan={9} className='text-center text-muted py-5'>
                 No coupons found.
               </td>
             </tr>
@@ -97,7 +102,11 @@ const CouponList: React.FC = () => {
                     {c.code && <span className='text-muted small ms-1'>({c.code})</span>}
                   </td>
                   <td>{TYPE_LABEL[c.type ?? 0] ?? c.type}</td>
-                  <td className='text-end'>{c.discount != null ? `-${c.discount}` : '—'}</td>
+                  <td>
+                    <Tag tag={discountTypeLabel(c) === 'percent' ? 'primary' : 'info'}>{discountTypeLabel(c)}</Tag>
+                  </td>
+                  <td className='text-end'>{fmtCouponDiscount(c)}</td>
+                  <td>{couponScopeLabel(c)}</td>
                   <td className='text-end'>{c.min ?? '—'}</td>
                   <td className='text-end'>{c.total ?? '—'}</td>
                   <td>
