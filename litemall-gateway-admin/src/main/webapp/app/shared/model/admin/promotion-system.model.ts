@@ -42,6 +42,11 @@ export interface ICoupon {
   status?: number; // 0 normal, 1 expired, 2 used up
   goodsType?: number; // 0 all goods, 1 category, 2 specific goods
   goodsValue?: number[];
+  // Wave 18 (V51): 0 flat $-off (default), 1 percent-off. When percent, the
+  // rate (1–90) rides the existing `discount` field and `discountCap` is an
+  // optional $ ceiling on the computed discount.
+  discountType?: number;
+  discountCap?: number | null;
   code?: string;
   timeType?: number; // 0 relative days, 1 absolute window
   days?: number;
