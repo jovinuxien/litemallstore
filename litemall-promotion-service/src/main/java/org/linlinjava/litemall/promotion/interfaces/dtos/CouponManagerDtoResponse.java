@@ -22,6 +22,10 @@ public class CouponManagerDtoResponse {
     private String tag;
     private Integer total;
     private BigDecimal discount;
+    /** Wave 18: 0 = flat, 1 = percent (rate rides {@code discount}). */
+    private Integer discountType;
+    /** Wave 18: max absolute discount for percent coupons; null = uncapped. */
+    private BigDecimal discountCap;
     private BigDecimal min;
     private Integer limitPerUser;
     private String type;

@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.promotion.application.internal;
 
+import org.linlinjava.litemall.promotion.application.internal.CouponMarginGuard.GuardDecision;
+import org.linlinjava.litemall.promotion.application.ports.CouponScopePort;
 import org.linlinjava.litemall.promotion.domain.events.LitemallDomainEventPublisher;
 import org.linlinjava.litemall.promotion.domain.events.coupon.LitemallCouponIssuedEvent;
 import org.linlinjava.litemall.promotion.domain.events.coupon.LitemallCouponReceivedEvent;
@@ -19,6 +21,7 @@ import org.linlinjava.litemall.promotion.domain.model.repositories.LitemallUserC
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponDiscountType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponGoodsType;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponStatus;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.enums.LitemallCouponTimeType;
@@ -55,15 +58,21 @@ public class LitemallCouponServiceImpl {
     private final LitemallUserCouponRepository userCouponRepository;
     private final LitemallCouponDomainService couponDomainService;
     private final LitemallDomainEventPublisher domainEventPublisher;
+    private final CouponMarginGuard marginGuard;
+    private final CouponScopePort couponScopePort;
 
     public LitemallCouponServiceImpl(LitemallCouponRepository couponRepository,
                                      LitemallUserCouponRepository userCouponRepository,
                                      LitemallCouponDomainService couponDomainService,
-                                     LitemallDomainEventPublisher domainEventPublisher) {
+                                     LitemallDomainEventPublisher domainEventPublisher,
+                                     CouponMarginGuard marginGuard,
+                                     CouponScopePort couponScopePort) {
         this.couponRepository = couponRepository;
         this.userCouponRepository = userCouponRepository;
         this.couponDomainService = couponDomainService;
         this.domainEventPublisher = domainEventPublisher;
+        this.marginGuard = marginGuard;
+        this.couponScopePort = couponScopePort;
     }
 
     /**
@@ -83,6 +92,10 @@ public class LitemallCouponServiceImpl {
                 .tag(command.getTag())
                 .total(command.getTotal())
                 .discount(new LitemallMoney(command.getDiscount()))
+                .discountType(command.getDiscountType() != null
+                        ? LitemallCouponDiscountType.fromCode(command.getDiscountType())
+                        : LitemallCouponDiscountType.FLAT)
+                .discountCap(command.getDiscountCap() != null ? new LitemallMoney(command.getDiscountCap()) : null)
                 .min(command.getMin() != null ? new LitemallMoney(command.getMin()) : new LitemallMoney(BigDecimal.ZERO))
                 .limitPerUser(command.getLimitPerUser())
                 .type(command.getType() != null ? LitemallCouponType.fromCode(command.getType()) : LitemallCouponType.COMMON)
@@ -96,6 +109,13 @@ public class LitemallCouponServiceImpl {
                 .endTime(command.getEndTime())
                 .build();
 
+        // Wave 18: HARD margin guard — reject before anything is persisted.
+        GuardDecision guard = marginGuard.check(coupon);
+        if (!guard.allowed()) {
+            return LitemallPromotionOperationResult.couponIssueFailed(guard.message())
+                    .withData("guardError", guard.code());
+        }
+
         couponRepository.save(coupon);
 
         domainEventPublisher.publish(new LitemallCouponIssuedEvent(coupon.getCouponId(), coupon.getName()));
@@ -103,6 +123,10 @@ public class LitemallCouponServiceImpl {
         Map<String, Object> data = new HashMap<>();
         data.put("couponId", coupon.getCouponId().getId());
         data.put("name", coupon.getName());
+        if (guard.uncostedCount() != null) {
+            // Non-blocking warning: part of the scope has no captured cost yet.
+            data.put("uncostedCount", guard.uncostedCount());
+        }
         return LitemallPromotionOperationResult.couponIssued(data);
     }
 
@@ -204,23 +228,43 @@ public class LitemallCouponServiceImpl {
         LitemallCouponAggregate coupon = couponOpt.get();
 
         BigDecimal subtotalValue = command.getOrderSubtotal() != null ? command.getOrderSubtotal() : BigDecimal.ZERO;
-        if (!coupon.meetsThreshold(new LitemallMoney(subtotalValue))) {
+        LitemallMoney subtotal = new LitemallMoney(subtotalValue);
+        if (!coupon.meetsThreshold(subtotal)) {
             return LitemallPromotionOperationResult.couponRedeemFailed(
                     "Order subtotal does not meet the coupon threshold");
+        }
+
+        // Wave 18: re-check goods scope at consumption when the caller passed
+        // the cart facts (optional — older callers keep threshold-only checks).
+        boolean scopeFactsPresent = (command.getGoodsIds() != null && !command.getGoodsIds().isEmpty())
+                || (command.getCategoryIds() != null && !command.getCategoryIds().isEmpty());
+        if (scopeFactsPresent) {
+            List<Integer> expandedCategoryIds = couponScopePort.expandCategoryIds(
+                    command.getGoodsIds(), command.getCategoryIds());
+            if (!coupon.matchesGoods(command.getGoodsIds(), expandedCategoryIds)) {
+                return LitemallPromotionOperationResult.couponRedeemFailed(
+                        "Coupon does not apply to the goods in this order");
+            }
         }
 
         held.redeem(command.getOrderId(), now);
         userCouponRepository.update(held);
 
+        // Wave 18: the redeemed amount is the COMPUTED effective discount
+        // (percent coupons re-computed vs the order subtotal, cap applied) so
+        // order-side money math is unchanged for flat and correct for percent.
+        BigDecimal effectiveDiscount = coupon.computeEffectiveDiscount(subtotal);
+
         domainEventPublisher.publish(new LitemallCouponRedeemedEvent(
                 held.getUserCouponId(), command.getUserId(), held.getCouponId(),
-                command.getOrderId(), coupon.getDiscount()));
+                command.getOrderId(), new LitemallMoney(effectiveDiscount)));
 
         Map<String, Object> data = new HashMap<>();
         data.put("userCouponId", held.getUserCouponId().getId());
         data.put("couponId", held.getCouponId().getId());
         data.put("orderId", command.getOrderId());
-        data.put("discount", coupon.getDiscount() != null ? coupon.getDiscount().getAmount() : null);
+        data.put("discount", effectiveDiscount);
+        data.put("discountType", coupon.getDiscountType() != null ? coupon.getDiscountType().getCode() : 0);
         return LitemallPromotionOperationResult.couponRedeemed(data);
     }
 
@@ -307,6 +351,8 @@ public class LitemallCouponServiceImpl {
         if (command.getTag() != null) coupon.setTag(command.getTag());
         if (command.getTotal() != null) coupon.setTotal(command.getTotal());
         if (command.getDiscount() != null) coupon.setDiscount(new LitemallMoney(command.getDiscount()));
+        if (command.getDiscountType() != null) coupon.setDiscountType(LitemallCouponDiscountType.fromCode(command.getDiscountType()));
+        if (command.getDiscountCap() != null) coupon.setDiscountCap(new LitemallMoney(command.getDiscountCap()));
         if (command.getMin() != null) coupon.setMin(new LitemallMoney(command.getMin()));
         if (command.getLimitPerUser() != null) coupon.setLimitPerUser(command.getLimitPerUser());
         if (command.getType() != null) coupon.setType(LitemallCouponType.fromCode(command.getType()));
@@ -319,10 +365,22 @@ public class LitemallCouponServiceImpl {
         if (command.getStartTime() != null) coupon.setStartTime(command.getStartTime());
         if (command.getEndTime() != null) coupon.setEndTime(command.getEndTime());
 
+        // Wave 18: the margin guard re-runs on UPDATE against the merged
+        // state (scope/discount/min edits) — the in-memory mutations above are
+        // only persisted when the guard passes.
+        GuardDecision guard = marginGuard.check(coupon);
+        if (!guard.allowed()) {
+            return LitemallPromotionOperationResult.couponUpdateFailed(guard.message())
+                    .withData("guardError", guard.code());
+        }
+
         couponRepository.save(coupon);
 
         Map<String, Object> data = new HashMap<>();
         data.put("couponId", coupon.getCouponId().getId());
+        if (guard.uncostedCount() != null) {
+            data.put("uncostedCount", guard.uncostedCount());
+        }
         return LitemallPromotionOperationResult.couponUpdated(data);
     }
 
@@ -435,14 +493,19 @@ public class LitemallCouponServiceImpl {
     public static class UsableCouponView {
         private final LitemallUserCouponAggregate userCoupon;
         private final LitemallCouponAggregate coupon;
+        /** Wave 18: computed effective discount for the passed cart amount. */
+        private final BigDecimal effectiveDiscount;
 
-        public UsableCouponView(LitemallUserCouponAggregate userCoupon, LitemallCouponAggregate coupon) {
+        public UsableCouponView(LitemallUserCouponAggregate userCoupon, LitemallCouponAggregate coupon,
+                                BigDecimal effectiveDiscount) {
             this.userCoupon = userCoupon;
             this.coupon = coupon;
+            this.effectiveDiscount = effectiveDiscount;
         }
 
         public LitemallUserCouponAggregate getUserCoupon() { return userCoupon; }
         public LitemallCouponAggregate getCoupon() { return coupon; }
+        public BigDecimal getEffectiveDiscount() { return effectiveDiscount; }
     }
 
     /**
@@ -450,22 +513,83 @@ public class LitemallCouponServiceImpl {
      * unexpired holdings, which apply to a cart of {@code amount} covering
      * {@code goodsIds}/{@code categoryIds}. The caller supplies the cart facts —
      * promotion has no cart access by design.
+     *
+     * <p>Wave 18: cart category ids are derived from {@code goodsIds} when the
+     * caller omits them and expanded up the category ancestor chain, so
+     * L1-scoped coupons match leaf-level carts; each returned view carries the
+     * COMPUTED effective discount for {@code amount} (percent rate + cap
+     * resolved server-side).
      */
     @Transactional(readOnly = true)
     public List<UsableCouponView> getUsableForCheckout(LitemallUserId userId, BigDecimal amount,
                                                        List<Integer> goodsIds, List<Integer> categoryIds) {
         LocalDateTime now = LocalDateTime.now();
         LitemallMoney subtotal = new LitemallMoney(amount != null ? amount : BigDecimal.ZERO);
+        List<Integer> expandedCategoryIds = couponScopePort.expandCategoryIds(goodsIds, categoryIds);
         return userCouponRepository.findUsableByUser(userId).stream()
                 .filter(held -> !held.isExpired(now))
                 .map(held -> couponRepository.findById(held.getCouponId())
-                        .map(coupon -> new UsableCouponView(held, coupon))
+                        .map(coupon -> new UsableCouponView(held, coupon,
+                                coupon.computeEffectiveDiscount(subtotal)))
                         .orElse(null))
                 .filter(Objects::nonNull)
                 .filter(view -> view.getCoupon().isAvailable())
                 .filter(view -> view.getCoupon().meetsThreshold(subtotal))
-                .filter(view -> view.getCoupon().matchesGoods(goodsIds, categoryIds))
+                .filter(view -> view.getCoupon().matchesGoods(goodsIds, expandedCategoryIds))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Wave 18 register-gift: grant every active {@code TYPE_REGISTER} coupon
+     * to the given (freshly registered) user. Idempotent via the per-user
+     * claim limit — a coupon the user already holds up to its limit is
+     * skipped, and an unlimited (0) per-user limit is treated as ONE for
+     * gifts so repeated calls never double-grant. Fired by gateway-api after
+     * successful registration (machine token + X-User-Id), fail-silent there.
+     */
+    public LitemallPromotionOperationResult grantRegisterGifts(LitemallUserId userId) {
+        LocalDateTime now = LocalDateTime.now();
+        List<Integer> granted = new java.util.ArrayList<>();
+        int skipped = 0;
+        for (LitemallCouponAggregate coupon : couponRepository.findReceivable()) {
+            if (!LitemallCouponType.REGISTER.equals(coupon.getType())) {
+                continue;
+            }
+            if (!coupon.isAvailable() || !coupon.withinReceiveWindow(now)) {
+                skipped++;
+                continue;
+            }
+            int perUserCap = coupon.isUnlimitedPerUser() ? 1 : coupon.getLimitPerUser();
+            if (userCouponRepository.countByUserAndCoupon(userId, coupon.getCouponId()) >= perUserCap) {
+                skipped++;
+                continue;
+            }
+            if (!coupon.isUnlimitedTotal()
+                    && userCouponRepository.countByCoupon(coupon.getCouponId()) >= coupon.getTotal()) {
+                skipped++;
+                continue;
+            }
+
+            LitemallCouponDomainService.ValidityWindow window =
+                    couponDomainService.computeValidityWindow(coupon, now);
+            LitemallUserCouponAggregate held = LitemallUserCouponAggregate.builder()
+                    .userId(userId)
+                    .couponId(coupon.getCouponId())
+                    .status(LitemallUserCouponStatus.USABLE)
+                    .startTime(window.getStart())
+                    .endTime(window.getEnd())
+                    .build();
+            userCouponRepository.add(held);
+            domainEventPublisher.publish(new LitemallCouponReceivedEvent(
+                    held.getUserCouponId(), userId, coupon.getCouponId()));
+            granted.add(coupon.getCouponId().getId());
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("granted", granted);
+        data.put("grantedCount", granted.size());
+        data.put("skipped", skipped);
+        return LitemallPromotionOperationResult.couponGranted(data);
     }
 
     /** Admin: who received a coupon (paged issuance records). */

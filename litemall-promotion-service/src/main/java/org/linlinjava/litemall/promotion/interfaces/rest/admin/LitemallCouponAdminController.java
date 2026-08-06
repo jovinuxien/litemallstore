@@ -127,6 +127,8 @@ public class LitemallCouponAdminController {
                 .tag(c.getTag())
                 .total(c.getTotal())
                 .discount(c.getDiscount() != null ? c.getDiscount().getAmount() : null)
+                .discountType(c.getDiscountType() != null ? c.getDiscountType().getCode() : 0)
+                .discountCap(c.getDiscountCap() != null ? c.getDiscountCap().getAmount() : null)
                 .min(c.getMin() != null ? c.getMin().getAmount() : null)
                 .limitPerUser(c.getLimitPerUser())
                 .type(c.getType() != null ? c.getType().getDisplayName() : null)
