@@ -343,6 +343,10 @@ const Layout: React.FC = () => {
                   <NavDropdown.Item as={Link} to='/user/coupons'>
                     My coupons
                   </NavDropdown.Item>
+                  {/* Wave 18: public coupon center (claimable offers). */}
+                  <NavDropdown.Item as={Link} to='/coupons'>
+                    Coupon center
+                  </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/user/address'>
                     Addresses
                   </NavDropdown.Item>
@@ -373,6 +377,10 @@ const Layout: React.FC = () => {
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/register'>
                     Register
+                  </NavDropdown.Item>
+                  {/* Wave 18: browsable logged-out; claiming asks to sign in. */}
+                  <NavDropdown.Item as={Link} to='/coupons'>
+                    Coupon center
                   </NavDropdown.Item>
                 </NavDropdown>
               )}
@@ -523,6 +531,9 @@ const Layout: React.FC = () => {
                   </Link>
                   <Link to='/groupon' className='link-light text-decoration-none small'>
                     Group buys
+                  </Link>
+                  <Link to='/coupons' className='link-light text-decoration-none small'>
+                    Coupons &amp; deals
                   </Link>
                 </div>
               </div>

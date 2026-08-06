@@ -442,6 +442,14 @@
     &-min { color: var(--lm-muted); }
     &-cta { font-weight: 600; text-decoration: underline; }
   }
+  /* Wave 18: coupon-center entry from the strip. */
+  &__coupon-all {
+    align-self: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--lm-accent-dark);
+    &:hover { color: var(--lm-accent); }
+  }
 
   &__stars { color: var(--lm-star); letter-spacing: 1px; }
 
