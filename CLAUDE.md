@@ -896,6 +896,14 @@
   with the typed errno; register-gift lands on a fresh signup;
   existing coupon/checkout e2e regression-green; V51 applied
   cleanly; module tests green with real "Tests run:" counts.
+  **Dev-DB fact (verified 2026-08-06):** only 4 costed on-sale goods
+  exist on dev (ids 10008302–10008305; cost capture runs in prod) —
+  before guard happy-path acceptance either run
+  `POST /srv/private/admin/search/cj-enrich` batches to land costs or
+  scope test coupons to those 4. margin-basis SQL semantics are
+  already live-verified against dev data (whole catalog
+  maxCostRatio 0.8003; Women's Clothing L1 subtree 1301/1 costed
+  0.8001; bogus ids excluded).
 - **History — Wave 17 (backend): Postiz publishing client + the five
   CONTRACT endpoints (see Wave-17 CONTRACT above).**
   1. `PostizClient` for the public API: bare-key `Authorization`
