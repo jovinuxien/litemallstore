@@ -111,6 +111,13 @@ public class AdminAuditLogFilter implements WebFilter, Ordered {
     }
 
     private static String clientIp(ServerHttpRequest request) {
+        // Cloudflare fronts the edge: CF-Connecting-IP is the real visitor
+        // address. X-Forwarded-For / remoteAddress only see the CF proxy hop
+        // (and Spring's forwarded-header processing consumes XFF anyway).
+        String cfIp = request.getHeaders().getFirst("CF-Connecting-IP");
+        if (cfIp != null && !cfIp.isBlank()) {
+            return cfIp.trim();
+        }
         List<String> forwarded = request.getHeaders().get("X-Forwarded-For");
         if (forwarded != null && !forwarded.isEmpty()) {
             return forwarded.get(0).split(",")[0].trim();
