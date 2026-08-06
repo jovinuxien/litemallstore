@@ -22,7 +22,18 @@ public class CouponDtoResponse {
     private String name;
     private String description;
     private String tag;
+    /**
+     * List/read views: the configured value (flat amount, or percent RATE).
+     * Usable-for-checkout views: the COMPUTED effective discount for the
+     * passed cart amount (Wave 18) — order-side math is unchanged.
+     */
     private BigDecimal discount;
+    /** Wave 18: 0 = flat, 1 = percent (rate rides {@code discount}). */
+    private Integer discountType;
+    /** Wave 18: max absolute discount for percent coupons; null = uncapped. */
+    private BigDecimal discountCap;
+    /** Wave 18: raw percent rate on usable views (where {@code discount} is the computed amount). */
+    private BigDecimal discountRate;
     private BigDecimal min;
     private String type;
     private String goodsType;
