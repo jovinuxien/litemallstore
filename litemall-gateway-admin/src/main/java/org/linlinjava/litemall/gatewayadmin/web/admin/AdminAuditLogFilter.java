@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.gatewayadmin.web.admin;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 
 import org.linlinjava.litemall.db.domain.LitemallAdmin;
@@ -114,8 +115,14 @@ public class AdminAuditLogFilter implements WebFilter, Ordered {
         if (forwarded != null && !forwarded.isEmpty()) {
             return forwarded.get(0).split(",")[0].trim();
         }
-        return request.getRemoteAddress() != null
-                ? request.getRemoteAddress().getAddress().getHostAddress()
-                : "unknown";
+        InetSocketAddress remote = request.getRemoteAddress();
+        if (remote == null) {
+            return "unknown";
+        }
+        // Behind the proxy chain, forwarded-header processing consumes
+        // X-Forwarded-For and replaces the remote address with an UNRESOLVED
+        // InetSocketAddress: getAddress() is null, but getHostString() still
+        // carries the client IP literal.
+        return remote.getAddress() != null ? remote.getAddress().getHostAddress() : remote.getHostString();
     }
 }
