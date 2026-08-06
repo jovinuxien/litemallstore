@@ -202,7 +202,7 @@ class LitemallOrderPlaceCouponPathTest {
 
         assertTrue(e.getMessage().toLowerCase().contains("coupon"));
         verify(orderRepository, never()).addOrder(any());
-        verify(promotionFacade, never()).redeemCoupon(any(), any(), any(), any());
+        verify(promotionFacade, never()).redeemCoupon(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -225,7 +225,7 @@ class LitemallOrderPlaceCouponPathTest {
         assertEquals(0, placed.getCouponPrice().getAmount().compareTo(new BigDecimal("15")));
         assertEquals(0, placed.getOrderPrice().getAmount().compareTo(new BigDecimal("85")));
         assertEquals(0, placed.getActualPrice().getAmount().compareTo(new BigDecimal("85")));
-        verify(promotionFacade, never()).redeemCoupon(any(), any(), any(), any());
+        verify(promotionFacade, never()).redeemCoupon(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -234,7 +234,8 @@ class LitemallOrderPlaceCouponPathTest {
                 .thenReturn(Optional.of(new UsableCoupon(USER_COUPON, 9, "Wave2",
                         new BigDecimal("15"), new BigDecimal("50"))));
         when(orderRepository.findById(any())).thenReturn(Optional.of(persistedOrder()));
-        when(promotionFacade.redeemCoupon(any(), eq(USER_COUPON), any(), eq(SUBTOTAL)))
+        when(promotionFacade.redeemCoupon(any(), eq(USER_COUPON), any(), eq(SUBTOTAL),
+                anySet(), anySet()))
                 .thenThrow(new LitemallInvalidCouponException(
                         "Failed to redeem coupon: Coupon is not usable"));
 
@@ -242,8 +243,11 @@ class LitemallOrderPlaceCouponPathTest {
                 () -> service.placeOrder(command(9, USER_COUPON)));
 
         assertTrue(e.getMessage().toLowerCase().contains("coupon"));
+        // Wave 18: redeem forwards the cart's scope facts (goods + category ids) so
+        // promotion re-checks goods scope at consumption, not just at validation.
         verify(promotionFacade).redeemCoupon(any(), eq(USER_COUPON),
-                eq(new LitemallOrderId(77)), eq(SUBTOTAL));
+                eq(new LitemallOrderId(77)), eq(SUBTOTAL),
+                eq(Set.of(GOODS)), eq(Set.of(10)));
         // Redeem was refused → nothing was consumed → nothing to release.
         verify(promotionFacade, never()).releaseCoupon(any(), any(), any());
     }
@@ -254,7 +258,8 @@ class LitemallOrderPlaceCouponPathTest {
                 .thenReturn(Optional.of(new UsableCoupon(USER_COUPON, 9, "Wave2",
                         new BigDecimal("15"), new BigDecimal("50"))));
         when(orderRepository.findById(any())).thenReturn(Optional.of(persistedOrder()));
-        when(promotionFacade.redeemCoupon(any(), eq(USER_COUPON), any(), eq(SUBTOTAL)))
+        when(promotionFacade.redeemCoupon(any(), eq(USER_COUPON), any(), eq(SUBTOTAL),
+                anySet(), anySet()))
                 .thenReturn(new CouponRedemption(USER_COUPON, 9, 77, new BigDecimal("10")));
 
         LitemallInvalidCouponException e = assertThrows(LitemallInvalidCouponException.class,
