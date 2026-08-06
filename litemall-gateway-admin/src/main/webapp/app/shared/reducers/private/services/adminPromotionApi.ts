@@ -83,6 +83,16 @@ const codeOf = (map: Record<number, string>, display?: string | number | null): 
 export const COUPON_TYPE = { 0: 'Common', 1: 'Registration', 2: 'Redemption code' };
 export const COUPON_STATUS = { 0: 'Normal', 1: 'Expired', 2: 'Used up' };
 export const COUPON_GOODS_TYPE = { 0: 'All goods', 1: 'Category', 2: 'Specific goods' };
+export const COUPON_DISCOUNT_TYPE = { 0: 'Flat', 1: 'Percent' };
+
+// Wave 18: discount_type may arrive as the numeric code or an enum display
+// name; rows predating V51 (or a not-yet-upgraded promotion-service) carry
+// no field at all — those are flat coupons by construction.
+export const toDiscountTypeCode = (v?: string | number | null): number => {
+  if (v == null) return 0;
+  if (typeof v === 'number') return v;
+  return v.trim().toLowerCase() === 'percent' ? 1 : 0;
+};
 export const COUPON_TIME_TYPE = { 0: 'Relative days', 1: 'Absolute window' };
 export const USER_COUPON_STATUS = { 0: 'Usable', 1: 'Used', 2: 'Expired', 3: 'Withdrawn' };
 export const COMBINATION_STATUS = { 0: 'Draft', 1: 'Active', 2: 'Expired', 3: 'Offline' };
@@ -90,11 +100,12 @@ export const PINK_STATUS = { 0: 'Pending', 1: 'Success', 2: 'Failed' };
 
 // Promotion-service manager DTO wire shapes (before normalisation). Datetime
 // fields arrive as ISO strings OR LocalDateTime arrays (fromServerDateTime).
-interface CouponManagerDto extends Omit<ICoupon, 'id' | 'type' | 'status' | 'goodsType' | 'timeType' | 'startTime' | 'endTime'> {
+interface CouponManagerDto extends Omit<ICoupon, 'id' | 'type' | 'status' | 'goodsType' | 'discountType' | 'timeType' | 'startTime' | 'endTime'> {
   couponId?: number;
   type?: string;
   status?: string;
   goodsType?: string;
+  discountType?: string | number;
   timeType?: string;
   startTime?: unknown;
   endTime?: unknown;
@@ -117,12 +128,13 @@ interface CombinationPinkDto extends Omit<ICombinationPink, 'status' | 'expireTi
   expireTime?: unknown;
 }
 
-const toCoupon = (d: CouponManagerDto): ICoupon => ({
+export const toCoupon = (d: CouponManagerDto): ICoupon => ({
   ...d,
   id: d.couponId,
   type: codeOf(COUPON_TYPE, d.type),
   status: codeOf(COUPON_STATUS, d.status),
   goodsType: codeOf(COUPON_GOODS_TYPE, d.goodsType),
+  discountType: toDiscountTypeCode(d.discountType),
   timeType: codeOf(COUPON_TIME_TYPE, d.timeType),
   startTime: fromServerDateTime(d.startTime),
   endTime: fromServerDateTime(d.endTime),
@@ -232,7 +244,9 @@ const isoDateTime = (v?: string): string | undefined => {
   return v.length === 16 ? `${v}:00` : v;
 };
 
-const couponCommand = (c: ICoupon) =>
+// Wave 18: discountType always travels (0 survives `clean`); the $-cap only
+// makes sense for percent coupons — never send a stale cap with a flat one.
+export const couponCommand = (c: ICoupon) =>
   clean({
     name: c.name,
     description: c.description,
@@ -245,6 +259,8 @@ const couponCommand = (c: ICoupon) =>
     status: c.status,
     goodsType: c.goodsType,
     goodsValue: c.goodsValue,
+    discountType: c.discountType ?? 0,
+    discountCap: (c.discountType ?? 0) === 1 ? c.discountCap : undefined,
     code: c.code,
     timeType: c.timeType,
     days: c.days,
@@ -413,6 +429,22 @@ export const promotionOpMessage = (res: unknown): string | null => {
     return r.data.success ? null : r.data.message || 'Request failed.';
   }
   return 'Request failed.';
+};
+
+// Wave 18: on a SUCCESSFUL coupon save the margin guard rides a non-blocking
+// `uncostedCount` along in the operation payload (goods in the coupon's scope
+// whose CJ cost is not captured yet, so the guard could not evaluate them).
+// Rejections themselves flow through promotionOpMessage VERBATIM — they state
+// the computed maximum discount/rate.
+export const promotionOpWarning = (res: unknown): string | null => {
+  const r = res as { data?: PromotionOperation };
+  const op = r && 'data' in r ? r.data : undefined;
+  if (!op?.success) return null;
+  const n = Number((op.data as Record<string, unknown> | undefined)?.uncostedCount);
+  if (Number.isFinite(n) && n > 0) {
+    return `${n} item${n === 1 ? '' : 's'} in this coupon's scope ${n === 1 ? 'has' : 'have'} no captured cost yet — the margin guard could not evaluate ${n === 1 ? 'it' : 'them'}.`;
+  }
+  return null;
 };
 
 export const {
