@@ -262,6 +262,12 @@ public class SearchService {
             if (discountPct instanceof Number && ((Number) discountPct).intValue() > 0) {
                 item.put("discountPct", ((Number) discountPct).intValue());
             }
+            // Wave-19 coupon visibility (badge is data, same rule as discountPct): emit only the
+            // positive case — pre-reindex documents (field absent) and 0 both mean "no badge".
+            Object couponFlag = data.get("coupon_flag");
+            if (couponFlag instanceof Number && ((Number) couponFlag).intValue() == 1) {
+                item.put("coupon_flag", 1);
+            }
             // Live flash-deal extras (present only while a deal is live): countdown + claimed bar.
             if (data.get("deal_active") instanceof Number && ((Number) data.get("deal_active")).intValue() == 1) {
                 item.put("dealActive", true);
