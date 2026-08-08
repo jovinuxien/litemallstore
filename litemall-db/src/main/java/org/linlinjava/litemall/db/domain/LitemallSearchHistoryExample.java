@@ -923,6 +923,22 @@ public class LitemallSearchHistoryExample {
             addCriterion("deleted not between", value1, value2, "deleted");
             return (Criteria) this;
         }
+
+        // Hand-maintained (V57, Wave 22): hit total recorded on the history row.
+        public Criteria andResultCountIsNull() {
+            addCriterion("result_count is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andResultCountIsNotNull() {
+            addCriterion("result_count is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andResultCountEqualTo(Integer value) {
+            addCriterion("result_count =", value, "resultCount");
+            return (Criteria) this;
+        }
     }
 
     /**

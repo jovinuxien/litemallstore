@@ -220,6 +220,19 @@ litemall:
     queue-capacity: ${LITEMALL_TRACKING_QUEUE_CAPACITY:20000}
     insert-batch: ${LITEMALL_TRACKING_INSERT_BATCH:200}
     drain-ms: ${LITEMALL_TRACKING_DRAIN_MS:2000}
+  # Wave 22 search demand analytics: nightly rollup of litemall_search_history +
+  # the Phase-0 behavioral log (search / click_result events, aggregate-only) into
+  # litemall_search_stat_daily, then the trending refresh (demand-derived hot
+  # keywords — additive; admin-curated litemall_keyword rows are never deleted or
+  # unhotted). 04:45 = after the 04:30 promo scorer, before the 05:00 auto-deal
+  # tick. Env kill-switch; disabling needs only a container recreate, no rebuild.
+  search-stats:
+    enabled: ${LITEMALL_SEARCHSTATS_ENABLED:true}
+    cron: "0 45 4 * * *"
+    rollup-days: ${LITEMALL_SEARCHSTATS_ROLLUP_DAYS:2}
+    trending-top: ${LITEMALL_SEARCHSTATS_TRENDING_TOP:8}
+    trending-window-days: ${LITEMALL_SEARCHSTATS_TRENDING_WINDOW_DAYS:7}
+    trending-min-searches: ${LITEMALL_SEARCHSTATS_TRENDING_MIN_SEARCHES:3}
   # Storefront "about" metadata served anonymously at /srv/home/about (wx-api /home/about parity).
   # Config-driven (no litemall_system dependency); override per-env via config-server.
   mall:

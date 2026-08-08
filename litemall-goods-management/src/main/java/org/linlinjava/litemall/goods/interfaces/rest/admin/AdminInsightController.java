@@ -12,6 +12,9 @@ import org.linlinjava.litemall.goods.application.insight.InsightService;
 import org.linlinjava.litemall.goods.application.insight.MarginBasisService;
 import org.linlinjava.litemall.goods.application.insight.RetirementAdminService;
 import org.linlinjava.litemall.goods.application.inventoryflow.RetirementExecutor;
+import org.linlinjava.litemall.goods.application.search.SearchStatAdminService;
+import org.linlinjava.litemall.goods.application.search.SearchStatRollupTask;
+import org.linlinjava.litemall.goods.application.search.SearchTrendingService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -82,6 +85,9 @@ public class AdminInsightController {
     private final AutoDailyDealTask autoDailyDealTask;
     private final MarginBasisService marginBasisService;
     private final PromoCandidateAdminService promoCandidateAdminService;
+    private final SearchStatAdminService searchStatAdminService;
+    private final SearchStatRollupTask searchStatRollupTask;
+    private final SearchTrendingService searchTrendingService;
 
     public AdminInsightController(InsightService insightService,
                                   RetirementAdminService retirementAdminService,
@@ -90,7 +96,10 @@ public class AdminInsightController {
                                   RetirementExecutor retirementExecutor,
                                   AutoDailyDealTask autoDailyDealTask,
                                   MarginBasisService marginBasisService,
-                                  PromoCandidateAdminService promoCandidateAdminService) {
+                                  PromoCandidateAdminService promoCandidateAdminService,
+                                  SearchStatAdminService searchStatAdminService,
+                                  SearchStatRollupTask searchStatRollupTask,
+                                  SearchTrendingService searchTrendingService) {
         this.insightService = insightService;
         this.retirementAdminService = retirementAdminService;
         this.arrivalInsightService = arrivalInsightService;
@@ -99,6 +108,9 @@ public class AdminInsightController {
         this.autoDailyDealTask = autoDailyDealTask;
         this.marginBasisService = marginBasisService;
         this.promoCandidateAdminService = promoCandidateAdminService;
+        this.searchStatAdminService = searchStatAdminService;
+        this.searchStatRollupTask = searchStatRollupTask;
+        this.searchTrendingService = searchTrendingService;
     }
 
     /**
@@ -264,6 +276,37 @@ public class AdminInsightController {
     private static boolean isPromoKind(String kind) {
         return LitemallPromoCandidate.KIND_COUPON.equals(kind)
                 || LitemallPromoCandidate.KIND_GROUPON.equals(kind);
+    }
+
+    // ---- Wave 22: search demand analytics -------------------------------------------------------
+
+    /**
+     * Search demand over the trailing window: {@code topQueries} (top 50 by searches, with CTR),
+     * {@code zeroResultQueries} (top 50 with zero-result searches), {@code totals}. Aggregate-only —
+     * keywords and counts, never a visitor/user id (privacy posture, Wave-22 contract).
+     */
+    @GetMapping("/search-stats")
+    public Object searchStats(@RequestParam(defaultValue = "7") Integer days) {
+        return ResponseUtil.ok(searchStatAdminService.stats(days == null ? 7 : days));
+    }
+
+    /**
+     * Manual trigger of the nightly search-stats rollup ({@code day} optional — defaults to the
+     * task's trailing window). Same code path as the 04:45 cron, honest summary out.
+     */
+    @PostMapping("/search-stats/rollup/run")
+    public Object searchStatsRollupRun(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
+        return ResponseUtil.ok(searchStatRollupTask.runRollup(day));
+    }
+
+    /**
+     * Recompute the demand-derived hot keywords now (the same refresh the nightly run performs
+     * after its rollup). Curated admin keywords are never deleted or unhotted.
+     */
+    @PostMapping("/search-stats/trending/refresh")
+    public Object searchStatsTrendingRefresh() {
+        return ResponseUtil.ok(searchTrendingService.refresh());
     }
 
     // ---- shared ---------------------------------------------------------------------------------
