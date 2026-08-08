@@ -10,6 +10,7 @@ import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCombi
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
 import org.linlinjava.litemall.promotion.interfaces.dtos.CombinationDtoResponse;
+import org.linlinjava.litemall.promotion.interfaces.dtos.CombinationOrderRequest;
 import org.linlinjava.litemall.promotion.interfaces.dtos.CombinationPinkDtoResponse;
 import org.linlinjava.litemall.promotion.interfaces.dtos.PromotionOperationDtoResponse;
 import org.springframework.http.ResponseEntity;
@@ -68,7 +69,14 @@ public class LitemallCombinationController {
         return ResponseEntity.ok(response);
     }
 
-    /** A group's state: leader slot with member count and member slots. */
+    /**
+     * A slot's own state plus its group context (priced-submit contract: the
+     * top-level fields are the REQUESTED slot's — order validates the buyer's
+     * userId/orderId/status on it — with the group's memberCount and member
+     * slots alongside). Released slots (FAILED while the group runs) don't
+     * count toward memberCount and are hidden from members[] unless the whole
+     * group has failed.
+     */
     @GetMapping("/pink/{pinkId}")
     public ResponseEntity<CombinationPinkDtoResponse> getGroup(@PathVariable Integer pinkId) {
         LitemallCombinationPinkId id = new LitemallCombinationPinkId(pinkId);
@@ -77,16 +85,55 @@ public class LitemallCombinationController {
                     LitemallCombinationPinkId headId = slot.isLeader() ? slot.getPinkId() : slot.getHeadId();
                     List<LitemallCombinationPinkAggregate> slots =
                             orchestratorService.getCombinationService().getGroup(headId);
-                    LitemallCombinationPinkAggregate leader = slots.stream()
+                    boolean groupFailed = slots.stream()
                             .filter(LitemallCombinationPinkAggregate::isLeader)
-                            .findFirst().orElse(slot);
+                            .findFirst()
+                            .map(LitemallCombinationPinkAggregate::isReleasedOrFailed)
+                            .orElse(false);
+                    int memberCount = (int) slots.stream()
+                            .filter(s -> !s.isReleasedOrFailed())
+                            .count();
                     List<CombinationPinkDtoResponse> members = slots.stream()
                             .filter(s -> !s.isLeader())
+                            .filter(s -> groupFailed || !s.isReleasedOrFailed())
                             .map(s -> toPinkDto(s, null, null))
                             .collect(Collectors.toList());
-                    return ResponseEntity.ok(toPinkDto(leader, slots.size(), members));
+                    return ResponseEntity.ok(toPinkDto(slot,
+                            groupFailed ? slots.size() : memberCount, members));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Wave 21 (order-linkage follow-up): backfill the slot's orderId after
+     * placement. CAS — set only when null; same order replays are idempotent
+     * ok; a different attached order is a typed conflict.
+     */
+    @PostMapping("/pink/{pinkId}/attach-order")
+    public ResponseEntity<PromotionOperationDtoResponse> attachOrder(
+            @PathVariable Integer pinkId,
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody CombinationOrderRequest request) {
+        LitemallPromotionOperationResult result = orchestratorService.attachGroupOrder(
+                new LitemallCombinationPinkId(pinkId), new LitemallUserId(userId),
+                request != null ? request.getOrderId() : null);
+        return buildResponse(result);
+    }
+
+    /**
+     * Wave 21 (order-linkage follow-up): free the slot after a pre-completion
+     * order cancel. Pending groups only; leader release dissolves the group
+     * (GROUP_EXPIRED emitted); idempotent on replays; settled groups refuse.
+     */
+    @PostMapping("/pink/{pinkId}/release")
+    public ResponseEntity<PromotionOperationDtoResponse> releaseSlot(
+            @PathVariable Integer pinkId,
+            @RequestHeader("X-User-Id") Integer userId,
+            @RequestBody CombinationOrderRequest request) {
+        LitemallPromotionOperationResult result = orchestratorService.releaseGroupSlot(
+                new LitemallCombinationPinkId(pinkId), new LitemallUserId(userId),
+                request != null ? request.getOrderId() : null);
+        return buildResponse(result);
     }
 
     @GetMapping("/active")
