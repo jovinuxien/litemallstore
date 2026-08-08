@@ -32,6 +32,7 @@ const AddressEdit: React.FC = () => {
   // or empty (backend not merged yet, or non-CN deployment) ⇒ free-text only.
   const [regions, setRegions] = useState<IRegionNode[]>([]);
   const [useCascade, setUseCascade] = useState(false);
+  const [telValid, setTelValid] = useState(true);
 
   useEffect(() => {
     contentApi
@@ -56,6 +57,10 @@ const AddressEdit: React.FC = () => {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!telValid) {
+      setError('The phone number does not match the selected country — check the digit count.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -110,7 +115,7 @@ const AddressEdit: React.FC = () => {
                     value keeps its digits and normalizes on retype). The form
                     renders only after the record loads (spinner gate above),
                     so mount-time seeding sees the saved value. */}
-                <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} />
+                <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} onValidityChange={setTelValid} />
               </div>
               <div className='col-md-6'>
                 <Form.Label>Country</Form.Label>

@@ -163,6 +163,45 @@
 .lm-amount { color: var(--lm-accent, #ff5a5f); font-weight: 600; }
 .lm-amount--muted { color: var(--lm-muted, #6b7b82); }
 .lm-amount--success { color: var(--lm-success, #1f9d6b); }
+.lm-amount--primary { color: var(--lm-primary, #0e7c86); font-weight: 600; }
+
+// ---- delivery-option chooser (V52) ----------------------------------------
+.lm-delivery {
+  padding: 0 14px 6px;
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-weight: 600;
+    color: var(--lm-text, #1f2a2e);
+    padding: 6px 0;
+  }
+  &__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    background: var(--lm-surface, #fff);
+    border: 1px solid var(--lm-border, #d7dee0);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    text-align: left;
+    color: var(--lm-text, #1f2a2e);
+    font: inherit;
+    &:hover:not(:disabled) { border-color: var(--lm-primary, #0e7c86); }
+    &:disabled { opacity: .7; }
+    &--selected {
+      border-color: var(--lm-primary, #0e7c86);
+      box-shadow: inset 0 0 0 1px var(--lm-primary, #0e7c86);
+      background: var(--lm-primary-tint, #eef7f8);
+      i { color: var(--lm-primary, #0e7c86); }
+    }
+  }
+  &__name { font-weight: 600; font-size: .9rem; }
+  &__meta { color: var(--lm-muted, #6b7b82); font-size: .8rem; }
+  &__check { color: var(--lm-primary, #0e7c86); margin-left: auto; }
+}
 
 // ---- sticky submit bar ----------------------------------------------------
 .lm-submit-bar {

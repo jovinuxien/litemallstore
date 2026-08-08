@@ -33,11 +33,21 @@ public interface CjDropshipOrderFacade {
 
     /**
      * Best-effort logistics quote for a destination country + CJ variant lines (checkout preview):
-     * the same freightCalculate selection {@link #placeOrder} uses, but exposed pre-payment.
+     * EVERY line freightCalculate offers for the shipment, in CJ's order — the delivery-option
+     * chooser renders these. {@link #placeOrder} draws its own selection from the same call.
      *
-     * @return the chosen option, or {@code null} when CJ offers nothing / is unreachable — never throws
+     * @return the offered options, or an empty list when CJ offers nothing / is unreachable — never throws
      */
-    CjLogisticsOption quoteLogistics(String endCountryCode, List<CjOrderPlacement.Line> lines);
+    List<CjLogisticsOption> quoteLogisticsOptions(String endCountryCode, List<CjOrderPlacement.Line> lines);
+
+    /**
+     * The selection rule shared by checkout preview and placement: {@code preferredName}
+     * (the customer's pick) when offered, else the configured default line, else the
+     * cheapest offered line. Pure — no CJ call.
+     *
+     * @return the chosen option, or {@code null} for an empty offer list
+     */
+    CjLogisticsOption chooseLogistics(List<CjLogisticsOption> options, String preferredName);
 
     /** Confirm a CREATED CJ order (precondition of payment). Best-effort; never throws. */
     boolean confirmOrder(String cjOrderId);

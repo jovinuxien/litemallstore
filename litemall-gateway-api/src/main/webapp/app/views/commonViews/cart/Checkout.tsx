@@ -185,6 +185,9 @@ const CheckoutView: React.FC = () => {
   const { loading: orderLoading, errorMessage: orderError, phase } = useAppSelector(state => state.order);
 
   const [shipping, setShipping] = useState<ShippingInfo>(EMPTY_SHIPPING);
+  // Per-country digit-count validity from the visible PhoneInput; true while no
+  // phone field is on screen (saved address that already carries a number).
+  const [phoneValid, setPhoneValid] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
   const [message, setMessage] = useState('');
   // Destination country, kept separate so picking a saved address doesn't clear it.
@@ -258,6 +261,7 @@ const CheckoutView: React.FC = () => {
 
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
+  const hasLocalItems = useMemo(() => cartList.some(it => !isCjItem(it)), [cartList]);
 
   // Pickup checkout (Wave 4 — handoff-gateway-api-pickup.md; the toggle only
   // appears when /srv/store/list has visible stores). CJ lines always ship —
@@ -309,6 +313,17 @@ const CheckoutView: React.FC = () => {
   // carrier + delivery estimate once a destination country is picked.
   const [quotes, setQuotes] = useState<{ local?: IFreightQuote | null; cj?: IFreightQuote | null }>({});
   const [quoteLoading, setQuoteLoading] = useState(false);
+  // Delivery-option chooser (V52): the CJ carrier the customer picked from the quote's
+  // options list. Derived (not clobbered) on refresh: a pick that CJ stopped offering
+  // simply falls back to the server's default line.
+  const [selectedCjLogistic, setSelectedCjLogistic] = useState<string | null>(null);
+  const cjOptions = quotes.cj?.cj?.options ?? [];
+  const effectiveCjLogistic =
+    selectedCjLogistic && cjOptions.some(o => o.logisticName === selectedCjLogistic)
+      ? selectedCjLogistic
+      : (quotes.cj?.cj?.logisticName ?? null);
+  const effectiveCjAging =
+    cjOptions.find(o => o.logisticName === effectiveCjLogistic)?.logisticAging ?? quotes.cj?.cj?.logisticAging;
   const cartSignature = useMemo(
     () => cartList.map(it => `${it.goodsId}:${it.productId ?? ''}:${it.number ?? 0}:${priceNum(it.price)}`).join('|'),
     [cartList]
@@ -595,7 +610,11 @@ const CheckoutView: React.FC = () => {
   // Saved address is pre-validated; a new address needs the core fields. CJ orders
   // additionally need a phone and a destination country.
   const baseValid = usingNewAddress ? !!(shipping.name && shipping.address && shipping.region && shipping.zip) : selectedAddressId != null;
-  const addressValid = baseValid && (!hasCjItems || !!(shipping.mobile && country.code));
+  // Only gate on phone validity while a PhoneInput is actually rendered — a
+  // saved address with its own number leaves no field to correct.
+  const phoneFieldVisible = usingNewAddress || savedAddressNeedsPhone;
+  const addressValid =
+    baseValid && (!phoneFieldVisible || phoneValid) && (!hasCjItems || !!(shipping.mobile && country.code));
   const savedAddressId = typeof selectedAddressId === 'number' ? selectedAddressId : null;
   // Pickup needs a store + contact instead of a delivery address.
   const pickupValid = selectedStoreId != null && !!pickupName && !!pickupMobile;
@@ -735,6 +754,8 @@ const CheckoutView: React.FC = () => {
           userCouponId: couponRides ? selectedCoupon.id : undefined,
           // CJ placement (at pay time) needs the destination country.
           countryCode: group === 'cj' ? country.code : undefined,
+          // V52: the carrier the customer picked in the delivery-option chooser.
+          cjLogisticName: group === 'cj' ? (effectiveCjLogistic ?? undefined) : undefined,
         })
       );
       if (!placeOrder.fulfilled.match(res)) {
@@ -907,7 +928,9 @@ const CheckoutView: React.FC = () => {
     {
       label: 'Shipping',
       value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : 'Free',
-      variant: 'muted' as const,
+      // Brand-teal highlight: shipping is the one summary line the customer can act
+      // on (the delivery-option chooser below edits it), so it must not read as muted.
+      variant: 'primary' as const,
     },
     // Wave-4 template breakdown: detail rows only — the charged figure
     // stays freightPrice (combine-mode max, not the breakdown sum).
@@ -1082,6 +1105,7 @@ const CheckoutView: React.FC = () => {
                   value={shipping.mobile}
                   onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
                   onCountryChange={followPhoneCountry}
+                  onValidityChange={setPhoneValid}
                 />
               </div>
               <div className='col-md-6'>
@@ -1177,11 +1201,12 @@ const CheckoutView: React.FC = () => {
                 <div className='mt-2 small'>
                   {quoteLoading ? (
                     <span className='text-muted'>Checking logistics…</span>
-                  ) : quotes.cj?.cj?.logisticName ? (
+                  ) : effectiveCjLogistic ? (
                     <span>
                       <i className='bi bi-truck me-1' />
-                      Ships via <strong>{quotes.cj.cj.logisticName}</strong>
-                      {quotes.cj.cj.logisticAging ? <> · estimated delivery {quotes.cj.cj.logisticAging} days</> : null}
+                      Ships via <strong>{effectiveCjLogistic}</strong>
+                      {effectiveCjAging ? <> · estimated delivery {effectiveCjAging} days</> : null}
+                      {cjOptions.length > 1 && <span className='text-muted'> · more options in the order summary</span>}
                     </span>
                   ) : quotes.cj?.cjNote ? (
                     <span className='text-muted'>{quotes.cj.cjNote}</span>
@@ -1201,6 +1226,7 @@ const CheckoutView: React.FC = () => {
                     value={shipping.mobile}
                     onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
                     defaultIso2={country.code || undefined}
+                    onValidityChange={setPhoneValid}
                   />
                   <div className='form-text'>Your selected address has no phone number yet — we&apos;ll save this one to it.</div>
                 </div>
@@ -1443,6 +1469,78 @@ const CheckoutView: React.FC = () => {
           <aside className='lm-checkout__aside'>
             <div className='lm-checkout__aside-title'>Order summary</div>
             <OrderSummary rows={summaryRows} />
+            {/* Delivery option (V52) — the chosen option highlighted in the brand
+                teal; CJ carts pick among every carrier CJ offers (more offerings
+                appear here automatically as they become available). */}
+            <div className='lm-delivery'>
+              <div className='lm-delivery__head'>
+                <span>Delivery option</span>
+                {!anyPlaced && (
+                  <button type='button' className='btn btn-link btn-sm p-0' onClick={() => setOpenStep(1)}>
+                    Edit
+                  </button>
+                )}
+              </div>
+              {isPickup ? (
+                <div className='lm-delivery__option lm-delivery__option--selected'>
+                  <i className='bi bi-shop' />
+                  <div>
+                    <div className='lm-delivery__name'>Store pickup</div>
+                    <div className='lm-delivery__meta'>Free — collect at the selected store</div>
+                  </div>
+                  <i className='bi bi-check-circle-fill lm-delivery__check' />
+                </div>
+              ) : quoteLoading ? (
+                <div className='lm-delivery__meta py-1'>Checking delivery options…</div>
+              ) : (
+                <>
+                  {hasLocalItems && (
+                    <div className='lm-delivery__option lm-delivery__option--selected'>
+                      <i className='bi bi-box-seam' />
+                      <div>
+                        <div className='lm-delivery__name'>Standard shipping</div>
+                        <div className='lm-delivery__meta'>
+                          {(quotes.local?.freightPrice ?? 0) > 0
+                            ? `$${Number(quotes.local?.freightPrice ?? 0).toFixed(2)}`
+                            : 'Free'}
+                          {hasCjItems ? ' — items shipped from our store' : ''}
+                        </div>
+                      </div>
+                      {!hasCjItems && <i className='bi bi-check-circle-fill lm-delivery__check' />}
+                    </div>
+                  )}
+                  {hasCjItems &&
+                    (cjOptions.length > 0 ? (
+                      cjOptions.map(o => {
+                        const isSelected = o.logisticName === effectiveCjLogistic;
+                        return (
+                          <button
+                            type='button'
+                            key={o.logisticName}
+                            className={`lm-delivery__option${isSelected ? ' lm-delivery__option--selected' : ''}`}
+                            onClick={() => setSelectedCjLogistic(o.logisticName ?? null)}
+                            disabled={anyPlaced}
+                            aria-pressed={isSelected}
+                          >
+                            <i className='bi bi-truck' />
+                            <div>
+                              <div className='lm-delivery__name'>{o.logisticName}</div>
+                              {o.logisticAging && <div className='lm-delivery__meta'>Estimated delivery {o.logisticAging} days</div>}
+                            </div>
+                            {isSelected && <i className='bi bi-check-circle-fill lm-delivery__check' />}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className='lm-delivery__meta py-1'>
+                        {country.code
+                          ? (quotes.cj?.cjNote ?? 'Delivery options appear once we can quote your destination.')
+                          : 'Pick a destination country to see delivery options.'}
+                      </div>
+                    ))}
+                </>
+              )}
+            </div>
             <button
               type='button'
               className='btn btn-lm-primary lm-checkout__aside-action d-none d-lg-block'

@@ -97,6 +97,9 @@ public class LitemallOrderAggregate {
     // Last CJ-side status seen by the lifecycle sync (V33): CREATED/IN_CART/UNPAID/
     // UNSHIPPED/SHIPPED/DELIVERED/CANCELLED. Null for local orders.
     private String cjOrderStatus;
+    // Customer-chosen CJ logistics line captured at submit (V52); placement honors it
+    // when CJ still offers that line, else falls back to default/cheapest.
+    private String cjLogisticName;
 
     /** {@code delivery_type} value for courier delivery (column default). */
     public static final String DELIVERY_EXPRESS = "express";

@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -33,7 +32,7 @@ public class CjFreightQuoteService {
 
     private final CjDropshipOrderFacade cjOrderFacade;
     private final CjOrderLineResolver lineResolver;
-    private final Cache<String, Optional<CjLogisticsOption>> cache = Caffeine.newBuilder()
+    private final Cache<String, List<CjLogisticsOption>> cache = Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterWrite(Duration.ofMinutes(15))
             .build();
@@ -44,22 +43,24 @@ public class CjFreightQuoteService {
     }
 
     /**
-     * Quote the CJ logistics line for a destination country + cart items.
-     * Never throws: an unresolvable line, CJ outage, or no-offer lane returns {@code null}.
+     * All CJ logistics lines offered for a destination country + cart items — the
+     * delivery-option chooser's data. One cached freightCalculate call feeds both this
+     * and {@link #quote}. Never throws: an unresolvable line, CJ outage, or no-offer
+     * lane returns an empty list.
      */
-    public CjLogisticsOption quote(String countryCode, List<QuoteItem> items) {
+    public List<CjLogisticsOption> options(String countryCode, List<QuoteItem> items) {
         if (countryCode == null || countryCode.isBlank() || items == null || items.isEmpty()) {
-            return null;
+            return List.of();
         }
         List<CjOrderPlacement.Line> lines;
         try {
             lines = resolveLines(items);
         } catch (LitemallCjOrderException e) {
             log.warn("CJ freight quote skipped — line resolution failed: {}", e.getMessage());
-            return null;
+            return List.of();
         }
         if (lines.isEmpty()) {
-            return null;
+            return List.of();
         }
         String key = countryCode.trim().toUpperCase() + "|" + lines.stream()
                 .map(l -> l.getVid() + ":" + l.getQuantity())
@@ -67,8 +68,15 @@ public class CjFreightQuoteService {
                 .collect(Collectors.joining(","));
         // Caffeine serializes concurrent loads per key; negative results are cached too so a lane
         // CJ offers nothing for doesn't hammer the quota on every checkout re-render.
-        return cache.get(key, k -> Optional.ofNullable(
-                cjOrderFacade.quoteLogistics(countryCode.trim().toUpperCase(), lines))).orElse(null);
+        return cache.get(key, k -> cjOrderFacade.quoteLogisticsOptions(countryCode.trim().toUpperCase(), lines));
+    }
+
+    /**
+     * The line placement would use today (default-else-cheapest — same rule as pay time
+     * with no customer preference). Kept as the quote's headline "ships via" estimate.
+     */
+    public CjLogisticsOption quote(String countryCode, List<QuoteItem> items) {
+        return cjOrderFacade.chooseLogistics(options(countryCode, items), null);
     }
 
     private List<CjOrderPlacement.Line> resolveLines(List<QuoteItem> items) {
