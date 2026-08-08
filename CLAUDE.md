@@ -534,6 +534,112 @@
 > click-through (create a scoped/percent coupon against prod costs; view
 > /coupons on the storefront).
 >
+> **Wave 19 (2026-08-08) — PROMO CANDIDATE INTELLIGENCE (coupon Phase 2):
+> margin-driven coupon/groupon suggestions in admin + coupon visibility in
+> search.** User approved the written plan 2026-08-08. USER DECISIONS:
+> groupon promotion stays ADMIN-SIDE ONLY (suggestions may create DRAFT
+> campaigns; no customer-facing groupon pages/posts) until Phase 3 priced
+> submit ships — group checkout still charges RETAIL today; two-wave split
+> (Wave 19 candidates + coupon_flag, Wave 20 DIY/social below).
+> Audit facts (2026-08-08, agent-mapped vs master): the template to copy is
+> the deal pipeline — `DealCandidateScorer` (score = marginPct ×
+> ln(1+stock) × social, tiers hot≥100/featured≥70/watch, upsert never
+> clobbers a decision) → `litemall_deal_candidate` (V45) →
+> `AdminInsightController` list/approve/dismiss → `AutoDailyDealTask`.
+> Cost/margin context comes from `InventoryContextEnricher` (cost 0.00 ⇒
+> null, never fake 0%); daily series in `litemall_product_metric_daily`;
+> retire-candidates (V46) mark clearance targets. NOTE: DealCandidateScorer
+> fires on NEW_ARRIVAL only — coupon candidates need a NIGHTLY BATCH over
+> the costed on-sale catalog too. Groupon admin create =
+> `POST /srv/private/admin/promotion/combination` (goodsId, title, picUrl,
+> combinationPrice, originalPrice, requiredMembers, limitPerUser, window);
+> campaigns are DRAFT until activated (`GrouponRuleForm.tsx` mirrors it).
+> **Wave-19 CONTRACT (worktrees code to THIS):** goods-management serves
+> under the existing `/srv/private/admin/insight` routing; errno envelope;
+> money plain decimals; margin/suggestion fields null when cost uncaptured.
+> - **V53** (goods-management scope; check `flyway_schema_history`
+>   immediately before first boot — dev applied through V52):
+>   `litemall_promo_candidate` — kind ('coupon'|'groupon'), goods_id, day,
+>   tier, score, suggestion JSON, reasons JSON, status
+>   proposed|dismissed|consumed, unique (kind, goods_id, day); upsert never
+>   overwrites a decided row.
+> - `GET /insight/promo-candidates?kind=coupon|groupon&status=&day=` →
+>   `{list:[{goodsId, name, picUrl, categoryId (L1 root), kind, day, tier,
+>   score, cost, retailPrice, marginPct, stockTotal, rating, reviewCount,
+>   reasons[], status, suggestion}]}` sorted score desc; `day` defaults to
+>   the latest day having rows for that kind. `suggestion` for coupon =
+>   `{scopeType:'category'|'goods', categoryId?, goodsIds?, discountType:
+>   0|1, discount, discountCap?, minAmount, maxDiscount}` — PRE-VALIDATED
+>   against the Wave-18 guard formula at floor 1.05 (maxCostRatio math is
+>   local to goods-management), so a suggestion can never be rejected by
+>   the guard; for groupon = `{combinationPrice (≥ cost×1.05),
+>   originalPrice, requiredMembers, limitPerUser, windowDays}`.
+> - `POST /insight/promo-candidates/{goodsId}/dismiss` body `{kind, day?}`;
+>   `POST /insight/promo-candidates/{goodsId}/consume` body `{kind, day?,
+>   refId?}` (refId = created coupon/combination id). Both CAS from
+>   `proposed`; errno 653 on lost race. Admin UI flow: Create buttons
+>   PREFILL the existing CouponForm / GrouponRuleForm (router state), and
+>   on successful create the UI calls `consume`. No cross-service create
+>   endpoint — creation stays on the existing promotion admin paths.
+> - **`coupon_flag` in the OCS index** (mirror of deal_flag): 1 when ≥1
+>   ACTIVE, in-window, claimable coupon's scope matches the product
+>   (whole-catalog coupons count; category scope expands ancestor-aware,
+>   Wave-18 semantics). Computed at index time from the shared
+>   `litemall_coupon` table (read-only — the promotion-reads-goods
+>   precedent, inverse direction). Freshness = nightly reindex +
+>   goods-write upserts + manual `POST /srv/private/admin/search/
+>   refresh-signals`; same-day coupon creates may lag until the next
+>   refresh — ACCEPTED v1 semantics. Facet/filter exposure like deal_flag
+>   (`coupon_flag=1` filter param + hit source field). Reindex BEFORE
+>   searcher restart (scoring-field discipline).
+> - Nightly scorer targeting (goods-management internals, not contract):
+>   coupon candidates from high-margin slow movers, retire-candidates
+>   (clearance), and high-margin arrival categories; groupon candidates
+>   favor margin + social proof (rating/reviews). Config knobs under
+>   `litemall.promo-candidates.*` with an enabled kill-switch.
+>
+> **Wave 20 (2026-08-08) — DIY PROMO PAGES + SOCIAL PAGE PUBLISHING
+> (commissioned together with Wave 19; starts AFTER Wave 19 merges).**
+> Audit facts (2026-08-08): DIY pages = `litemall_page` (V36), schema-driven
+> palette editor (`PageEditor.tsx`, `GET /page/palette`), closed component
+> set in `PageConfigValidator.KNOWN_TYPES` (banner, image-row, goods-list,
+> coupon-strip, seckill-strip, article-strip, rich-text; MAX 30 components,
+> 64KB config, jsoup-sanitized rich-text); NO page category, NO templates,
+> NO clone, NO groupon component, NO social linkage; customer render =
+> `PageRenderer.tsx` at `/page/:id` (public `/srv/page/**`) + home
+> override; single-active-home enforced by generated column. Postiz posts
+> are goods-only (`litemall_postiz_post` V50, dedup by goods).
+> **Wave-20 CONTRACT:**
+> - **V54** (goods-management scope): `litemall_page.category` varchar(31)
+>   NOT NULL default 'general' ('general'|'coupon'|'groupon') +
+>   `is_template` tinyint default 0; seed TWO designed template pages
+>   (is_template=1, status draft, category coupon/groupon): "Coupon
+>   spotlight", "Group-buy rally".
+> - goods-management content: `POST /srv/private/admin/page/{id}/clone` →
+>   new DRAFT copy (name "Copy of …", position custom, category+config
+>   inherited, never copies active status); `/page/list` gains `category`
+>   + `template` filters and returns both fields; palette v1.1 adds
+>   `groupon-strip` (auto-active combinations or explicit ids, maxItems)
+>   and extends `coupon-strip` (optional explicit couponIds[], headline,
+>   style variant). Palette version bump must keep v1 configs valid.
+> - gateway-api: PageRenderer renders groupon-strip (from
+>   `/srv/promotion/combination/active`) + extended coupon-strip; edge
+>   head-injection (Wave-13 seam) adds og:title/og:image for `/page/:id`
+>   from `/srv/page/{id}` (fail-open, no UA cloaking). Groupon-strip
+>   renders ONLY the join/browse links that exist today (PDP links) —
+>   no price-promise copy until Phase 3.
+> - promotion-service (**V55**, its scope): `litemall_postiz_post.page_id`
+>   INT NULL + Postiz composer accepts a page source: `POST .../postiz/
+>   preview|publish` body alternative `{pageId, channelIds[], startTime}`
+>   → one post: page name + `https://trovemo.com/page/<id>` + hero image
+>   (first image-bearing component, absolutized; skip-with-warning when
+>   no valid-extension image). REFUSES groupon-category pages with a
+>   typed errno until Phase 3 (the gating decision). `/log` rows carry
+>   pageId; goods dedup warnings unchanged.
+> - gateway-admin: DIY page list category/template filters + "New from
+>   template" (clone → open editor); Postiz panel gains a source picker
+>   (Products | DIY page) honoring the groupon-category refusal verbatim.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -573,29 +679,63 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — Wave 18 mini-task
-- **Task — Wave 18 (mini): scope facts on coupon redeem.** Extend the
-  promotion Feign redeem call (`PromotionServiceFeignClient` +
-  `CouponRedemption` facade) to pass the cart's `goodsIds` +
-  `categoryIds` (both already resolved at the call site,
-  `LitemallOrderServiceImpl` coupon block) so promotion re-checks
-  goods scope at consumption (Wave-18 CONTRACT item 6 — the fields
-  are OPTIONAL, so this deploys safely in either order relative to
-  promotion). One DTO/facade change + `LitemallOrderPlaceCouponPathTest`
-  extension; nothing else in the money path moves.
+### Worktree: `order` — idle (Wave 18 mini SHIPPED)
+- **No active assignment.** (Phase 3 groupon priced submit — Wave 21 —
+  will land here when commissioned; specs already in
+  `litemall-order/docs/followup-groupon-priced-submit.md`.)
+- **History — Wave 18 (mini): scope facts on coupon redeem.** SHIPPED +
+  DEPLOYED 2026-08-06 (`9b4faa292`, merge `bc75d67b5`): redeem passes
+  cart goodsIds/categoryIds; module 189/0.
 - **History — Wave 10: rich order-confirmation email once an order is
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — Wave 18 margin-basis DONE
-- **Task — Wave 18: coupon margin-guard basis endpoint.** DONE on
-  `fix/goods-management` (2026-08-06): `POST /srv/private/admin/insight/
-  margin-basis` (`MarginBasisService` + `InsightMapper.selectMarginBasis`,
-  subtree expansion at query time, whole-catalog when scope empty; unit
-  tests 4/4, insight regression 17/17). FROZEN consumer spec:
-  `litemall-goods-management/docs/handoff-coupon-margin-basis.md`. Live
-  dev verification through the gateways happens at merge (run-from-MAIN
-  rule).
+### Worktree: `goods-management` — Wave 19 promo candidates + coupon_flag
+- **Task — Wave 19 (backend): promo candidate intelligence.** Code to the
+  Wave-19 CONTRACT above. Scope: `litemall-goods-management/` + the single
+  **V53** migration in litemall-db (shared-module discipline; check
+  `flyway_schema_history` immediately before first boot — dev applied
+  through V52).
+  1. **V53** `litemall_promo_candidate` + domain class + mapper XML
+     (hand-edit together, `mvn install` litemall-db, restart dependents).
+  2. **Scorers**: `CouponCandidateScorer` + `GrouponCandidateScorer` on
+     the DealCandidateScorer pattern, plus a NIGHTLY batch task (after
+     the 03:00/03:30 catalog rotation) sweeping the costed on-sale
+     catalog — sources: high-margin slow movers, proposed
+     retire-candidates (clearance), high-margin arrival categories.
+     Coupon suggestions PRE-VALIDATED vs the Wave-18 guard formula
+     (floor 1.05); groupon combinationPrice ≥ cost×1.05. Kill-switch +
+     caps under `litemall.promo-candidates.*`.
+  3. **Insight endpoints**: promo-candidates list/dismiss/consume per
+     contract (CAS from proposed, errno 653; reuse InsightService/
+     InsightMapper patterns).
+  4. **coupon_flag** in the index per contract: computed in
+     `LitemallProductIndexingService` from the shared `litemall_coupon`
+     read model (ancestor-aware category match — reuse/port the Wave-18
+     subtree expansion); exposed as facet/filter like deal_flag;
+     `refresh-signals` covers it.
+  5. **Tests**: scorer gates/tiers/suggestion-vs-guard bounds, nightly
+     task dedup + kill-switch, endpoint CAS races, coupon_flag matrix
+     (all/category/goods scope × window × claimable). Mind the
+     "Tests run:" gotcha.
+- **Acceptance (dev, through :18080/:9000):** nightly task (manually
+  triggered) proposes candidates with honest reasons on dev's costed
+  goods; list endpoints return guard-safe suggestions (a suggested
+  coupon SAVES through the real promotion guard); dismiss/consume CAS
+  verified; after reindex a couponed product returns `coupon_flag:1`
+  and the facet filters on it; V53 applied cleanly; insight + search
+  regressions green with real "Tests run:" counts.
+- **NEXT (after Wave 19 merges): Wave 20 content half** — V54 page
+  category/template + clone + palette v1.1 (groupon-strip,
+  coupon-strip extensions) + the two seeded template pages, per the
+  Wave-20 CONTRACT.
+- **History — Wave 18: coupon margin-guard basis endpoint.** SHIPPED +
+  DEPLOYED (2026-08-06, in `3168148e7`): `POST /srv/private/admin/
+  insight/margin-basis`; FROZEN spec
+  `litemall-goods-management/docs/handoff-coupon-margin-basis.md`.
+  2026-08-08 prod incident: promotion's compose block was missing
+  `LITEMALL_GOODS_AUTH_*` — guard failed closed on every save; fixed
+  `046ad1f82`, deployed, user-confirmed. Prod click-through CLOSED.
 - **History — Behavioral targeting Phase 0: COMPLETE, MERGED + DEPLOYED
   to trovemo.com (2026-08-05).** All three halves live: V49 event log +
   `POST /srv/track/{collect,consent}` ingest (`ac990d3ab`), order
@@ -617,34 +757,36 @@
   inventory intelligence SHIPPED (`68ebcbb38`); Wave 11 banners
   SHIPPED (`308082607`).
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
-  `c5fdae86f`; live feed validated). No new assignment — do not start
-  work here without a new instruction.
+  `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — behavioral Phase 0 SHIPPED; NEXT: Wave 18 coupon storefront
-- **Task — Wave 18 (storefront): coupon center + register-gift +
-  percent rendering.** Code to the Wave-18 CONTRACTS above. Scope:
-  `litemall-gateway-api/` SPA only; NO selectlist change (promotion
-  derives cart categories server-side); NO migration.
-  1. Public **`/coupons` coupon-center page**: claimable coupons from
-     `GET /srv/coupon/list` (already public + paged), claim via
-     `/srv/coupon/receive`, claimed state + "view my coupons" link;
-     scoped coupons deep-link "shop eligible items" → `/category/<id>`
-     (category scope) or `/search` (all); entry links from the header
-     account menu + the existing PDP `CouponStrip` "see all".
-  2. **Register-gift trigger**: after successful registration (and
-     Google-signup provisioning), fire-and-forget
-     `POST /srv/promotion/coupon/register-gifts` through the edge —
-     fail-silent, never blocks signup.
-  3. **Percent rendering**: `ICoupon` gains `discountType`/
-     `discountCap`; CouponStrip / user Coupons / checkout picker /
-     order breakdown render "N% off (up to $C)" vs "$D off" —
-     checkout keeps using the server-computed effective discount.
-- **Acceptance (dev, :9000/:8090):** fresh signup holds the
-  register-gift coupon; `/coupons` lists + claims and deep-links a
-  category-scoped coupon to its landing; a percent coupon shows the
-  right label everywhere and the paid total matches the server
-  discount; existing checkout/coupon e2e regression-green (headless:
-  native-setter fills + in-page DOM clicks).
+### Worktree: `gateway-api` — NEXT: Wave 19 coupon badge/facet in search
+- **Task — Wave 19 (storefront): coupon visibility in search.** Code to
+  the Wave-19 CONTRACT above. Scope: `litemall-gateway-api/` SPA only;
+  NO migration; starts AFTER the goods-management half commits (the
+  index must carry `coupon_flag`).
+  1. **Coupon badge** on product cards in `/search`, `/category/:id`
+     and the shared ProductHit/ProductCard components when the hit has
+     `coupon_flag:1` — teal "Coupon" pill next to the existing deal
+     badge; PDP already has CouponStrip, no change there.
+  2. **"Has coupon" facet** in the search facet rail riding the
+     `coupon_flag=1` filter param (mirror the deal filter wiring in
+     `litemallSearchClient.ts`; pin it like the category pin — beware
+     the transformItems refetch-loop gotcha).
+  3. `/coupons` center gets a "find couponed products" link into
+     `/search?coupon_flag=1` (or the facet-preset URL form).
+- **Acceptance (dev, :9000/:8090):** after a coupon on a scoped
+  category + reindex, those products show the badge in search results;
+  toggling the facet filters to flagged products only; URLs shareable;
+  search/checkout e2e regression-green (headless: native-setter fills
+  + in-page DOM clicks).
+- **QUEUED — Wave 20 (after Wave 19 merges):** PageRenderer
+  groupon-strip + extended coupon-strip; `/page/:id` og-meta head
+  injection at the Wave-13 seam (fail-open). Per the Wave-20 CONTRACT.
+- **History — Wave 18 (storefront): coupon center + register-gift +
+  percent rendering.** SHIPPED + DEPLOYED 2026-08-06 (`72bf228cf`,
+  merge `c9b0848a6`): public `/coupons` center, register-gift trigger
+  after password+Google signup, percent "N% off (up to $C)" rendering;
+  24/24 stackless + 17/17 unit.
 - **History — Phase-0 edge+SPA build detail (2026-08-04):** PublicPaths
   TRACK_POST + VisitorIdentityFilter (consent-gated HttpOnly
   lm_vid/lm_sid, rolling session, spoof-strip), firstParty.ts emitter
@@ -811,27 +953,38 @@
 ### Worktree: `gateway-admin`
 - **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
   **Scope:** `litemall-gateway-admin/` only. NO migration.
-- **Task — Wave 18 (admin UI): coupon scoping + percent + guard
-  surfacing.** Code to the Wave-18 CONTRACTS above; do NOT read the
-  promotion branch.
-  1. `CouponForm`: scope selector — All / **Category** (L1 roots
-     picker fed by `/srv/private/admin/insight/categories`, show
-     avgMarginPct per root) / **Products** (picker reusing the
-     insight goods list `/srv/private/admin/insight/goods/list
-     ?categoryId=` with picture/price/margin, multi-select cap 500);
-     sends `goodsType`/`goodsValue` (kill the `:21` hardcode). Plus
-     discount-type radio (flat / percent), rate + optional cap
-     fields with client-side 1–90 bounds.
-  2. Margin-guard rejections surfaced VERBATIM (they contain the
-     computed maximum discount/rate); `uncostedCount` warning shown
-     non-blocking on success.
-  3. `CouponList`: type (flat/percent) + scope (All/Category/
-     Products) columns.
-- **Acceptance:** create an L1-scoped 10% coupon → saved; an
-  over-generous one → inline guard message with the stated max; a
-  product-list coupon picks via the insight picker; existing coupon
-  CRUD + issued-users panels regression-green; webapp tests green
-  with real counts.
+- **Task — Wave 19 (admin UI): Promo Suggestions panel.** Code to the
+  Wave-19 CONTRACT above; starts AFTER the goods-management half
+  commits; do NOT read its branch.
+  1. New "Promo suggestions" panel (Insight menu group, sibling of
+     Deal Candidates — reuse `DealCandidateList.tsx` shape): kind tab
+     (Coupon | Groupon), rows show picture, name, L1 category, tier,
+     score, cost/retail/marginPct, stock, rating, reasons, and the
+     concrete suggestion (rendered human — e.g. "10% off Women's
+     Clothing, cap $5" / "group price $12.99, 3 members").
+  2. Row actions: **Dismiss** (insight dismiss endpoint) and **Create
+     coupon** / **Create groupon** — navigate to the EXISTING
+     CouponForm / GrouponRuleForm prefilled via router state from
+     `suggestion`; after a successful create, call `consume` with the
+     created id (fail-soft: a failed consume never blocks the create).
+     Groupon creations stay DRAFT — do NOT auto-activate (Phase-3
+     gating decision).
+  3. CouponForm/GrouponRuleForm: accept prefill router state (no
+     behavior change when absent).
+- **Acceptance:** panel lists dev candidates with honest reasons;
+  Create coupon lands a prefilled form that SAVES through the real
+  guard; consume flips the row; dismiss CAS-safe; groupon create
+  stays draft; existing insight/coupon/groupon panels
+  regression-green; webapp tests green with real counts.
+- **QUEUED — Wave 20 (after Wave 19 merges):** DIY page list
+  category/template filters + "New from template" (clone → editor);
+  Postiz panel source picker (Products | DIY page) with the
+  groupon-category refusal shown verbatim. Per the Wave-20 CONTRACT.
+- **History — Wave 18 (admin UI): coupon scoping + percent + guard
+  surfacing.** SHIPPED + DEPLOYED 2026-08-06 (`4271d5281`, merge
+  `9fbe80120`): scope selector (killed the goodsType:0 hardcode),
+  percent fields, guard rejections verbatim (`guardError` in envelope
+  data, HTTP 400), uncosted warning; jest 19/19 + headless 16/16.
 - **History — Wave 17 (admin UI): "Social Publishing (Postiz)" panel —
   product choice happens HERE.** Code to the Wave-17 CONTRACT above;
   do NOT read the promotion branch.
@@ -869,16 +1022,40 @@
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
 ### Worktree: `promotion`
-- **Branch:** `fix/promotion` — FIRST: `git merge master` (Wave 17 is
+- **Branch:** `fix/promotion` — FIRST: `git merge master` (Wave 18 is
   merged; the branch must equal master before starting). · **Scope:**
-  `litemall-promotion-service/` + the single Wave-18 **V51** migration
+  `litemall-promotion-service/` + the single Wave-20 **V55** migration
   in litemall-db (shared-module discipline: hand-edit entity + mapper
   XML together, `mvn install`, restart every dependent; check
   `flyway_schema_history` immediately before first boot). Do NOT
-  touch Postiz, `SocialDealAutoPoster`, the Mautic listener, or the
-  campaign endpoints.
-- **Task — Wave 18 (backend): scoped + percent + profit-guarded
-  coupons.** Code to the Wave-18 CONTRACTS above.
+  touch `SocialDealAutoPoster`, the Mautic listener, or the campaign
+  endpoints.
+- **Wave 19: NO promotion work** (candidates + coupon_flag live in
+  goods-management; admin creates ride the existing coupon/combination
+  paths).
+- **Task — Wave 20 (backend): Postiz DIY-page publishing.** Starts
+  AFTER Wave 19 merges. Code to the Wave-20 CONTRACT above.
+  1. **V55**: `litemall_postiz_post.page_id` INT NULL (+ entity/mapper
+     hand-edit).
+  2. Postiz `preview`/`publish` accept the page-source body
+     `{pageId, channelIds[], startTime}`: resolve the ACTIVE page via
+     the goods-management public read (`GET /srv/page/{id}` through
+     the service base URL — machine token not needed, path is public),
+     compose ONE post (page name + canonical
+     `https://trovemo.com/page/<id>` + hero image absolutized;
+     skip-with-warning when no valid-extension image), REFUSE
+     groupon-category pages with a typed errno (Phase-3 gating).
+  3. `/log` rows carry `pageId`; goods-dedup warnings unchanged;
+     batch cap + throttle rules as Wave 17.
+  4. **Tests**: page composer shape, groupon refusal, disabled-env
+     errno, page-id logging. Mind the "Tests run:" gotcha.
+- **History — Wave 18 (backend): scoped + percent + profit-guarded
+  coupons.** SHIPPED + DEPLOYED 2026-08-06 (`0ae6423c7`+`aadff8434`,
+  merge `1d02deeab`, prod V51; guard X-User-Id fix `3168148e7`;
+  2026-08-08 prod compose fix `046ad1f82` added the missing
+  `LITEMALL_GOODS_AUTH_*` env pair — user-confirmed working). Original
+  spec kept below for reference.
+- **Spec (Wave 18, HISTORICAL):**
   1. **V51**: `discount_type` (0 flat / 1 percent, default 0) +
      `discount_cap` decimal(10,2) NULL on `litemall_coupon`; percent
      rate rides the existing `discount` column (validate 1–90).
