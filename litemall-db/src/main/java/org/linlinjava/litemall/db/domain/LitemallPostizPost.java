@@ -4,19 +4,22 @@ import java.time.LocalDateTime;
 
 /**
  * Hand-written entity for the Postiz publish ledger ({@code litemall_postiz_post},
- * V50). NOT MyBatis-Generator output — litemall-db is hand-maintained; keep this
- * class and {@code PostizPostMapper.xml} in sync when columns change.
+ * V50 + V55). NOT MyBatis-Generator output — litemall-db is hand-maintained; keep
+ * this class and {@code PostizPostMapper.xml} in sync when columns change.
  *
  * <p>{@code integrationId} is the Postiz channel id (a cuid string);
  * {@code channelIdentifier} its provider identifier ({@code facebook | x | ...}).
  * {@code status} is {@code scheduled | failed} — Postiz owns the post lifecycle
  * after acceptance, so the ledger records the handoff. {@code scheduleTime} is
- * stored as UTC (Postiz forces TZ=UTC).
+ * stored as UTC (Postiz forces TZ=UTC). Since V55 a row promotes EITHER a goods
+ * ({@code goodsId} set) OR a DIY promo page ({@code pageId} set) — the other id
+ * is NULL.
  */
 public class LitemallPostizPost {
 
     private Integer id;
     private Integer goodsId;
+    private Integer pageId;
     private Integer categoryId;
     private String integrationId;
     private String channelIdentifier;
@@ -34,6 +37,9 @@ public class LitemallPostizPost {
 
     public Integer getGoodsId() { return goodsId; }
     public void setGoodsId(Integer goodsId) { this.goodsId = goodsId; }
+
+    public Integer getPageId() { return pageId; }
+    public void setPageId(Integer pageId) { this.pageId = pageId; }
 
     public Integer getCategoryId() { return categoryId; }
     public void setCategoryId(Integer categoryId) { this.categoryId = categoryId; }
