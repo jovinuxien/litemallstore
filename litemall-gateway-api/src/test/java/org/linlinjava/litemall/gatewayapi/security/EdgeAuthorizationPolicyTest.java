@@ -89,9 +89,26 @@ class EdgeAuthorizationPolicyTest {
                 "/srv/search/suggest?q=x", "/srv/brand/list", "/srv/topic/list", "/srv/article/list",
                 "/srv/region/list", "/srv/store/list", "/srv/comment/list?valueId=1",
                 "/srv/comment/count?valueId=1", "/srv/coupon/list", "/srv/groupon/list",
-                "/srv/promotion/seckill/active", "/srv/promotion/combination" }) {
+                "/srv/promotion/seckill/active", "/srv/promotion/combination",
+                // Wave-21 group-buy reads: the PDP strip and the shareable
+                // /groupon/:id landing fire these logged-out; the exact-match
+                // parent entry above does not cover them (the gap bounced every
+                // anonymous PDP visit to /login).
+                "/srv/promotion/combination/active", "/srv/promotion/combination/7",
+                "/srv/promotion/combination/pink/12" }) {
             anonymous.get().uri(path).exchange().expectStatus().isOk();
         }
+    }
+
+    @Test
+    @DisplayName("group-buy personal reads and writes stay authenticated")
+    void groupBuyPersonalPathsAre401() {
+        // GET /my reads X-User-Id — the reason the public entries are precise
+        // patterns, not /**. The start/join writes must not ride in on the
+        // read whitelist either (GET-only matching).
+        anonymous.get().uri("/srv/promotion/combination/my").exchange().expectStatus().isUnauthorized();
+        anonymous.post().uri("/srv/promotion/combination/7/start").exchange().expectStatus().isUnauthorized();
+        anonymous.post().uri("/srv/promotion/combination/pink/12/join").exchange().expectStatus().isUnauthorized();
     }
 
     @Test
