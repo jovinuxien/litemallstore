@@ -99,6 +99,25 @@ public class SearchServiceTest {
         assertThat(items.get(2)).doesNotContainKey("coupon_flag");
     }
 
+    // ---- Wave-21 groupon_flag passthrough ---------------------------------
+
+    @Test
+    public void grouponFlagRidesTheHitOnlyWhenPositive() {
+        OcsSearchResult.Hit flagged = hit("1", "Silk Scarf", "desc");
+        flagged.getDocument().getData().put("groupon_flag", 1);
+        OcsSearchResult.Hit unflagged = hit("2", "Cotton Socks", "desc");
+        unflagged.getDocument().getData().put("groupon_flag", 0);
+        OcsSearchResult.Hit preReindex = hit("3", "Wool Hat", "desc"); // field absent
+
+        Mockito.when(searchClient.search(anyString(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(resultWithHits(flagged, unflagged, preReindex));
+
+        List<Map<String, Object>> items = goodsList(service.search("q", 1, 20, null, Map.of()));
+        assertThat(items.get(0)).containsEntry("groupon_flag", 1);
+        assertThat(items.get(1)).doesNotContainKey("groupon_flag");
+        assertThat(items.get(2)).doesNotContainKey("groupon_flag");
+    }
+
     // ---- highlighting -----------------------------------------------------
 
     @Test

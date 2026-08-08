@@ -49,6 +49,7 @@ public class LitemallProductIndexingService {
     private final LitemallGoodsProductService productService;
     private final LitemallSeckillService seckillService;
     private final CouponSignalResolver couponSignalResolver;
+    private final GrouponSignalResolver grouponSignalResolver;
     private final LitemallSearchProperties properties;
 
     public LitemallProductIndexingService(LitemallBrandService brandService,
@@ -57,6 +58,7 @@ public class LitemallProductIndexingService {
                                           LitemallGoodsProductService productService,
                                           LitemallSeckillService seckillService,
                                           CouponSignalResolver couponSignalResolver,
+                                          GrouponSignalResolver grouponSignalResolver,
                                           LitemallSearchProperties properties) {
         this.brandService = brandService;
         this.categoryService = categoryService;
@@ -64,6 +66,7 @@ public class LitemallProductIndexingService {
         this.productService = productService;
         this.seckillService = seckillService;
         this.couponSignalResolver = couponSignalResolver;
+        this.grouponSignalResolver = grouponSignalResolver;
         this.properties = properties;
     }
 
@@ -148,6 +151,11 @@ public class LitemallProductIndexingService {
         // coupon scoped at any category level flags every product in its subtree. Always 1/0
         // (never absent) — the deal-fields always-emit rule.
         doc.setCouponFlag(couponSignalResolver.couponFlag(goods.getId(), categoryIds));
+
+        // Wave-21 group-buy visibility: 1 when an ACTIVE in-window litemall_combination
+        // campaign targets this goods. Always 1/0 (never absent) — the deal-fields
+        // always-emit rule.
+        doc.setGrouponFlag(grouponSignalResolver.grouponFlag(goods.getId()));
 
         // V31 ranking signals, read straight off the goods row (populated for CJ at promote, for
         // local by the review aggregator). Emitted as master-level numeric fields the searcher's
