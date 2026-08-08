@@ -432,6 +432,13 @@ services:
       # /auth/site-config so it can mount Stripe Elements. Blank ⇒ the card
       # option is hidden and checkout offers wallet only.
       LITEMALL_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      # Wave-16 env-gated integrations, served to the SPA via /auth/site-config
+      # (public by design). Blank ⇒ the feature is hidden entirely: no Google
+      # button (/auth/google answers 707), no Meta Pixel, plain address fields.
+      # Activation = set in .env + recreate this container, NO rebuild.
+      LITEMALL_GOOGLE_CLIENT_ID: ${LITEMALL_GOOGLE_CLIENT_ID:-}
+      LITEMALL_META_PIXEL_ID: ${LITEMALL_META_PIXEL_ID:-}
+      LITEMALL_PLACES_API_KEY: ${LITEMALL_PLACES_API_KEY:-}
       # Edge-local password-reset mail (Wave 6). Reads the SAME .env values as
       # order's customer-mail block, but the edge sender's property keys are
       # `user`/`pass` (not username/password) — mapped here so one .env set
