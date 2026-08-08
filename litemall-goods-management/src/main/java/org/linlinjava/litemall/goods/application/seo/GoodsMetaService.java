@@ -28,6 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GoodsMetaService {
 
     private static final long TTL_MS = 5 * 60 * 1000L;
+    /** Matches the head renderer's description budget — no point shipping more. */
+    private static final int DESCRIPTION_MAX = 300;
     /** Crude bound so crawler id-sweeps can't grow the cache without limit (~9.6k real goods). */
     private static final int MAX_CACHE_ENTRIES = 20_000;
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
@@ -73,7 +75,7 @@ public class GoodsMetaService {
         Map<String, Object> meta = new LinkedHashMap<>();
         meta.put("id", goods.getId());
         meta.put("name", goods.getName());
-        meta.put("brief", goods.getBrief());
+        meta.put("brief", description(goods));
         meta.put("picUrl", goods.getPicUrl());
         meta.put("retailPrice", goods.getRetailPrice());
         meta.put("currency", goodsProperties.getCurrency());
@@ -84,6 +86,26 @@ public class GoodsMetaService {
         meta.put("categoryName", categoryName(goods.getCategoryId()));
         meta.put("updateTime", goods.getUpdateTime() != null ? ISO.format(goods.getUpdateTime()) : null);
         return Collections.unmodifiableMap(meta);
+    }
+
+    /**
+     * ~8k CJ briefs are literally the product name again, which collapses the
+     * storefront head's title, description, and JSON-LD description into one
+     * repeated string — thin content to Google. When the brief adds nothing
+     * over the name, fall back to the opening prose of the detail body; when
+     * that too is empty or image-only markup, the original brief stands.
+     */
+    private String description(LitemallGoods goods) {
+        String brief = HtmlText.clean(goods.getBrief());
+        String name = goods.getName() == null ? "" : goods.getName().trim();
+        if (!brief.isEmpty() && !brief.equalsIgnoreCase(name)) {
+            return brief;
+        }
+        String detail = HtmlText.clean(goods.getDetail());
+        if (!detail.isEmpty() && !detail.equalsIgnoreCase(name)) {
+            return HtmlText.truncateAtWord(detail, DESCRIPTION_MAX);
+        }
+        return goods.getBrief();
     }
 
     private String categoryName(Integer categoryId) {

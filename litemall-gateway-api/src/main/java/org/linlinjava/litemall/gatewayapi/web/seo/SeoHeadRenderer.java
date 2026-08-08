@@ -76,6 +76,11 @@ public class SeoHeadRenderer {
             String image = absoluteImageUrl(meta.picUrl());
 
             StringBuilder head = new StringBuilder();
+            // Retired goods stay viewable-unbuyable, but must leave the index —
+            // thousands of off-sale thin PDPs lingering there dilute the live set.
+            if (!meta.onSale()) {
+                appendMeta(head, "robots", "noindex");
+            }
             appendLink(head, "canonical", canonical);
             appendOg(head, "og:type", "product");
             appendOg(head, "og:title", meta.name());
@@ -123,6 +128,21 @@ public class SeoHeadRenderer {
         });
     }
 
+    /**
+     * The shell with only a robots-noindex head — internal search results.
+     * Every {@code q} spelling is its own URL over the same generic shell;
+     * noindex (rather than a robots.txt disallow) lets Google crawl once, see
+     * the directive, and drop any already-indexed copies — a disallow would
+     * freeze those in place unseen.
+     */
+    public Optional<String> renderNoindex() {
+        return template().map(shell -> {
+            StringBuilder head = new StringBuilder();
+            appendMeta(head, "robots", "noindex");
+            return apply(shell, null, null, head.toString());
+        });
+    }
+
     private Optional<String> template() {
         Optional<String> t = template;
         if (t == null) {
@@ -138,14 +158,17 @@ public class SeoHeadRenderer {
 
     /**
      * Title and description are REPLACED (a second description meta would be a
-     * duplicate for crawlers); the route-specific tags are inserted before
-     * {@code </head>}. Each step degrades to a no-op if its marker is missing,
-     * so a reworked template can never make this throw.
+     * duplicate for crawlers) — {@code null} keeps the shell's own; the
+     * route-specific tags are inserted before {@code </head>}. Each step
+     * degrades to a no-op if its marker is missing, so a reworked template can
+     * never make this throw.
      */
     private String apply(String shell, String title, String description, String extraHead) {
-        String html = replaceBetween(shell, "<title>", "</title>", escapeHtml(title));
-        html = replaceBetween(html, "<meta name=\"description\" content=\"", "\"",
-                escapeHtml(truncate(description)));
+        String html = title == null ? shell
+                : replaceBetween(shell, "<title>", "</title>", escapeHtml(title));
+        html = description == null ? html
+                : replaceBetween(html, "<meta name=\"description\" content=\"", "\"",
+                        escapeHtml(truncate(description)));
         int headClose = html.indexOf("</head>");
         if (headClose >= 0) {
             html = html.substring(0, headClose) + extraHead + html.substring(headClose);

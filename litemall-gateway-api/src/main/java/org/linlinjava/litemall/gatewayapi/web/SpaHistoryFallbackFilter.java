@@ -123,6 +123,11 @@ public class SpaHistoryFallbackFilter implements WebFilter, Ordered {
                     .defaultIfEmpty("")
                     .onErrorReturn("");
         }
+        // Internal search results: every ?q= spelling is a distinct URL over the
+        // same shell — noindex keeps them out of the index (crawl-budget bloat).
+        if ("/search".equals(path)) {
+            return Mono.just(seoHeadRenderer.renderNoindex().orElse(""));
+        }
         return Mono.just("");
     }
 
