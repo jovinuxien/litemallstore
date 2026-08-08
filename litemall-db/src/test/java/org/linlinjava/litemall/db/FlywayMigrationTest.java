@@ -32,13 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V56 (order.pink_id group-buy slot linkage, Wave 21;
-    // previously V55 Postiz page ledger, Wave 20 — alongside V54
-    // page templates) is the latest known migration; the exact-count assertion was
-    // replaced with a >= floor so this test no longer goes stale every time a script
-    // lands. Being a floor it still passes when it drifts, so it only asserts what
-    // it is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 56;
+    // Hand-maintained floor: V58 (litemall_coupon_delivery targeted coupon
+    // delivery, Wave 22; previously V56 order.pink_id, Wave 21) is the latest
+    // known migration ON THIS BRANCH. V57 (Wave-22 search stats) lands from
+    // fix/goods-management, so this checkout has a V57 GAP — 57 scripts, not
+    // 58 (flyway out-of-order is permanent; never renumber). The assertion
+    // counts migrationsExecuted, so the floor is the SCRIPT COUNT: 57 here;
+    // raise to 58 when V57 merges (expected conflict at integration). V58's
+    // schema is spot-checked below regardless. Being a floor it still passes
+    // when it drifts, so it only asserts what it is raised to — bump it when
+    // you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 57;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -134,6 +138,11 @@ public class FlywayMigrationTest {
             {"litemall_postiz_post",  "page_id"},
             // V56: combination group-buy slot linkage on order (Wave 21)
             {"litemall_order",        "pink_id"},
+            // V58: targeted coupon delivery run outcome columns (Wave 22)
+            {"litemall_coupon_delivery", "segment_json"},
+            {"litemall_coupon_delivery", "matched"},
+            {"litemall_coupon_delivery", "granted"},
+            {"litemall_coupon_delivery", "skipped"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
@@ -195,6 +204,8 @@ public class FlywayMigrationTest {
             // V46: inventory governance (Wave 14)
             "litemall_retire_candidate",
             "litemall_category_margin",
+            // V58: targeted coupon delivery runs (Wave 22)
+            "litemall_coupon_delivery",
         };
 
         try (var conn = MYSQL.createConnection("")) {
