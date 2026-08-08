@@ -11,14 +11,14 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Wave 17 (Postiz social publishing) active worktrees — launch with
-# FRESH=1 (previous waves are shipped; a plain resume reopens finished
-# conversations instead of delivering Wave 17). Parked: "order",
-# "goods-management", "gateway-api", "platform". Each name must have a
-# matching '### Worktree: `<short>`' block in CLAUDE.md.
+# Active worktrees (2026-08-08, Wave 23: admin-gated CJ placement).
+# Launch with FRESH=1 when a NEW wave is commissioned so the assignment
+# prompt is delivered instead of resuming a finished session. Parked:
+# "gateway-api", "goods-management", "promotion", "platform". Each name
+# must have a matching '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "promotion"      # PostizClient + /srv/private/admin/promotion/postiz/** endpoints (V49)
-  "gateway-admin"  # Social Publishing panel: category product picker + channels + schedule
+  "order"             # CJ placement gate + admin notify mail (V59)
+  "gateway-admin"     # pending-approval tab + approve action
 )
 
 mkdir -p "$WT_BASE"
