@@ -529,6 +529,14 @@ services:
       LITEMALL_CUSTOMERMAIL_FROM: ${LITEMALL_CUSTOMERMAIL_FROM:-noreply@trovemo.com}
       LITEMALL_CUSTOMERMAIL_USERNAME: ${LITEMALL_CUSTOMERMAIL_USERNAME:-}
       LITEMALL_CUSTOMERMAIL_PASSWORD: ${LITEMALL_CUSTOMERMAIL_PASSWORD:-}
+      # Wave 23 (V59): admin-gated CJ placement. manual (the default, also the
+      # jar's own default) = paid CJ orders wait for an admin approval stamp
+      # before the sweep places them; auto = pre-Wave-23 behaviour. The notify
+      # address gets a "New paid order" mail per paid order via the same outbox
+      # (blank = no admin notices). Compose passthrough is EXPLICIT — without
+      # these lines the container never sees the env (the Wave-18 lesson).
+      LITEMALL_ORDER_CJ_PLACEMENT_MODE: ${LITEMALL_ORDER_CJ_PLACEMENT_MODE:-manual}
+      LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY: ${LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY:-}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 
