@@ -153,6 +153,17 @@ ocs:
               - Result
               - Filter
 
+          # Wave-21 group-buy visibility: groupon_flag=1 = an ACTIVE in-window
+          # litemall_combination campaign targets this goods. Filter powers the
+          # "Group buy" toggle; Result powers the card badge. Same always-emit rule
+          # as deal_flag/coupon_flag.
+          groupon_flag:
+            name: groupon_flag
+            type: number
+            usage:
+              - Result
+              - Filter
+
           # Live flash-deal signals (price-swap lifecycle) — emitted only while a deal is live.
           # deal_active: Filter (deal_active=1 scopes "live deals only"); deal_end_epoch: Sort
           # (sort=deal_end_epoch = "ending soon") + Result (card countdown); deal_claimed_pct:
@@ -218,14 +229,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result
