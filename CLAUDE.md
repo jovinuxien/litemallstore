@@ -684,6 +684,55 @@
 > pkill -f a jar name self-matches the launcher shell — launch via script
 > file.**
 >
+> **Wave 21 (2026-08-08) — TRANSACTIONAL GROUP-BUY (coupon roadmap Phase 3):
+> priced pinkId submit, shareable group links, PDP entry, groupon_flag,
+> gate unlock.** USER DECISIONS (2026-08-08): pay-at-submit; a PAID order
+> whose group EXPIRES unfilled is AUTO-CANCELLED + REFUNDED to the original
+> tender via the existing tender-parity refund path (customer mail rides the
+> existing pipeline); submitting on a failed/expired slot is REJECTED with a
+> typed message ("this group has expired — start a new one or buy at regular
+> price"), never silently re-priced. The FROZEN base contract is
+> `litemall-promotion-service/docs/spec-groupon-priced-submit-contract.md`
+> (+ `litemall-order/docs/followup-groupon-priced-submit.md`); code to it.
+> **Wave-21 CONTRACT additions (on top of the spec):**
+> - **V56** (order scope; check `flyway_schema_history` — prod applied
+>   through V55): `litemall_order.pink_id` INT NULL + KEY. Hand-edit
+>   LitemallOrder + OrderMapper.xml together (⚠ the recurring
+>   OrderMapper.xml-goes-missing gotcha). Order is the ONLY litemall-db
+>   writer this wave.
+> - **promotion** implements the two follow-ups the spec parked:
+>   `POST /srv/promotion/combination/pink/{pinkId}/attach-order {orderId}`
+>   (machine + X-User-Id; CAS on order_id null) and
+>   `POST /srv/promotion/combination/pink/{pinkId}/release {orderId}`
+>   (frees the slot ONLY while the group is Pending; a released slot drops
+>   memberCount; idempotent). GROUP_EXPIRED/GROUP_COMPLETED Kafka payloads
+>   gain `memberPinkIds[]` (additive) so order can find affected orders.
+>   UNLOCK: delete the Postiz errno-765 groupon-page refusal (groupon pages
+>   become publishable — priced submit makes the promise real).
+> - **order**: optional `pinkId` on submit → validate slot (owner, status
+>   Pending|Success, order_id null; else the typed stale-slot reject) +
+>   campaign (goodsId match) → price the line at combinationPrice, qty
+>   capped by limitPerUser → persist pink_id → attach-order after placement
+>   (fail-soft, logged). Order-cancel before completion → release (fail-
+>   soft). GROUP_EXPIRED listener → for each memberPinkId with a PAID local
+>   order: auto-cancel + tender-parity refund + existing customer-mail
+>   trigger; idempotent per order; unpaid orders just cancel. On-sale and
+>   coupon paths unchanged.
+> - **goods-management**: `groupon_flag` in the OCS index (1 when an ACTIVE,
+>   in-window `litemall_combination` campaign exists for the goods — shared
+>   read-only, mirror CouponSignalResolver incl. 60s TTL fail-soft snapshot
+>   + always-emit + hit passthrough + indexer yml field + BOTH dynamic-field
+>   regex whitelists + refresh-signals coverage).
+> - **gateway-api**: shareable `/groupon/:id` campaign landing (detail,
+>   members progress, start/join CTAs, share link; og-meta OPTIONAL this
+>   wave); PDP group-buy entry when the product has an active campaign;
+>   start/join flows route into checkout carrying `pinkId`; checkout
+>   renders the GROUP price from the server; stale-slot reject surfaced
+>   verbatim; groupon page cards deep-link `/groupon/:id`; "Group buy"
+>   badge + filter riding `groupon_flag` (mirror the coupon badge/facet).
+> - errno envelope everywhere; money plain decimals; NO changes to the
+>   legacy litemall_groupon path.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
