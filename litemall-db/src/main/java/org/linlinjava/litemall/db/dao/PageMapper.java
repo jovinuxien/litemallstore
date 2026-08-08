@@ -34,16 +34,22 @@ public interface PageMapper {
 
     /**
      * Admin list, newest first, WITHOUT the (potentially 64KB) config column.
-     * Nullable filters: position, status (exact).
+     * Nullable filters: position, status, category (exact), isTemplate.
      */
     List<LitemallPage> selectAdminPage(@Param("position") String position,
                                        @Param("status") String status,
+                                       @Param("category") String category,
+                                       @Param("isTemplate") Boolean isTemplate,
                                        @Param("offset") int offset,
                                        @Param("limit") int limit);
 
-    int countAdmin(@Param("position") String position, @Param("status") String status);
+    int countAdmin(@Param("position") String position, @Param("status") String status,
+                   @Param("category") String category, @Param("isTemplate") Boolean isTemplate);
 
-    /** Selective update of name/config only; update_time always written. */
+    /**
+     * Selective update of name/category/config only; update_time always
+     * written. {@code is_template} is seed-only — never updated here.
+     */
     int updateSelective(LitemallPage record);
 
     /** Demote the current active home to draft (0 rows = none was active). */

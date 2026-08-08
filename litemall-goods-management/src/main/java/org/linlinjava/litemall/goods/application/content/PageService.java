@@ -64,17 +64,20 @@ public class PageService {
 
     // ---------------- admin ----------------
 
-    public Map<String, Object> adminList(String position, String status, int page, int limit) {
+    public Map<String, Object> adminList(String position, String status, String category,
+                                         Boolean template, int page, int limit) {
         int offset = (page - 1) * limit;
-        List<LitemallPage> rows = pageMapper.selectAdminPage(position, status, offset, limit);
-        int total = pageMapper.countAdmin(position, status);
+        List<LitemallPage> rows = pageMapper.selectAdminPage(position, status, category, template, offset, limit);
+        int total = pageMapper.countAdmin(position, status, category, template);
         List<Map<String, Object>> list = new ArrayList<>();
         for (LitemallPage p : rows) {
             Map<String, Object> vo = new LinkedHashMap<>();
             vo.put("id", p.getId());
             vo.put("name", p.getName());
             vo.put("position", p.getPosition());
+            vo.put("category", p.getCategory());
             vo.put("status", p.getStatus());
+            vo.put("isTemplate", Boolean.TRUE.equals(p.getIsTemplate()));
             vo.put("addTime", p.getAddTime());
             vo.put("updateTime", p.getUpdateTime());
             list.add(vo);
@@ -95,7 +98,9 @@ public class PageService {
         vo.put("id", page.getId());
         vo.put("name", page.getName());
         vo.put("position", page.getPosition());
+        vo.put("category", page.getCategory());
         vo.put("status", page.getStatus());
+        vo.put("isTemplate", Boolean.TRUE.equals(page.getIsTemplate()));
         vo.put("config", parseConfig(page));
         vo.put("addTime", page.getAddTime());
         vo.put("updateTime", page.getUpdateTime());
@@ -103,13 +108,15 @@ public class PageService {
     }
 
     /** Insert as DRAFT (activation is always the separate, transactional step). */
-    public LitemallPage create(String name, String position, String normalizedConfig) {
+    public LitemallPage create(String name, String position, String category, String normalizedConfig) {
         LocalDateTime now = LocalDateTime.now();
         LitemallPage page = new LitemallPage();
         page.setName(name);
         page.setPosition(position);
+        page.setCategory(category);
         page.setConfig(normalizedConfig);
         page.setStatus(LitemallPage.STATUS_DRAFT);
+        page.setIsTemplate(false);
         page.setAddTime(now);
         page.setUpdateTime(now);
         page.setDeleted(false);
@@ -117,14 +124,47 @@ public class PageService {
         return page;
     }
 
-    /** Name/config patch; status never flows through here. */
-    public int update(Integer id, String name, String normalizedConfig) {
+    /** Name/category/config patch; status and is_template never flow through here. */
+    public int update(Integer id, String name, String category, String normalizedConfig) {
         LitemallPage patch = new LitemallPage();
         patch.setId(id);
         patch.setName(name);
+        patch.setCategory(category);
         patch.setConfig(normalizedConfig);
         patch.setUpdateTime(LocalDateTime.now());
         return pageMapper.updateSelective(patch);
+    }
+
+    /**
+     * Clone ANY page (template or not, active or not) into a fresh DRAFT:
+     * name "Copy of &lt;name&gt;" (truncated to the 63-char column), position
+     * always {@code custom}, category + config inherited. The copy is a NORMAL
+     * page — {@code is_template} is never inherited (templates are seed-only)
+     * and active status never travels (activation stays the separate,
+     * transactional step). Returns null when the source is missing/deleted.
+     */
+    public LitemallPage clone(Integer id) {
+        LitemallPage source = pageMapper.selectById(id);
+        if (source == null) {
+            return null;
+        }
+        String name = "Copy of " + source.getName();
+        if (name.length() > 63) {
+            name = name.substring(0, 63);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LitemallPage copy = new LitemallPage();
+        copy.setName(name);
+        copy.setPosition(LitemallPage.POSITION_CUSTOM);
+        copy.setCategory(source.getCategory());
+        copy.setConfig(source.getConfig());
+        copy.setStatus(LitemallPage.STATUS_DRAFT);
+        copy.setIsTemplate(false);
+        copy.setAddTime(now);
+        copy.setUpdateTime(now);
+        copy.setDeleted(false);
+        pageMapper.insert(copy);
+        return copy;
     }
 
     /**

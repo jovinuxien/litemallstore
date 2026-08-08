@@ -33,9 +33,12 @@ public final class PageConfigValidator {
     // deepest-and-most-popular first via the searcher's discount_pct scoring. Same degrade
     // rule R1 as every strip: no resolvable data ⇒ skip, never an error.
     private static final Set<String> GOODS_LIST_MODES = Set.of("byIds", "byCategory", "hot", "new", "deals");
+    // "groupon-strip" (palette v1.1, Wave 20): renderer resolves
+    // /srv/promotion/combination/active. Degrade rule R1 as every strip.
     private static final Set<String> KNOWN_TYPES = Set.of(
             "banner", "image-row", "goods-list", "coupon-strip", "seckill-strip",
-            "article-strip", "rich-text");
+            "groupon-strip", "article-strip", "rich-text");
+    private static final Set<String> COUPON_STRIP_STYLES = Set.of("strip", "grid");
 
     private final ObjectMapper mapper;
 
@@ -134,8 +137,9 @@ public final class PageConfigValidator {
                 case "banner" -> validateBanner(i, config);
                 case "image-row" -> validateImageRow(i, config);
                 case "goods-list" -> validateGoodsList(i, config);
-                case "coupon-strip" -> validateStrip(i, "coupon-strip", config);
+                case "coupon-strip" -> validateCouponStrip(i, config);
                 case "seckill-strip" -> validateStrip(i, "seckill-strip", config);
+                case "groupon-strip" -> validateGrouponStrip(i, config);
                 case "article-strip" -> validateArticleStrip(i, config);
                 case "rich-text" -> validateAndSanitizeRichText(i, config);
                 default -> null; // unreachable — KNOWN_TYPES gate above
@@ -241,6 +245,41 @@ public final class PageConfigValidator {
         return optionalString(i, type, config, "title");
     }
 
+    /** v1.1: the v1 strip fields plus optional couponIds / headline / style. */
+    private static String validateCouponStrip(int i, ObjectNode config) {
+        String err = validateStrip(i, "coupon-strip", config);
+        if (err != null) {
+            return err;
+        }
+        err = optionalIdArray(i, "coupon-strip", config, "couponIds");
+        if (err != null) {
+            return err;
+        }
+        err = optionalString(i, "coupon-strip", config, "headline");
+        if (err != null) {
+            return err;
+        }
+        JsonNode style = config.get("style");
+        if (style != null && !style.isNull()
+                && (!style.isTextual() || !COUPON_STRIP_STYLES.contains(style.asText()))) {
+            return prefix(i, "coupon-strip") + "style must be one of " + COUPON_STRIP_STYLES;
+        }
+        return null;
+    }
+
+    /** v1.1: explicit combinationIds or auto active campaigns; maxItems 1-12 (default 4). */
+    private static String validateGrouponStrip(int i, ObjectNode config) {
+        String err = optionalString(i, "groupon-strip", config, "title");
+        if (err != null) {
+            return err;
+        }
+        err = optionalIdArray(i, "groupon-strip", config, "combinationIds");
+        if (err != null) {
+            return err;
+        }
+        return optionalBoundedInt(i, "groupon-strip", config, "maxItems", 1, 12);
+    }
+
     private static String validateArticleStrip(int i, ObjectNode config) {
         String err = validateStrip(i, "article-strip", config);
         if (err != null) {
@@ -279,6 +318,28 @@ public final class PageConfigValidator {
         return null;
     }
 
+    /**
+     * Optional array of positive integer ids. Absent, null and EMPTY all pass —
+     * for the v1.1 strips an empty/absent id list means "automatic" (renderer
+     * shows whatever is live). The 64KB document cap bounds the length.
+     */
+    private static String optionalIdArray(int i, String type, ObjectNode config, String field) {
+        JsonNode node = config.get(field);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (!node.isArray()) {
+            return prefix(i, type) + field + " must be an array of positive integers";
+        }
+        for (int j = 0; j < node.size(); j++) {
+            JsonNode id = node.get(j);
+            if (!id.isIntegralNumber() || id.asLong() <= 0) {
+                return prefix(i, type) + field + "[" + j + "] must be a positive integer";
+            }
+        }
+        return null;
+    }
+
     private static String optionalBoundedInt(int i, String type, ObjectNode config,
                                              String field, int min, int max) {
         JsonNode node = config.get(field);
@@ -300,6 +361,7 @@ public final class PageConfigValidator {
     public static Map<String, Object> paletteSchema() {
         return Map.of(
                 "version", VERSION,
+                "revision", "1.1",
                 "maxComponents", MAX_COMPONENTS,
                 "maxConfigBytes", MAX_CONFIG_BYTES,
                 "degradeRule", "R1: a component with no resolvable data is skipped by the renderer, never an error",
@@ -324,10 +386,21 @@ public final class PageConfigValidator {
                                 field("title", "string", false, Map.of()))),
                         component("coupon-strip", "Claimable coupons (renderer slices — endpoint has no limit param)", List.of(
                                 field("limit", "int", false, Map.of("min", 1, "max", 10, "default", 3)),
-                                field("title", "string", false, Map.of()))),
+                                field("title", "string", false, Map.of()),
+                                field("couponIds", "int[]", false, Map.of(
+                                        "description", "explicit coupon ids; empty/absent = automatic available coupons")),
+                                field("headline", "string", false, Map.of(
+                                        "description", "large merchandising headline above the strip")),
+                                field("style", "enum", false, Map.of(
+                                        "values", List.of("strip", "grid"), "default", "strip")))),
                         component("seckill-strip", "Active seckills (renderer slices — endpoint has no limit param)", List.of(
                                 field("limit", "int", false, Map.of("min", 1, "max", 10, "default", 3)),
                                 field("title", "string", false, Map.of()))),
+                        component("groupon-strip", "Active group-buy campaigns (renderer slices)", List.of(
+                                field("title", "string", false, Map.of()),
+                                field("combinationIds", "int[]", false, Map.of(
+                                        "description", "explicit combination ids; empty/absent = automatic active campaigns")),
+                                field("maxItems", "int", false, Map.of("min", 1, "max", 12, "default", 4)))),
                         component("article-strip", "Latest/hot articles", List.of(
                                 field("limit", "int", false, Map.of("min", 1, "max", 10, "default", 3)),
                                 field("hotOnly", "boolean", false, Map.of("default", false)),
