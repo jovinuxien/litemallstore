@@ -870,13 +870,38 @@
 >   place ONLY on admin approval; user reviews orders 7/10 for test-
 >   purchase status BEFORE approving them.
 >
+> **Wave 23 STATUS: SHIPPED + DEPLOYED + CJ ARMED (2026-08-09 CET, prod
+> schema V59).** Halves: order `3ed350725` (V59, MANUAL gate, admin
+> pending/approve, admin-notify mail; 256/0) + gateway-admin `9e162e643`
+> (pending tab + approve, jest 100/100, live dev 21/21) + detail-stamp
+> projection `0dcd94892`. ARMING (main session, staged): CJ_API_KEY
+> (user-supplied) + CJ_EMAIL (= catalog email, copied server-side) +
+> mode manual + notify contact@trovemo.com set TOGETHER in .env.prod
+> (backup .env.prod.bak-wave23-arm); order recreated (V59 applied,
+> healthy) then gateway-admin. **Arming caught a landmine:** order yml
+> hardcoded `spring.cjdropship.api.sandbox: true` ("flip off in
+> production" was never wired) — an approved order would have been CJ-
+> SIMULATED, a fake success. Fixed `a646d52e5`: yml placeholder
+> `LITEMALL_ORDER_CJ_SANDBOX` (default true = dev-safe), compose
+> passthrough, prod .env.prod=false; order rebuilt + recreated. Boot
+> verified: "CJ dropshipping ENABLED (sandbox=false)" + "CJ placement
+> mode: MANUAL"; sweep `selectApprovedPlaceableCjOrderIds` → Total: 0;
+> orders 7/9/10/11 unplaced/unapproved in DB; pending endpoint
+> 401-routed; smoke 200s. Checkout delivery options now serve LIVE CJ
+> freight (V52 chooser was on honest-empty fallback). USER-SIDE NEXT:
+> review orders 7/10 (pre-Stripe wallet buys — likely test purchases;
+> cancel/refund instead of approving if so), then approve real orders in
+> the admin pending tab — approval spends real money from the CJ account
+> balance (auto-pay-balance on). EU orders park on missing IOSS until
+> the CJ dashboard IOSS option is set.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
 > catalog/enrichment creds)
-> is LIVE; order-side `CJ_API_KEY` is still EMPTY — live CJ order placement
-> stays blocked by design (⚠ real money now accepted while fulfilment
-> queues — user warned + accepted 2026-07-31; CJ key is urgent). Everything must degrade honestly: typed errors,
+> is LIVE; order-side CJ is ARMED since 2026-08-09 (real placement,
+> sandbox=false, MANUAL admin approval gate — see Wave-23 STATUS; the old
+> "key EMPTY / placement blocked" state is history). Everything must degrade honestly: typed errors,
 > retryable states (an order paid today must be placeable at CJ tomorrow
 > when the key arrives), never a fake success, never a 5xx.
 >
