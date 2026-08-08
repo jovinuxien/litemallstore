@@ -69,6 +69,8 @@ export interface ArticleListParams {
 
 export type PagePosition = 'home' | 'custom';
 export type PageStatus = 'draft' | 'active';
+/** Wave 20: page merchandising category — drives filters + Postiz page publishing rules. */
+export type PageCategory = 'general' | 'coupon' | 'groupon';
 
 /** One component entry in the page config — {type, key?, config}. */
 export interface IPageComponent {
@@ -88,6 +90,10 @@ export interface IPageSummary {
   name: string;
   position: PagePosition;
   status: PageStatus;
+  /** Wave 20 — 'general' | 'coupon' | 'groupon'; absent on pre-V54 rows ⇒ treat as 'general'. */
+  category?: PageCategory;
+  /** Wave 20 — seeded template pages (clone source for "New from template"). */
+  isTemplate?: boolean;
   addTime?: string;
   updateTime?: string;
 }
@@ -101,6 +107,9 @@ export interface PageListParams {
   limit: number;
   position?: PagePosition | '';
   status?: PageStatus | '';
+  category?: PageCategory | '';
+  /** 1 = templates only, 0 = non-templates only; omit for all rows. */
+  template?: 0 | 1;
 }
 
 /** One field descriptor from GET /page/palette — drives the generated form. */
@@ -219,9 +228,9 @@ export const adminContentApi = createApi({
 
     // ----- DIY pages -------------------------------------------------------
     listPages: builder.query<ListData<IPageSummary>, PageListParams>({
-      query: ({ page, limit, position, status }) => ({
+      query: ({ page, limit, position, status, category, template }) => ({
         url: '/page/list',
-        params: clean({ page, limit, position, status }),
+        params: clean({ page, limit, position, status, category, template }),
       }),
       transformResponse: (r: ApiEnvelope<ListData<IPageSummary>>) => listWithDates(r?.data),
       providesTags: ['Page'],
@@ -238,13 +247,19 @@ export const adminContentApi = createApi({
     }),
     // Always created as draft; palette violations → errno 640 (errmsg names
     // the offending component — surface verbatim). Returns the created page.
-    createPage: builder.mutation<ApiEnvelope<IPageDetail>, { name: string; position: PagePosition; config: IPageConfig }>({
+    createPage: builder.mutation<ApiEnvelope<IPageDetail>, { name: string; position: PagePosition; category?: PageCategory; config: IPageConfig }>({
       query: body => ({ url: '/page/create', method: 'POST', body }),
       invalidatesTags: ['Page'],
     }),
-    // Position is immutable after create; re-validates config → 640.
-    updatePage: builder.mutation<ApiEnvelope, { id: number; name?: string; config?: IPageConfig }>({
+    // Position is immutable after create; category IS settable; re-validates config → 640.
+    updatePage: builder.mutation<ApiEnvelope, { id: number; name?: string; category?: PageCategory; config?: IPageConfig }>({
       query: body => ({ url: '/page/update', method: 'POST', body }),
+      invalidatesTags: ['Page'],
+    }),
+    // Wave 20: server-side copy — a fresh DRAFT ("Copy of …", position custom,
+    // category inherited, never active). Returns the new page row.
+    clonePage: builder.mutation<ApiEnvelope<IPageDetail>, { id: number }>({
+      query: ({ id }) => ({ url: `/page/${id}/clone`, method: 'POST' }),
       invalidatesTags: ['Page'],
     }),
     // Transactional home swap; concurrent-activation race lost → errno 641.
@@ -279,6 +294,7 @@ export const {
   useGetPagePaletteQuery,
   useCreatePageMutation,
   useUpdatePageMutation,
+  useClonePageMutation,
   useActivatePageMutation,
   useDeactivatePageMutation,
   useDeletePageMutation,

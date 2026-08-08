@@ -33,6 +33,21 @@ export interface PostizBatchCommand {
   intervalMinutes: number;
 }
 
+/**
+ * Wave 20 page-source alternative body for the SAME /preview and /publish
+ * endpoints: one post promoting a DIY page (page name + /page/<id> link +
+ * hero image). Groupon-category pages come back REFUSED with a typed errno —
+ * the UI shows that errmsg verbatim.
+ */
+export interface PostizPageCommand {
+  pageId: number;
+  channelIds: string[];
+  /** UTC ISO-8601 instant of the post. */
+  startTime: string;
+}
+
+export type PostizCommand = PostizBatchCommand | PostizPageCommand;
+
 export interface IPostizPreviewChannel {
   integrationId: string;
   content?: string;
@@ -40,7 +55,9 @@ export interface IPostizPreviewChannel {
 }
 
 export interface IPostizPreviewItem {
-  goodsId: number;
+  /** Product-source batches carry goodsId; page-source batches carry pageId. */
+  goodsId?: number;
+  pageId?: number;
   name?: string;
   picUrl?: string;
   scheduleAt?: string;
@@ -63,7 +80,9 @@ export interface IPostizPublishChannelResult {
 }
 
 export interface IPostizPublishResult {
-  goodsId: number;
+  /** Product-source results carry goodsId; page-source results carry pageId. */
+  goodsId?: number;
+  pageId?: number;
   scheduleAt?: string;
   channels?: IPostizPublishChannelResult[];
 }
@@ -77,6 +96,8 @@ export interface IPostizPublish {
 export interface IPostizLogRow {
   id?: number;
   goodsId?: number;
+  /** Wave 20 — set on page-source posts (V55 litemall_postiz_post.page_id). */
+  pageId?: number;
   categoryId?: number;
   integrationId?: string;
   identifier?: string;
@@ -145,12 +166,12 @@ export const postizApi = createApi({
     }),
     // ZERO side effects server-side; still a mutation so nothing caches a
     // stale preview. Callers check the envelope with errnoMessage.
-    previewPostiz: builder.mutation<ApiEnvelope<IPostizPreview>, PostizBatchCommand>({
+    previewPostiz: builder.mutation<ApiEnvelope<IPostizPreview>, PostizCommand>({
       query: body => ({ url: '/preview', method: 'POST', body }),
       transformResponse: (r: ApiEnvelope<IPostizPreview>) =>
         r?.data ? { ...r, data: { ...r.data, batch: (r.data.batch ?? []).map(b => toPreviewItem(b as unknown as Raw)) } } : r,
     }),
-    publishPostiz: builder.mutation<ApiEnvelope<IPostizPublish>, PostizBatchCommand>({
+    publishPostiz: builder.mutation<ApiEnvelope<IPostizPublish>, PostizCommand>({
       query: body => ({ url: '/publish', method: 'POST', body }),
       transformResponse: (r: ApiEnvelope<IPostizPublish>) =>
         r?.data ? { ...r, data: { results: (r.data.results ?? []).map(x => toPublishResult(x as unknown as Raw)) } } : r,

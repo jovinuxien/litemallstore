@@ -3,12 +3,14 @@ import {
   IPalette,
   IPaletteComponent,
   IPaletteField,
+  PageCategory,
   PagePosition,
   useCreatePageMutation,
   useGetPagePaletteQuery,
   useReadPageQuery,
   useUpdatePageMutation,
 } from 'app/shared/reducers/private/services/adminContentApi';
+import { PAGE_CATEGORIES, normalizeCategory } from './pageFormat';
 import { useUploadStorageMutation } from 'app/shared/reducers/private/services/adminSysApi';
 import { money } from 'app/shared/util/money';
 import { errnoMessage, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
@@ -115,6 +117,10 @@ const summarize = (comp: EditorComponent): string => {
     case 'coupon-strip':
     case 'seckill-strip':
       return String(cfg.title || `limit ${cfg.limit ?? 3}`);
+    case 'groupon-strip': {
+      const explicit = Array.isArray(cfg.combinationIds) ? cfg.combinationIds.length : 0;
+      return String(cfg.title || (explicit ? `${explicit} combination(s)` : `auto (max ${cfg.maxItems ?? 4})`));
+    }
     case 'article-strip':
       return `${cfg.title || `limit ${cfg.limit ?? 3}`}${cfg.hotOnly ? ' (hot only)' : ''}`;
     case 'rich-text': {
@@ -588,6 +594,21 @@ const PreviewComponent: React.FC<{ comp: EditorComponent }> = ({ comp }) => {
           )}
         />
       );
+    case 'groupon-strip':
+      // Palette v1.1 — active group-buy combinations; explicit combinationIds
+      // narrow the auto list server-side, the preview shows the active pool.
+      return (
+        <StripPreview
+          config={{ ...cfg, limit: cfg.maxItems ?? 4 }}
+          url='/srv/promotion/combination/active'
+          render={(g, i) => (
+            <div key={(g.id as number) ?? i} className='border rounded px-2 py-1 small'>
+              {String(g.goodsName ?? g.name ?? 'Group buy')}
+              {(g.combinationPrice ?? g.price) != null && <span className='text-danger ms-1'>{money((g.combinationPrice ?? g.price) as number)}</span>}
+            </div>
+          )}
+        />
+      );
     case 'seckill-strip':
       return (
         <StripPreview
@@ -622,6 +643,7 @@ const PageEditor: React.FC = () => {
 
   const [name, setName] = React.useState('');
   const [position, setPosition] = React.useState<PagePosition>('custom');
+  const [category, setCategory] = React.useState<PageCategory>('general');
   const [components, setComponents] = React.useState<EditorComponent[]>([]);
   const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
   const [addType, setAddType] = React.useState('');
@@ -636,6 +658,7 @@ const PageEditor: React.FC = () => {
     seededId.current = existing.id;
     setName(existing.name ?? '');
     setPosition(existing.position ?? 'custom');
+    setCategory(normalizeCategory(existing.category));
     const comps = (existing.config?.components ?? []).map(c => ({
       type: c.type,
       key: c.key || makeKey(c.type),
@@ -703,7 +726,7 @@ const PageEditor: React.FC = () => {
       components: components.map(c => ({ type: c.type, key: c.key, config: c.config })),
     };
     if (isEdit) {
-      const res = await updatePage({ id: Number(id), name: name.trim(), config });
+      const res = await updatePage({ id: Number(id), name: name.trim(), category, config });
       // errno 640 errmsg names the offending component — shown verbatim.
       const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
       if (msg) {
@@ -712,7 +735,7 @@ const PageEditor: React.FC = () => {
       }
       setSaved(true);
     } else {
-      const res = await createPage({ name: name.trim(), position, config });
+      const res = await createPage({ name: name.trim(), position, category, config });
       const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
       if (msg) {
         setError(msg);
@@ -772,12 +795,28 @@ const PageEditor: React.FC = () => {
         </div>
       )}
 
-      <div className='row mb-3' style={{ maxWidth: 720 }}>
-        <div className='col-8'>
+      <div className='row mb-3' style={{ maxWidth: 900 }}>
+        <div className='col-5'>
           <label className='form-label'>Page name *</label>
           <input className='form-control' maxLength={63} value={name} onChange={e => setName(e.target.value)} />
         </div>
         <div className='col-4'>
+          <label className='form-label'>Category</label>
+          <select
+            className='form-select'
+            value={category}
+            onChange={e => setCategory(e.target.value as PageCategory)}
+            aria-label='Category'
+          >
+            {PAGE_CATEGORIES.map(c => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <div className='form-text'>Merchandising category — drives list filters and social page publishing (groupon pages are held back).</div>
+        </div>
+        <div className='col-3'>
           <label className='form-label'>Position</label>
           <select
             className='form-select'
