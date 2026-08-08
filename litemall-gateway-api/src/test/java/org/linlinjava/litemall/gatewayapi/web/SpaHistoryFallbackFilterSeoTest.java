@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.linlinjava.litemall.gatewayapi.web.seo.GoodsMeta;
+import org.linlinjava.litemall.gatewayapi.web.seo.PageMeta;
 import org.linlinjava.litemall.gatewayapi.web.seo.SeoHeadRenderer;
 import org.linlinjava.litemall.gatewayapi.web.seo.SeoMetaSource;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ class SpaHistoryFallbackFilterSeoTest {
     private static final class StubMetaSource implements SeoMetaSource {
         Mono<GoodsMeta> goods = Mono.empty();
         Mono<String> category = Mono.empty();
+        Mono<PageMeta> page = Mono.empty();
         boolean queried;
 
         @Override
@@ -47,6 +49,12 @@ class SpaHistoryFallbackFilterSeoTest {
         public Mono<String> categoryName(String categoryId) {
             queried = true;
             return category;
+        }
+
+        @Override
+        public Mono<PageMeta> pageMeta(String pageId) {
+            queried = true;
+            return page;
         }
     }
 
@@ -158,6 +166,52 @@ class SpaHistoryFallbackFilterSeoTest {
         assertThat(forwarded).isNull();
         assertThat(exchange.getResponse().getBodyAsString().block())
                 .contains("Women&#39;s Clothing | Trovemo");
+    }
+
+    @Test
+    @DisplayName("Wave-20: active DIY page navigation gets the injected og-meta head")
+    void pageActive() {
+        metaSource.page = Mono.just(new PageMeta("42", "Coupon spotlight", "/_cdn/cf/pic/hero.jpg"));
+        MockServerWebExchange exchange = navigate("/page/42");
+        filter.filter(exchange, chain).block();
+
+        assertThat(forwarded).isNull();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(exchange.getResponse().getHeaders().getCacheControl()).isEqualTo("no-cache");
+        assertThat(exchange.getResponse().getBodyAsString().block())
+                .contains("<title>Coupon spotlight | Trovemo</title>")
+                .contains("<link rel=\"canonical\" href=\"https://trovemo.com/page/42\"")
+                .contains("<meta property=\"og:site_name\" content=\"Trovemo\"")
+                .contains("<meta property=\"og:image\" content=\"https://trovemo.com/_cdn/cf/pic/hero.jpg\"");
+    }
+
+    @Test
+    @DisplayName("Wave-20: missing/not-active page (empty meta) falls open to the plain shell")
+    void pageMetaEmpty() {
+        metaSource.page = Mono.empty();
+        filter.filter(navigate("/page/42"), chain).block();
+
+        assertThat(forwarded).isNotNull();
+        assertThat(forwarded.getRequest().getURI().getPath()).isEqualTo("/index.html");
+    }
+
+    @Test
+    @DisplayName("Wave-20: a page meta error still falls open, never 5xx")
+    void pageMetaError() {
+        metaSource.page = Mono.error(new IllegalStateException("boom"));
+        filter.filter(navigate("/page/42"), chain).block();
+
+        assertThat(forwarded).isNotNull();
+        assertThat(forwarded.getRequest().getURI().getPath()).isEqualTo("/index.html");
+    }
+
+    @Test
+    @DisplayName("Wave-20: non-numeric page segment is a plain rewrite, no meta fetch")
+    void pageNonNumeric() {
+        filter.filter(navigate("/page/about-us"), chain).block();
+
+        assertThat(metaSource.queried).isFalse();
+        assertThat(forwarded.getRequest().getURI().getPath()).isEqualTo("/index.html");
     }
 
     @Test

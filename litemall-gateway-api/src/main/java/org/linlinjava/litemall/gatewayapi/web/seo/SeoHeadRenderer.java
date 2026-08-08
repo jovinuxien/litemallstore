@@ -129,6 +129,40 @@ public class SeoHeadRenderer {
     }
 
     /**
+     * The shell with a Wave-20 DIY-page head, or empty when the template is
+     * absent. Only ACTIVE pages reach this point (the meta client maps the
+     * draft/missing errno to empty); the head carries the page name, og:type
+     * website + og:site_name, the canonical {@code /page/<id>} URL and — when
+     * the page has an image-bearing component — an absolutized og:image (the
+     * same {@code /_cdn} swap-and-anchor the product path uses).
+     */
+    public Optional<String> renderPage(PageMeta meta) {
+        return template().map(shell -> {
+            String canonical = baseUrl + "/page/" + meta.id();
+            String title = meta.name() + " | Trovemo";
+            String image = absoluteImageUrl(meta.imageUrl());
+
+            StringBuilder head = new StringBuilder();
+            appendLink(head, "canonical", canonical);
+            appendOg(head, "og:type", "website");
+            appendOg(head, "og:site_name", "Trovemo");
+            appendOg(head, "og:title", meta.name());
+            appendOg(head, "og:url", canonical);
+            if (image != null) {
+                appendOg(head, "og:image", image);
+            }
+            appendMeta(head, "twitter:card", image != null ? "summary_large_image" : "summary");
+            appendMeta(head, "twitter:title", meta.name());
+            if (image != null) {
+                appendMeta(head, "twitter:image", image);
+            }
+
+            // No page-level description exists — the shell's own is kept (null).
+            return apply(shell, title, null, head.toString());
+        });
+    }
+
+    /**
      * The shell with only a robots-noindex head — internal search results.
      * Every {@code q} spelling is its own URL over the same generic shell;
      * noindex (rather than a robots.txt disallow) lets Google crawl once, see
