@@ -70,6 +70,21 @@ Please add to the admin detail (and ideally the list rows):
 Until then the badge simply doesn't render; the tracking panel works off the
 tracking endpoint alone.
 
+## Third ask (Wave 23, 2026-08-08) — project the V59 approval stamp onto the admin detail
+
+`POST /order/{id}/cj-placement/approve` returns the stamp
+(`approvedBy`/`approvedTime`) and the SPA renders it from that response, but
+`GET /srv/private/admin/order/detail` does NOT project
+`cj_placement_approved_time`/`cj_placement_approved_by` (verified live
+2026-08-08: DB row stamped, detail payload carries no such keys). Until the
+detail map adds them, a RELOADED approved-but-unplaced order falls back to
+"Pending CJ approval" + the approve button — harmless (re-approve returns
+idempotent `ALREADY_APPROVED` with the stamp, and the UI then renders the
+correct state), but the stamp should survive a reload. The SPA already reads
+`order.cjPlacementApprovedTime`/`cjPlacementApprovedBy` tolerantly (ISO string
+or LocalDateTime array) — projecting the two columns in the detail `toRow()`
+lights it up with zero SPA changes.
+
 ## Acceptance probe (once order Task E is live)
 
 ```
