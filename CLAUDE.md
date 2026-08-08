@@ -1161,28 +1161,26 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — Wave 23 CJ approval surfaces
-- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
-  **Scope:** `litemall-gateway-admin/` only. NO migration.
-- **Task — Wave 23 (admin UI): pending-approval tab + approve action.**
-  Code to the Wave-23 CONTRACT above; do NOT read the order branch.
-  1. Orders panel gains a **"Pending CJ approval"** tab/filter backed by
-     the pending endpoint, with a count badge on the tab; rows show sn,
-     paid time, amount, consignee/country, items summary, cjReady, and
-     holdReason verbatim when present.
-  2. Order detail gains **"Approve for CJ fulfilment"**: confirm dialog
-     (states that approval sends the order to CJ and spends real
-     fulfilment money), result shown verbatim (incl. typed refusals);
-     after success the approval stamp (who + when) renders on the
-     detail and the row leaves the pending tab.
-  3. Approved-but-not-yet-placed orders show their state honestly (the
-     sweep places on its next tick — no fake "placed" until
-     cj_order_id exists).
-- **Acceptance (dev, against the order half on :18080/:9000):** pending
-  tab lists the un-approved paid CJ order with badge count; approve
-  flips it (stamp rendered, row gone from tab, refusal cases verbatim);
-  existing order panels regression-green; webapp tests green with real
-  counts.
+### Worktree: `gateway-admin` — idle (Wave 23 admin half SHIPPED)
+- **No active assignment.** Branch merged to master; awaiting the main
+  session's Wave-23 prod deploy (rebuild order + gateway-admin, arm CJ
+  envs together).
+- **History — Wave 23 (admin UI): CJ approval surfaces.** DONE 2026-08-08
+  (`df86b817b` + handoff `1042e63bf`): Orders "Pending CJ approval" tab
+  (count badge via limit-1 probe; holdReason verbatim; honest error
+  banner when the endpoint is down) + detail "Approve for CJ fulfilment"
+  (inline real-money confirm; refusals verbatim; stamp who+when from the
+  approve response; "Approved — awaiting CJ placement" never claims
+  placed without cjOrderId; 202 refund never approvable). Jest 100/100.
+  LIVE DEV ACCEPTANCE 21/21 headless through :18080 against order@master
+  (badge 16→15→14; [NOT_PAID]/[NOT_CJ] 422s verbatim; idempotent
+  ALREADY_APPROVED; dev orders 110-112 approved — harmless, dummy CJ
+  creds). ⚠ Known gap (committed third ask in
+  docs/handoff-order-admin-cj.md): admin /order/detail does NOT project
+  cj_placement_approved_time/_by — the stamp survives approve-time
+  render but not a reload (falls back to the approve button; harmless
+  via idempotency). One-line order-side toRow() projection fixes it;
+  the SPA already reads both fields tolerantly.
 - **History — Wave 22 (admin UI): search analytics + RFM delivery
   surfaces.** SHIPPED + DEPLOYED 2026-08-08 (`76e47cd13`): Search
   analytics panel (top/zero-result queries w/ CTR, totals, Refresh
