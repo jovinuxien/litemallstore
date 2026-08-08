@@ -3308,6 +3308,27 @@ public class LitemallOrderExample {
             addCriterion("delivery_type not between", value1, value2, "deliveryType");
             return (Criteria) this;
         }
+
+        // Hand-maintained (V56, Wave 21): group-buy slot linkage on litemall_order.
+        public Criteria andPinkIdIsNull() {
+            addCriterion("pink_id is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andPinkIdIsNotNull() {
+            addCriterion("pink_id is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andPinkIdEqualTo(Integer value) {
+            addCriterion("pink_id =", value, "pinkId");
+            return (Criteria) this;
+        }
+
+        public Criteria andPinkIdIn(List<Integer> values) {
+            addCriterion("pink_id in", values, "pinkId");
+            return (Criteria) this;
+        }
     }
 
     /**

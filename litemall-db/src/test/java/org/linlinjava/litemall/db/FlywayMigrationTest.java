@@ -32,12 +32,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V55 (Postiz page ledger, Wave 20 — alongside V54
+    // Hand-maintained floor: V56 (order.pink_id group-buy slot linkage, Wave 21;
+    // previously V55 Postiz page ledger, Wave 20 — alongside V54
     // page templates) is the latest known migration; the exact-count assertion was
     // replaced with a >= floor so this test no longer goes stale every time a script
     // lands. Being a floor it still passes when it drifts, so it only asserts what
     // it is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 55;
+    private static final int MIN_EXPECTED_MIGRATIONS = 56;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -131,6 +132,8 @@ public class FlywayMigrationTest {
             {"litemall_page",         "is_template"},
             // V55: Postiz ledger DIY-page source (Wave 20)
             {"litemall_postiz_post",  "page_id"},
+            // V56: combination group-buy slot linkage on order (Wave 21)
+            {"litemall_order",        "pink_id"},
         };
 
         try (var conn = MYSQL.createConnection("")) {

@@ -206,6 +206,14 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public List<LitemallOrderAggregate> findByPinkId(Integer pinkId) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.or().andPinkIdEqualTo(pinkId).andDeletedEqualTo(false);
+        return litemallOrderMapper.selectByExample(example)
+                .stream().map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
     public List<LitemallOrderAggregate> queryUnPaid(int minutes) {
         LitemallOrderExample example = new LitemallOrderExample();
         example.or().andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode()).andDeletedEqualTo(false);
@@ -565,6 +573,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
         dataModel.setCjOrderStatus(orderAggregate.getCjOrderStatus());
         dataModel.setCjLogisticName(orderAggregate.getCjLogisticName());
+        // Wave 21 (V56): group-buy slot linkage.
+        dataModel.setPinkId(orderAggregate.getPinkId());
 
         // In-store pickup / write-off (Wave 4, V35).
         dataModel.setDeliveryType(orderAggregate.getDeliveryType());
@@ -642,6 +652,8 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setCjOrderNum(record.getCjOrderNum());
         domainModel.setCjOrderStatus(record.getCjOrderStatus());
         domainModel.setCjLogisticName(record.getCjLogisticName());
+        // Wave 21 (V56): group-buy slot linkage.
+        domainModel.setPinkId(record.getPinkId());
 
         // In-store pickup / write-off (Wave 4, V35).
         domainModel.setDeliveryType(record.getDeliveryType());

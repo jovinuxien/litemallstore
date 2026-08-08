@@ -101,6 +101,12 @@ public class LitemallOrderAggregate {
     // when CJ still offers that line, else falls back to default/cheapest.
     private String cjLogisticName;
 
+    // Wave 21 (V56): the combination group-buy slot ("pink") this order was placed
+    // against, promotion-owned. Null = not a group-buy order. Set at submit when the
+    // pinkId validated; the cancel paths release the slot at promotion, and the
+    // GROUP_EXPIRED listener finds affected orders through it.
+    private Integer pinkId;
+
     /** {@code delivery_type} value for courier delivery (column default). */
     public static final String DELIVERY_EXPRESS = "express";
     /** {@code delivery_type} value for in-store pickup (Wave 4, V35). */

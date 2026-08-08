@@ -49,6 +49,13 @@ public interface LitemallOrderRepository {
 
     List<LitemallOrderAggregate> queryUnPaid(int minutes);
 
+    /**
+     * Wave 21: orders placed against a combination group-buy slot ("pink"), used by
+     * the GROUP_EXPIRED listener to find the paid/unpaid orders a failed group
+     * affects. Non-deleted rows only; normally at most one order per slot.
+     */
+    List<LitemallOrderAggregate> findByPinkId(Integer pinkId);
+
     List<LitemallOrderAggregate> queryUnconfirm(int days);
 
     Map<Object, Object> orderInfo(LitemallUserId userId);

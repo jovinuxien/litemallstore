@@ -9,6 +9,8 @@ import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallP
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.CouponRedemption;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuyCampaign;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuySlot;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.UsableCoupon;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.PromotionServiceFeignClient;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponRedeemRequest;
@@ -149,6 +151,115 @@ public class LitemallPromotionFacadeImpl implements LitemallPromotionFacade {
         return Optional.empty();
     }
 
+    // ---- combination group-buy (Wave 21) --------------------------------------
+
+    @Override
+    public Optional<GroupBuySlot> findGroupSlot(LitemallUserId userId, Integer pinkId) {
+        try (Response response = promotionClient.pinkDetail(userId.getId(), pinkId)) {
+            if (response.status() == 404) {
+                return Optional.empty(); // unknown pink — typed stale-slot reject upstream
+            }
+            if (response.status() != 200) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "group slot lookup for pink " + pinkId + " (unexpected HTTP "
+                                + response.status() + ")", null);
+            }
+            JsonNode root = readEnvelope(response, "group slot lookup for pink " + pinkId);
+            // GET /pink/{pinkId} answers with the group's LEADER dto (+ members[]);
+            // the queried slot is either the top-level node or one of the members.
+            JsonNode slot = null;
+            if (root.path("pinkId").asInt(-1) == pinkId) {
+                slot = root;
+            } else {
+                for (JsonNode member : root.path("members")) {
+                    if (member.path("pinkId").asInt(-1) == pinkId) {
+                        slot = member;
+                        break;
+                    }
+                }
+            }
+            if (slot == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new GroupBuySlot(
+                    pinkId,
+                    intOrNull(slot.path("combinationId")),
+                    intOrNull(slot.path("userId")),
+                    intOrNull(slot.path("orderId")),
+                    slot.path("status").asText(null)));
+        } catch (LitemallPromotionServiceUnavailableException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new LitemallPromotionServiceUnavailableException(
+                    "group slot lookup for pink " + pinkId, e);
+        }
+    }
+
+    @Override
+    public Optional<GroupBuyCampaign> findCombination(Integer combinationId) {
+        try (Response response = promotionClient.combinationDetail(combinationId)) {
+            if (response.status() == 404) {
+                return Optional.empty();
+            }
+            if (response.status() != 200) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "combination lookup " + combinationId + " (unexpected HTTP "
+                                + response.status() + ")", null);
+            }
+            JsonNode c = readEnvelope(response, "combination lookup " + combinationId);
+            return Optional.of(new GroupBuyCampaign(
+                    intOrNull(c.path("combinationId")),
+                    intOrNull(c.path("goodsId")),
+                    decimalOrNull(c.path("combinationPrice")),
+                    // Tolerant read: promotion's public DTO may not expose the cap yet.
+                    intOrNull(c.path("limitPerUser"))));
+        } catch (LitemallPromotionServiceUnavailableException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new LitemallPromotionServiceUnavailableException(
+                    "combination lookup " + combinationId, e);
+        }
+    }
+
+    @Override
+    public boolean attachOrderToPink(LitemallUserId userId, Integer pinkId, LitemallOrderId orderId) {
+        try (Response response = promotionClient.attachOrderToPink(userId.getId(), pinkId,
+                new org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.PinkOrderRequest(orderId.getId()))) {
+            if (response.status() == 200) {
+                return true;
+            }
+            // 404 = promotion hasn't shipped the endpoint yet (Wave-21 contract:
+            // tolerate while dev catches up); anything else is a refused/failed
+            // linkage. Both are logged for replay — the placed order stands either way.
+            log.warn("attach-order of order {} to pink {} not confirmed (HTTP {}) — "
+                            + "promotion-side linkage missing; replay manually if needed",
+                    orderId.getId(), pinkId, response.status());
+            return false;
+        } catch (RuntimeException e) {
+            log.warn("attach-order of order {} to pink {} failed (fail-soft): {}",
+                    orderId.getId(), pinkId, e.toString());
+            return false;
+        }
+    }
+
+    @Override
+    public boolean releasePinkSlot(LitemallUserId userId, Integer pinkId, LitemallOrderId orderId) {
+        try (Response response = promotionClient.releasePinkSlot(userId.getId(), pinkId,
+                new org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.PinkOrderRequest(orderId.getId()))) {
+            if (response.status() == 200) {
+                return true;
+            }
+            log.warn("release of pink {} for cancelled order {} not confirmed (HTTP {}) — "
+                            + "promotion's release is idempotent; replay manually if the slot stays taken",
+                    pinkId, orderId.getId(), response.status());
+            return false;
+        } catch (RuntimeException e) {
+            log.warn("release of pink {} for cancelled order {} failed (fail-soft): {}",
+                    pinkId, orderId.getId(), e.toString());
+            return false;
+        }
+    }
+
     // ---- helpers --------------------------------------------------------------
 
     /** Read a mutation Response body as the promotion operation envelope (never null). */
@@ -176,5 +287,9 @@ public class LitemallPromotionFacadeImpl implements LitemallPromotionFacade {
 
     private static BigDecimal decimalOrNull(JsonNode node) {
         return node == null || node.isMissingNode() || node.isNull() ? null : node.decimalValue();
+    }
+
+    private static Integer intOrNull(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull() ? null : node.asInt();
     }
 }

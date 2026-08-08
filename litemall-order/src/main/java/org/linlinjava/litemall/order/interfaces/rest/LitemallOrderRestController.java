@@ -206,7 +206,8 @@ public class LitemallOrderRestController {
                 command.getDeliveryType(),
                 command.getStoreId(),
                 command.getPickupName(),
-                command.getPickupMobile());
+                command.getPickupMobile(),
+                command.getPinkId());
         try {
             LitemallOrderOperationResult result = orderOrchestrationService.createOrder(authoritativeCommand);
             return buildResponse(result);
@@ -233,6 +234,12 @@ public class LitemallOrderRestController {
             // redeem refused): rolled back, no order row, coupon untouched. The 422
             // message names the coupon — the SPA's inline "remove coupon and retry"
             // affordance keys on exactly that.
+            return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
+        } catch (org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException e) {
+            // Group-buy slot rejected (Wave 21: expired/failed group, foreign slot,
+            // slot already consumed by another order, goods mismatch, over the
+            // per-user limit): rolled back, no order row. Typed 422 with the honest
+            // message — the placement is NEVER silently re-priced at retail.
             return buildResponse(LitemallOrderOperationResult.submitFailed(e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException e) {
             // Pickup precondition tripped inside the placement transaction (safety-net

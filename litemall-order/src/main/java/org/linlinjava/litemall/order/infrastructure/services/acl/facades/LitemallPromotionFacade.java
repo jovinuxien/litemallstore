@@ -3,6 +3,8 @@ package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.CouponRedemption;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuyCampaign;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuySlot;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.UsableCoupon;
 
 import java.math.BigDecimal;
@@ -61,4 +63,39 @@ public interface LitemallPromotionFacade {
      * Best-effort: empty on any failure.
      */
     Optional<Integer> findRedeemedUserCouponForOrder(LitemallUserId userId, LitemallOrderId orderId);
+
+    // ---- combination group-buy (Wave 21, spec-groupon-priced-submit-contract.md) ----
+
+    /**
+     * A group-buy slot's state (the queried slot itself, whether leader or member).
+     * Empty = promotion does not know the pink (404) — a typed stale-slot reject
+     * upstream, never a fall-through to retail.
+     *
+     * @throws org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException
+     *         when promotion cannot be reached — a group submit must fail cleanly (503)
+     */
+    Optional<GroupBuySlot> findGroupSlot(LitemallUserId userId, Integer pinkId);
+
+    /**
+     * A combination campaign definition. Empty = unknown campaign (404); transport
+     * failures throw the typed unavailable exception like {@link #findGroupSlot}.
+     */
+    Optional<GroupBuyCampaign> findCombination(Integer combinationId);
+
+    /**
+     * Backfill the slot's {@code order_id} after successful placement. Fail-soft and
+     * never throws — promotion ships the endpoint this wave, so a 404 (dev catching
+     * up) is tolerated and logged for replay.
+     *
+     * @return true when promotion confirmed the linkage
+     */
+    boolean attachOrderToPink(LitemallUserId userId, Integer pinkId, LitemallOrderId orderId);
+
+    /**
+     * Free the slot after the consuming order was cancelled before group completion.
+     * Idempotent on the promotion side; fail-soft, never throws.
+     *
+     * @return true when promotion confirmed the release (or it was already released)
+     */
+    boolean releasePinkSlot(LitemallUserId userId, Integer pinkId, LitemallOrderId orderId);
 }
