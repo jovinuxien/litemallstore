@@ -31,6 +31,34 @@ public interface OrderMapper {
     List<Integer> selectPlaceableCjOrderIds(@Param("limit") int limit);
 
     /**
+     * Hand-maintained (V59, Wave 23): {@link #selectPlaceableCjOrderIds} restricted to
+     * admin-APPROVED orders ({@code cj_placement_approved_time is not null}) — the sweep
+     * predicate in placement-mode 'manual'. Unapproved orders stay durably queued (the
+     * paid-and-unplaced predicate never expires) but never reach CJ.
+     */
+    List<Integer> selectApprovedPlaceableCjOrderIds(@Param("limit") int limit);
+
+    /**
+     * Hand-maintained (V59, Wave 23): paged pending list for the admin CJ-approval panel —
+     * paid CJ orders not yet placed at CJ and not yet approved, oldest paid first.
+     * (Rows carrying the PLACEMENT_REJECTED sentinel are included: they are paid,
+     * unplaced and need admin attention; the controller surfaces the hold reason.)
+     */
+    List<LitemallOrder> selectCjPlacementPending(@Param("offset") int offset, @Param("limit") int limit);
+
+    /** Hand-maintained (V59, Wave 23): total for {@link #selectCjPlacementPending}. */
+    long countCjPlacementPending();
+
+    /**
+     * Hand-maintained (V59, Wave 23): stamp admin approval for CJ placement — CAS on
+     * {@code cj_placement_approved_time is null} so the stamp is written exactly once
+     * (concurrent/repeat approvals return 0 and the first stamp wins). Guarded to
+     * paid ({@code order_status=201}), unplaced ({@code cj_order_id is null}) CJ orders;
+     * the caller distinguishes "already approved" from "not eligible" by re-reading.
+     */
+    int stampCjPlacementApproval(@Param("id") Integer id, @Param("approvedBy") String approvedBy);
+
+    /**
      * Hand-maintained (V35): stamp a pickup write-off code at pay time, but only once —
      * the {@code verify_code is null} guard makes generation idempotent under replays.
      * Returns 0 if the order already carries a code (caller keeps the existing one).

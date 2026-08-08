@@ -466,6 +466,32 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public List<LitemallOrderId> queryApprovedPlaceableCjOrders(int limit) {
+        return orderMapper.selectApprovedPlaceableCjOrderIds(limit).stream()
+                .map(LitemallOrderId::new)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<LitemallOrderAggregate> queryCjPlacementPending(int page, int limit) {
+        int safeLimit = Math.max(1, limit);
+        int offset = Math.max(0, page - 1) * safeLimit;
+        return orderMapper.selectCjPlacementPending(offset, safeLimit).stream()
+                .map(this::convertToDomainModel)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public long countCjPlacementPending() {
+        return orderMapper.countCjPlacementPending();
+    }
+
+    @Override
+    public int stampCjPlacementApproval(LitemallOrderId orderId, String approvedBy) {
+        return orderMapper.stampCjPlacementApproval(orderId.getId(), approvedBy);
+    }
+
+    @Override
     public void updateAfterSaleStatus(LitemallOrderId orderId, Short statusReject) {
         LitemallOrder order = new LitemallOrder();
         order.setId(orderId.getId());
@@ -575,6 +601,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setCjLogisticName(orderAggregate.getCjLogisticName());
         // Wave 21 (V56): group-buy slot linkage.
         dataModel.setPinkId(orderAggregate.getPinkId());
+        // Wave 23 (V59): CJ placement approval stamp.
+        dataModel.setCjPlacementApprovedTime(orderAggregate.getCjPlacementApprovedTime());
+        dataModel.setCjPlacementApprovedBy(orderAggregate.getCjPlacementApprovedBy());
 
         // In-store pickup / write-off (Wave 4, V35).
         dataModel.setDeliveryType(orderAggregate.getDeliveryType());
@@ -654,6 +683,9 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setCjLogisticName(record.getCjLogisticName());
         // Wave 21 (V56): group-buy slot linkage.
         domainModel.setPinkId(record.getPinkId());
+        // Wave 23 (V59): CJ placement approval stamp.
+        domainModel.setCjPlacementApprovedTime(record.getCjPlacementApprovedTime());
+        domainModel.setCjPlacementApprovedBy(record.getCjPlacementApprovedBy());
 
         // In-store pickup / write-off (Wave 4, V35).
         domainModel.setDeliveryType(record.getDeliveryType());

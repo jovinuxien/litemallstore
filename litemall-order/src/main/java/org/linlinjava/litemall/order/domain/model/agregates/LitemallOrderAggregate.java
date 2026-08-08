@@ -107,6 +107,12 @@ public class LitemallOrderAggregate {
     // GROUP_EXPIRED listener finds affected orders through it.
     private Integer pinkId;
 
+    // Wave 23 (V59): admin approval stamp for CJ placement. In placement-mode
+    // 'manual' the sweep only places paid CJ orders carrying this stamp; null =
+    // awaiting approval. approvedBy = the admin's X-User-Id (audit, like verifiedBy).
+    private LocalDateTime cjPlacementApprovedTime;
+    private String cjPlacementApprovedBy;
+
     /** {@code delivery_type} value for courier delivery (column default). */
     public static final String DELIVERY_EXPRESS = "express";
     /** {@code delivery_type} value for in-store pickup (Wave 4, V35). */

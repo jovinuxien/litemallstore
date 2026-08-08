@@ -32,23 +32,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V57 (search demand stats — litemall_search_stat_daily +
-    // search_history.result_count, Wave 22; previously V56 order.pink_id, Wave 21)
-    // is the latest known migration; the exact-count assertion was
-    // replaced with a >= floor so this test no longer goes stale every time a script
-    // lands. Being a floor it still passes when it drifts, so it only asserts what
-    // it is raised to — bump it when you add a migration.
-    // Hand-maintained floor: V58 (litemall_coupon_delivery targeted coupon
-    // delivery, Wave 22; previously V56 order.pink_id, Wave 21) is the latest
-    // known migration ON THIS BRANCH. V57 (Wave-22 search stats) lands from
-    // fix/goods-management, so this checkout has a V57 GAP — 57 scripts, not
-    // 58 (flyway out-of-order is permanent; never renumber). The assertion
-    // counts migrationsExecuted, so the floor is the SCRIPT COUNT: 57 here;
-    // raise to 58 when V57 merges (expected conflict at integration). V58's
-    // schema is spot-checked below regardless. Being a floor it still passes
+    // Hand-maintained floor: V59 (order CJ-placement approval stamp, Wave 23;
+    // previously V58 litemall_coupon_delivery, Wave 22) is the latest known
+    // migration ON THIS BRANCH; V57+V58 are merged, numbering contiguous again,
+    // so the SCRIPT COUNT equals the version: 59. Being a floor it still passes
     // when it drifts, so it only asserts what it is raised to — bump it when
     // you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 58;
+    private static final int MIN_EXPECTED_MIGRATIONS = 59;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -144,6 +134,9 @@ public class FlywayMigrationTest {
             {"litemall_postiz_post",  "page_id"},
             // V56: combination group-buy slot linkage on order (Wave 21)
             {"litemall_order",        "pink_id"},
+            // V59: admin-gated CJ placement approval stamp (Wave 23)
+            {"litemall_order",        "cj_placement_approved_time"},
+            {"litemall_order",        "cj_placement_approved_by"},
             // V57: hit total on the search-history row (Wave 22 search stats)
             {"litemall_search_history", "result_count"},
             // V58: targeted coupon delivery run outcome columns (Wave 22)

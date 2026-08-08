@@ -45,6 +45,8 @@
     <result column="cj_order_status" jdbcType="VARCHAR" property="cjOrderStatus" />
     <result column="cj_logistic_name" jdbcType="VARCHAR" property="cjLogisticName" />
     <result column="pink_id" jdbcType="INTEGER" property="pinkId" />
+    <result column="cj_placement_approved_time" jdbcType="TIMESTAMP" property="cjPlacementApprovedTime" />
+    <result column="cj_placement_approved_by" jdbcType="VARCHAR" property="cjPlacementApprovedBy" />
     <result column="delivery_type" jdbcType="VARCHAR" property="deliveryType" />
     <result column="store_id" jdbcType="INTEGER" property="storeId" />
     <result column="verify_code" jdbcType="VARCHAR" property="verifyCode" />
@@ -130,7 +132,8 @@
     order_price, actual_price, pay_id, pay_time, ship_sn, ship_channel, ship_time, refund_amount, 
     refund_type, refund_content, refund_time, confirm_time, comments, end_time, add_time,
     update_time, deleted, address_id, country_code, source, cj_order_id, cj_order_num,
-    cj_order_status, cj_logistic_name, pink_id, delivery_type, store_id, verify_code, verify_time, verified_by,
+    cj_order_status, cj_logistic_name, pink_id, cj_placement_approved_time, cj_placement_approved_by,
+    delivery_type, store_id, verify_code, verify_time, verified_by,
     payment_intent_id, tax_price, tax_breakdown
   </sql>
   <select id="selectByExample" parameterType="org.linlinjava.litemall.db.domain.LitemallOrderExample" resultMap="BaseResultMap">
@@ -264,7 +267,8 @@
       add_time, update_time, deleted,
       address_id, country_code, source,
       cj_order_id, cj_order_num, cj_order_status,
-      cj_logistic_name, pink_id, delivery_type, store_id, verify_code,
+      cj_logistic_name, pink_id, cj_placement_approved_time, cj_placement_approved_by,
+      delivery_type, store_id, verify_code,
       verify_time, verified_by, payment_intent_id,
       tax_price, tax_breakdown)
     values (#{userId,jdbcType=INTEGER}, #{orderSn,jdbcType=VARCHAR}, #{orderStatus,jdbcType=SMALLINT}, 
@@ -279,7 +283,8 @@
       #{addTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{deleted,jdbcType=BIT},
       #{addressId,jdbcType=INTEGER}, #{countryCode,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR},
       #{cjOrderId,jdbcType=VARCHAR}, #{cjOrderNum,jdbcType=VARCHAR}, #{cjOrderStatus,jdbcType=VARCHAR},
-      #{cjLogisticName,jdbcType=VARCHAR}, #{pinkId,jdbcType=INTEGER}, #{deliveryType,jdbcType=VARCHAR}, #{storeId,jdbcType=INTEGER}, #{verifyCode,jdbcType=VARCHAR},
+      #{cjLogisticName,jdbcType=VARCHAR}, #{pinkId,jdbcType=INTEGER}, #{cjPlacementApprovedTime,jdbcType=TIMESTAMP}, #{cjPlacementApprovedBy,jdbcType=VARCHAR},
+      #{deliveryType,jdbcType=VARCHAR}, #{storeId,jdbcType=INTEGER}, #{verifyCode,jdbcType=VARCHAR},
       #{verifyTime,jdbcType=TIMESTAMP}, #{verifiedBy,jdbcType=VARCHAR}, #{paymentIntentId,jdbcType=VARCHAR},
       #{taxPrice,jdbcType=DECIMAL}, #{taxBreakdown,jdbcType=LONGVARCHAR})
   </insert>
@@ -406,6 +411,12 @@
       </if>
       <if test="pinkId != null">
         pink_id,
+      </if>
+      <if test="cjPlacementApprovedTime != null">
+        cj_placement_approved_time,
+      </if>
+      <if test="cjPlacementApprovedBy != null">
+        cj_placement_approved_by,
       </if>
       <if test="deliveryType != null">
         delivery_type,
@@ -546,6 +557,12 @@
       </if>
       <if test="pinkId != null">
         #{pinkId,jdbcType=INTEGER},
+      </if>
+      <if test="cjPlacementApprovedTime != null">
+        #{cjPlacementApprovedTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="cjPlacementApprovedBy != null">
+        #{cjPlacementApprovedBy,jdbcType=VARCHAR},
       </if>
       <if test="deliveryType != null">
         #{deliveryType,jdbcType=VARCHAR},
@@ -707,6 +724,12 @@
       <if test="row.pinkId != null">
         pink_id = #{row.pinkId,jdbcType=INTEGER},
       </if>
+      <if test="row.cjPlacementApprovedTime != null">
+        cj_placement_approved_time = #{row.cjPlacementApprovedTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="row.cjPlacementApprovedBy != null">
+        cj_placement_approved_by = #{row.cjPlacementApprovedBy,jdbcType=VARCHAR},
+      </if>
       <if test="row.deliveryType != null">
         delivery_type = #{row.deliveryType,jdbcType=VARCHAR},
       </if>
@@ -781,6 +804,8 @@
       cj_order_status = #{row.cjOrderStatus,jdbcType=VARCHAR},
       cj_logistic_name = #{row.cjLogisticName,jdbcType=VARCHAR},
       pink_id = #{row.pinkId,jdbcType=INTEGER},
+      cj_placement_approved_time = #{row.cjPlacementApprovedTime,jdbcType=TIMESTAMP},
+      cj_placement_approved_by = #{row.cjPlacementApprovedBy,jdbcType=VARCHAR},
       delivery_type = #{row.deliveryType,jdbcType=VARCHAR},
       store_id = #{row.storeId,jdbcType=INTEGER},
       verify_code = #{row.verifyCode,jdbcType=VARCHAR},
@@ -914,6 +939,12 @@
       <if test="pinkId != null">
         pink_id = #{pinkId,jdbcType=INTEGER},
       </if>
+      <if test="cjPlacementApprovedTime != null">
+        cj_placement_approved_time = #{cjPlacementApprovedTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="cjPlacementApprovedBy != null">
+        cj_placement_approved_by = #{cjPlacementApprovedBy,jdbcType=VARCHAR},
+      </if>
       <if test="deliveryType != null">
         delivery_type = #{deliveryType,jdbcType=VARCHAR},
       </if>
@@ -985,6 +1016,8 @@
       cj_order_status = #{cjOrderStatus,jdbcType=VARCHAR},
       cj_logistic_name = #{cjLogisticName,jdbcType=VARCHAR},
       pink_id = #{pinkId,jdbcType=INTEGER},
+      cj_placement_approved_time = #{cjPlacementApprovedTime,jdbcType=TIMESTAMP},
+      cj_placement_approved_by = #{cjPlacementApprovedBy,jdbcType=VARCHAR},
       delivery_type = #{deliveryType,jdbcType=VARCHAR},
       store_id = #{storeId,jdbcType=INTEGER},
       verify_code = #{verifyCode,jdbcType=VARCHAR},

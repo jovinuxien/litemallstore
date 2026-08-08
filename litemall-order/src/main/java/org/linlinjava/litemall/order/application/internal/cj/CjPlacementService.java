@@ -71,6 +71,7 @@ public class CjPlacementService {
     private final CjLifecycleService cjLifecycleService;
     private final CjDropshipOrderFacade cjOrderFacade;
     private final CjOpsNotifier opsNotifier;
+    private final CjPlacementMode placementMode;
 
     /** In-JVM single-flight: the pay fast path and the sweep never place the same order twice. */
     private final Set<Integer> inFlight = ConcurrentHashMap.newKeySet();
@@ -81,7 +82,8 @@ public class CjPlacementService {
                               CjFulfillmentService cjFulfillmentService,
                               CjLifecycleService cjLifecycleService,
                               CjDropshipOrderFacade cjOrderFacade,
-                              CjOpsNotifier opsNotifier) {
+                              CjOpsNotifier opsNotifier,
+                              CjPlacementMode placementMode) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.statusHistoryRepository = statusHistoryRepository;
@@ -89,6 +91,7 @@ public class CjPlacementService {
         this.cjLifecycleService = cjLifecycleService;
         this.cjOrderFacade = cjOrderFacade;
         this.opsNotifier = opsNotifier;
+        this.placementMode = placementMode;
     }
 
     /**
@@ -128,6 +131,14 @@ public class CjPlacementService {
                     || StringUtils.hasText(order.getCjOrderId())
                     || STATUS_PLACEMENT_REJECTED.equals(order.getCjOrderStatus())) {
                 return; // paid-and-unplaced only; anything else is not ours (or already parked)
+            }
+            // Wave 23 (V59): in manual mode NOTHING places without an admin approval stamp.
+            // This guards the pay-path fast placement too (placeAsync callers are unchanged);
+            // the order stays in the durable queue and the admin pending list until approved.
+            if (placementMode.isManual() && order.getCjPlacementApprovedTime() == null) {
+                log.debug("CJ placement held for order {}: awaiting admin approval (manual mode)",
+                        orderId.getId());
+                return;
             }
             if (reconcileFirst && adoptExistingCjOrder(order)) {
                 afterPlacement(orderId);
