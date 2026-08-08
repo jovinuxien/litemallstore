@@ -86,8 +86,10 @@ spring:
       # payType=3 (create-only draft — no CJ money moves inside the pay transaction);
       # the post-commit hook + status-sync poller then confirm and, when auto-pay-balance
       # is on, pay the order from the CJ account balance. sandbox=true makes CJ simulate
-      # that payment (isSandbox=1, no real charges) — dev default; flip off in production.
-      sandbox: true
+      # that payment (isSandbox=1, no real charges) — dev default; prod sets
+      # LITEMALL_ORDER_CJ_SANDBOX=false (Wave-23 arming: a simulated placement
+      # answering an admin approval would be a fake success).
+      sandbox: ${LITEMALL_ORDER_CJ_SANDBOX:true}
       auto-pay-balance: true
       # IOSS declaration for EU destinations — createOrderV2 rejects EU orders without
       # one (100104/7001). 0 (default) = OMIT the field: CJ then applies the account's
