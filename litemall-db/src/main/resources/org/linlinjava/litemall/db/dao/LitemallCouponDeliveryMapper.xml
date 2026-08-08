@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 22). Relies on global mapUnderscoreToCamelCase=true.
+     "Paid" everywhere below = the house paid-or-later convention
+     order_status >= 201 (StatMapper / InsightMapper; SQL analogue of
+     OrderUtil.hasPayed — excludes 101/102/103 and admin-cancel 104). -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallCouponDeliveryMapper">
+
+  <sql id="Base_Column_List">
+    id, coupon_id, segment_json, matched, granted, skipped, add_time, update_time, deleted
+  </sql>
+
+  <insert id="insertDelivery" parameterType="org.linlinjava.litemall.db.domain.LitemallCouponDelivery"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_coupon_delivery
+      (coupon_id, segment_json, matched, granted, skipped, add_time, update_time, deleted)
+    values
+      (#{couponId}, #{segmentJson}, coalesce(#{matched}, 0), coalesce(#{granted}, 0),
+       coalesce(#{skipped}, 0), now(), now(), 0)
+  </insert>
+
+  <select id="selectByCoupon" resultType="org.linlinjava.litemall.db.domain.LitemallCouponDelivery">
+    select <include refid="Base_Column_List"/>
+    from litemall_coupon_delivery
+    where deleted = 0
+    <if test="couponId != null">and coupon_id = #{couponId}</if>
+    order by add_time desc, id desc
+    limit #{limit} offset #{offset}
+  </select>
+
+  <select id="countByCoupon" resultType="long">
+    select count(*)
+    from litemall_coupon_delivery
+    where deleted = 0
+    <if test="couponId != null">and coupon_id = #{couponId}</if>
+  </select>
+
+  <!-- Segment: users whose PAID order history satisfies every present criterion.
+       recency = last paid activity (pay_time, falling back to add_time for rows
+       that predate pay_time capture); frequency = lifetime paid-order count;
+       monetary = lifetime paid actual_price sum. -->
+  <select id="selectPaidAudience" resultType="java.lang.Integer">
+    select user_id
+    from litemall_order
+    where deleted = 0
+      and order_status &gt;= 201
+      and user_id is not null
+    group by user_id
+    <trim prefix="having" prefixOverrides="and ">
+      <if test="paidSince != null">
+        max(coalesce(pay_time, add_time)) &gt;= #{paidSince}
+      </if>
+      <if test="minFrequency != null">
+        and count(*) &gt;= #{minFrequency}
+      </if>
+      <if test="minMonetary != null">
+        and sum(coalesce(actual_price, 0)) &gt;= #{minMonetary}
+      </if>
+    </trim>
+    order by user_id asc
+    limit #{limit}
+  </select>
+
+  <!-- Conversion measurement: always exactly one row (scalar subqueries +
+       aggregates over the possibly-empty used-row join). status 1 = USED. -->
+  <select id="selectPerformance" resultType="map">
+    select
+      (select count(*) from litemall_coupon_user g
+        where g.coupon_id = #{couponId} and g.deleted = 0) as granted,
+      (select count(*) from litemall_coupon_user u
+        where u.coupon_id = #{couponId} and u.deleted = 0 and u.status = 1) as used,
+      count(o.id) as ordersCount,
+      coalesce(sum(o.actual_price), 0) as revenue
+    from litemall_coupon_user cu
+    join litemall_order o on o.id = cu.order_id and o.deleted = 0
+    where cu.coupon_id = #{couponId} and cu.deleted = 0 and cu.status = 1
+  </select>
+
+</mapper>
