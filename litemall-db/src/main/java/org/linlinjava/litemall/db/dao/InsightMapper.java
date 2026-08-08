@@ -113,4 +113,21 @@ public interface InsightMapper {
      */
     Map<String, Object> selectMarginBasis(@Param("goodsIds") List<Integer> goodsIds,
                                           @Param("categoryIds") List<Integer> categoryIds);
+
+    /**
+     * COSTED on-sale CJ goods with the Wave-19 promo-scoring ingredients (goodsId, categoryId
+     * — the goods' LEAF category, resolve roots app-side —, retailPrice, cost, marginPct,
+     * stockTotal, salesQty, views, rating, reviewCount, arrivalDate), best margin first.
+     * Nightly use only; scans engagement.
+     */
+    List<Map<String, Object>> selectPromoScoringPool(@Param("limit") int limit);
+
+    /**
+     * Promo-candidate rows of a kind for a day joined with goods context (id, goodsId, name,
+     * picUrl, categoryId — leaf —, kind, day, tier, score, cost, retailPrice, marginPct,
+     * stockTotal, rating, reviewCount, suggestion, reasons, status, refId), score desc.
+     */
+    List<Map<String, Object>> selectPromoCandidateRows(@Param("kind") String kind,
+                                                       @Param("day") LocalDate day,
+                                                       @Param("status") String status);
 }

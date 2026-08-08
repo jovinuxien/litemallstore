@@ -2,7 +2,9 @@ package org.linlinjava.litemall.goods.interfaces.rest.admin;
 
 import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.db.domain.LitemallPromoCandidate;
 import org.linlinjava.litemall.goods.application.deals.AutoDailyDealTask;
+import org.linlinjava.litemall.goods.application.promo.PromoCandidateAdminService;
 import org.linlinjava.litemall.goods.application.insight.ArrivalInsightService;
 import org.linlinjava.litemall.goods.application.insight.CategoryMarginService;
 import org.linlinjava.litemall.goods.application.insight.GovernanceResult;
@@ -65,6 +67,13 @@ public class AdminInsightController {
         public List<Integer> categoryIds;
     }
 
+    /** Wave-19 dismiss/consume body: which kind's proposal, optionally which day, ref on consume. */
+    public static class PromoDecisionRequest {
+        public String kind;
+        public LocalDate day;
+        public Integer refId;
+    }
+
     private final InsightService insightService;
     private final RetirementAdminService retirementAdminService;
     private final ArrivalInsightService arrivalInsightService;
@@ -72,6 +81,7 @@ public class AdminInsightController {
     private final RetirementExecutor retirementExecutor;
     private final AutoDailyDealTask autoDailyDealTask;
     private final MarginBasisService marginBasisService;
+    private final PromoCandidateAdminService promoCandidateAdminService;
 
     public AdminInsightController(InsightService insightService,
                                   RetirementAdminService retirementAdminService,
@@ -79,7 +89,8 @@ public class AdminInsightController {
                                   CategoryMarginService categoryMarginService,
                                   RetirementExecutor retirementExecutor,
                                   AutoDailyDealTask autoDailyDealTask,
-                                  MarginBasisService marginBasisService) {
+                                  MarginBasisService marginBasisService,
+                                  PromoCandidateAdminService promoCandidateAdminService) {
         this.insightService = insightService;
         this.retirementAdminService = retirementAdminService;
         this.arrivalInsightService = arrivalInsightService;
@@ -87,6 +98,7 @@ public class AdminInsightController {
         this.retirementExecutor = retirementExecutor;
         this.autoDailyDealTask = autoDailyDealTask;
         this.marginBasisService = marginBasisService;
+        this.promoCandidateAdminService = promoCandidateAdminService;
     }
 
     /**
@@ -208,6 +220,50 @@ public class AdminInsightController {
     @PostMapping("/deals/auto-daily/run")
     public Object autoDailyRun() {
         return ResponseUtil.ok(autoDailyDealTask.run(LocalDate.now(), LocalDateTime.now()));
+    }
+
+    // ---- Wave 19: promo candidates --------------------------------------------------------------
+
+    @GetMapping("/promo-candidates")
+    public Object promoCandidates(
+            @RequestParam String kind,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day,
+            @RequestParam(required = false) String status) {
+        if (!isPromoKind(kind)) {
+            return ResponseUtil.badArgumentValue();
+        }
+        return ResponseUtil.ok(promoCandidateAdminService.list(kind, day, status));
+    }
+
+    @PostMapping("/promo-candidates/{goodsId}/dismiss")
+    public Object promoDismiss(@NotNull @PathVariable Integer goodsId,
+                               @RequestBody PromoDecisionRequest request) {
+        if (request == null || !isPromoKind(request.kind)) {
+            return ResponseUtil.badArgumentValue();
+        }
+        return toResponse(promoCandidateAdminService.dismiss(request.kind, goodsId, request.day));
+    }
+
+    @PostMapping("/promo-candidates/{goodsId}/consume")
+    public Object promoConsume(@NotNull @PathVariable Integer goodsId,
+                               @RequestBody PromoDecisionRequest request) {
+        if (request == null || !isPromoKind(request.kind)) {
+            return ResponseUtil.badArgumentValue();
+        }
+        return toResponse(promoCandidateAdminService.consume(
+                request.kind, goodsId, request.day, request.refId));
+    }
+
+    /** Manual trigger of the 04:30 promo-candidate scoring (dev acceptance / admin re-run). */
+    @PostMapping("/promo-candidates/run")
+    public Object promoRun(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate day) {
+        return ResponseUtil.ok(promoCandidateAdminService.run(day));
+    }
+
+    private static boolean isPromoKind(String kind) {
+        return LitemallPromoCandidate.KIND_COUPON.equals(kind)
+                || LitemallPromoCandidate.KIND_GROUPON.equals(kind);
     }
 
     // ---- shared ---------------------------------------------------------------------------------

@@ -98,6 +98,16 @@ public class ProductDocument {
     private Integer dealFlag;
 
     /**
+     * Wave-19 coupon visibility: 1 when ≥1 ACTIVE, in-window, publicly claimable
+     * ({@code TYPE_COMMON}) coupon's scope matches this product (whole-catalog coupons
+     * count; category scope matches any ancestor). Always emitted (0 when none) — the
+     * same always-emit rule as the deal fields, so a coupon-less full reindex never
+     * drops the field from OCS's mapping resolution.
+     */
+    @JsonProperty("coupon_flag")
+    private Integer couponFlag;
+
+    /**
      * Live flash-deal signals (price-swap lifecycle, Phase B). The three QUERYABLE fields ride
      * every document — {@code dealActive} 1/0, {@code dealEndEpoch} (millis; card countdown +
      * "ending soon" sort, {@code DealMath.NO_DEAL_END_EPOCH} when no deal so live deals always
@@ -256,6 +266,14 @@ public class ProductDocument {
 
     public void setDealFlag(Integer dealFlag) {
         this.dealFlag = dealFlag;
+    }
+
+    public Integer getCouponFlag() {
+        return couponFlag;
+    }
+
+    public void setCouponFlag(Integer couponFlag) {
+        this.couponFlag = couponFlag;
     }
 
     public Integer getDealActive() {

@@ -241,11 +241,11 @@ public class InsightService {
 
     /** Outcome of an approve/dismiss; {@code error != null} carries errno+errmsg. */
     public record CandidateActionResult(Integer errno, String error, Object data) {
-        static CandidateActionResult fail(int errno, String error) {
+        public static CandidateActionResult fail(int errno, String error) {
             return new CandidateActionResult(errno, error, null);
         }
 
-        static CandidateActionResult ok(Object data) {
+        public static CandidateActionResult ok(Object data) {
             return new CandidateActionResult(null, null, data);
         }
     }
