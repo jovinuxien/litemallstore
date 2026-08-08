@@ -100,6 +100,8 @@ Resolution: `GET /srv/promotion/coupon/available`.
 **Envelope: BARE JSON ARRAY of coupon DTOs. The endpoint takes NO limit/page
 params — the renderer slices the array to `limit` itself.**
 
+> Extended in **v1.1** with optional `couponIds` / `headline` / `style` — see §8.
+
 ### 2.5 `seckill-strip`
 | config field | type | required | notes |
 |---|---|---|---|
@@ -205,3 +207,59 @@ Errno 640 with a component-naming message for ANY of:
 
 `rich-text.html` is NOT rejected for markup — it is sanitized in place
 (clean-and-store) before persisting.
+
+## 8. Palette v1.1 (Wave 20, 2026-08-08)
+
+v1.1 is a **strictly additive** revision: `config.version` stays `1`, every
+valid v1 document remains valid, and every new field below is optional. The
+machine-readable schema (`GET /palette`) now carries `"revision": "1.1"`.
+(`goods-list` mode `deals` — §2.3 — was the first v1.1 addition; the Wave-20
+additions are the two below.)
+
+### 8.1 NEW component: `groupon-strip`
+
+| config field | type | required | notes |
+|---|---|---|---|
+| `title` | string | no | section header |
+| `combinationIds` | int[] (positive) | no | explicit campaign ids; **empty/absent = automatic** (all active campaigns) |
+| `maxItems` | int 1–12 | no (default 4) | renderer slices |
+
+Resolution: `GET /srv/promotion/combination/active`.
+**Envelope: BARE JSON ARRAY (the promotion-service convention, same as
+seckill-strip); no limit param — the renderer filters to `combinationIds`
+when present, then slices to `maxItems`.** Degrade rule R1 applies. The
+renderer shows only the join/browse links that exist today (PDP links) — no
+price-promise copy until groupon Phase 3.
+
+### 8.2 EXTENDED component: `coupon-strip`
+
+New optional fields on top of the v1 `limit`/`title`:
+
+| config field | type | required | notes |
+|---|---|---|---|
+| `couponIds` | int[] (positive) | no | explicit coupon ids; **empty/absent = automatic** (`/srv/promotion/coupon/available`, renderer slices) |
+| `headline` | string | no | large merchandising headline above the strip |
+| `style` | `strip` \| `grid` | no (default `strip`) | layout variant |
+
+For both id arrays the entries must be positive integers; the array length is
+bounded only by the 64KB document cap. Ids that resolve to nothing are simply
+absent from the render (R1).
+
+### 8.3 Page category + templates (V54, model addendum)
+
+`litemall_page` gains `category` (`general` | `coupon` | `groupon`, default
+`general`) and `is_template` (seed-only designed templates: "Coupon
+spotlight", "Group-buy rally"). Admin surface additions:
+
+- `/list` accepts optional `category` and `template` (0/1) filters; rows and
+  reads carry `category` + `isTemplate`.
+- `category` is settable on create/update (junk value → errno 640 with the
+  allowed set named); `is_template` is READ-ONLY via the API.
+- `POST /srv/private/admin/page/{id}/clone` → fresh DRAFT copy of ANY page:
+  name `Copy of <name>` (truncated to 63 chars), position `custom`,
+  category + config inherited, `is_template` NOT copied, active status never
+  copied.
+
+Customer endpoints are unchanged — any ACTIVE page serves regardless of
+category (the groupon gating lives in promotion's Postiz refusal + admin
+discipline until Phase 3).
