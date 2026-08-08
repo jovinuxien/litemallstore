@@ -72,6 +72,13 @@ tracking endpoint alone.
 
 ## Third ask (Wave 23, 2026-08-08) — project the V59 approval stamp onto the admin detail
 
+**STATUS: DONE same day** — order-side projection landed (`8098293f9`, master
+`0dcd94892`); live-verified through :18080: detail carries
+`cjPlacementApprovedTime`/`cjPlacementApprovedBy` for approved orders (null
+when unapproved), and a fresh SPA load of an approved order renders the stamp
++ "Approved — awaiting CJ placement" with no approve button (4/4 headless
+checks). Original ask kept below for context.
+
 `POST /order/{id}/cj-placement/approve` returns the stamp
 (`approvedBy`/`approvedTime`) and the SPA renders it from that response, but
 `GET /srv/private/admin/order/detail` does NOT project
