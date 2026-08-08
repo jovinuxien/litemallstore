@@ -39,6 +39,21 @@ describe('withDates', () => {
     expect(row.addTime).toBeUndefined();
     expect(row.updateTime).toBeUndefined();
   });
+
+  it('keeps the Wave-20 category/isTemplate fields intact', () => {
+    const row = withDates({
+      id: 5,
+      name: 'Coupon spotlight',
+      position: 'custom',
+      status: 'draft',
+      category: 'coupon',
+      isTemplate: true,
+      updateTime: [2026, 8, 8, 10, 0, 0] as unknown as string,
+    } as IPageSummary);
+    expect(row.category).toBe('coupon');
+    expect(row.isTemplate).toBe(true);
+    expect(row.updateTime).toBe('2026-08-08T10:00:00');
+  });
 });
 
 describe('listWithDates', () => {
