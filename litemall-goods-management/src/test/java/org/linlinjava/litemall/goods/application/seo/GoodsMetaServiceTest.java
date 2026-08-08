@@ -100,6 +100,40 @@ public class GoodsMetaServiceTest {
     }
 
     @Test
+    void nameEqualBriefFallsBackToDetailProse() {
+        LitemallGoods goods = goods(7);
+        goods.setBrief("Wireless Earbuds");
+        goods.setDetail("<p>Immersive <strong>bass</strong> with a 30h battery.</p><img src=\"x.jpg\">");
+        when(goodsService.findById(7)).thenReturn(goods);
+        when(categoryService.findById(100)).thenReturn(category(100, "Women's Clothing"));
+
+        assertThat(service.meta(7).orElseThrow().get("brief"))
+                .isEqualTo("Immersive bass with a 30h battery.");
+    }
+
+    @Test
+    void nameEqualBriefWithImageOnlyDetailKeepsTheBrief() {
+        LitemallGoods goods = goods(7);
+        goods.setBrief("Wireless Earbuds");
+        goods.setDetail("<p><img src=\"x.jpg\"></p>");
+        when(goodsService.findById(7)).thenReturn(goods);
+        when(categoryService.findById(100)).thenReturn(category(100, "Women's Clothing"));
+
+        assertThat(service.meta(7).orElseThrow().get("brief")).isEqualTo("Wireless Earbuds");
+    }
+
+    @Test
+    void distinctBriefIsServedCleanedNotReplaced() {
+        LitemallGoods goods = goods(7);
+        goods.setBrief("<p>Great &amp; loud sound</p>");
+        goods.setDetail("<p>ignored — the brief already stands on its own</p>");
+        when(goodsService.findById(7)).thenReturn(goods);
+        when(categoryService.findById(100)).thenReturn(category(100, "Women's Clothing"));
+
+        assertThat(service.meta(7).orElseThrow().get("brief")).isEqualTo("Great & loud sound");
+    }
+
+    @Test
     void missingOrDeletedGoodsYieldEmpty() {
         when(goodsService.findById(404)).thenReturn(null); // findById binds deleted=false
         assertThat(service.meta(404)).isEqualTo(Optional.empty());
