@@ -7,6 +7,7 @@
     "webapp:dev": "cross-env NODE_ENV=development webpack serve --config webpack/webpack.config.js",
     "webapp:prod": "cross-env NODE_ENV=production webpack --config webpack/webpack.config.prod.js",
     "build": "npm run webapp:prod",
+    "test": "jest --config jest.conf.js",
     "backend:deps": "mvn -f ../../../../pom.xml -pl litemall-db -am -DskipTests -Dskip.npm=true install",
     "backend:start": "npm run backend:deps && mvn -f ../../../../pom.xml -pl litemall-gateway-api spring-boot:run -Dskip.npm=true",
     "backend:debug": "npm run backend:deps && mvn -f ../../../../pom.xml -pl litemall-gateway-api spring-boot:run -Dspring-boot.run.jvmArguments=\"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000\" -Dskip.npm=true"

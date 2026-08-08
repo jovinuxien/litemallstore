@@ -4,7 +4,7 @@ import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import store from 'app/config/store';
 import { goodId } from 'app/components/userComponents/card/ProductCard';
-import { readSortOptions, searchMetaReceived } from 'app/modules/product/searchSlice';
+import { ISearchMeta, readSortOptions, searchMetaReceived } from 'app/modules/product/searchSlice';
 
 /**
  * Custom InstantSearch search client backed by goods-management's
@@ -204,6 +204,32 @@ const mapFacets = (
   return { facets, facetsStats };
 };
 
+// goods-management's typed search-outage errno (LitemallSearchController: OCS
+// searcher down/unreachable => errno 502 "Search is temporarily unavailable").
+const ERRNO_SEARCH_UNAVAILABLE = 502;
+
+// Publish per-response metadata to the search slice, but only on a REAL change:
+// an unconditional dispatch feeds a render loop (new meta object -> page
+// re-render -> widget props change -> new search -> new meta object -> ...).
+const publishMeta = (meta: ISearchMeta): void => {
+  if (JSON.stringify(meta) !== JSON.stringify(store.getState().search.meta)) {
+    store.dispatch(searchMetaReceived(meta));
+  }
+};
+
+// Outage meta (typed 502 or the gateway unreachable): zero results, no server
+// extras — but `unavailable` flips the /search empty state into an honest
+// "search is temporarily unavailable" message instead of "no results".
+const publishUnavailableMeta = (params: AlgoliaParams): void =>
+  publishMeta({
+    query: params.query ?? '',
+    total: 0,
+    queryStrategy: null,
+    relaxed: false,
+    sortOptions: [],
+    unavailable: true,
+  });
+
 const emptyResponse = (indexName: string, params: AlgoliaParams): SearchResponse<any> => ({
   hits: [],
   nbHits: 0,
@@ -223,7 +249,12 @@ const runSearch = async (indexName: string, params: AlgoliaParams, pinnedCategor
   try {
     const response = await baseAxios.get(`${BASE_URL_CONTEXT}/search?${buildQuery(indexName, params, pinnedCategoryId)}`);
     const body = response.data ?? {};
-    if (body.errno != null && body.errno !== 0) return emptyResponse(indexName, params);
+    if (body.errno != null && body.errno !== 0) {
+      // Typed outage (searcher down) gets an honest banner; any other errno
+      // stays a plain empty page.
+      if (body.errno === ERRNO_SEARCH_UNAVAILABLE) publishUnavailableMeta(params);
+      return emptyResponse(indexName, params);
+    }
     const d = body.data ?? body; // tolerate the {errno,data} envelope or a raw map
 
     const list: any[] = d.goodsList ?? d.list ?? [];
@@ -236,19 +267,15 @@ const runSearch = async (indexName: string, params: AlgoliaParams, pinnedCategor
     // The Algolia SearchResponse has no slot for goods-management's extra
     // fields (server sort options, relaxed-match signal), so publish them to
     // the search slice — the /search page reads them beside the widget tree.
-    // Only dispatch on a REAL change: an unconditional dispatch feeds a render
-    // loop (new meta object -> page re-render -> widget props change -> new
-    // search -> new meta object -> …).
-    const meta = {
+    // publishMeta only dispatches on a REAL change (refetch-loop guard).
+    publishMeta({
       query: params.query ?? '',
       total,
       queryStrategy: typeof d.queryStrategy === 'string' ? d.queryStrategy : null,
       relaxed: d.relaxed === true,
       sortOptions: readSortOptions(d),
-    };
-    if (JSON.stringify(meta) !== JSON.stringify(store.getState().search.meta)) {
-      store.dispatch(searchMetaReceived(meta));
-    }
+      unavailable: false,
+    });
 
     return {
       hits: list.map((g, i) => ({ ...g, objectID: String(goodId(g) ?? g.id ?? `r-${i}`) })),
@@ -265,8 +292,10 @@ const runSearch = async (indexName: string, params: AlgoliaParams, pinnedCategor
       exhaustiveNbHits: true,
     };
   } catch {
-    // Network/timeout: return an empty page rather than throwing so the UI shows
-    // "no results" instead of crashing the InstantSearch tree.
+    // Network/timeout: the search backend is unreachable — same honest outage
+    // banner as the typed 502, and an empty page rather than a thrown error so
+    // the InstantSearch tree never crashes.
+    publishUnavailableMeta(params);
     return emptyResponse(indexName, params);
   }
 };
