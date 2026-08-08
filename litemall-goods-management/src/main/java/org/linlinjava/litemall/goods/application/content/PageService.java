@@ -212,6 +212,9 @@ public class PageService {
         vo.put("id", page.getId());
         vo.put("name", page.getName());
         vo.put("position", page.getPosition());
+        // Wave-20: promotion's Postiz page-source reads this to refuse groupon-category
+        // pages until Phase 3 (priced submit); additive for the SPA renderer.
+        vo.put("category", page.getCategory());
         vo.put("components", parseConfig(page).getOrDefault("components", List.of()));
         vo.put("updateTime", page.getUpdateTime());
         return vo;
