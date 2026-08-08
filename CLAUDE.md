@@ -798,6 +798,49 @@
 > - errno envelope; money plain decimals; consent data stays aggregate-only
 >   (no per-visitor drill-down in admin — privacy posture).
 >
+> **Wave 23 (2026-08-08) — ADMIN-GATED CJ PLACEMENT + ADMIN ORDER
+> NOTIFICATIONS.** USER DIRECTIVE (2026-08-08): paid orders must NOT
+> auto-place at CJ — they wait PENDING until an admin validates them in the
+> admin panel; the admin is notified by email (contact@trovemo.com) when an
+> order is placed/paid; approval sends the order to CJ. Full admin control.
+> Context: the user's CJ_API_KEY is VALIDATED (live token issued 2026-08-08)
+> but sits DISARMED in prod env (marked HELD) until this wave deploys —
+> paid orders keep queueing harmlessly. ⚠ CJ config is all-or-nothing:
+> CjTokenService refuses boot when exactly one of CJ_EMAIL/CJ_API_KEY is
+> set (observed live) — deploy must set BOTH + the mode env together.
+> **Wave-23 CONTRACT:**
+> - **order**: config `litemall.order.cj.placement-mode` = auto|manual (env
+>   `LITEMALL_ORDER_CJ_PLACEMENT_MODE`, DEFAULT **manual**). **V59** (order
+>   scope; W22 claims V57/V58 — check history): `litemall_order.
+>   cj_placement_approved_time` DATETIME NULL + `cj_placement_approved_by`
+>   VARCHAR(63) NULL. In manual mode the placement sweep ONLY places
+>   paid CJ orders with an approval stamp; auto mode = today's behavior.
+>   Admin endpoints on the EXISTING order admin surface (X-User-Roles
+>   recipe): `GET .../cj-placement/pending` → paged {orderId, orderSn,
+>   addTime, payTime, actualPrice, consignee, country, items[], cjReady
+>   (bool: variants resolvable), holdReason?}; `POST .../{orderId}/
+>   cj-placement/approve` → stamps approval (approved_by = X-User-Id;
+>   idempotent; typed refusal when not paid / not CJ / already placed);
+>   the sweep then places on its next tick. Unapproved orders NEVER
+>   place, even with CJ configured.
+> - **admin notify mail**: on order PAID, enqueue an ADMIN notification to
+>   `litemall.customer-mail.admin-notify-email` (env
+>   `LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY`, prod = contact@trovemo.com;
+>   blank ⇒ no-op) through the EXISTING mail outbox/SMTP (Brevo live):
+>   subject "New paid order <sn> — $<amount>", body = order summary
+>   (items, buyer country, total) + "approve it for fulfilment in the
+>   admin panel". Rides the same enabled flag as customer mail.
+> - **gateway-admin**: order panel gains a "Pending CJ approval"
+>   filter/tab (count badge), order detail gains "Approve for CJ
+>   fulfilment" (confirm dialog, result verbatim, shows approval stamp
+>   after). Starts AFTER the Wave-22 admin half commits (same worktree).
+> - Deploy activation (main session): rebuild order + gateway-admin; set
+>   CJ_API_KEY (held value) + CJ_EMAIL (= CJ_CATALOG_EMAIL) +
+>   LITEMALL_ORDER_CJ_PLACEMENT_MODE=manual +
+>   LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY=contact@trovemo.com together;
+>   watch the boot (the half-config guard) and confirm orders 7/10/11
+>   appear in the pending list and place ONLY on admin approval.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
