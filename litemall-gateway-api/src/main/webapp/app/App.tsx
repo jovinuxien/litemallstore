@@ -48,6 +48,7 @@ const PageView = lazy(() => import('app/modules/page/PageView'));
 const ArticleList = lazy(() => import('app/modules/article/ArticleList'));
 const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
 const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
+const GrouponDetail = lazy(() => import('app/modules/groupon/GrouponDetail'));
 const Help = lazy(() => import('app/modules/static/Help'));
 const CustomerService = lazy(() => import('app/modules/static/CustomerService'));
 // Wave-7 Task D: real legal pages. The footer linked all four of these at /help or
@@ -111,6 +112,8 @@ const App: React.FC = () => (
           <Route path='articles' element={<ArticleList />} />
           <Route path='article/:id' element={<ArticleDetail />} />
           <Route path='groupon' element={<Groupon />} />
+          {/* Wave 21: shareable campaign landing (?join=<leaderPinkId> deep-link). */}
+          <Route path='groupon/:id' element={<GrouponDetail />} />
           {/* Wave 18: public coupon center; claiming diverts to /login. */}
           <Route path='coupons' element={<CouponCenter />} />
           <Route path='help' element={<Help />} />

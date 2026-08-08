@@ -4,16 +4,8 @@ import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { contentApi, promotionApi, ICombinationPink, IGrouponItem } from 'app/shared/api';
+import { toDisplayTime } from './grouponUtils';
 import 'app/shared/scss/content.scss';
-
-/** LocalDateTime arrives as an ISO string or a Jackson number[] tuple. */
-const toDisplayTime = (t?: string | number[]): string => {
-  if (Array.isArray(t)) {
-    const [y, mo, d, h = 0, mi = 0] = t;
-    return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
-  }
-  return t ? String(t).replace('T', ' ').slice(0, 16) : '';
-};
 
 /**
  * Group-buy (groupon) page, modelled on litemall-vue `items/groupon`. Browse is
@@ -104,7 +96,15 @@ const Groupon: React.FC = () => {
             {myGroups.map(p => (
               <div key={p.pinkId} className='border rounded p-2 d-flex flex-wrap justify-content-between align-items-center gap-2'>
                 <div>
-                  <span className='fw-semibold'>Group #{p.pinkId}</span>
+                  {/* Wave-21: each slot deep-links its campaign landing, where the
+                      share link + group-price checkout live. */}
+                  {p.combinationId != null ? (
+                    <Link to={`/groupon/${p.combinationId}`} className='fw-semibold'>
+                      Group #{p.pinkId}
+                    </Link>
+                  ) : (
+                    <span className='fw-semibold'>Group #{p.pinkId}</span>
+                  )}
                   {p.headId != null && p.headId === p.pinkId && <span className='badge text-bg-info ms-2'>Leader</span>}
                   <span className='ms-2'>
                     {p.memberCount ?? 1}/{p.requiredMembers ?? '?'} joined
@@ -154,7 +154,9 @@ const Groupon: React.FC = () => {
         <div className='lm-grid'>
           {items.map((g, i) => (
             <div key={g.id ?? i} className='lm-groupon-card d-flex flex-column'>
-              <Link to={`/product/${g.goodsId}`} className='text-reset text-decoration-none'>
+              {/* Wave-21: cards deep-link the shareable /groupon/:id landing
+                  (start/join/share live there); no campaign id ⇒ product page. */}
+              <Link to={g.id != null ? `/groupon/${g.id}` : `/product/${g.goodsId}`} className='text-reset text-decoration-none'>
                 <img src={g.picUrl} alt={g.goodsName} />
                 <div className='lm-groupon-card__name'>{g.goodsName}</div>
                 <div className='lm-groupon-card__price'>
@@ -163,10 +165,16 @@ const Groupon: React.FC = () => {
                 </div>
               </Link>
               <div className='small text-muted mt-1'>{g.discountMember ?? '?'} people per group</div>
-              {signedIn && (
-                <Button size='sm' variant='outline-primary' className='mt-2' disabled={actionBusy} onClick={() => startGroup(g.id)}>
-                  Start a group
-                </Button>
+              {g.id != null ? (
+                <Link to={`/groupon/${g.id}`} className='btn btn-sm btn-outline-primary mt-2'>
+                  View group deal
+                </Link>
+              ) : (
+                signedIn && (
+                  <Button size='sm' variant='outline-primary' className='mt-2' disabled={actionBusy} onClick={() => startGroup(g.id)}>
+                    Start a group
+                  </Button>
+                )
               )}
             </div>
           ))}

@@ -56,3 +56,40 @@ describe('ProductCard coupon badge', () => {
     expect(children).toEqual(['lm-card__deal-label', 'lm-card__coupon']);
   });
 });
+
+/**
+ * Wave-21 group-buy badge: a coral "Group buy" pill renders when the search
+ * hit carries `groupon_flag: 1` — the exact coupon_flag contract for the new
+ * OCS source field (missing or 0 means no badge).
+ */
+describe('ProductCard group-buy badge', () => {
+  it('shows the Group buy pill when the hit has groupon_flag: 1', () => {
+    const { container } = renderCard({ ...base, groupon_flag: 1 });
+    const pill = container.querySelector('.lm-card__groupon');
+    expect(pill).not.toBeNull();
+    expect(pill!.textContent).toBe('Group buy');
+  });
+
+  it('shows no pill when groupon_flag is 0', () => {
+    const { container } = renderCard({ ...base, groupon_flag: 0 });
+    expect(container.querySelector('.lm-card__groupon')).toBeNull();
+  });
+
+  it('shows no pill when the field is absent (old index docs / list DTOs)', () => {
+    const { container } = renderCard(base);
+    expect(container.querySelector('.lm-card__groupon')).toBeNull();
+  });
+
+  it('tolerates the camelCase grouponFlag spelling and string "1"', () => {
+    expect(renderCard({ ...base, grouponFlag: 1 }).container.querySelector('.lm-card__groupon')).not.toBeNull();
+    expect(renderCard({ ...base, groupon_flag: '1' }).container.querySelector('.lm-card__groupon')).not.toBeNull();
+  });
+
+  it('stacks after the deal strip and the coupon pill when all three are present', () => {
+    const { container } = renderCard({ ...base, hot: true, coupon_flag: 1, groupon_flag: 1 });
+    const flags = container.querySelector('.lm-card__flags');
+    expect(flags).not.toBeNull();
+    const children = Array.from(flags!.children).map(c => c.className);
+    expect(children).toEqual(['lm-card__deal-label', 'lm-card__coupon', 'lm-card__groupon']);
+  });
+});

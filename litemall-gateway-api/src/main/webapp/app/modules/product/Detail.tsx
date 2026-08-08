@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { userApi } from 'app/shared/api';
@@ -16,6 +16,7 @@ import { getRelatedGoods } from './relatedSlice';
 import CollectButton from './productDetailComponent/CollectButton';
 import CouponStrip from './productDetailComponent/CouponStrip';
 import DealBanner from './productDetailComponent/DealBanner';
+import GroupBuyStrip from './productDetailComponent/GroupBuyStrip';
 import Reviews from './productDetailComponent/Reviews';
 import './Detail.scss';
 
@@ -43,6 +44,11 @@ const ProductDetailView: React.FC = () => {
   // Slugged URLs (`/product/123-some-name`, Wave-13) carry the id in the
   // leading digits; bare numeric and legacy CJ ids pass through verbatim.
   const id = goodsIdFromRoute(routeId);
+  // Wave-21 group-buy: a shopper arriving from the /groupon/:id landing holds
+  // a group slot (?pinkId=<own slot id>) — Buy-now then carries it into
+  // checkout, where the order service prices the line at the group price.
+  const [searchParams] = useSearchParams();
+  const heldPinkId = searchParams.get('pinkId');
 
   const { data, loading, errorMessage } = useAppSelector(state => state.productDetail);
   const related = useAppSelector(state => state.related.data.list);
@@ -213,7 +219,9 @@ const ProductDetailView: React.FC = () => {
     if (!inStock) return;
     dispatch(addItem(buildCartItem()));
     trackAdd();
-    navigate('/checkout');
+    // A held group slot rides into checkout — submit charges the group price
+    // server-side (a stale slot is rejected there with a typed message).
+    navigate(heldPinkId ? `/checkout?pinkId=${heldPinkId}` : '/checkout');
   };
 
   return (
@@ -257,6 +265,19 @@ const ProductDetailView: React.FC = () => {
           </div>
 
           <DealBanner goodsId={gid} isCj={isCj} />
+
+          {/* Wave-21 group-buy entry — renders only when an active combination
+              campaign covers this goods. Adds the SELECTED variant to the cart
+              before routing into /checkout?pinkId=. */}
+          <GroupBuyStrip
+            goodsId={gid}
+            inStock={inStock}
+            heldPinkId={heldPinkId}
+            prepareCart={() => {
+              dispatch(addItem(buildCartItem()));
+              trackAdd();
+            }}
+          />
 
           {/* Receivable coupons (litemall-vue coupon row); hidden until live. */}
           <CouponStrip />
