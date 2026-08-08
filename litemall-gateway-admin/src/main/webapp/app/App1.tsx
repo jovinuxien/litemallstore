@@ -142,7 +142,7 @@ const AppShell: React.FC<AppShellProps> = ({ categoryListHome, homeData, isAuthe
 
   if (fullBleed) {
     return (
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={pathname}>
         <AppRoutes categoryListHome={categoryListHome} homeData={homeData} />
       </ErrorBoundary>
     );
@@ -161,7 +161,7 @@ const AppShell: React.FC<AppShellProps> = ({ categoryListHome, homeData, isAuthe
       </ErrorBoundary>
       <div className='container-fluid view-container' id='app-view-container'>
         <Card className='jh-card'>
-          <ErrorBoundary>
+          <ErrorBoundary resetKey={pathname}>
             <AppRoutes categoryListHome={categoryListHome} homeData={homeData} />
           </ErrorBoundary>
         </Card>
