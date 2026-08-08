@@ -733,6 +733,30 @@
 > - errno envelope everywhere; money plain decimals; NO changes to the
 >   legacy litemall_groupon path.
 >
+> **Wave 21 STATUS: SHIPPED + DEPLOYED to trovemo.com (2026-08-08, master
+> `e3b44b072`, prod schema V56, reindex 12,843, smoke 200s).** All four
+> halves: order `74a0d4306` (V56 pink_id; priced submit; attach/release
+> hooks afterCommit; GROUP_EXPIRED auto-refund listener — order's first
+> inbound Kafka binding; module 235/0), promotion `f65baa1e9` (attach-order
+> CAS + release w/ leader-dissolution semantics; memberPinkIds[] on both
+> events; Postiz 765 groupon gate DELETED; slot-view fix on GET /pink/{id};
+> 126/0), goods-management `4f04a7295` (groupon_flag incl. passthrough;
+> 288-suite), gateway-api `01d7b6957` (/groupon/:id landing + invite links
+> surviving login; PDP strip; checkout pinkId; Group-buy badge/filter; jest
+> 61/61). LIVE DEV ACCEPTANCE PASSED end-to-end: campaign 7 → start/join →
+> order 113 CHARGED GROUP PRICE 46.31 (+8 freight), pink_id + attach-order
+> DB-verified → wallet-paid → leader release dissolved the group →
+> GROUP_EXPIRED consumed → order 113 REFUNDED 54.31, wallet restored to
+> the cent, processor log honest → stale-slot re-submit rejected with the
+> exact typed message → groupon_flag=1 search returns exactly the campaign
+> product (searcher restart REQUIRED after reindex for new-field
+> resolution — encoded in the deploy). Groupon publishing is now UNLOCKED
+> (Postiz accepts groupon pages; the gating decision is retired).
+> gateway-admin container unchanged this wave. USER-SIDE: storefront
+> click-through of /groupon/:id + PDP strip + a real group checkout.
+> Coupon roadmap remaining: Wave 22 = Phase 4 (RFM targeting + analytics
+> loop) — not yet commissioned.**
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
