@@ -1,6 +1,7 @@
 import { ICoupon } from 'app/shared/model/admin/promotion-system.model';
 import { promotionOpMessage, useDeleteCouponMutation, useListCouponsQuery } from 'app/shared/reducers/private/services/adminPromotionApi';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import DeliverCouponDialog from './DeliverCouponDialog';
 import { couponScopeLabel, discountTypeLabel, fmtCouponDiscount } from './couponFormat';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -11,6 +12,7 @@ import { Link } from 'react-router-dom';
 // bare array, so the pager runs on the has-more heuristic.
 // Wave 18: discount column renders flat vs percent (incl. cap) and new
 // discount-type + scope (All/Category/Products) columns.
+// Wave 22: "Deliver" opens the RFM segment-delivery dialog (preview-first).
 
 const TYPE_LABEL: Record<number, string> = { 0: 'general', 1: 'on register', 2: 'exchange code' };
 const STATUS_TAG: Record<number, { tag: 'success' | 'warning' | 'info'; text: string }> = {
@@ -26,6 +28,8 @@ const CouponList: React.FC = () => {
   const { data, isLoading, isFetching, isError, error } = useListCouponsQuery({ page, limit });
   const [deleteCoupon, { isLoading: deleting }] = useDeleteCouponMutation();
   const [actionError, setActionError] = React.useState<string | null>(null);
+  // Wave 22: coupon whose segment-delivery dialog is open.
+  const [delivering, setDelivering] = React.useState<ICoupon | null>(null);
 
   const list = data?.list ?? [];
   const errStatus = (error as { status?: number | string })?.status;
@@ -113,6 +117,9 @@ const CouponList: React.FC = () => {
                     <Tag tag={st.tag}>{st.text}</Tag>
                   </td>
                   <td className='text-end'>
+                    <button className='btn btn-sm btn-outline-success me-1' onClick={() => setDelivering(c)}>
+                      Deliver
+                    </button>
                     <Link to={`/admin/promotion/coupon/${c.id}/issued`} className='btn btn-sm btn-outline-secondary me-1'>
                       Issued
                     </Link>
@@ -131,6 +138,8 @@ const CouponList: React.FC = () => {
       </table>
 
       <Pagination page={page} rowCount={list.length} limit={limit} busy={isFetching} onPage={setPage} />
+
+      {delivering && <DeliverCouponDialog coupon={delivering} onClose={() => setDelivering(null)} />}
     </div>
   );
 };

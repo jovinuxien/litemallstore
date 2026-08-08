@@ -1,6 +1,16 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { couponCommand, promotionOpMessage, promotionOpWarning, toCoupon, toDiscountTypeCode } from './adminPromotionApi';
+import {
+  couponCommand,
+  deliverCommand,
+  promotionOpMessage,
+  promotionOpWarning,
+  toCoupon,
+  toCouponPerformance,
+  toDeliverResult,
+  toDeliveriesPage,
+  toDiscountTypeCode,
+} from './adminPromotionApi';
 
 // Wave 18: wire-shape normalisation for the coupon percent/scope additions.
 // The promotion manager DTOs serialize enums as display-name strings; rows
@@ -88,5 +98,74 @@ describe('promotionOpMessage / promotionOpWarning', () => {
   it('stays silent on a clean success', () => {
     expect(promotionOpWarning({ data: { success: true, data: { couponId: 9, uncostedCount: 0 } } })).toBeNull();
     expect(promotionOpWarning({ data: { success: true } })).toBeNull();
+  });
+});
+
+// ----- Wave 22: RFM delivery + measurement mappers ---------------------------
+
+describe('deliverCommand', () => {
+  it('drops unset criteria and sends preview only when true', () => {
+    expect(deliverCommand({ couponId: 7, recencyDays: 30, preview: true })).toEqual({ recencyDays: 30, preview: true });
+    expect(deliverCommand({ couponId: 7, minFrequency: 2, minMonetary: 50 })).toEqual({ minFrequency: 2, minMonetary: 50 });
+  });
+
+  it('an empty segment (every customer) sends an empty body for a real run', () => {
+    expect(deliverCommand({ couponId: 7 })).toEqual({});
+  });
+});
+
+describe('toDeliverResult', () => {
+  it('reads counts nested in PromotionOperation.data', () => {
+    expect(toDeliverResult({ success: true, data: { matched: 132, granted: 120, skipped: 12 } })).toEqual({
+      matched: 132,
+      granted: 120,
+      skipped: 12,
+    });
+  });
+
+  it('reads a preview payload (matched only) and bare payloads', () => {
+    expect(toDeliverResult({ success: true, data: { matched: 41 } })).toEqual({ matched: 41, granted: undefined, skipped: undefined });
+    expect(toDeliverResult({ matched: 5, granted: 5, skipped: 0 })).toEqual({ matched: 5, granted: 5, skipped: 0 });
+  });
+});
+
+describe('toCouponPerformance', () => {
+  it('normalises a bare performance DTO', () => {
+    const p = toCouponPerformance({ granted: 120, used: 30, redemptionPct: 25, ordersCount: 30, revenue: 1234.5, avgOrderValue: 41.15 });
+    expect(p).toEqual({ granted: 120, used: 30, redemptionPct: 25, ordersCount: 30, revenue: 1234.5, avgOrderValue: 41.15 });
+  });
+
+  it('keeps unavailable ratios null (never 0) and tolerates a data wrapper', () => {
+    const p = toCouponPerformance({ data: { granted: 0, used: 0, redemptionPct: null, ordersCount: 0, revenue: 0, avgOrderValue: null } });
+    expect(p.granted).toBe(0);
+    expect(p.redemptionPct).toBeNull();
+    expect(p.avgOrderValue).toBeNull();
+  });
+});
+
+describe('toDeliveriesPage', () => {
+  it('normalises the page envelope, delivery ids and array datetimes', () => {
+    const page = toDeliveriesPage({
+      total: 2,
+      pages: 1,
+      page: 1,
+      limit: 10,
+      list: [
+        { deliveryId: 3, couponId: 7, segmentJson: '{"recencyDays":30}', matched: 132, granted: 120, skipped: 12, addTime: [2026, 8, 8, 10, 5, 0] },
+        { id: 4, couponId: 7, segmentJson: '{}', matched: 9, granted: 9, skipped: 0, addTime: '2026-08-08T11:00:00' },
+      ],
+    });
+    expect(page.total).toBe(2);
+    expect(page.list[0].id).toBe(3);
+    expect(page.list[0].addTime).toBe('2026-08-08T10:05:00');
+    expect(page.list[1].id).toBe(4);
+    expect(page.list[1].addTime).toBe('2026-08-08T11:00:00');
+  });
+
+  it('accepts a bare array defensively and defaults an empty response', () => {
+    const bare = toDeliveriesPage([{ deliveryId: 1, couponId: 7 }]);
+    expect(bare.list).toHaveLength(1);
+    expect(bare.total).toBe(1);
+    expect(toDeliveriesPage(undefined)).toEqual({ list: [], total: 0, page: 1, limit: 0, pages: 0 });
   });
 });

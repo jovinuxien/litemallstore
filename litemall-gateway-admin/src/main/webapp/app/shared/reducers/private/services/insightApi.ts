@@ -297,6 +297,39 @@ interface ApiEnvelope<T> {
   data?: T;
 }
 
+// ---- Wave 22: search demand analytics --------------------------------------
+// GET /insight/search-stats?days=7|30 over the V57 litemall_search_stat_daily
+// rollup (nightly; joins search history + the consent-ramped behavioral log).
+// Aggregate-only by design — no per-visitor drill-down in admin.
+
+export interface ISearchQueryStat {
+  keyword?: string;
+  searches?: number;
+  zeroResults?: number;
+  clicks?: number;
+  /** Server-computed CTR percentage; null when there were no searches. */
+  ctrPct?: number | null;
+}
+
+export interface ISearchStatsTotals {
+  searches?: number;
+  zeroResults?: number;
+  clicks?: number;
+}
+
+export interface ISearchStats {
+  topQueries: ISearchQueryStat[];
+  zeroResultQueries: ISearchQueryStat[];
+  totals: ISearchStatsTotals;
+}
+
+// Defensive defaults so the panel can always render tables/cards.
+export const toSearchStats = (d?: Partial<ISearchStats> | null): ISearchStats => ({
+  topQueries: d?.topQueries ?? [],
+  zeroResultQueries: d?.zeroResultQueries ?? [],
+  totals: d?.totals ?? {},
+});
+
 // ---- served-shape normalisation --------------------------------------------
 // The goods-management insight surface (verified against master 68ebcbb38)
 // deviates from the raw contract sketch in serialization only: list rows key
@@ -366,7 +399,7 @@ export const insightApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides', 'PromoCandidates'],
+  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides', 'PromoCandidates', 'SearchStats'],
   endpoints: builder => ({
     // Sorted potentialProfit desc by the server; L1 roots with on-sale goods only.
     getInsightCategories: builder.query<{ list: ICategoryInsight[] }, void>({
@@ -489,6 +522,22 @@ export const insightApi = createApi({
       query: ({ categoryId }) => ({ url: `/categories/${categoryId}/margin`, method: 'DELETE' }),
       invalidatesTags: ['MarginOverrides'],
     }),
+    // ---- Wave 22: search demand analytics ----------------------------------
+    getSearchStats: builder.query<ISearchStats, { days: 7 | 30 }>({
+      query: ({ days }) => ({ url: '/search-stats', params: { days } }),
+      transformResponse: (r: ApiEnvelope<ISearchStats>) => toSearchStats(r?.data),
+      providesTags: ['SearchStats'],
+    }),
+    // Recompute the hot-keyword set from real demand (additive — curated
+    // admin keywords are PRESERVED). Returns a summary in the envelope data.
+    refreshSearchTrending: builder.mutation<ApiEnvelope<unknown>, void>({
+      query: () => ({ url: '/search-stats/trending/refresh', method: 'POST' }),
+    }),
+    // Manual re-run of the nightly rollup (dev/admin) — refreshes the stats.
+    runSearchStatsRollup: builder.mutation<ApiEnvelope<unknown>, void>({
+      query: () => ({ url: '/search-stats/rollup/run', method: 'POST' }),
+      invalidatesTags: ['SearchStats'],
+    }),
   }),
 });
 
@@ -511,4 +560,7 @@ export const {
   useGetMarginOverridesQuery,
   usePutCategoryMarginMutation,
   useDeleteCategoryMarginMutation,
+  useGetSearchStatsQuery,
+  useRefreshSearchTrendingMutation,
+  useRunSearchStatsRollupMutation,
 } = insightApi;

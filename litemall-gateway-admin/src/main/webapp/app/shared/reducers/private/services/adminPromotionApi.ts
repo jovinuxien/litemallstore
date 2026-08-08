@@ -244,6 +244,110 @@ const isoDateTime = (v?: string): string | undefined => {
   return v.length === 16 ? `${v}:00` : v;
 };
 
+// ----- Wave 22: RFM-targeted coupon delivery + measurement ------------------
+// POST /promotion/coupon/{couponId}/deliver — preview:true computes the
+// matching user set only (ZERO side effects); the real run grants through the
+// existing coupon grant path (idempotent per user via the claim limit).
+// Typed refusals (expired/inactive coupon) ride the PromotionOperation
+// message and are surfaced VERBATIM via promotionOpMessage.
+
+export interface CouponSegment {
+  /** "bought within N days" */
+  recencyDays?: number;
+  /** "at least N paid orders" */
+  minFrequency?: number;
+  /** "spent at least $N" */
+  minMonetary?: number;
+}
+
+export interface CouponDeliverCommand extends CouponSegment {
+  couponId: number;
+  preview?: boolean;
+}
+
+export interface ICouponDeliverResult {
+  matched?: number;
+  granted?: number;
+  skipped?: number;
+}
+
+export interface ICouponPerformance {
+  granted?: number;
+  used?: number;
+  redemptionPct?: number | null;
+  ordersCount?: number;
+  revenue?: number;
+  avgOrderValue?: number | null;
+}
+
+export interface ICouponDelivery {
+  id?: number;
+  couponId?: number;
+  /** The delivered segment as stored — a JSON string or an already-parsed object. */
+  segmentJson?: string | Record<string, unknown>;
+  matched?: number;
+  granted?: number;
+  skipped?: number;
+  addTime?: string;
+}
+
+// Body builder — preview travels only when true (a real run simply omits it).
+export const deliverCommand = ({ couponId, preview, ...segment }: CouponDeliverCommand): Record<string, unknown> =>
+  clean({ recencyDays: segment.recencyDays, minFrequency: segment.minFrequency, minMonetary: segment.minMonetary, ...(preview ? { preview: true } : {}) });
+
+// The counts may arrive bare or inside PromotionOperation.data — accept both.
+export const toDeliverResult = (r: unknown): ICouponDeliverResult => {
+  const op = r as (PromotionOperation & ICouponDeliverResult) | undefined;
+  const data = (op?.data ?? {}) as ICouponDeliverResult;
+  if (data.matched != null || data.granted != null || data.skipped != null) return { matched: data.matched, granted: data.granted, skipped: data.skipped };
+  return { matched: op?.matched, granted: op?.granted, skipped: op?.skipped };
+};
+
+// Performance read — bare DTO per the REST-shaped promotion admin surface, but
+// tolerate an envelope/operation wrapper.
+export const toCouponPerformance = (r: unknown): ICouponPerformance => {
+  const raw = (r ?? {}) as Record<string, unknown>;
+  const src = (raw.granted != null || raw.used != null || raw.revenue != null ? raw : (raw.data as Record<string, unknown>)) ?? {};
+  const num = (v: unknown): number | undefined => (v == null ? undefined : Number(v));
+  return {
+    granted: num(src.granted),
+    used: num(src.used),
+    redemptionPct: src.redemptionPct == null ? null : Number(src.redemptionPct),
+    ordersCount: num(src.ordersCount),
+    revenue: num(src.revenue),
+    avgOrderValue: src.avgOrderValue == null ? null : Number(src.avgOrderValue),
+  };
+};
+
+interface CouponDeliveryDto extends Omit<ICouponDelivery, 'id' | 'addTime'> {
+  deliveryId?: number;
+  id?: number;
+  addTime?: unknown;
+}
+
+const toDelivery = (d: CouponDeliveryDto): ICouponDelivery => ({
+  ...d,
+  id: d.id ?? d.deliveryId,
+  addTime: fromServerDateTime(d.addTime),
+});
+
+// Contract: page envelope {list,total,...}; accept a bare array defensively
+// (the older promotion list endpoints return bare arrays).
+export const toDeliveriesPage = (r: unknown): PagedList<ICouponDelivery> => {
+  if (Array.isArray(r)) {
+    const list = r.map(toDelivery);
+    return { list, total: list.length, page: 1, limit: list.length, pages: 1 };
+  }
+  const page = (r ?? {}) as Partial<PagedList<CouponDeliveryDto>>;
+  return {
+    list: (page.list ?? []).map(toDelivery),
+    total: page.total ?? 0,
+    page: page.page ?? 1,
+    limit: page.limit ?? 0,
+    pages: page.pages ?? 0,
+  };
+};
+
 // Wave 18: discountType always travels (0 survives `clean`); the $-cap only
 // makes sense for percent coupons — never send a stale cap with a flat one.
 export const couponCommand = (c: ICoupon) =>
@@ -291,7 +395,7 @@ export const adminPromotionApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Ad', 'Coupon', 'Combination', 'Campaign'],
+  tagTypes: ['Ad', 'Coupon', 'Combination', 'Campaign', 'CouponDelivery', 'CouponPerformance'],
   endpoints: builder => ({
     // ----- Ad (edge-hosted, legacy envelope) ------------------------------
     listAds: builder.query<PagedList<IAd>, AdListParams>({
@@ -345,7 +449,24 @@ export const adminPromotionApi = createApi({
     }),
     grantCoupon: builder.mutation<PromotionOperation, { couponId: number; userId: number }>({
       query: body => ({ url: '/promotion/coupon/grant', method: 'POST', body }),
-      invalidatesTags: ['Coupon'],
+      invalidatesTags: ['Coupon', 'CouponPerformance'],
+    }),
+
+    // ----- Wave 22: RFM-targeted delivery + measurement --------------------
+    // preview:true is a pure count — it must not invalidate anything.
+    deliverCoupon: builder.mutation<PromotionOperation, CouponDeliverCommand>({
+      query: cmd => ({ url: `/promotion/coupon/${cmd.couponId}/deliver`, method: 'POST', body: deliverCommand(cmd) }),
+      invalidatesTags: (result, err, { preview }) => (preview ? [] : ['Coupon', 'CouponDelivery', 'CouponPerformance']),
+    }),
+    getCouponPerformance: builder.query<ICouponPerformance, number | string>({
+      query: couponId => ({ url: `/promotion/coupon/${couponId}/performance` }),
+      transformResponse: toCouponPerformance,
+      providesTags: ['CouponPerformance'],
+    }),
+    listCouponDeliveries: builder.query<PagedList<ICouponDelivery>, PageParams & { couponId: number | string }>({
+      query: ({ couponId, page, limit }) => ({ url: '/promotion/coupon/deliveries', params: { couponId, page, limit } }),
+      transformResponse: toDeliveriesPage,
+      providesTags: ['CouponDelivery'],
     }),
 
     // ----- Combination / group-buy (promotion-service) ---------------------
@@ -460,6 +581,9 @@ export const {
   useUpdateCouponMutation,
   useDeleteCouponMutation,
   useGrantCouponMutation,
+  useDeliverCouponMutation,
+  useGetCouponPerformanceQuery,
+  useListCouponDeliveriesQuery,
   useListCombinationsQuery,
   useReadCombinationQuery,
   useCreateCombinationMutation,
