@@ -47,6 +47,16 @@ public class LitemallCombinationPinkAggregate {
         return LitemallCombinationPinkStatus.PENDING.equals(this.status);
     }
 
+    /**
+     * Wave 21: a FAILED slot no longer occupies a seat. Covers both a whole
+     * failed group and a single slot released while its group was pending
+     * (released slots are marked FAILED — the state machine's only terminal
+     * "out of the group" state; the row stays for audit/idempotency).
+     */
+    public boolean isReleasedOrFailed() {
+        return LitemallCombinationPinkStatus.FAILED.equals(this.status);
+    }
+
     public boolean isExpired(LocalDateTime now) {
         return this.expireTime != null && now.isAfter(this.expireTime);
     }

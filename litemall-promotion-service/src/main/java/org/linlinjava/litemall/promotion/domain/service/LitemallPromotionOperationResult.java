@@ -12,7 +12,7 @@ public class LitemallPromotionOperationResult {
         EXCHANGE_COUPON, RELEASE_COUPON, UPDATE_COUPON, DELETE_COUPON, GRANT_COUPON,
         DEFINE_COMBINATION, ACTIVATE_COMBINATION, EXPIRE_COMBINATION,
         UPDATE_COMBINATION, DELETE_COMBINATION,
-        START_GROUP, JOIN_GROUP,
+        START_GROUP, JOIN_GROUP, ATTACH_GROUP_ORDER, RELEASE_GROUP_SLOT,
         DEFINE_CAMPAIGN, ACTIVATE_CAMPAIGN, EVALUATE_CAMPAIGN,
         COMPLETE_CAMPAIGN, CAMPAIGN_FROM_CATEGORY
     }
@@ -194,6 +194,22 @@ public class LitemallPromotionOperationResult {
 
     public static LitemallPromotionOperationResult groupJoinFailed(String reason) {
         return failed(OperationType.JOIN_GROUP, "Failed to join group: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult groupOrderAttached(Map<String, Object> data) {
+        return success(OperationType.ATTACH_GROUP_ORDER, "Order attached to group slot", data);
+    }
+
+    public static LitemallPromotionOperationResult groupOrderAttachFailed(String reason) {
+        return failed(OperationType.ATTACH_GROUP_ORDER, "Failed to attach order to group slot: " + reason);
+    }
+
+    public static LitemallPromotionOperationResult groupSlotReleased(Map<String, Object> data) {
+        return success(OperationType.RELEASE_GROUP_SLOT, "Group slot released", data);
+    }
+
+    public static LitemallPromotionOperationResult groupSlotReleaseFailed(String reason) {
+        return failed(OperationType.RELEASE_GROUP_SLOT, "Failed to release group slot: " + reason);
     }
 
     // Campaign vertical (algorithmic targeting)

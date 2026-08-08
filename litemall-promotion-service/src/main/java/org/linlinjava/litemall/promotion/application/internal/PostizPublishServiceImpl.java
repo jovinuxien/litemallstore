@@ -59,8 +59,8 @@ public class PostizPublishServiceImpl {
     public static final int ERRNO_UNKNOWN_TARGET = 763;
     /** Wave-20 DIY-page source: page missing / draft / deactivated (goods errno 642 upstream). */
     public static final int ERRNO_PAGE_NOT_ACTIVE = 764;
-    /** Wave-20 gating: groupon-category pages held until Phase-3 priced submit ships. */
-    public static final int ERRNO_PAGE_GROUPON_HELD = 765;
+    // 765 (groupon-page hold) was RETIRED in Wave 21: priced groupon submit
+    // shipped, so groupon-category pages are publishable like any other.
     /** goods-management page read unreachable / unexpected envelope. */
     public static final int ERRNO_PAGE_SOURCE_UNAVAILABLE = 766;
     public static final int ERRNO_BAD_PARAM = 402;
@@ -308,12 +308,6 @@ public class PostizPublishServiceImpl {
             throw new PostizRequestException(ERRNO_PAGE_SOURCE_UNAVAILABLE,
                     "page source unavailable: " + e.getMessage());
         }
-        if ("groupon".equalsIgnoreCase(page.category())) {
-            throw new PostizRequestException(ERRNO_PAGE_GROUPON_HELD,
-                    "group-buy page publishing is held until priced groupon submit ships"
-                            + " (Phase 3) — publish a general or coupon page instead");
-        }
-
         List<ResolvedChannel> channels = resolveChannels(request.channelIds());
         List<String> warnings = new ArrayList<>();
         if (start.isBefore(Instant.now())) {
@@ -337,9 +331,14 @@ public class PostizPublishServiceImpl {
      */
     private String pageContent(PromoPage page) {
         String link = properties.getPublicBaseUrl() + "/page/" + page.id();
-        String line = "coupon".equalsIgnoreCase(page.category())
-                ? "Coupons and savings inside — claim yours before they're gone."
-                : "A hand-picked collection, fresh on Trovemo.";
+        String line;
+        if ("coupon".equalsIgnoreCase(page.category())) {
+            line = "Coupons and savings inside — claim yours before they're gone.";
+        } else if ("groupon".equalsIgnoreCase(page.category())) {
+            line = "Team up, unlock the group price — grab a spot before the group fills.";
+        } else {
+            line = "A hand-picked collection, fresh on Trovemo.";
+        }
         return "<h2>" + escapeHtml(page.name()) + "</h2>"
                 + "<p>" + escapeHtml(line) + "</p>"
                 + "<p><a href=\"" + link + "\">See the page on Trovemo</a></p>";

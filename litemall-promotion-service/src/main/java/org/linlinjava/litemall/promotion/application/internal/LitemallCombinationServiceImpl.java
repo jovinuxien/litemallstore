@@ -33,6 +33,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -248,13 +249,19 @@ public class LitemallCombinationServiceImpl {
             return LitemallPromotionOperationResult.groupJoinFailed("Group has expired");
         }
 
-        List<LitemallCombinationPinkAggregate> slots = pinkRepository.findGroup(leader.getPinkId());
-        boolean alreadyIn = slots.stream().anyMatch(s -> s.isOwnedBy(command.getUserId()));
+        // Wave 21: released slots (status FAILED while the group is pending) no
+        // longer occupy a seat — count and match against ACTIVE slots only, so
+        // a freed seat is joinable again (including by the user who released).
+        List<LitemallCombinationPinkAggregate> activeSlots =
+                pinkRepository.findGroup(leader.getPinkId()).stream()
+                        .filter(s -> !s.isReleasedOrFailed())
+                        .collect(java.util.stream.Collectors.toList());
+        boolean alreadyIn = activeSlots.stream().anyMatch(s -> s.isOwnedBy(command.getUserId()));
         if (alreadyIn) {
             return LitemallPromotionOperationResult.groupJoinFailed("Already a member of this group");
         }
         int required = leader.getRequiredMembers() != null ? leader.getRequiredMembers() : 2;
-        if (slots.size() >= required) {
+        if (activeSlots.size() >= required) {
             return LitemallPromotionOperationResult.groupJoinFailed("Group is already full");
         }
 
@@ -268,7 +275,7 @@ public class LitemallCombinationServiceImpl {
                 .build();
         pinkRepository.add(member);
 
-        int memberCount = slots.size() + 1;
+        int memberCount = activeSlots.size() + 1;
         domainEventPublisher.publish(new LitemallGroupMemberJoinedEvent(
                 leader.getPinkId(), leader.getCombinationId(), command.getUserId(), memberCount));
 
@@ -287,14 +294,16 @@ public class LitemallCombinationServiceImpl {
     }
 
     private void completeGroup(LitemallCombinationPinkAggregate leader, int memberCount) {
+        List<Integer> memberPinkIds = new ArrayList<>();
         for (LitemallCombinationPinkAggregate slot : pinkRepository.findGroup(leader.getPinkId())) {
             if (slot.isPending()) {
                 slot.complete();
                 pinkRepository.update(slot);
+                memberPinkIds.add(slot.getPinkId().getId());
             }
         }
         domainEventPublisher.publish(new LitemallGroupCompletedEvent(
-                leader.getPinkId(), leader.getCombinationId(), memberCount));
+                leader.getPinkId(), leader.getCombinationId(), memberCount, memberPinkIds));
         logger.info("Group {} completed with {} members", leader.getPinkId().getId(), memberCount);
     }
 
@@ -308,15 +317,17 @@ public class LitemallCombinationServiceImpl {
         int failedGroups = 0;
         for (LitemallCombinationPinkAggregate leader : pinkRepository.findExpiredPendingLeaders(now)) {
             int memberCount = 0;
+            List<Integer> memberPinkIds = new ArrayList<>();
             for (LitemallCombinationPinkAggregate slot : pinkRepository.findGroup(leader.getPinkId())) {
                 if (slot.isPending()) {
                     slot.fail();
                     pinkRepository.update(slot);
+                    memberPinkIds.add(slot.getPinkId().getId());
                 }
                 memberCount++;
             }
             domainEventPublisher.publish(new LitemallGroupExpiredEvent(
-                    leader.getPinkId(), leader.getCombinationId(), memberCount));
+                    leader.getPinkId(), leader.getCombinationId(), memberCount, memberPinkIds));
             failedGroups++;
         }
         for (LitemallCombinationAggregate combination : combinationRepository.findActive()) {
@@ -331,6 +342,168 @@ public class LitemallCombinationServiceImpl {
             logger.info("Expiry sweep failed {} overdue group(s)", failedGroups);
         }
         return failedGroups;
+    }
+
+    // =========================================================================
+    // WAVE 21 — ORDER LINKAGE (priced submit follow-ups)
+    // =========================================================================
+
+    /**
+     * Order backfills the buyer's slot with the placed order id (machine token
+     * + forwarded {@code X-User-Id}). CAS semantics: the slot's {@code orderId}
+     * is set only when currently null; re-attaching the SAME order is
+     * idempotent-ok; a DIFFERENT order already attached is a typed conflict.
+     * The check-then-set runs inside this transactional method (the V30 mapper
+     * has no conditional update) — order is the only writer of this field.
+     */
+    public LitemallPromotionOperationResult attachOrder(LitemallCombinationPinkId pinkId,
+                                                        LitemallUserId userId, Integer orderId) {
+        if (orderId == null) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed("orderId is required");
+        }
+        Optional<LitemallCombinationPinkAggregate> slotOpt = pinkRepository.findById(pinkId);
+        if (slotOpt.isEmpty()) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed("Group slot not found");
+        }
+        LitemallCombinationPinkAggregate slot = slotOpt.get();
+
+        if (orderId.equals(slot.getOrderId())) {
+            // Idempotent replay — already linked to this very order.
+            return LitemallPromotionOperationResult.groupOrderAttached(
+                    attachData(slot, false));
+        }
+        if (slot.getOrderId() != null) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed(
+                    "Slot is already attached to order " + slot.getOrderId());
+        }
+        if (userId != null && !slot.isOwnedBy(userId)) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed(
+                    "Slot does not belong to this user");
+        }
+        if (slot.isReleasedOrFailed()) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed(
+                    "Group slot already failed — the group expired or the slot was released");
+        }
+
+        slot.setOrderId(orderId);
+        pinkRepository.update(slot);
+        logger.info("Attached order {} to group slot {}", orderId, pinkId.getId());
+        return LitemallPromotionOperationResult.groupOrderAttached(attachData(slot, true));
+    }
+
+    private Map<String, Object> attachData(LitemallCombinationPinkAggregate slot, boolean attached) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("pinkId", slot.getPinkId().getId());
+        data.put("orderId", slot.getOrderId());
+        data.put("status", slot.getStatus() != null ? slot.getStatus().getDisplayName() : null);
+        data.put("attached", attached);
+        return data;
+    }
+
+    /**
+     * Order frees a slot when its order is cancelled BEFORE the group settles.
+     * Semantics (documented in {@code docs/spec-groupon-priced-submit-contract.md}):
+     * <ul>
+     * <li>Only a PENDING group can release. The released slot is flipped to
+     *     FAILED and stops counting toward the headcount (the seat becomes
+     *     joinable again); the row is kept for audit/idempotency.</li>
+     * <li>Releasing the LEADER slot dissolves the whole group: every still
+     *     pending slot fails and a {@code GROUP_EXPIRED} event is emitted with
+     *     the failed slot ids ({@code memberPinkIds}), so other members' paid
+     *     orders ride the existing order-side auto-cancel/refund listener —
+     *     exactly the expiry-sweep path.</li>
+     * <li>Idempotent: unknown pinkId, or a slot already FAILED whose recorded
+     *     orderId matches (or was never attached), returns ok.</li>
+     * <li>A SUCCESS group (or a still-active slot of an already settled group)
+     *     is a typed "too late" refusal — completed groups are handled by the
+     *     aftersale/refund path, never unwound here.</li>
+     * </ul>
+     */
+    public LitemallPromotionOperationResult releaseSlot(LitemallCombinationPinkId pinkId,
+                                                        LitemallUserId userId, Integer orderId) {
+        Optional<LitemallCombinationPinkAggregate> slotOpt = pinkRepository.findById(pinkId);
+        if (slotOpt.isEmpty()) {
+            // Idempotent: nothing to free.
+            Map<String, Object> data = new HashMap<>();
+            data.put("pinkId", pinkId.getId());
+            data.put("released", false);
+            data.put("alreadyReleased", true);
+            return LitemallPromotionOperationResult.groupSlotReleased(data);
+        }
+        LitemallCombinationPinkAggregate slot = slotOpt.get();
+
+        boolean orderMatches = slot.getOrderId() == null || slot.getOrderId().equals(orderId);
+        if (slot.isReleasedOrFailed()) {
+            if (orderMatches) {
+                // Already released (or the whole group already failed) — moot.
+                Map<String, Object> data = new HashMap<>();
+                data.put("pinkId", pinkId.getId());
+                data.put("released", false);
+                data.put("alreadyReleased", true);
+                return LitemallPromotionOperationResult.groupSlotReleased(data);
+            }
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed(
+                    "Slot is attached to order " + slot.getOrderId() + ", not " + orderId);
+        }
+        if (!orderMatches) {
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed(
+                    "Slot is attached to order " + slot.getOrderId() + ", not " + orderId);
+        }
+        if (userId != null && !slot.isOwnedBy(userId)) {
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed(
+                    "Slot does not belong to this user");
+        }
+
+        LitemallCombinationPinkAggregate leader = slot.isLeader()
+                ? slot
+                : pinkRepository.findById(slot.getHeadId()).orElse(null);
+        if (leader == null || !leader.isPending() || !slot.isPending()) {
+            // Group already settled (Success, or an inconsistent settled state).
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed(
+                    "Too late — the group has already completed or failed");
+        }
+
+        if (slot.isLeader()) {
+            // Leader release dissolves the group: fail every pending slot and
+            // emit GROUP_EXPIRED, the same signal the expiry sweep sends, so
+            // order's listener cancels/refunds the other members' paid orders.
+            int memberCount = 0;
+            List<Integer> memberPinkIds = new ArrayList<>();
+            for (LitemallCombinationPinkAggregate s : pinkRepository.findGroup(leader.getPinkId())) {
+                if (s.isPending()) {
+                    s.fail();
+                    pinkRepository.update(s);
+                    memberPinkIds.add(s.getPinkId().getId());
+                }
+                memberCount++;
+            }
+            domainEventPublisher.publish(new LitemallGroupExpiredEvent(
+                    leader.getPinkId(), leader.getCombinationId(), memberCount, memberPinkIds));
+            logger.info("Leader slot {} released — group dissolved ({} slot(s) failed)",
+                    pinkId.getId(), memberPinkIds.size());
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("pinkId", pinkId.getId());
+            data.put("released", true);
+            data.put("groupDissolved", true);
+            data.put("memberPinkIds", memberPinkIds);
+            return LitemallPromotionOperationResult.groupSlotReleased(data);
+        }
+
+        slot.fail();
+        pinkRepository.update(slot);
+        long remaining = pinkRepository.findGroup(leader.getPinkId()).stream()
+                .filter(s -> !s.isReleasedOrFailed())
+                .count();
+        logger.info("Released member slot {} of group {} ({} active member(s) remain)",
+                pinkId.getId(), leader.getPinkId().getId(), remaining);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("pinkId", pinkId.getId());
+        data.put("released", true);
+        data.put("groupDissolved", false);
+        data.put("memberCount", (int) remaining);
+        return LitemallPromotionOperationResult.groupSlotReleased(data);
     }
 
     // ----- participation read models -----

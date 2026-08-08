@@ -23,6 +23,7 @@ import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallRe
 import org.linlinjava.litemall.promotion.domain.model.commands.coupon.LitemallUpdateCouponCommand;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCombinationId;
 import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCouponId;
+import org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallUserId;
 import org.linlinjava.litemall.promotion.domain.service.LitemallPromotionOperationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -360,6 +361,34 @@ public class LitemallPromotionOrchestratorService {
         } catch (Exception e) {
             logger.error("Error joining group", e);
             return LitemallPromotionOperationResult.groupJoinFailed("System error: " + e.getMessage());
+        }
+    }
+
+    /** Wave 21: order backfills a slot's orderId after placement (CAS). */
+    public LitemallPromotionOperationResult attachGroupOrder(
+            org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCombinationPinkId pinkId,
+            LitemallUserId userId, Integer orderId) {
+        try {
+            return combinationService.attachOrder(pinkId, userId, orderId);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.groupOrderAttachFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error attaching order to group slot", e);
+            return LitemallPromotionOperationResult.groupOrderAttachFailed("System error: " + e.getMessage());
+        }
+    }
+
+    /** Wave 21: order frees a slot after a pre-completion order cancel. */
+    public LitemallPromotionOperationResult releaseGroupSlot(
+            org.linlinjava.litemall.promotion.domain.model.valueobjects.LitemallCombinationPinkId pinkId,
+            LitemallUserId userId, Integer orderId) {
+        try {
+            return combinationService.releaseSlot(pinkId, userId, orderId);
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed(e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error releasing group slot", e);
+            return LitemallPromotionOperationResult.groupSlotReleaseFailed("System error: " + e.getMessage());
         }
     }
 
