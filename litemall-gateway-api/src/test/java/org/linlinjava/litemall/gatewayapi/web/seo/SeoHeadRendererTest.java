@@ -52,6 +52,27 @@ class SeoHeadRendererTest {
     }
 
     @Test
+    @DisplayName("off-sale product carries robots noindex; on-sale never does")
+    void offSaleNoindex() {
+        GoodsMeta offSale = new GoodsMeta("10000553", "Vintage Denim Jacket", "Classic 90s wash denim.",
+                null, "39.99", "USD", false, null, null);
+        assertThat(renderer.renderProduct(offSale).orElseThrow())
+                .contains("<meta name=\"robots\" content=\"noindex\"");
+        assertThat(renderer.renderProduct(meta()).orElseThrow())
+                .doesNotContain("\"robots\"");
+    }
+
+    @Test
+    @DisplayName("noindex shell keeps the template's own title and description")
+    void noindexShell() {
+        String html = renderer.renderNoindex().orElseThrow();
+        assertThat(html).contains("<meta name=\"robots\" content=\"noindex\"");
+        assertThat(html).contains("<title>Trovemo</title>");
+        assertThat(html).contains("<meta name=\"description\" content=\"Trovemo — online store.\"");
+        assertThat(html).contains("<div id=\"root\"></div>");
+    }
+
+    @Test
     @DisplayName("product: OG tags carry an absolute /_cdn image URL")
     void productOpenGraph() {
         String html = renderer.renderProduct(meta()).orElseThrow();

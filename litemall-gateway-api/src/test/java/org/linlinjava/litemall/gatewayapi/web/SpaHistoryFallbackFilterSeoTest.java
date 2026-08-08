@@ -136,6 +136,19 @@ class SpaHistoryFallbackFilterSeoTest {
     }
 
     @Test
+    @DisplayName("search navigation gets a noindex shell without any meta fetch")
+    void searchNoindex() {
+        MockServerWebExchange exchange = navigate("/search?q=dog+toy");
+        filter.filter(exchange, chain).block();
+
+        assertThat(metaSource.queried).isFalse();
+        assertThat(forwarded).isNull();
+        assertThat(exchange.getResponse().getBodyAsString().block())
+                .contains("<meta name=\"robots\" content=\"noindex\"")
+                .contains("<title>Trovemo</title>");
+    }
+
+    @Test
     @DisplayName("category navigation gets a name-driven head")
     void category() {
         metaSource.category = Mono.just("Women's Clothing");
