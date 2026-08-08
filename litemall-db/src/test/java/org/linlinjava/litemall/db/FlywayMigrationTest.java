@@ -37,7 +37,7 @@ public class FlywayMigrationTest {
     // test no longer goes stale every time a script lands. Being a floor it still
     // passes when it drifts, so it only asserts what it is raised to — bump it when
     // you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 46;
+    private static final int MIN_EXPECTED_MIGRATIONS = 54;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -126,6 +126,8 @@ public class FlywayMigrationTest {
             {"litemall_order",        "tax_breakdown"},
             // V45: raw CJ wholesale cost captured at sync (Wave 12)
             {"litemall_cj_product",   "sell_price"},
+            // V55: Postiz ledger DIY-page source (Wave 20)
+            {"litemall_postiz_post",  "page_id"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
