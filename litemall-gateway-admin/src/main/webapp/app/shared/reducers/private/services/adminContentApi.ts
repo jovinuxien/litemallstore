@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 import { getAdminToken } from 'app/shared/reducers/admin-auth';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 
 // RTK Query client for the content subdomain served by litemall-goods-management
 // through the gateway under '/srv/private/admin/*': the article CMS
@@ -141,7 +142,21 @@ const clean = (params: Record<string, unknown>): Record<string, unknown> => {
   return out;
 };
 
-const emptyList = <T>(): ListData<T> => ({ list: [], total: 0 });
+// goods-management serves these endpoints, and its module-wide ObjectMapper
+// (litemall-core JacksonConfig's raw bean) writes LocalDateTime as numeric
+// arrays [y, m, d, h, min, s] — the panels were built against ISO strings.
+// Normalise every timestamp at the API layer so views keep plain-string
+// rendering (same pattern as adminDealApi / insightApi / adminParityApi).
+export const withDates = <T extends { addTime?: string; updateTime?: string }>(row: T): T => ({
+  ...row,
+  addTime: fromServerDateTime((row as Record<string, unknown>).addTime),
+  updateTime: fromServerDateTime((row as Record<string, unknown>).updateTime),
+});
+
+export const listWithDates = <T extends { addTime?: string; updateTime?: string }>(d?: ListData<T>): ListData<T> => ({
+  list: (d?.list ?? []).map(withDates),
+  total: d?.total ?? 0,
+});
 
 export const adminContentApi = createApi({
   reducerPath: 'adminContentApi',
@@ -161,12 +176,12 @@ export const adminContentApi = createApi({
         url: '/article/list',
         params: clean({ page, limit, title, categoryId, status }),
       }),
-      transformResponse: (r: ApiEnvelope<ListData<IArticle>>) => r?.data ?? emptyList<IArticle>(),
+      transformResponse: (r: ApiEnvelope<ListData<IArticle>>) => listWithDates(r?.data),
       providesTags: ['Article'],
     }),
     readArticle: builder.query<IArticle, number | string>({
       query: id => ({ url: '/article/read', params: { id } }),
-      transformResponse: (r: ApiEnvelope<IArticle>) => r?.data ?? {},
+      transformResponse: (r: ApiEnvelope<IArticle>) => (r?.data ? withDates(r.data) : {}),
     }),
     createArticle: builder.mutation<ApiEnvelope<IArticle>, IArticle>({
       query: body => ({ url: '/article/create', method: 'POST', body }),
@@ -185,7 +200,7 @@ export const adminContentApi = createApi({
     // okList shape {list, total}; list rows carry per-category articleCount.
     listArticleCategories: builder.query<IArticleCategory[], void>({
       query: () => ({ url: '/article/category/list' }),
-      transformResponse: (r: ApiEnvelope<ListData<IArticleCategory>>) => r?.data?.list ?? [],
+      transformResponse: (r: ApiEnvelope<ListData<IArticleCategory>>) => (r?.data?.list ?? []).map(withDates),
       providesTags: ['ArticleCategory'],
     }),
     createArticleCategory: builder.mutation<ApiEnvelope<IArticleCategory>, IArticleCategory>({
@@ -208,13 +223,13 @@ export const adminContentApi = createApi({
         url: '/page/list',
         params: clean({ page, limit, position, status }),
       }),
-      transformResponse: (r: ApiEnvelope<ListData<IPageSummary>>) => r?.data ?? emptyList<IPageSummary>(),
+      transformResponse: (r: ApiEnvelope<ListData<IPageSummary>>) => listWithDates(r?.data),
       providesTags: ['Page'],
     }),
     // Any status — this is also the draft preview read (config = parsed object).
     readPage: builder.query<IPageDetail | undefined, number | string>({
       query: id => ({ url: '/page/read', params: { id } }),
-      transformResponse: (r: ApiEnvelope<IPageDetail>) => r?.data,
+      transformResponse: (r: ApiEnvelope<IPageDetail>) => (r?.data ? withDates(r.data) : undefined),
     }),
     // Machine-readable component schema — the editor is generated from THIS.
     getPagePalette: builder.query<IPalette | undefined, void>({

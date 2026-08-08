@@ -2,6 +2,9 @@ import React from 'react';
 
 interface IErrorBoundaryProps {
   readonly children: React.ReactNode;
+  /** When this changes (e.g. route pathname), a caught error is cleared so
+   *  navigating away recovers the app instead of sticking on the fallback. */
+  readonly resetKey?: unknown;
 }
 
 interface IErrorBoundaryState {
@@ -17,6 +20,12 @@ class ErrorBoundary extends React.Component<IErrorBoundaryProps, IErrorBoundaryS
       error,
       errorInfo,
     });
+  }
+
+  componentDidUpdate(prevProps: IErrorBoundaryProps) {
+    if (this.state.errorInfo && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: undefined, errorInfo: undefined });
+    }
   }
 
   render() {
