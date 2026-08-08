@@ -111,6 +111,10 @@ export interface ISearchMeta {
   queryStrategy: string | null;
   relaxed: boolean;
   sortOptions: ISortOption[];
+  // Wave-19: the backend's typed outage state (errno 502 "Search is temporarily
+  // unavailable", or the gateway unreachable). The /search page renders an
+  // honest outage message instead of the generic "no results" empty state.
+  unavailable: boolean;
 }
 
 export const emptyMeta: ISearchMeta = {
@@ -119,6 +123,7 @@ export const emptyMeta: ISearchMeta = {
   queryStrategy: null,
   relaxed: false,
   sortOptions: [],
+  unavailable: false,
 };
 
 interface SearchState extends BaseState<ISearchResult> {

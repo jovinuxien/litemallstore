@@ -121,6 +121,25 @@
     font-size: 11px;
     padding: 1px 7px;
   }
+
+  // ToggleRefinement — the Wave-19 "Has coupon" switch; same checkbox-row look
+  // as a RefinementList entry.
+  .ais-ToggleRefinement-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .ais-ToggleRefinement-count {
+    margin-left: auto;
+    background: var(--lm-primary-soft);
+    color: var(--lm-primary-dark);
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 1px 7px;
+  }
+
   .ais-RefinementList-showMore,
   .ais-ClearRefinements-button,
   .ais-RangeInput-submit {

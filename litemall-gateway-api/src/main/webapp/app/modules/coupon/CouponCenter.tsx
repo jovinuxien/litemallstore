@@ -78,6 +78,11 @@ const CouponCenter: React.FC = () => {
           isAuthenticated ? (
             <>
               Claim a coupon below, then pick it at checkout. <Link to='/user/coupons'>View my coupons</Link>
+              {' · '}
+              {/* Wave-19: search preset — the coupon_flag=1 deep-link filters to
+                  products an active claimable coupon covers (searchRouting maps
+                  it onto the "Has coupon" toggle). */}
+              <Link to='/search?coupon_flag=1'>Find couponed products</Link>
             </>
           ) : (
             <>
@@ -85,7 +90,7 @@ const CouponCenter: React.FC = () => {
               <Link to='/login' state={{ from: { pathname: '/coupons' } }}>
                 Sign in
               </Link>{' '}
-              to claim.
+              to claim. <Link to='/search?coupon_flag=1'>Find couponed products</Link>
             </>
           )
         }
