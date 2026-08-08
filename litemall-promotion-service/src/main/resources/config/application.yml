@@ -53,6 +53,11 @@ litemall:
     # create/update FAILS CLOSED.
     coupon:
       margin-floor: ${LITEMALL_PROMOTION_COUPON_MARGIN_FLOOR:1.05}
+      # Wave 22 targeted delivery: hard cap on one deliver-to-segment sweep.
+      # A segment matching more users is a typed refusal (errno 772) asking the
+      # admin to narrow the criteria — never a silent truncation.
+      delivery:
+        max-audience: ${LITEMALL_PROMOTION_COUPON_DELIVERY_MAX_AUDIENCE:10000}
     # Wave 2 group-buy participation ("pink") tuning: how long a group has to
     # fill (capped at the campaign end) and how often the expiry sweep runs.
     # Profile-overridable via the config server.

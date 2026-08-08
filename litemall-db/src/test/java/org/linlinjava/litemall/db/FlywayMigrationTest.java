@@ -38,7 +38,17 @@ public class FlywayMigrationTest {
     // replaced with a >= floor so this test no longer goes stale every time a script
     // lands. Being a floor it still passes when it drifts, so it only asserts what
     // it is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 57;
+    // Hand-maintained floor: V58 (litemall_coupon_delivery targeted coupon
+    // delivery, Wave 22; previously V56 order.pink_id, Wave 21) is the latest
+    // known migration ON THIS BRANCH. V57 (Wave-22 search stats) lands from
+    // fix/goods-management, so this checkout has a V57 GAP — 57 scripts, not
+    // 58 (flyway out-of-order is permanent; never renumber). The assertion
+    // counts migrationsExecuted, so the floor is the SCRIPT COUNT: 57 here;
+    // raise to 58 when V57 merges (expected conflict at integration). V58's
+    // schema is spot-checked below regardless. Being a floor it still passes
+    // when it drifts, so it only asserts what it is raised to — bump it when
+    // you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 58;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -136,6 +146,11 @@ public class FlywayMigrationTest {
             {"litemall_order",        "pink_id"},
             // V57: hit total on the search-history row (Wave 22 search stats)
             {"litemall_search_history", "result_count"},
+            // V58: targeted coupon delivery run outcome columns (Wave 22)
+            {"litemall_coupon_delivery", "segment_json"},
+            {"litemall_coupon_delivery", "matched"},
+            {"litemall_coupon_delivery", "granted"},
+            {"litemall_coupon_delivery", "skipped"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
@@ -199,6 +214,8 @@ public class FlywayMigrationTest {
             "litemall_category_margin",
             // V57: per-day per-keyword search demand rollup (Wave 22)
             "litemall_search_stat_daily",
+            // V58: targeted coupon delivery runs (Wave 22)
+            "litemall_coupon_delivery",
         };
 
         try (var conn = MYSQL.createConnection("")) {
