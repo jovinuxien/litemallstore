@@ -84,6 +84,15 @@ public final class PublicPaths {
             "/srv/groupon/list",
             "/srv/promotion/seckill/active",
             "/srv/promotion/combination",
+            // Wave-21 group-buy reads: the PDP strip and the shareable
+            // /groupon/:id landing must work logged-out. The parent entry above
+            // is an exact PathPattern match (legacy list) — it does NOT cover
+            // these children, and the miss sent every anonymous PDP visit to
+            // /login via the SPA's 401 hook. GET /my stays authenticated (it
+            // reads X-User-Id), which is why this is not a blanket /**.
+            "/srv/promotion/combination/active",
+            "/srv/promotion/combination/{combinationId:\\d+}",
+            "/srv/promotion/combination/pink/{pinkId:\\d+}",
     };
 
     /**

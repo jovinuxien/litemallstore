@@ -49,7 +49,11 @@ baseAxios.interceptors.response.use(
     return response;
   },
   error => {
-    if (error?.response?.status === 401) {
+    // Only an EXPIRED session redirects to /login. An anonymous visitor has no
+    // session to expire — a 401 then just means the caller hit an
+    // authenticated endpoint (e.g. a public-path gap at the edge) and must
+    // fail soft in place, never bounce the shopper off the page.
+    if (error?.response?.status === 401 && sessionStorage.getItem('customerToken')) {
       expireSession();
     }
     return Promise.reject(error);
