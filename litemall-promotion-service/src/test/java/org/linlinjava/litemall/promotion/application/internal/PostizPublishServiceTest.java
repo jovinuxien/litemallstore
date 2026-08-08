@@ -402,19 +402,24 @@ class PostizPublishServiceTest {
         assertEquals("scheduled", repo.rows.get(0).getStatus());
     }
 
+    /** Wave 21: the 765 groupon-page hold is retired — pages compose + publish. */
     @Test
-    void grouponPageRefusedTyped() {
+    void grouponPageComposesWithGroupBuyLine() {
         pagePort.pages.put(9, page(9, "Rally", "groupon",
                 component("banner", Map.of("imageUrl", "/_cdn/cf/rally.jpg"))));
 
-        PostizRequestException e = assertThrows(PostizRequestException.class,
-                () -> service.previewPage(pageRequest(9)));
-        assertEquals(765, e.getErrno());
-        assertTrue(e.getMessage().contains("Phase 3"), e.getMessage());
-        assertEquals(765, assertThrows(PostizRequestException.class,
-                () -> service.publishPage(pageRequest(9), "admin")).getErrno());
+        PagePreview preview = service.previewPage(pageRequest(9));
+        assertEquals("https://trovemo.com/_cdn/cf/rally.jpg", preview.picUrl());
+        String content = preview.perChannel().get(0).content();
+        assertTrue(content.contains("group price"), content);
+        assertTrue(content.contains("https://trovemo.com/page/9"), content);
         assertTrue(port.calls.isEmpty());
         assertTrue(repo.rows.isEmpty());
+
+        PageResult result = service.publishPage(pageRequest(9), "admin");
+        assertTrue(result.channels().get(0).ok());
+        assertEquals(1, port.calls.size());
+        assertEquals("scheduled", repo.rows.get(0).getStatus());
     }
 
     @Test
