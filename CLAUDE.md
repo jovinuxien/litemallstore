@@ -757,6 +757,47 @@
 > Coupon roadmap remaining: Wave 22 = Phase 4 (RFM targeting + analytics
 > loop) — not yet commissioned.**
 >
+> **Wave 22 (2026-08-08) — TARGETED DELIVERY & DEMAND ANALYTICS (coupon
+> roadmap Phase 4, the final commissioned phase).** Close the loop: deliver
+> coupons to RFM segments, learn what search demand wants, measure what
+> converts. Flyway: **V57** (goods-management) + **V58** (promotion); prod
+> applied through V56 — check history before first boot.
+> **Wave-22 CONTRACT:**
+> - **goods-management (search analytics):** V57 `litemall_search_stat_daily`
+>   (day, keyword, searches, zero_results, clicks, unique KEY day+keyword) —
+>   filled by a nightly rollup task (kill-switch litemall.search-stats.*)
+>   joining litemall_search_history AND the Phase-0 behavioral log
+>   (litemall_user_event `search` + `click_result` events; consent-ramped,
+>   read-only). SearchService starts recording result_count into the history
+>   write path (V57 adds the column) so zero-result queries stop being
+>   log-only. Insight endpoints: `GET /insight/search-stats?days=7|30` →
+>   {topQueries:[{keyword, searches, zeroResults, clicks, ctrPct}],
+>   zeroResultQueries:[...], totals}; `POST /insight/search-stats/
+>   trending/refresh` → recompute the hot-keyword set from real demand (top
+>   N by searches, N configurable, curated defaults PRESERVED — additive,
+>   never deletes admin keywords; same behavior nightly after the rollup).
+> - **promotion (RFM delivery + measurement):** V58
+>   `litemall_coupon_delivery` (coupon_id, segment_json, matched, granted,
+>   skipped, add_time). `POST /srv/private/admin/promotion/coupon/
+>   {couponId}/deliver` body {recencyDays?, minFrequency?, minMonetary?,
+>   preview?} — computes the matching user set from the EXISTING RFM seam
+>   (or a read-only shared-table query over litemall_order paid orders when
+>   the seam lacks a bulk segment query); preview:true = counts only, zero
+>   side effects; else grants via the EXISTING coupon grant path (idempotent
+>   per user via the claim limit; expired/inactive coupon = typed refusal;
+>   margin guard NOT re-run — the coupon was already guarded at create).
+>   `GET .../coupon/{couponId}/performance` → {granted, used, redemptionPct,
+>   ordersCount, revenue, avgOrderValue} read-only over litemall_coupon_user
+>   + litemall_order. `GET .../coupon/deliveries?couponId=` → history page.
+> - **gateway-admin:** Search-analytics panel (Insight group: top/zero-result
+>   query tables w/ CTR, totals, a "Refresh trending" button); CouponList/
+>   detail gains "Deliver to segment" dialog (RFM inputs → Preview count →
+>   Deliver; results + typed refusals verbatim) + a performance card +
+>   deliveries history. NO gateway-api work (trending flows through the
+>   existing /srv/search/index path).
+> - errno envelope; money plain decimals; consent data stays aggregate-only
+>   (no per-visitor drill-down in admin — privacy posture).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
