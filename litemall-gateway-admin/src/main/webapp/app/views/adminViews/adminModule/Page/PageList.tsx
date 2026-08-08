@@ -1,14 +1,16 @@
 import {
   IPageSummary,
   useActivatePageMutation,
+  useClonePageMutation,
   useDeactivatePageMutation,
   useDeletePageMutation,
   useListPagesQuery,
 } from 'app/shared/reducers/private/services/adminContentApi';
 import { fromServerDateTime } from 'app/shared/util/server-datetime';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { categoryLabel, categoryTag, clonedPageId } from './pageFormat';
 import * as React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 // DIY page list — position (home/custom) and status (draft/active) badges,
 // edit / activate / deactivate / delete. Activating a HOME-position page is a
@@ -16,6 +18,10 @@ import { Link } from 'react-router-dom';
 // the same transaction, so the confirm dialog spells that out. A lost
 // concurrent-activation race and a delete of the active home both come back
 // as errno 641 — the errmsg is surfaced inline verbatim.
+// Wave 20 adds category (general/coupon/groupon) + template filters and the
+// clone endpoint: "Use template" on a template row (and "Duplicate" on a
+// regular row) both POST /page/{id}/clone — the copy is always a DRAFT named
+// "Copy of …" with position custom and the source category inherited.
 // Contract: litemall-goods-management/docs/spec-page-palette-v1.md §5–§6.
 
 // Tolerates the raw array shape too — a data-shape surprise must never throw
@@ -31,27 +37,33 @@ const activateConfirmText = (p: IPageSummary): string =>
     : `Activate "${p.name}"?\n\nThe page becomes reachable by customers at its page URL.`;
 
 const PageList: React.FC = () => {
+  const navigate = useNavigate();
   const [page, setPage] = React.useState(1);
   const [limit, setLimit] = React.useState(20);
   const [position, setPosition] = React.useState('');
   const [status, setStatus] = React.useState('');
+  const [category, setCategory] = React.useState('');
+  const [templatesOnly, setTemplatesOnly] = React.useState(false);
 
   const { data, isLoading, isFetching, isError, error } = useListPagesQuery({
     page,
     limit,
     position: position as '' | 'home' | 'custom',
     status: status as '' | 'draft' | 'active',
+    category: category as '' | 'general' | 'coupon' | 'groupon',
+    template: templatesOnly ? 1 : undefined,
   });
   const [activatePage, { isLoading: activating }] = useActivatePageMutation();
   const [deactivatePage, { isLoading: deactivating }] = useDeactivatePageMutation();
   const [deletePage, { isLoading: deleting }] = useDeletePageMutation();
+  const [clonePage, { isLoading: cloning }] = useClonePageMutation();
   const [actionError, setActionError] = React.useState<string | null>(null);
 
   const list = data?.list ?? [];
   const total = data?.total ?? 0;
   const pages = limit > 0 ? Math.ceil(total / limit) : 0;
   const errStatus = (error as { status?: number | string })?.status;
-  const busy = activating || deactivating || deleting;
+  const busy = activating || deactivating || deleting || cloning;
 
   // 641 = lost a concurrent home-activation race — surface errmsg verbatim.
   const onActivate = async (p: IPageSummary) => {
@@ -81,6 +93,24 @@ const PageList: React.FC = () => {
     const res = await deletePage({ id: p.id });
     const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
     if (msg) setActionError(msg);
+  };
+
+  // Clone = "Use template" (template rows, jumps into the editor on the copy)
+  // and "Duplicate" (regular rows, the copy appears in the refreshed list).
+  const onClone = async (p: IPageSummary, openEditor: boolean) => {
+    setActionError(null);
+    const res = await clonePage({ id: p.id });
+    if (!('data' in res)) {
+      setActionError('Request failed.');
+      return;
+    }
+    const msg = errnoMessage(res.data);
+    if (msg) {
+      setActionError(msg);
+      return;
+    }
+    const newId = clonedPageId(res.data);
+    if (openEditor && newId != null) navigate(`/admin/mall/page/${newId}`);
   };
 
   return (
@@ -116,6 +146,36 @@ const PageList: React.FC = () => {
         </select>
         <select
           className='form-select filter-item'
+          style={{ width: 160 }}
+          value={category}
+          onChange={e => {
+            setPage(1);
+            setCategory(e.target.value);
+          }}
+          aria-label='Category'
+        >
+          <option value=''>All categories</option>
+          <option value='general'>General</option>
+          <option value='coupon'>Coupon</option>
+          <option value='groupon'>Groupon</option>
+        </select>
+        <div className='form-check filter-item' style={{ paddingTop: 6 }}>
+          <input
+            id='page-templates-only'
+            className='form-check-input'
+            type='checkbox'
+            checked={templatesOnly}
+            onChange={e => {
+              setPage(1);
+              setTemplatesOnly(e.target.checked);
+            }}
+          />
+          <label className='form-check-label' htmlFor='page-templates-only'>
+            Templates
+          </label>
+        </div>
+        <select
+          className='form-select filter-item'
           style={{ width: 120 }}
           value={limit}
           onChange={e => {
@@ -133,6 +193,19 @@ const PageList: React.FC = () => {
         <Link className='btn btn-success filter-item' to='/admin/mall/page/create'>
           + New page
         </Link>
+        {!templatesOnly && (
+          <button
+            type='button'
+            className='btn btn-outline-success filter-item'
+            title='Show the seeded template pages — "Use template" clones one into a fresh draft'
+            onClick={() => {
+              setPage(1);
+              setTemplatesOnly(true);
+            }}
+          >
+            New from template…
+          </button>
+        )}
         {isFetching && <Spinner />}
       </form>
 
@@ -143,6 +216,7 @@ const PageList: React.FC = () => {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Category</th>
             <th>Position</th>
             <th>Status</th>
             <th>Updated</th>
@@ -152,14 +226,14 @@ const PageList: React.FC = () => {
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={5} className='text-center p-5'>
+              <td colSpan={6} className='text-center p-5'>
                 <span className='spinner-border text-primary' role='status' />
               </td>
             </tr>
           ) : list.length === 0 ? (
             <tr>
-              <td colSpan={5} className='text-center text-muted py-5'>
-                No pages yet. Create one to replace the legacy home page.
+              <td colSpan={6} className='text-center text-muted py-5'>
+                {templatesOnly ? 'No template pages match the current filters.' : 'No pages yet. Create one to replace the legacy home page.'}
               </td>
             </tr>
           ) : (
@@ -167,6 +241,14 @@ const PageList: React.FC = () => {
               <tr key={p.id}>
                 <td>
                   <Link to={`/admin/mall/page/${p.id}`}>{p.name || `#${p.id}`}</Link>
+                  {p.isTemplate && (
+                    <span className='ms-2'>
+                      <Tag tag='primary'>Template</Tag>
+                    </span>
+                  )}
+                </td>
+                <td>
+                  <Tag tag={categoryTag(p.category)}>{categoryLabel(p.category)}</Tag>
                 </td>
                 <td>{p.position === 'home' ? <Tag tag='primary'>home</Tag> : <Tag tag='info'>custom</Tag>}</td>
                 <td>{p.status === 'active' ? <Tag tag='success'>active</Tag> : <Tag tag='warning'>draft</Tag>}</td>
@@ -175,6 +257,25 @@ const PageList: React.FC = () => {
                   <Link to={`/admin/mall/page/${p.id}`} className='btn btn-sm btn-outline-primary me-1'>
                     Edit
                   </Link>
+                  {p.isTemplate ? (
+                    <button
+                      className='btn btn-sm btn-success me-1'
+                      disabled={busy}
+                      title='Clone this template into a fresh draft and open it in the editor'
+                      onClick={() => onClone(p, true)}
+                    >
+                      Use template
+                    </button>
+                  ) : (
+                    <button
+                      className='btn btn-sm btn-outline-secondary me-1'
+                      disabled={busy}
+                      title='Clone this page into a fresh draft ("Copy of …")'
+                      onClick={() => onClone(p, false)}
+                    >
+                      Duplicate
+                    </button>
+                  )}
                   {p.status === 'draft' ? (
                     <button className='btn btn-sm btn-outline-success me-1' disabled={busy} onClick={() => onActivate(p)}>
                       Activate
