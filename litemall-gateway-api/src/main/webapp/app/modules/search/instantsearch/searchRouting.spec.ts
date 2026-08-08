@@ -64,3 +64,57 @@ describe('searchRouting coupon_flag toggle mapping', () => {
     expect(roundTripped.page).toBe(3);
   });
 });
+
+/**
+ * Wave-21: the "Group buy" toggle (groupon_flag=1) mirrors the coupon_flag
+ * mapping exactly — `/search?groupon_flag=1` is a shareable deep-link.
+ */
+describe('searchRouting groupon_flag toggle mapping', () => {
+  const { stateToRoute, routeToState } = searchRouting.stateMapping;
+
+  it('serialises the toggled groupon_flag facet as groupon_flag=1', () => {
+    const route = stateToRoute({
+      [PRIMARY_INDEX]: {
+        query: 'lamp',
+        toggle: { groupon_flag: true },
+      },
+    } as any);
+    expect(route.q).toBe('lamp');
+    expect(route.groupon_flag).toBe('1');
+  });
+
+  it('omits groupon_flag from the route when the toggle is off', () => {
+    const route = stateToRoute({
+      [PRIMARY_INDEX]: {
+        toggle: { groupon_flag: false },
+      },
+    } as any);
+    expect(route.groupon_flag).toBeUndefined();
+  });
+
+  it('parses ?groupon_flag=1 into the toggle uiState slice (not refinementList)', () => {
+    const state = routeToState({ q: 'lamp', groupon_flag: '1' })[PRIMARY_INDEX] as any;
+    expect(state.toggle).toEqual({ groupon_flag: true });
+    expect(state.refinementList).toBeUndefined();
+  });
+
+  it('ignores a non-"1" groupon_flag value', () => {
+    const state = routeToState({ groupon_flag: '0' })[PRIMARY_INDEX] as any;
+    expect(state.toggle).toBeUndefined();
+    expect(state.refinementList).toBeUndefined();
+  });
+
+  it('round-trips both offer toggles together', () => {
+    const uiState = {
+      [PRIMARY_INDEX]: {
+        query: 'desk',
+        toggle: { coupon_flag: true, groupon_flag: true },
+      },
+    } as any;
+    const route = stateToRoute(uiState);
+    expect(route.coupon_flag).toBe('1');
+    expect(route.groupon_flag).toBe('1');
+    const roundTripped = routeToState(route)[PRIMARY_INDEX] as any;
+    expect(roundTripped.toggle).toEqual({ coupon_flag: true, groupon_flag: true });
+  });
+});

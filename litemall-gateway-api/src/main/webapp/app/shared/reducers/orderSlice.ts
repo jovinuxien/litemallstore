@@ -79,6 +79,14 @@ export interface PlaceOrderParams {
   storeId?: number;
   pickupName?: string;
   pickupMobile?: string;
+  /**
+   * Wave-21 group-buy: the buyer's OWN combination slot id
+   * (spec-groupon-priced-submit-contract.md). When present the order service
+   * validates the slot (owner, live status, no order attached) and prices the
+   * campaign line at the GROUP price — a stale/expired slot is rejected with a
+   * typed message, never silently re-priced. Omitted ⇒ byte-identical submit.
+   */
+  pinkId?: number;
 }
 
 export interface PlacedOrder {
@@ -252,7 +260,7 @@ export const previewCheckoutTotals = async (
  */
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
-  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, cjLogisticName, deliveryType, storeId, pickupName, pickupMobile }, thunkApi) => {
+  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, cjLogisticName, deliveryType, storeId, pickupName, pickupMobile, pinkId }, thunkApi) => {
     if (!isSignedIn()) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
     }
@@ -278,6 +286,7 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
       if (addressId != null) submitBody.addressId = addressId; // else order service uses the default
       if (countryCode) submitBody.countryCode = countryCode; // CJ placement needs it at pay time
       if (cjLogisticName) submitBody.cjLogisticName = cjLogisticName; // V52 carrier pick, optional
+      if (pinkId != null) submitBody.pinkId = pinkId; // Wave-21 group-buy slot — group price applied server-side
       // Pickup (Wave 4, assumed contract — only sent when the customer chose
       // pickup, so express submits are byte-identical to today's).
       if (deliveryType === 'pickup') {

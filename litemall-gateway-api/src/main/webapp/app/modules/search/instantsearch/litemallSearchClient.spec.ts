@@ -116,3 +116,50 @@ describe('litemallSearchClient coupon_flag wiring', () => {
     expect(store.getState().search.meta.unavailable).toBe(false);
   });
 });
+
+/**
+ * Wave-21: the "Group buy" toggle emits `groupon_flag:1` and rides the SAME
+ * generic facet-filter → flat-param mapping and hit passthrough as
+ * coupon_flag — these tests pin that contract for the new field.
+ */
+describe('litemallSearchClient groupon_flag wiring', () => {
+  beforeEach(() => {
+    mockedGet.mockReset();
+  });
+
+  it('maps the groupon_flag:1 facet filter onto the groupon_flag=1 request param', async () => {
+    mockedGet.mockResolvedValue(okBody());
+    await search({ query: 'lamp', facetFilters: [['groupon_flag:1']], hitsPerPage: 12, page: 0 });
+    const qs = lastRequestParams();
+    expect(qs.get('q')).toBe('lamp');
+    expect(qs.get('groupon_flag')).toBe('1');
+  });
+
+  it('keeps groupon_flag alongside coupon_flag and other facet filters', async () => {
+    mockedGet.mockResolvedValue(okBody());
+    await search({
+      query: '',
+      facetFilters: [['groupon_flag:1'], ['coupon_flag:1'], ['brand:Acme']],
+      hitsPerPage: 12,
+      page: 0,
+    });
+    const qs = lastRequestParams();
+    expect(qs.get('groupon_flag')).toBe('1');
+    expect(qs.get('coupon_flag')).toBe('1');
+    expect(qs.get('brand')).toBe('Acme');
+  });
+
+  it('passes the numeric groupon_flag hit source field through to the hits', async () => {
+    mockedGet.mockResolvedValue(
+      okBody([
+        { id: 10008302, name: 'Groupable', groupon_flag: 1 },
+        { id: 10008303, name: 'Plain', groupon_flag: 0 },
+      ])
+    );
+    const result = await search({ query: '', hitsPerPage: 12, page: 0 });
+    expect(result.hits).toHaveLength(2);
+    expect(result.hits[0].groupon_flag).toBe(1);
+    expect(result.hits[0].objectID).toBe('10008302');
+    expect(result.hits[1].groupon_flag).toBe(0);
+  });
+});
