@@ -154,6 +154,54 @@ class SeoHeadRendererTest {
     }
 
     @Test
+    @DisplayName("page (Wave 20): name title, canonical, og:type website + og:site_name")
+    void pageBasics() {
+        String html = renderer.renderPage(new PageMeta("42", "Coupon spotlight", null)).orElseThrow();
+        assertThat(html).contains("<title>Coupon spotlight | Trovemo</title>");
+        assertThat(html).contains("<link rel=\"canonical\" href=\"https://trovemo.com/page/42\"");
+        assertThat(html).contains("<meta property=\"og:type\" content=\"website\"");
+        assertThat(html).contains("<meta property=\"og:site_name\" content=\"Trovemo\"");
+        assertThat(html).contains("<meta property=\"og:title\" content=\"Coupon spotlight\"");
+        assertThat(html).contains("<meta property=\"og:url\" content=\"https://trovemo.com/page/42\"");
+        // No image ⇒ no og:image; the shell's own description is kept, and the
+        // bundle/body are untouched (identical HTML for bots and humans).
+        assertThat(html).doesNotContain("og:image");
+        assertThat(html).contains("<meta name=\"description\" content=\"Trovemo — online store.\"");
+        assertThat(html).contains("<script defer src=\"/app/main.abc123.js\"></script>");
+        assertThat(html).contains("<div id=\"root\"></div>");
+        // Replaced title, never duplicated.
+        assertThat(html.split("<title>", -1)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("page: relative /_cdn hero image is absolutized against the public base URL")
+    void pageRelativeCdnImage() {
+        String html = renderer.renderPage(new PageMeta("7", "Group-buy rally", "/_cdn/oss/pic/hero.jpg"))
+                .orElseThrow();
+        assertThat(html).contains(
+                "<meta property=\"og:image\" content=\"https://trovemo.com/_cdn/oss/pic/hero.jpg\"");
+        assertThat(html).contains("<meta name=\"twitter:card\" content=\"summary_large_image\"");
+    }
+
+    @Test
+    @DisplayName("page: CJ-hosted image is swapped to /_cdn and anchored, like products")
+    void pageCjImage() {
+        String html = renderer.renderPage(
+                new PageMeta("7", "Group-buy rally", "https://cf.cjdropshipping.com/pic/abc.jpg")).orElseThrow();
+        assertThat(html).contains(
+                "<meta property=\"og:image\" content=\"https://trovemo.com/_cdn/cf/pic/abc.jpg\"");
+        assertThat(html).doesNotContain("cf.cjdropshipping.com");
+    }
+
+    @Test
+    @DisplayName("page: hostile names are escaped in the head")
+    void pageEscaping() {
+        String html = renderer.renderPage(new PageMeta("9", "\"Deals\" & <Steals>", null)).orElseThrow();
+        assertThat(html).contains("<meta property=\"og:title\" content=\"&quot;Deals&quot; &amp; &lt;Steals&gt;\"");
+        assertThat(html).doesNotContain("content=\"\"Deals\"");
+    }
+
+    @Test
     @DisplayName("absent template (unbuilt webapp tree) ⇒ unavailable, renders empty")
     void templateMissing() {
         SeoHeadRenderer unbuilt = new SeoHeadRenderer("https://trovemo.com", () -> {

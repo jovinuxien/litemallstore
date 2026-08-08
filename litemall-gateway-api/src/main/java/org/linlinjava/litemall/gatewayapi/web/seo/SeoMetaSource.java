@@ -16,4 +16,6 @@ public interface SeoMetaSource {
     Mono<GoodsMeta> goodsMeta(String goodsId);
 
     Mono<String> categoryName(String categoryId);
+
+    Mono<PageMeta> pageMeta(String pageId);
 }
