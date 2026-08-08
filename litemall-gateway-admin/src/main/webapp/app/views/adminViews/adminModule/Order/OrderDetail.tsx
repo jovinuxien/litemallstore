@@ -1,14 +1,18 @@
-import { orderStatusInfo } from 'app/shared/model/admin/order.model';
+import { cjPlacementState, orderStatusInfo } from 'app/shared/model/admin/order.model';
 import { useReadOrderQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
 import {
+  ICjApprovalStamp,
   ITracking,
   orderOpMessage,
+  toApprovalStamp,
+  useApproveCjPlacementMutation,
   useGetFulfillmentConfigQuery,
   useGetTrackingQuery,
   useMarkOrderPaidMutation,
   usePrintReceiptMutation,
 } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { money } from 'app/shared/util/money';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 import { Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -118,9 +122,14 @@ const OrderDetail: React.FC = () => {
   const { data: fulfillment } = useGetFulfillmentConfigQuery();
   const [markPaid, { isLoading: paying }] = useMarkOrderPaidMutation();
   const [printReceipt, { isLoading: printing }] = usePrintReceiptMutation();
+  const [approvePlacement, { isLoading: approving }] = useApproveCjPlacementMutation();
 
   const [payOpen, setPayOpen] = React.useState(false);
   const [payReference, setPayReference] = React.useState('');
+  const [approveOpen, setApproveOpen] = React.useState(false);
+  // Stamp from a just-confirmed approval — keeps the UI honest even before
+  // the refetched detail payload projects the V59 columns.
+  const [localStamp, setLocalStamp] = React.useState<ICjApprovalStamp | null>(null);
   const [actionMsg, setActionMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
 
   if (isLoading) {
@@ -153,6 +162,18 @@ const OrderDetail: React.FC = () => {
   const isCj = order.source === 'cj';
   const printerDisabled = fulfillment?.available === true && fulfillment.printerEnabled === false;
 
+  // Wave-23 manual CJ placement: paid CJ orders wait for admin approval; the
+  // sweep places them on its next tick — never claim "placed" until
+  // cjOrderId exists. A just-confirmed approval (localStamp) flips the state
+  // even if the refetched payload doesn't project the stamp columns yet.
+  const basePlacement = cjPlacementState(order);
+  const placement = basePlacement === 'awaiting-approval' && localStamp ? 'approved-awaiting-placement' : basePlacement;
+  const approvalStamp: ICjApprovalStamp | null =
+    localStamp ??
+    (order.cjPlacementApprovedTime != null && order.cjPlacementApprovedTime !== ''
+      ? { approvedBy: order.cjPlacementApprovedBy, approvedTime: fromServerDateTime(order.cjPlacementApprovedTime) }
+      : null);
+
   // Pickup block (deliveryType === 'pickup'): store name comes from an
   // explicit field or the "PICKUP: <name>" address convention, else storeId.
   const isPickup = order.deliveryType === 'pickup';
@@ -168,6 +189,23 @@ const OrderDetail: React.FC = () => {
       setActionMsg({ ok: true, text: `Order ${order.orderSn || `#${order.id}`} marked paid (offline).` });
       setPayOpen(false);
       setPayReference('');
+      refetch();
+    }
+  };
+
+  const onConfirmApprove = async () => {
+    setActionMsg(null);
+    const res = await approvePlacement(id as string);
+    const msg = orderOpMessage(res);
+    if (msg) {
+      setActionMsg({ ok: false, text: msg });
+    } else {
+      setLocalStamp(toApprovalStamp(res));
+      setActionMsg({
+        ok: true,
+        text: `Order ${order.orderSn || `#${order.id}`} approved for CJ fulfilment — the placement sweep will submit it on its next tick.`,
+      });
+      setApproveOpen(false);
       refetch();
     }
   };
@@ -197,6 +235,16 @@ const OrderDetail: React.FC = () => {
               <Tag tag='warning'>CJ dropship{order.cjOrderNum ? ` · ${order.cjOrderNum}` : ''}</Tag>
             </span>
           )}
+          {placement === 'awaiting-approval' && (
+            <span className='ms-2'>
+              <Tag tag='danger'>Pending CJ approval</Tag>
+            </span>
+          )}
+          {placement === 'approved-awaiting-placement' && (
+            <span className='ms-2'>
+              <Tag tag='info'>Approved — awaiting CJ placement</Tag>
+            </span>
+          )}
           {isPickup && (
             <span className='ms-2'>
               <Tag tag='info'>Pickup</Tag>
@@ -204,6 +252,11 @@ const OrderDetail: React.FC = () => {
           )}
         </h4>
         <div>
+          {placement === 'awaiting-approval' && (
+            <button className='btn btn-warning btn-sm me-2' disabled={approving || approveOpen} onClick={() => setApproveOpen(true)}>
+              Approve for CJ fulfilment
+            </button>
+          )}
           {isUnpaid && (
             <button className='btn btn-outline-success btn-sm me-2' disabled={paying || payOpen} onClick={() => setPayOpen(true)}>
               Mark paid (offline)
@@ -224,6 +277,36 @@ const OrderDetail: React.FC = () => {
       </div>
 
       {actionMsg && <div className={`alert ${actionMsg.ok ? 'alert-success' : 'alert-danger'}`}>{actionMsg.text}</div>}
+
+      {approvalStamp && placement !== 'awaiting-approval' && (
+        <div className='text-muted small mb-2'>
+          Approved for CJ fulfilment
+          {approvalStamp.approvedBy ? ` by ${approvalStamp.approvedBy}` : ''}
+          {approvalStamp.approvedTime ? ` at ${approvalStamp.approvedTime.replace('T', ' ')}` : ''}.
+          {placement === 'approved-awaiting-placement' && ' Not yet placed at CJ — the placement sweep submits it on its next tick.'}
+        </div>
+      )}
+
+      {approveOpen && (
+        <div className='box-card mb-3' style={{ borderLeft: '4px solid #E6A23C' }}>
+          <h6>Approve for CJ fulfilment</h6>
+          <p className='mb-1'>
+            Approve order <strong>{order.orderSn || `#${order.id}`}</strong> ({money(order.actualPrice)}) for CJ fulfilment?
+          </p>
+          <p className='text-danger fw-bold mb-1'>
+            Approval sends this order to CJ Dropshipping for live placement and spends real fulfilment money. The placement sweep submits
+            it on its next tick.
+          </p>
+          <div className='d-flex align-items-center gap-2 mt-2'>
+            <button className='btn btn-warning btn-sm' disabled={approving} onClick={onConfirmApprove}>
+              {approving ? 'Approving…' : 'Confirm approval'}
+            </button>
+            <button className='btn btn-outline-secondary btn-sm' disabled={approving} onClick={() => setApproveOpen(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {payOpen && (
         <div className='box-card mb-3' style={{ borderLeft: '4px solid #E6A23C' }}>
