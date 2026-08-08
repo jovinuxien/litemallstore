@@ -55,6 +55,10 @@ export interface IOrderDetail {
     cjOrderId?: string;
     cjOrderNum?: string;
     trackNumber?: string;
+    // Wave-23 manual-placement approval stamp (V59). May arrive as an ISO
+    // string OR a LocalDateTime array — render through fromServerDateTime.
+    cjPlacementApprovedTime?: string | number[];
+    cjPlacementApprovedBy?: string;
     // In-store pickup fields (Wave 4, deliveryType === 'pickup') — all
     // optional; the store name may instead be encoded in `address` as
     // "PICKUP: <name>". Read defensively.
@@ -90,3 +94,22 @@ export const ORDER_STATUS: Record<number, { label: string; tag: 'info' | 'succes
 
 export const orderStatusInfo = (code?: number): { label: string; tag: 'info' | 'success' | 'warning' | 'danger' | 'primary' } =>
   (code != null && ORDER_STATUS[code]) || { label: code != null ? `Status ${code}` : '—', tag: 'info' };
+
+// Wave-23 manual CJ placement lifecycle, derived from the detail payload.
+// Only 'awaiting-approval' offers the approve action (paid 201 only — a 202
+// refund-applied order must never be approvable); 'placed' requires a real
+// cjOrderId — an approval stamp alone is "approved, awaiting the sweep".
+export type CjPlacementState = 'not-applicable' | 'not-paid' | 'awaiting-approval' | 'approved-awaiting-placement' | 'placed';
+
+export const cjPlacementState = (o?: {
+  source?: string;
+  orderStatus?: number;
+  cjOrderId?: string;
+  cjPlacementApprovedTime?: string | number[];
+}): CjPlacementState => {
+  if (!o || o.source !== 'cj') return 'not-applicable';
+  if (o.cjOrderId) return 'placed';
+  if (o.cjPlacementApprovedTime != null && o.cjPlacementApprovedTime !== '') return 'approved-awaiting-placement';
+  if (o.orderStatus === 201) return 'awaiting-approval';
+  return 'not-paid';
+};

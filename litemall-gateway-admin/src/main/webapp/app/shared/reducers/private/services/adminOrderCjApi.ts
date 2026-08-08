@@ -1,6 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 import { getAdminToken } from 'app/shared/reducers/admin-auth';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 
 // RTK Query client for litemall-order's admin operations surface (Wave 3
 // tracking/balance + Wave 4 ops), all under /srv/private/admin:
@@ -193,6 +194,96 @@ const toBatchResult = (r: MaybeEnvelope): IBatchResult => {
   return { ok: true, succeeded, failed };
 };
 
+// ----- Wave 23: admin-gated CJ placement -----------------------------------
+
+export interface IPendingCjItem {
+  name?: string;
+  number?: number;
+}
+
+export interface IPendingCjRow {
+  orderId?: number;
+  orderSn?: string;
+  addTime?: string;
+  payTime?: string;
+  actualPrice?: number | string;
+  consignee?: string;
+  country?: string;
+  items: IPendingCjItem[];
+  /** variants resolvable at CJ; undefined when the backend didn't say */
+  cjReady?: boolean;
+  holdReason?: string;
+}
+
+export interface IPendingCjPage {
+  list: IPendingCjRow[];
+  total: number;
+  pages: number;
+  /** set when a 2xx body carried errno!==0 — render verbatim, never hide */
+  errmsg?: string;
+}
+
+const toPendingCjRow = (e: Record<string, unknown>): IPendingCjRow => {
+  const rawItems = Array.isArray(e.items) ? (e.items as unknown[]) : [];
+  const items: IPendingCjItem[] = rawItems.map(it => {
+    if (typeof it === 'string') return { name: it };
+    if (it && typeof it === 'object') {
+      const o = it as Record<string, unknown>;
+      return { name: str(o.goodsName) ?? str(o.name), number: num(o.number) ?? num(o.qty) ?? num(o.quantity) };
+    }
+    return {};
+  });
+  return {
+    orderId: num(e.orderId) ?? num(e.id),
+    orderSn: str(e.orderSn),
+    addTime: fromServerDateTime(e.addTime),
+    payTime: fromServerDateTime(e.payTime),
+    actualPrice: typeof e.actualPrice === 'number' || typeof e.actualPrice === 'string' ? e.actualPrice : undefined,
+    consignee: str(e.consignee),
+    country: str(e.country),
+    items,
+    cjReady: typeof e.cjReady === 'boolean' ? e.cjReady : undefined,
+    holdReason: str(e.holdReason),
+  };
+};
+
+export const toPendingCjPage = (r: MaybeEnvelope): IPendingCjPage => {
+  if (r && typeof r.errno === 'number' && r.errno !== 0) {
+    return { list: [], total: 0, pages: 0, errmsg: r.errmsg || `Request failed (errno ${r.errno})` };
+  }
+  const p = payloadOf(r) ?? {};
+  const rawList = Array.isArray(p.list) ? p.list : Array.isArray(r) ? (r as unknown[]) : [];
+  const list = (rawList as Array<Record<string, unknown>>).map(toPendingCjRow);
+  const total = num(p.total) ?? list.length;
+  return { list, total, pages: num(p.pages) ?? (total > 0 ? 1 : 0) };
+};
+
+/** "name ×qty, name ×qty +N more" summary for the pending-approval table. */
+export const pendingItemsSummary = (items: IPendingCjItem[] | undefined, max = 3): string => {
+  if (!items || items.length === 0) return '—';
+  const parts = items.slice(0, max).map(it => `${it.name ?? 'item'}${it.number != null ? ` ×${it.number}` : ''}`);
+  const extra = items.length - max;
+  return parts.join(', ') + (extra > 0 ? ` +${extra} more` : '');
+};
+
+export interface ICjApprovalStamp {
+  approvedBy?: string;
+  approvedTime?: string;
+}
+
+// Pull the approval stamp (who + when) out of the approve mutation result,
+// tolerant of both stamp key spellings and array LocalDateTimes. Empty object
+// when the response carried none — the caller still knows approval succeeded.
+export const toApprovalStamp = (res: unknown): ICjApprovalStamp => {
+  const env = (res as { data?: MaybeEnvelope })?.data;
+  const p = env ? payloadOf(env) : null;
+  if (!p) return {};
+  return {
+    approvedBy: str(p.approvedBy) ?? str(p.cjPlacementApprovedBy),
+    approvedTime: fromServerDateTime(p.approvedTime ?? p.cjPlacementApprovedTime),
+  };
+};
+
 export const adminOrderCjApi = createApi({
   reducerPath: 'adminOrderCjApi',
   baseQuery: fetchBaseQuery({
@@ -239,6 +330,18 @@ export const adminOrderCjApi = createApi({
     // 642 (print failed) to distinct messages.
     printReceipt: builder.mutation<IEnvelope, number | string>({
       query: orderId => ({ url: `/order/${orderId}/print-receipt`, method: 'POST' }),
+    }),
+    // Wave 23: paid CJ orders held for admin approval (manual placement mode).
+    // Errors are NOT degraded — the pending tab must be honest when the order
+    // half is down; errno!==0 bodies surface via IPendingCjPage.errmsg.
+    getCjPlacementPending: builder.query<IPendingCjPage, { page: number; limit: number }>({
+      query: ({ page, limit }) => ({ url: '/order/cj-placement/pending', params: { page, limit } }),
+      transformResponse: toPendingCjPage,
+    }),
+    // Raw envelope — typed refusals (not paid / not CJ / already placed) are
+    // surfaced verbatim via orderOpMessage(); stamp via toApprovalStamp().
+    approveCjPlacement: builder.mutation<IEnvelope, number | string>({
+      query: orderId => ({ url: `/order/${orderId}/cj-placement/approve`, method: 'POST' }),
     }),
     batchApproveAftersales: builder.mutation<IBatchResult, Array<number>>({
       query: ids => ({ url: '/aftersale/batch-approve', method: 'POST', body: { ids } }),
@@ -328,6 +431,8 @@ export const {
   useGetChannelStatQuery,
   useGetFulfillmentConfigQuery,
   usePrintReceiptMutation,
+  useGetCjPlacementPendingQuery,
+  useApproveCjPlacementMutation,
   useBatchApproveAftersalesMutation,
   useBatchRejectAftersalesMutation,
 } = adminOrderCjApi;
