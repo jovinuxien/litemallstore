@@ -108,6 +108,15 @@ public class ProductDocument {
     private Integer couponFlag;
 
     /**
+     * Wave-21 group-buy visibility: 1 when ≥1 ACTIVE, in-window
+     * {@code litemall_combination} campaign targets this goods. Always emitted (0 when
+     * none) — the same always-emit rule as the deal/coupon fields, so a campaign-less
+     * full reindex never drops the field from OCS's mapping resolution.
+     */
+    @JsonProperty("groupon_flag")
+    private Integer grouponFlag;
+
+    /**
      * Live flash-deal signals (price-swap lifecycle, Phase B). The three QUERYABLE fields ride
      * every document — {@code dealActive} 1/0, {@code dealEndEpoch} (millis; card countdown +
      * "ending soon" sort, {@code DealMath.NO_DEAL_END_EPOCH} when no deal so live deals always
@@ -274,6 +283,14 @@ public class ProductDocument {
 
     public void setCouponFlag(Integer couponFlag) {
         this.couponFlag = couponFlag;
+    }
+
+    public Integer getGrouponFlag() {
+        return grouponFlag;
+    }
+
+    public void setGrouponFlag(Integer grouponFlag) {
+        this.grouponFlag = grouponFlag;
     }
 
     public Integer getDealActive() {

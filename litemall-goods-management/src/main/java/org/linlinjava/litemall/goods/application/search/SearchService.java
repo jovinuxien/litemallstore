@@ -268,6 +268,12 @@ public class SearchService {
             if (couponFlag instanceof Number && ((Number) couponFlag).intValue() == 1) {
                 item.put("coupon_flag", 1);
             }
+            // Wave-21 group-buy badge (same positive-only rule): field absent (pre-reindex)
+            // and 0 both mean "no badge".
+            Object grouponFlag = data.get("groupon_flag");
+            if (grouponFlag instanceof Number && ((Number) grouponFlag).intValue() == 1) {
+                item.put("groupon_flag", 1);
+            }
             // Live flash-deal extras (present only while a deal is live): countdown + claimed bar.
             if (data.get("deal_active") instanceof Number && ((Number) data.get("deal_active")).intValue() == 1) {
                 item.put("dealActive", true);
