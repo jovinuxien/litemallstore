@@ -537,6 +537,10 @@ services:
       # these lines the container never sees the env (the Wave-18 lesson).
       LITEMALL_ORDER_CJ_PLACEMENT_MODE: ${LITEMALL_ORDER_CJ_PLACEMENT_MODE:-manual}
       LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY: ${LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY:-}
+      # CJ placement realism: yml default is sandbox=true (simulated payment) so
+      # dev stays harmless; prod .env.prod sets false — an approved order must
+      # REALLY place, a simulation answering an approval is a fake success.
+      LITEMALL_ORDER_CJ_SANDBOX: ${LITEMALL_ORDER_CJ_SANDBOX:-true}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 
