@@ -10,6 +10,7 @@ import { useConsumePromoCandidateMutation, useGetInsightCategoriesQuery } from '
 import { fmtPct } from 'app/views/adminViews/adminModule/Insight/insightFormat';
 import { CouponPromoPrefill, createdRefId } from 'app/views/adminViews/adminModule/Insight/promoFormat';
 import CouponGoodsPicker from './CouponGoodsPicker';
+import DeliverCouponDialog from './DeliverCouponDialog';
 import { DISCOUNT_PERCENT, PERCENT_MAX, PERCENT_MIN, SCOPE_ALL, SCOPE_CATEGORY, SCOPE_GOODS, couponClientError } from './couponFormat';
 import * as React from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -68,6 +69,9 @@ const CouponForm: React.FC = () => {
 
   const [form, setForm] = React.useState<ICoupon>(() => (prefill ? { ...empty, ...prefill.coupon } : empty));
   const [error, setError] = React.useState<string | null>(null);
+  // Wave 22: segment-delivery dialog on the coupon detail (edit mode only —
+  // a coupon must exist before it can be delivered).
+  const [delivering, setDelivering] = React.useState(false);
   // Set when the save succeeded but the guard reported uncosted goods: the
   // form is replaced by a success panel so the warning is actually seen
   // (navigating away immediately would drop it).
@@ -168,8 +172,18 @@ const CouponForm: React.FC = () => {
 
   return (
     <div className='app-container'>
-      <h5 className='mb-3'>{isEdit ? `Edit coupon #${id}` : 'New coupon'}</h5>
+      <div className='d-flex align-items-center justify-content-between mb-3' style={{ maxWidth: 720 }}>
+        <h5 className='mb-0'>{isEdit ? `Edit coupon #${id}` : 'New coupon'}</h5>
+        {isEdit && (
+          <button className='btn btn-sm btn-outline-success' type='button' onClick={() => setDelivering(true)}>
+            Deliver to segment
+          </button>
+        )}
+      </div>
       {error && <div className='alert alert-danger'>{error}</div>}
+      {delivering && isEdit && (
+        <DeliverCouponDialog coupon={form.id != null ? form : { ...form, id: Number(id) }} onClose={() => setDelivering(false)} />
+      )}
       {/* noValidate: the percent rate input carries min/max as UI hints, but
           validation must flow through couponClientError so the user gets the
           same inline alert style as every other rule. */}
