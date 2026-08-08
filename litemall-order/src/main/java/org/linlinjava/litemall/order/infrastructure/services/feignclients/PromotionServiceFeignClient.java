@@ -5,6 +5,7 @@ import feign.Response;
 import org.linlinjava.litemall.order.infrastructure.configuration.FeignConfig;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponRedeemRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponReleaseRequest;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.PinkOrderRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,4 +60,31 @@ public interface PromotionServiceFeignClient {
     Response releaseCoupon(@RequestHeader("X-User-Id") Integer userId,
                            @PathVariable("userCouponId") Integer userCouponId,
                            @RequestBody CouponReleaseRequest body);
+
+    // ---- combination group-buy (Wave 21, spec-groupon-priced-submit-contract.md) ----
+    // Raw Response on the reads too: promotion answers a bodyless 404 for an unknown
+    // pink/campaign, which is a BUSINESS outcome (typed stale-slot reject), not an
+    // outage — JsonNode returns would route it through the error decoder into the
+    // fallback and lose the distinction.
+
+    /** GET a group slot's state (leader dto + members[]; the queried slot may be either). */
+    @GetMapping("/srv/promotion/combination/pink/{pinkId}")
+    Response pinkDetail(@RequestHeader("X-User-Id") Integer userId,
+                        @PathVariable("pinkId") Integer pinkId);
+
+    /** GET a combination campaign definition. */
+    @GetMapping("/srv/promotion/combination/{combinationId}")
+    Response combinationDetail(@PathVariable("combinationId") Integer combinationId);
+
+    /** POST attach-order: backfill the slot's order_id after placement (CAS on null). Fail-soft caller. */
+    @PostMapping("/srv/promotion/combination/pink/{pinkId}/attach-order")
+    Response attachOrderToPink(@RequestHeader("X-User-Id") Integer userId,
+                               @PathVariable("pinkId") Integer pinkId,
+                               @RequestBody PinkOrderRequest body);
+
+    /** POST release: free the slot while the group is still Pending; idempotent. Fail-soft caller. */
+    @PostMapping("/srv/promotion/combination/pink/{pinkId}/release")
+    Response releasePinkSlot(@RequestHeader("X-User-Id") Integer userId,
+                             @PathVariable("pinkId") Integer pinkId,
+                             @RequestBody PinkOrderRequest body);
 }

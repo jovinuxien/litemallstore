@@ -268,6 +268,19 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Validate the productStock through the goods ACL (price/stock authoritative read)
         this.orderDomainService.validateProductStock(cartList, goodsFacade);
 
+        // Combination group-buy (Wave 21, spec-groupon-priced-submit-contract.md).
+        // AFTER validateProductStock — the authoritative catalog re-stamp above must
+        // pass first (proving the cart itself is honest); the campaign price then
+        // deliberately overrides the retail stamp on the campaign's lines. Any
+        // validation failure is the TYPED stale-slot reject (422 upstream), never a
+        // silent fall-through to retail (USER DECISION 2026-08-08). Promotion being
+        // unreachable throws the typed 503 — same rule as coupons.
+        Integer pinkId = (command.getPinkId() != null && command.getPinkId() > 0)
+                ? command.getPinkId() : null;
+        if (pinkId != null) {
+            applyGroupBuyPricing(cmdUserId, pinkId, cartList);
+        }
+
         // Group purchase discount
         BigDecimal grouponPrice = new BigDecimal(0);  // initialize grouponPrice is not redundant;
         if(grouponValid) {
@@ -419,6 +432,9 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                     chosenLogistic.trim().substring(0, Math.min(chosenLogistic.trim().length(), 64)));
         }
         orderAggregate.setSource(orderSource);
+        // Wave 21 (V56): persist the validated group-buy slot on the order row so the
+        // cancel paths can release it and the GROUP_EXPIRED listener can find it.
+        orderAggregate.setPinkId(pinkId);
         orderAggregate.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
         orderAggregate.setFreightPrice(new LitemallMoney(freightPrice));
         orderAggregate.setCouponPrice(new LitemallMoney(couponPrice));
@@ -507,6 +523,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // registers a rollback-time compensating restore (best-effort).
         validateAndReduceStock(cartList);
 
+        // Group-buy slot ↔ order linkage (Wave 21): tell promotion this order consumed
+        // the slot ONCE the placement has durably committed (an aborted placement must
+        // not stamp the slot). Fail-soft: the facade logs and never throws — promotion
+        // ships the endpoint this wave, so a 404 while dev catches up is tolerated.
+        if (pinkId != null) {
+            registerPinkAttachOnCommit(cmdUserId, pinkId, existingOrderAggregate.getOrderId());
+        }
+
         //Validate and process groupon if available
         return new LitemallOrderSubmitResult(
                 existingOrderAggregate.getOrderId().getId(),
@@ -517,6 +541,111 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                 LocalDateTime.now(),
                 LitemallOrderSubmitResult.LitemallOrderSubmitResultStatus.SUCCESS
         );
+    }
+
+    /**
+     * Validate the buyer's group-buy slot at promotion and re-price the campaign's
+     * cart lines at {@code combinationPrice} (Wave 21). Every reject is the typed
+     * {@link org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException}
+     * with an honest, customer-facing message — the placement NEVER falls through to
+     * retail pricing on a stale slot.
+     */
+    private void applyGroupBuyPricing(LitemallUserId userId, Integer pinkId,
+                                      List<LitemallCartAggregate> cartList) {
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuySlot slot =
+                promotionFacade.findGroupSlot(userId, pinkId)
+                        .orElseThrow(() -> new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                                "This group is no longer available — start a new one or buy at the regular price."));
+        if (slot.getUserId() == null || !slot.getUserId().equals(userId.getId())) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group slot belongs to another customer — join the group yourself or buy at the regular price.");
+        }
+        if (!slot.isPayable()) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group has expired — start a new one or buy at the regular price.");
+        }
+        if (slot.getOrderId() != null && slot.getOrderId() > 0) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group slot was already used by another order — start a new group or buy at the regular price.");
+        }
+        org.linlinjava.litemall.order.infrastructure.services.acl.facades.promotion.GroupBuyCampaign campaign =
+                promotionFacade.findCombination(slot.getCombinationId())
+                        .orElseThrow(() -> new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                                "This group's campaign has ended — start a new one or buy at the regular price."));
+        if (campaign.getGoodsId() == null || campaign.getCombinationPrice() == null) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group's campaign has ended — start a new one or buy at the regular price.");
+        }
+        List<LitemallCartAggregate> campaignLines = cartList.stream()
+                .filter(Objects::nonNull)
+                .filter(line -> line.getGoodsId() != null
+                        && campaign.getGoodsId().equals(line.getGoodsId().getId()))
+                .collect(Collectors.toList());
+        if (campaignLines.isEmpty()) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group is for a different product — add the group-buy product to your cart or buy at the regular price.");
+        }
+        int quantity = campaignLines.stream()
+                .mapToInt(line -> line.getNumber() == null ? 0 : line.getNumber())
+                .sum();
+        if (campaign.getLimitPerUser() != null && campaign.getLimitPerUser() > 0
+                && quantity > campaign.getLimitPerUser()) {
+            throw new org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException(
+                    "This group-buy is limited to " + campaign.getLimitPerUser()
+                            + " per customer — reduce the quantity or buy at the regular price.");
+        }
+        // Deliberate override of the catalog re-stamp: the campaign's unit price is
+        // the promotion-authoritative charge for these lines (plain decimals).
+        LitemallMoney groupUnitPrice = new LitemallMoney(campaign.getCombinationPrice());
+        campaignLines.forEach(line -> line.setPrice(groupUnitPrice));
+        log.info("Group-buy submit: pink {} priced {} line(s) of goods {} at {} (user {})",
+                pinkId, campaignLines.size(), campaign.getGoodsId(),
+                campaign.getCombinationPrice(), userId.getId());
+    }
+
+    /**
+     * After the placement COMMITS, backfill the slot's order linkage at promotion
+     * (fail-soft — the facade logs, never throws). Falls back to an immediate call
+     * when no transaction is active (other/test callers), mirroring the guard style
+     * of {@link #registerCouponReleaseOnRollback}.
+     */
+    private void registerPinkAttachOnCommit(LitemallUserId userId, Integer pinkId,
+                                            LitemallOrderId orderId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            promotionFacade.attachOrderToPink(userId, pinkId, orderId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                promotionFacade.attachOrderToPink(userId, pinkId, orderId);
+            }
+        });
+    }
+
+    /**
+     * If the cancelled order occupied a group-buy slot, free it at promotion once the
+     * cancel COMMITS (a rolled-back cancel must not release). Promotion only frees a
+     * slot while the group is still Pending and the call is idempotent — fail-soft.
+     * Immediate call when no transaction is active, like the attach hook above.
+     */
+    private void releasePinkOnCancelCommit(LitemallOrderAggregate order) {
+        if (order.getPinkId() == null) {
+            return;
+        }
+        LitemallUserId userId = order.getUserId();
+        Integer pinkId = order.getPinkId();
+        LitemallOrderId orderId = order.getOrderId();
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            promotionFacade.releasePinkSlot(userId, pinkId, orderId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                promotionFacade.releasePinkSlot(userId, pinkId, orderId);
+            }
+        });
     }
 
     /**
@@ -656,6 +785,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         restoreStockForOrder(orderId);
         cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "customer cancel");
         releaseCouponOnCancelCommit(orderAggregate);
+        releasePinkOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
     }
@@ -686,6 +816,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         restoreStockForOrder(orderId);
         cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "auto cancel (unpaid timeout)");
         releaseCouponOnCancelCommit(orderAggregate);
+        releasePinkOnCancelCommit(orderAggregate);
         persistStatusHistory(orderAggregate);
         publishAndClearEvents(orderAggregate);
     }

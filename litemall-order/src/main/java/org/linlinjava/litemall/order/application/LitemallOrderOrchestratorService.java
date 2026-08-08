@@ -303,9 +303,10 @@ public class LitemallOrderOrchestratorService {
                  | org.linlinjava.litemall.order.application.util.exception.product.LitemallGoodsServiceUnavailableException
                  | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallInvalidCouponException
                  | org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException
+                 | org.linlinjava.litemall.order.application.util.exception.groupbuy.LitemallInvalidGroupSlotException
                  | org.linlinjava.litemall.order.application.util.exception.order.LitemallPickupException e) {
             // Clean placement failures (out of stock / goods-service down / coupon
-            // rejected / promotion down with a coupon selected). They were thrown
+            // rejected / group-buy slot rejected / promotion down). They were thrown
             // inside the transactional placeOrder, so the shared transaction is
             // already rollback-only — returning a result here would trip
             // UnexpectedRollbackException at commit. Propagate typed; the REST layer
@@ -1122,6 +1123,43 @@ public class LitemallOrderOrchestratorService {
         cjFulfillmentService.cancelAtCjIfDeletable(order, "refund approved");
         return LitemallOrderOperationResult.refundSuccess(
                 orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+    }
+
+    /**
+     * Wave 21: auto-cancel + refund a PAID group-buy order whose group EXPIRED
+     * unfilled (USER DECISION 2026-08-08). Drives the order through the EXISTING
+     * refund transitions — PAID → REFUND_REQUEST → REFUNDED — and settles the money
+     * to the paying tender via {@link #settleRefundToTender} (wallet credit or
+     * Stripe reversal, capped at the capture), all in ONE transaction; the
+     * {@code LitemallOrderRefundedEvent} raised by the REFUNDED flip drives the
+     * existing customer-mail pipeline (refund-approved email) after commit.
+     *
+     * <p>Idempotent per order: an already-REFUNDED order is a confirmed no-op; a
+     * REFUND_REQUEST order (an earlier half-run, or a customer-opened request on the
+     * same doomed group) resumes at settlement. Any other state is refused with the
+     * usual invalid-transition result. A PSP refusal throws
+     * {@link LitemallRefundFailedException}, rolling this order's work back and
+     * leaving it in REFUND_REQUEST — visible and retryable, never a fake success.
+     */
+    public LitemallOrderOperationResult autoRefundForExpiredGroup(LitemallOrderId orderId, String reason) {
+        LitemallOrderAggregate order = orderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (previous == LitemallOrderStatus.REFUNDED) {
+            // Already refunded (a replayed GROUP_EXPIRED event) — confirmed no-op.
+            return LitemallOrderOperationResult.refundSuccess(
+                    orderId, previous, LitemallOrderHandleOption.forStatus(LitemallOrderStatus.REFUNDED));
+        }
+        if (previous != LitemallOrderStatus.PAID && previous != LitemallOrderStatus.REFUND_REQUEST) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+        }
+        if (previous == LitemallOrderStatus.PAID) {
+            orderServiceImpl.requestRefund(orderId, reason);
+        }
+        return approveRefund(orderId);
     }
 
     /**

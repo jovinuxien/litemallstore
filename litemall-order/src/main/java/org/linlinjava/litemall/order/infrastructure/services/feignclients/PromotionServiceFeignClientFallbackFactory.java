@@ -5,6 +5,7 @@ import feign.Response;
 import org.linlinjava.litemall.order.application.util.exception.coupon.LitemallPromotionServiceUnavailableException;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponRedeemRequest;
 import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.CouponReleaseRequest;
+import org.linlinjava.litemall.order.infrastructure.services.feignclients.utils.PinkOrderRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.openfeign.FallbackFactory;
@@ -51,6 +52,34 @@ public class PromotionServiceFeignClientFallbackFactory implements FallbackFacto
             public Response releaseCoupon(Integer userId, Integer userCouponId, CouponReleaseRequest body) {
                 throw new LitemallPromotionServiceUnavailableException(
                         "release of user coupon " + userCouponId + " (circuit open/fallback)", cause);
+            }
+
+            // Group-buy (Wave 21): a submit carrying a pinkId must never be priced at
+            // retail because promotion is down — same fail-fast rule as coupons. The
+            // attach/release mutations are fail-soft at the FACADE (logged), so a
+            // typed throw here is still safe: the facade catches it.
+            @Override
+            public Response pinkDetail(Integer userId, Integer pinkId) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "group slot lookup for pink " + pinkId + " (circuit open/fallback)", cause);
+            }
+
+            @Override
+            public Response combinationDetail(Integer combinationId) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "combination lookup " + combinationId + " (circuit open/fallback)", cause);
+            }
+
+            @Override
+            public Response attachOrderToPink(Integer userId, Integer pinkId, PinkOrderRequest body) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "attach-order to pink " + pinkId + " (circuit open/fallback)", cause);
+            }
+
+            @Override
+            public Response releasePinkSlot(Integer userId, Integer pinkId, PinkOrderRequest body) {
+                throw new LitemallPromotionServiceUnavailableException(
+                        "release of pink " + pinkId + " (circuit open/fallback)", cause);
             }
         };
     }

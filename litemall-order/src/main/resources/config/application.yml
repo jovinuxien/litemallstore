@@ -30,6 +30,11 @@ spring:
     openfeign:
       okhttp:
         enabled: true
+    # Wave 21: order's first INBOUND binding — promotion's GROUP_EXPIRED events
+    # (bean `groupExpired` in PromotionGroupEventConsumerConfig). Outbound sends
+    # keep using StreamBridge and are unaffected by the function definition.
+    function:
+      definition: groupExpired
     stream:
       default:
         contentType: application/json
@@ -40,6 +45,11 @@ spring:
           destination: litemall.order.payment-succeeded.v1
         grouponParticipated-out-0:
           destination: litemall.groupon.participated.v1
+        groupExpired-in-0:
+          # Must match promotion's PromotionEventStreamBridge destination derivation:
+          # GROUP_EXPIRED -> litemall.promotion.group.expired.v1
+          destination: litemall.promotion.group.expired.v1
+          group: litemall-order
       kafka:
         binder:
           brokers: ${litemall.kafka.brokers:localhost:9092}

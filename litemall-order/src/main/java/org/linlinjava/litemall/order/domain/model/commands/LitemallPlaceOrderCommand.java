@@ -32,6 +32,13 @@ public class LitemallPlaceOrderCommand {
     private final String pickupName;
     private final String pickupMobile;
 
+    // OPTIONAL (Wave 21, V56): the buyer's OWN combination group-buy slot id
+    // (litemall_combination_pink.id). When present, placement validates the slot at
+    // promotion and prices the campaign's line at combinationPrice; a stale slot is a
+    // typed reject, never a silent re-price. Distinct from the LEGACY
+    // grouponRulesId/grouponLinkId pair above (litemall_groupon path — untouched).
+    private final Integer pinkId;
+
     // Immutable command with final fields => no default ctor for Jackson to use.
     // Bind the @RequestBody through this constructor so /srv/order/submit can
     // deserialize the JSON body (userId is overridden from the gateway header).
@@ -49,7 +56,8 @@ public class LitemallPlaceOrderCommand {
                                      @JsonProperty("deliveryType") String deliveryType,
                                      @JsonProperty("storeId") Integer storeId,
                                      @JsonProperty("pickupName") String pickupName,
-                                     @JsonProperty("pickupMobile") String pickupMobile) {
+                                     @JsonProperty("pickupMobile") String pickupMobile,
+                                     @JsonProperty("pinkId") Integer pinkId) {
         this.userId = userId;
         this.cartId = cartId;
         this.addressId = addressId;
@@ -64,6 +72,19 @@ public class LitemallPlaceOrderCommand {
         this.storeId = storeId;
         this.pickupName = pickupName;
         this.pickupMobile = pickupMobile;
+        this.pinkId = pinkId;
+    }
+
+    /** Pre-Wave-21 shape (no group-buy slot) — kept for existing callers and tests. */
+    public LitemallPlaceOrderCommand(Integer userId, Integer cartId, Integer addressId,
+                                     Integer couponId, Integer userCouponId, String message,
+                                     Integer grouponRulesId, Integer grouponLinkId,
+                                     String countryCode, String cjLogisticName,
+                                     String deliveryType, Integer storeId,
+                                     String pickupName, String pickupMobile) {
+        this(userId, cartId, addressId, couponId, userCouponId, message,
+                grouponRulesId, grouponLinkId, countryCode, cjLogisticName,
+                deliveryType, storeId, pickupName, pickupMobile, null);
     }
 
     /** Pre-Wave-4 shape (express delivery) — kept for existing callers and tests. */
@@ -72,7 +93,7 @@ public class LitemallPlaceOrderCommand {
                                      Integer grouponRulesId, Integer grouponLinkId,
                                      String countryCode) {
         this(userId, cartId, addressId, couponId, userCouponId, message,
-                grouponRulesId, grouponLinkId, countryCode, null, null, null, null, null);
+                grouponRulesId, grouponLinkId, countryCode, null, null, null, null, null, null);
     }
 
     /** True when the buyer chose in-store pickup. */

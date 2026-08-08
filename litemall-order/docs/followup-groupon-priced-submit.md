@@ -1,5 +1,14 @@
 # Follow-up — groupon (combination) priced submit is NOT implemented on order
 
+> **STATUS (2026-08-08, Wave 21): IMPLEMENTED.** `POST /srv/order/submit` accepts
+> the optional `pinkId`; placement validates the slot + campaign at promotion,
+> prices the line at `combinationPrice`, persists `litemall_order.pink_id` (V56)
+> and attach-orders the slot after commit (fail-soft). Stale slots are the typed
+> `LitemallInvalidGroupSlotException` 422 reject — never a silent retail
+> re-price. Cancel paths release the slot; the `litemall.promotion.group.expired.v1`
+> Kafka listener auto-cancels + tender-parity-refunds paid orders of failed groups.
+> This note is kept as history of the original gap.
+
 - **Decision:** deferred by the user on 2026-07-10 (Wave 2 scope = coupon-at-checkout
   + aftersale only). This note is the pointer for the next assignment.
 - **Contract to consume:**

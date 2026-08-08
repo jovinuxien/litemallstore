@@ -348,6 +348,14 @@ public class LitemallOrder {
     private String cjLogisticName;
 
     /**
+     * Hand-maintained (V56, Wave 21): combination group-buy slot
+     * (litemall_combination_pink.id, promotion-owned) this order was placed against.
+     * NULL = not a group-buy order.
+     * Corresponds to litemall_order.pink_id
+     */
+    private Integer pinkId;
+
+    /**
      * Hand-maintained (V35): in-store pickup / write-off. How the order is fulfilled
      * to the customer: 'express' | 'pickup'.
      * Corresponds to litemall_order.delivery_type
@@ -1215,6 +1223,14 @@ public class LitemallOrder {
         this.cjLogisticName = cjLogisticName;
     }
 
+    public Integer getPinkId() {
+        return pinkId;
+    }
+
+    public void setPinkId(Integer pinkId) {
+        this.pinkId = pinkId;
+    }
+
     public String getDeliveryType() {
         return deliveryType;
     }
@@ -1580,6 +1596,8 @@ public class LitemallOrder {
         cjOrderStatus("cj_order_status", "cjOrderStatus", "VARCHAR", false),
 
         cjLogisticName("cj_logistic_name", "cjLogisticName", "VARCHAR", false),
+
+        pinkId("pink_id", "pinkId", "INTEGER", false),
 
         deliveryType("delivery_type", "deliveryType", "VARCHAR", false),
 
