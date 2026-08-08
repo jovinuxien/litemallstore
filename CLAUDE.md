@@ -598,6 +598,22 @@
 >   favor margin + social proof (rating/reviews). Config knobs under
 >   `litemall.promo-candidates.*` with an enabled kill-switch.
 >
+> **Wave 19 STATUS: MERGED to master `e9d441382` (2026-08-08) — all three
+> halves (goods-management `35cd49ced`, gateway-admin `13060e260` jest 37/37,
+> gateway-api `3917c884f` 17/17 + honest 502 outage state). LIVE DEV
+> ACCEPTANCE PASSED same day (goods-management booted from MAIN at master;
+> V53 applied at boot): manual run proposed 4 coupon + 4 groupon candidates
+> with guard-bounded suggestions (maxDiscount 16 vs live guard max 15.98%
+> — coherent); dismiss→653 on repeat; consume records refId; re-run never
+> clobbers decisions; L1 root resolution verified (Spatulas→Imported);
+> coupon 15 (10% goods-scoped) created through the REAL promotion guard,
+> 50% negative control rejected with stated max; full reindex 9,642 docs;
+> `/srv/search?...&coupon_flag=1` returns exactly the couponed product
+> with coupon_flag:1 in the hit (the passthrough fix the gateway-api agent
+> caught). PROD DEPLOY PENDING — needs goods-management + both gateways
+> rebuilt, indexer/searcher config update, and reindex BEFORE searcher
+> restart. UI click-through = user-side.**
+>
 > **Wave 20 (2026-08-08) — DIY PROMO PAGES + SOCIAL PAGE PUBLISHING
 > (commissioned together with Wave 19; starts AFTER Wave 19 merges).**
 > Audit facts (2026-08-08): DIY pages = `litemall_page` (V36), schema-driven
