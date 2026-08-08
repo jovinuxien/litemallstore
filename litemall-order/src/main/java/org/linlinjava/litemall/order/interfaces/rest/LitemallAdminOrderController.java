@@ -167,6 +167,11 @@ public class LitemallAdminOrderController {
         order.put("cjOrderId", o.getCjOrderId());
         order.put("cjOrderNum", o.getCjOrderNum());
         order.put("cjOrderStatus", o.getCjOrderStatus());
+        // Wave 23 (V59): approval stamp, so a reloaded approved-but-unplaced order
+        // renders its state instead of falling back to the approve button
+        // (handoff-order-admin-cj.md third ask; SPA reads both tolerantly).
+        order.put("cjPlacementApprovedTime", date(o.getCjPlacementApprovedTime()));
+        order.put("cjPlacementApprovedBy", o.getCjPlacementApprovedBy());
 
         List<Map<String, Object>> goods = new ArrayList<>();
         for (LitemallOrderGoodsAggregate g : orderGoodsRepository.findByOId(new LitemallOrderId(id))) {
