@@ -212,6 +212,71 @@
     </select>
 
     <!--
+      Hand-maintained (V59, Wave 23): the manual-mode sweep predicate — same durable
+      placement queue as selectPlaceableCjOrderIds, restricted to orders an admin has
+      APPROVED for CJ placement. Unapproved orders keep queueing (the predicate never
+      expires) but are invisible to the sweep until approved.
+    -->
+    <select id="selectApprovedPlaceableCjOrderIds" resultType="java.lang.Integer">
+        select id from litemall_order
+        where source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and cj_placement_approved_time is not null
+          and (cj_order_status is null or cj_order_status &lt;&gt; 'PLACEMENT_REJECTED')
+        order by update_time asc
+        limit #{limit}
+    </select>
+
+    <!--
+      Hand-maintained (V59, Wave 23): admin pending-approval list — paid CJ orders not yet
+      placed at CJ and not yet approved, oldest payment first (fulfilment fairness). Rows
+      parked under the PLACEMENT_REJECTED sentinel are INCLUDED (paid, unplaced, needing
+      admin attention); the controller derives a holdReason for them. Full rows via the
+      generated BaseResultMap so new columns stay covered automatically.
+    -->
+    <select id="selectCjPlacementPending"
+            resultMap="org.linlinjava.litemall.db.dao.LitemallOrderMapper.BaseResultMap">
+        select * from litemall_order
+        where source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and cj_placement_approved_time is null
+        order by pay_time asc, id asc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countCjPlacementPending" resultType="java.lang.Long">
+        select count(*) from litemall_order
+        where source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and cj_placement_approved_time is null
+    </select>
+
+    <!--
+      Hand-maintained (V59, Wave 23): CAS approval stamp — written exactly once (the
+      cj_placement_approved_time is null guard makes repeats/races no-ops, first stamp
+      wins) and only on a PAID, unplaced, non-deleted CJ order. Returns 0 when already
+      approved OR not eligible; the caller re-reads the row to tell the two apart.
+    -->
+    <update id="stampCjPlacementApproval">
+        update litemall_order
+        set cj_placement_approved_time = now(),
+            cj_placement_approved_by = #{approvedBy},
+            update_time = now()
+        where id = #{id}
+          and source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and cj_placement_approved_time is null
+    </update>
+
+    <!--
       Hand-maintained (V35): stamp a pickup write-off code at pay time, exactly once
       (verify_code is null guard makes replays no-ops).
     -->
