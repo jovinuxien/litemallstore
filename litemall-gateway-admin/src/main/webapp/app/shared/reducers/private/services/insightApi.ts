@@ -228,6 +228,69 @@ export interface ApproveDealCommand {
   stock: number;
 }
 
+// ---- Wave 19: promo candidates (coupon/groupon suggestions) ----------------
+
+export type PromoKind = 'coupon' | 'groupon';
+
+// The nightly scorer's concrete proposal, PRE-VALIDATED against the Wave-18
+// margin guard server-side. Coupon and groupon suggestions share the field
+// space (all optional) — the row's `kind` says which half is populated.
+export interface IPromoSuggestion {
+  // coupon
+  scopeType?: 'category' | 'goods';
+  categoryId?: number;
+  goodsIds?: number[];
+  discountType?: number; // 0 flat, 1 percent
+  discount?: number;
+  discountCap?: number | null;
+  minAmount?: number;
+  maxDiscount?: number;
+  // groupon
+  combinationPrice?: number;
+  originalPrice?: number;
+  requiredMembers?: number;
+  limitPerUser?: number;
+  windowDays?: number;
+}
+
+export interface IPromoCandidate {
+  id?: number;
+  goodsId: number;
+  name?: string;
+  picUrl?: string;
+  /** Resolved to the L1 ROOT by the backend. */
+  categoryId?: number;
+  kind?: PromoKind;
+  day?: string;
+  tier?: string;
+  score?: number;
+  cost: number | null;
+  retailPrice?: number;
+  marginPct?: number | null;
+  stockTotal?: number;
+  rating?: number;
+  reviewCount?: number;
+  suggestion?: IPromoSuggestion | null;
+  reasons?: string[];
+  status?: string;
+  /** Created coupon/combination id once the row was consumed. */
+  refId?: number | null;
+}
+
+export interface PromoCandidateListResponse {
+  /** The served day ('YYYY-MM-DD') — the latest scored day when none was asked for. */
+  day?: string | null;
+  list: IPromoCandidate[];
+}
+
+export interface PromoDecisionCommand {
+  goodsId: number;
+  kind: PromoKind;
+  day?: string;
+  /** consume only: the created coupon/combination id. */
+  refId?: number;
+}
+
 interface ApiEnvelope<T> {
   errno: number;
   errmsg: string;
@@ -268,6 +331,10 @@ const toDeal = (r: Raw): IInsightDeal =>
 
 const toCandidate = (r: Raw): IDealCandidate => ({ ...r, day: toDay(r.day) }) as IDealCandidate;
 
+// Row `day` is a DATE column (array/millis serialization hazard); `suggestion`
+// and `reasons` arrive already parsed to JSON values by the backend.
+const toPromoCandidate = (r: Raw): IPromoCandidate => ({ ...r, day: toDay(r.day) }) as IPromoCandidate;
+
 // executeOn is a DATE column — same array/millis serialization hazard as day.
 const toRetireCandidate = (r: Raw): IRetireCandidate => ({ ...r, executeOn: toDay(r.executeOn) }) as IRetireCandidate;
 
@@ -299,7 +366,7 @@ export const insightApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides'],
+  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides', 'PromoCandidates'],
   endpoints: builder => ({
     // Sorted potentialProfit desc by the server; L1 roots with on-sale goods only.
     getInsightCategories: builder.query<{ list: ICategoryInsight[] }, void>({
@@ -339,6 +406,43 @@ export const insightApi = createApi({
     dismissDealCandidate: builder.mutation<ApiEnvelope<unknown>, { goodsId: number }>({
       query: ({ goodsId }) => ({ url: `/deal-candidates/${goodsId}/dismiss`, method: 'POST' }),
       invalidatesTags: (result, err, { goodsId }) => ['Candidates', { type: 'InsightGoods', id: goodsId }],
+    }),
+    // ---- Wave 19: promo candidates ----------------------------------------
+    // `day` defaults server-side to the latest scored day for the kind.
+    getPromoCandidates: builder.query<PromoCandidateListResponse, { kind: PromoKind; day?: string; status?: string }>({
+      query: ({ kind, day, status }) => ({
+        url: '/promo-candidates',
+        params: { kind, ...(day ? { day } : {}), ...(status ? { status } : {}) },
+      }),
+      transformResponse: (r: ApiEnvelope<PromoCandidateListResponse>) => ({
+        day: typeof r?.data?.day === 'string' ? r.data.day : toDay(r?.data?.day),
+        list: (r?.data?.list ?? []).map(c => toPromoCandidate(c as unknown as Raw)),
+      }),
+      providesTags: ['PromoCandidates'],
+    }),
+    // Dismiss/consume CAS from `proposed` (errno 653 on a lost race); consume
+    // is fired by the coupon/groupon forms AFTER a successful create and is
+    // FAIL-SOFT there — a failed consume never blocks or rolls back the create.
+    dismissPromoCandidate: builder.mutation<ApiEnvelope<unknown>, PromoDecisionCommand>({
+      query: ({ goodsId, kind, day }) => ({
+        url: `/promo-candidates/${goodsId}/dismiss`,
+        method: 'POST',
+        body: { kind, ...(day ? { day } : {}) },
+      }),
+      invalidatesTags: ['PromoCandidates'],
+    }),
+    consumePromoCandidate: builder.mutation<ApiEnvelope<unknown>, PromoDecisionCommand>({
+      query: ({ goodsId, kind, day, refId }) => ({
+        url: `/promo-candidates/${goodsId}/consume`,
+        method: 'POST',
+        body: { kind, ...(day ? { day } : {}), ...(refId != null ? { refId } : {}) },
+      }),
+      invalidatesTags: ['PromoCandidates'],
+    }),
+    // Manual trigger of the nightly scoring (admin re-run / dev acceptance).
+    runPromoCandidates: builder.mutation<ApiEnvelope<unknown>, { day?: string }>({
+      query: ({ day }) => ({ url: '/promo-candidates/run', method: 'POST', params: day ? { day } : undefined }),
+      invalidatesTags: ['PromoCandidates'],
     }),
     // ---- Wave 14: retirement pipeline -------------------------------------
     getRetireCandidates: builder.query<{ list: IRetireCandidate[] }, { status: RetireStatus }>({
@@ -395,6 +499,10 @@ export const {
   useGetDealCandidatesQuery,
   useApproveDealCandidateMutation,
   useDismissDealCandidateMutation,
+  useGetPromoCandidatesQuery,
+  useDismissPromoCandidateMutation,
+  useConsumePromoCandidateMutation,
+  useRunPromoCandidatesMutation,
   useGetRetireCandidatesQuery,
   useApproveRetireCandidatesMutation,
   useDismissRetireCandidateMutation,

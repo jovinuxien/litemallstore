@@ -64,6 +64,7 @@ import CategoryInsightList from 'app/views/adminViews/adminModule/Insight/Catego
 import CategoryGoodsList from 'app/views/adminViews/adminModule/Insight/CategoryGoodsList';
 import GoodsInsight from 'app/views/adminViews/adminModule/Insight/GoodsInsight';
 import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCandidateList';
+import PromoCandidateList from 'app/views/adminViews/adminModule/Insight/PromoCandidateList';
 import RetireCandidateList from 'app/views/adminViews/adminModule/Insight/RetireCandidateList';
 import ArrivalsList from 'app/views/adminViews/adminModule/Insight/ArrivalsList';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
@@ -99,6 +100,8 @@ export const AdminRoutes = () => (
       <Route path='goods/categories' element={<CategoryInsightList />} />
       <Route path='goods/categories/:id' element={<CategoryGoodsList />} />
       <Route path='goods/deal-candidates' element={<DealCandidateList />} />
+      {/* Wave 19: coupon/groupon promo suggestions — also static before ':id' */}
+      <Route path='goods/promo-candidates' element={<PromoCandidateList />} />
       {/* Wave 14: inventory governance — also static before ':id' */}
       <Route path='goods/retire' element={<RetireCandidateList />} />
       <Route path='goods/arrivals' element={<ArrivalsList />} />
