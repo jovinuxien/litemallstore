@@ -1,5 +1,4 @@
 import {
-  IPostizChannel,
   IPostizPreview,
   IPostizPublishResult,
   PostizBatchCommand,
@@ -11,7 +10,10 @@ import {
 import { InsightSortKey, useGetInsightCategoriesQuery, useGetInsightGoodsListQuery } from 'app/shared/reducers/private/services/insightApi';
 import { PAGE_SIZES, Pagination, Spinner, Tag, errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import { fmtDateTime, fmtMoney, fmtPct } from 'app/views/adminViews/adminModule/Insight/insightFormat';
+import ChannelPicker, { channelLabel } from './ChannelPicker';
 import PostizHistory from './PostizHistory';
+import PostizPagePublish from './PostizPagePublish';
+import { nextFullHourLocal } from './postizSource';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -22,6 +24,8 @@ import { Link } from 'react-router-dom';
 // Publish → per-product/per-channel results, Postiz errors VERBATIM. The
 // panel is menu-hidden unless /postiz/status says enabled; deep links land on
 // an honest "not configured" note instead.
+// Wave 20 adds a SOURCE picker: Products (this flow, unchanged) | DIY page
+// (PostizPagePublish — one page per post, groupon-category refusal verbatim).
 
 const MAX_BATCH = 25;
 
@@ -33,15 +37,6 @@ const SORT_OPTIONS: { key: InsightSortKey; label: string }[] = [
   { key: 'sales', label: 'Sales' },
 ];
 
-// Default start = the next full local hour, as a datetime-local value.
-const nextFullHourLocal = (): string => {
-  const d = new Date();
-  d.setMinutes(0, 0, 0);
-  d.setHours(d.getHours() + 1);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
 interface SelectedGoods {
   name?: string;
   picUrl?: string;
@@ -50,11 +45,6 @@ interface SelectedGoods {
 // The preview/publish inputs that must not drift between Preview and Publish.
 const batchSignature = (goodsIds: number[], channelIds: string[], start: string, interval: number): string =>
   JSON.stringify([[...goodsIds].sort((a, b) => a - b), [...channelIds].sort(), start, interval]);
-
-const channelLabel = (channels: IPostizChannel[], integrationId: string): string => {
-  const c = channels.find(x => x.integrationId === integrationId);
-  return c ? c.name || c.identifier || integrationId : integrationId;
-};
 
 const PostizCompose: React.FC = () => {
   const { data: channels = [], isLoading: channelsLoading, isError: channelsError } = useGetPostizChannelsQuery();
@@ -93,7 +83,7 @@ const PostizCompose: React.FC = () => {
   const previewWarnings = React.useMemo(() => {
     const m = new Map<number, string[]>();
     for (const item of previewData?.batch ?? []) {
-      if (item.warnings?.length) m.set(item.goodsId, item.warnings);
+      if (item.goodsId != null && item.warnings?.length) m.set(item.goodsId, item.warnings);
     }
     return m;
   }, [previewData]);
@@ -322,36 +312,7 @@ const PostizCompose: React.FC = () => {
 
       {/* 2 — channels */}
       <h5 className='mt-4'>2 · Pick channels</h5>
-      {channelsError ? (
-        <div className='alert alert-danger'>Failed to load Postiz channels.</div>
-      ) : channelsLoading ? (
-        <Spinner />
-      ) : channels.length === 0 ? (
-        <div className='text-muted'>No channels connected in Postiz yet.</div>
-      ) : (
-        <div className='d-flex flex-wrap gap-3 mb-2'>
-          {channels.map(c => {
-            const unsupported = c.supported === false;
-            return (
-              <label key={c.integrationId} className={`form-check d-flex align-items-center gap-2 border rounded px-3 py-2${unsupported ? ' text-muted' : ''}`}>
-                <input
-                  type='checkbox'
-                  className='form-check-input'
-                  checked={channelIds.has(c.integrationId)}
-                  disabled={unsupported}
-                  onChange={() => toggleChannel(c.integrationId)}
-                />
-                {c.picture && <img src={c.picture} alt='' style={{ width: 24, height: 24, borderRadius: '50%' }} />}
-                <span>
-                  {c.name || c.identifier || c.integrationId}
-                  {c.identifier && <span className='text-muted small ms-1'>({c.identifier})</span>}
-                  {unsupported && <span className='small d-block'>not supported{c.reason ? ` — ${c.reason}` : ''}</span>}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      )}
+      <ChannelPicker channels={channels} loading={channelsLoading} error={channelsError} selected={channelIds} onToggle={toggleChannel} />
 
       {/* 3 — schedule */}
       <h5 className='mt-4'>3 · Schedule</h5>
@@ -395,12 +356,12 @@ const PostizCompose: React.FC = () => {
               {w}
             </div>
           ))}
-          {previewData.batch.map(item => (
-            <div key={item.goodsId} className='card mb-3'>
+          {previewData.batch.map((item, idx) => (
+            <div key={item.goodsId ?? idx} className='card mb-3'>
               <div className='card-header d-flex align-items-center gap-2'>
                 {item.picUrl && <img src={item.picUrl} alt='' style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4 }} />}
-                <strong>{item.name || `Goods #${item.goodsId}`}</strong>
-                <span className='text-muted small'>#{item.goodsId}</span>
+                <strong>{item.name || `Goods #${item.goodsId ?? '?'}`}</strong>
+                {item.goodsId != null && <span className='text-muted small'>#{item.goodsId}</span>}
                 <span className='ms-auto'>{fmtDateTime(item.scheduleAt)}</span>
               </div>
               <div className='card-body'>
@@ -445,7 +406,7 @@ const PostizCompose: React.FC = () => {
                   <tr key={`${r.goodsId}-${ch.integrationId}`}>
                     {i === 0 && (
                       <>
-                        <td rowSpan={r.channels?.length}>{selected.get(r.goodsId)?.name || `Goods #${r.goodsId}`}</td>
+                        <td rowSpan={r.channels?.length}>{(r.goodsId != null && selected.get(r.goodsId)?.name) || `Goods #${r.goodsId ?? '?'}`}</td>
                         <td rowSpan={r.channels?.length}>{fmtDateTime(r.scheduleAt)}</td>
                       </>
                     )}
@@ -466,6 +427,8 @@ const PostizCompose: React.FC = () => {
 const PostizPublish: React.FC = () => {
   const { data: status, isLoading } = useGetPostizStatusQuery();
   const [tab, setTab] = React.useState<'compose' | 'history'>('compose');
+  // Wave 20 source picker: Products (Wave-17 flow, unchanged) | DIY page.
+  const [source, setSource] = React.useState<'products' | 'page'>('products');
 
   if (isLoading) {
     return (
@@ -507,7 +470,29 @@ const PostizPublish: React.FC = () => {
           </li>
         ))}
       </ul>
-      {tab === 'compose' ? <PostizCompose /> : <PostizHistory />}
+      {tab === 'compose' ? (
+        <>
+          <div className='btn-group mt-2' role='group' aria-label='Post source'>
+            <button
+              type='button'
+              className={`btn btn-sm ${source === 'products' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setSource('products')}
+            >
+              Products
+            </button>
+            <button
+              type='button'
+              className={`btn btn-sm ${source === 'page' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setSource('page')}
+            >
+              DIY page
+            </button>
+          </div>
+          {source === 'products' ? <PostizCompose /> : <PostizPagePublish />}
+        </>
+      ) : (
+        <PostizHistory />
+      )}
     </div>
   );
 };

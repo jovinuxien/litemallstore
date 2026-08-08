@@ -1,12 +1,14 @@
 import { useGetPostizLogQuery } from 'app/shared/reducers/private/services/postizApi';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import { fmtDateTime } from 'app/views/adminViews/adminModule/Insight/insightFormat';
+import { logSubject } from './postizSource';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
 // Wave 17: publish history — the litemall_postiz_post ledger via GET /log
-// (standard page envelope). One row per goods × channel attempt; errors are
-// whatever Postiz returned, verbatim.
+// (standard page envelope). One row per subject × channel attempt; errors are
+// whatever Postiz returned, verbatim. Wave 20: page-source rows carry pageId
+// (V55) and link to the DIY page editor instead of a goods insight view.
 
 const statusTag = (status?: string): React.ReactNode => {
   if (!status) return <span className='text-muted'>—</span>;
@@ -52,7 +54,7 @@ const PostizHistory: React.FC = () => {
       <table className='el-table'>
         <thead>
           <tr>
-            <th>Goods</th>
+            <th>Subject</th>
             <th>Channel</th>
             <th>Scheduled for</th>
             <th>Status</th>
@@ -75,14 +77,12 @@ const PostizHistory: React.FC = () => {
               </td>
             </tr>
           ) : (
-            list.map((row, i) => (
+            list.map((row, i) => {
+              const subject = logSubject(row);
+              return (
               <tr key={row.id ?? i}>
                 <td>
-                  {row.goodsId != null ? (
-                    <Link to={`/admin/goods/${row.goodsId}/insight`}>Goods #{row.goodsId}</Link>
-                  ) : (
-                    <span className='text-muted'>—</span>
-                  )}
+                  {subject ? <Link to={subject.to}>{subject.label}</Link> : <span className='text-muted'>—</span>}
                 </td>
                 <td>
                   {row.identifier || row.integrationId || <span className='text-muted'>—</span>}
@@ -94,7 +94,8 @@ const PostizHistory: React.FC = () => {
                 <td className='small'>{row.error || <span className='text-muted'>—</span>}</td>
                 <td>{fmtDateTime(row.addTime)}</td>
               </tr>
-            ))
+              );
+            })
           )}
         </tbody>
       </table>
