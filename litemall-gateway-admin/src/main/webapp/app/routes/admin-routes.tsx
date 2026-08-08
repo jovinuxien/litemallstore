@@ -67,6 +67,7 @@ import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCand
 import PromoCandidateList from 'app/views/adminViews/adminModule/Insight/PromoCandidateList';
 import RetireCandidateList from 'app/views/adminViews/adminModule/Insight/RetireCandidateList';
 import ArrivalsList from 'app/views/adminViews/adminModule/Insight/ArrivalsList';
+import SearchStatsPanel from 'app/views/adminViews/adminModule/Insight/SearchStatsPanel';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
 import MailOutboxList from 'app/views/adminViews/adminModule/Mail/MailOutboxList';
 import AdminLayout from 'app/shared/layout/admin/AdminLayout';
@@ -102,6 +103,8 @@ export const AdminRoutes = () => (
       <Route path='goods/deal-candidates' element={<DealCandidateList />} />
       {/* Wave 19: coupon/groupon promo suggestions — also static before ':id' */}
       <Route path='goods/promo-candidates' element={<PromoCandidateList />} />
+      {/* Wave 22: search demand analytics — also static before ':id' */}
+      <Route path='goods/search-stats' element={<SearchStatsPanel />} />
       {/* Wave 14: inventory governance — also static before ':id' */}
       <Route path='goods/retire' element={<RetireCandidateList />} />
       <Route path='goods/arrivals' element={<ArrivalsList />} />
