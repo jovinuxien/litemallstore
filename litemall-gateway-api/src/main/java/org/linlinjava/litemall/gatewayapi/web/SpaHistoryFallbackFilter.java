@@ -51,8 +51,9 @@ import java.util.regex.Pattern;
  * <p>Ordered after Spring Security's chain (-100): authorization evaluates the real
  * requested path, then the rewrite decides what content answers it.
  *
- * <p><b>Wave-13 head injection.</b> Product ({@code /product/<id>[-slug]}) and
- * category ({@code /category/<id>}) navigations are answered with the same shell
+ * <p><b>Wave-13 head injection.</b> Product ({@code /product/<id>[-slug]}),
+ * category ({@code /category/<id>}) and — since Wave 20 — DIY-page
+ * ({@code /page/<id>}) navigations are answered with the same shell
  * but a real head (title, canonical, OpenGraph, JSON-LD) rendered by
  * {@link SeoHeadRenderer} from goods-management meta — that is what no-JS social
  * crawlers and Google's first-wave fetch index. Strictly fail-open: meta not
@@ -72,6 +73,8 @@ public class SpaHistoryFallbackFilter implements WebFilter, Ordered {
     /** Leading digits are the goods id; an optional -slug tail is ignored. */
     private static final Pattern PRODUCT_ROUTE = Pattern.compile("^/product/(\\d+)(?:-[^/]*)?$");
     private static final Pattern CATEGORY_ROUTE = Pattern.compile("^/category/(\\d+)$");
+    /** Wave-20 DIY promo pages — /page/<id> gets an og-meta head like products do. */
+    private static final Pattern PAGE_ROUTE = Pattern.compile("^/page/(\\d+)$");
 
     private final SeoMetaSource seoMetaClient;
     private final SeoHeadRenderer seoHeadRenderer;
@@ -120,6 +123,15 @@ public class SpaHistoryFallbackFilter implements WebFilter, Ordered {
             return seoMetaClient.categoryName(category.group(1))
                     .flatMap(name -> Mono.justOrEmpty(
                             seoHeadRenderer.renderCategory(category.group(1), name)))
+                    .defaultIfEmpty("")
+                    .onErrorReturn("");
+        }
+        // Wave-20 DIY pages: active pages get a name/og:image head; a draft or
+        // missing page (errno ⇒ empty meta) falls open to the plain shell.
+        Matcher page = PAGE_ROUTE.matcher(path);
+        if (page.matches()) {
+            return seoMetaClient.pageMeta(page.group(1))
+                    .flatMap(meta -> Mono.justOrEmpty(seoHeadRenderer.renderPage(meta)))
                     .defaultIfEmpty("")
                     .onErrorReturn("");
         }

@@ -501,6 +501,33 @@
     overflow-x: auto;
   }
 
+  // v1.1 'grid' style variant: wrapping multi-column layout instead of the
+  // horizontally scrolling strip.
+  .lm-coupons--grid {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+
+    @media (min-width: 576px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    @media (min-width: 992px) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .lm-coupons__headline {
+    margin: -6px 0 12px;
+    font-size: 13px;
+    color: var(--lm-muted);
+  }
+
+  // groupon-strip teaser line (no price promise — Phase-3 gating decision).
+  .lm-groupon-teaser {
+    color: var(--lm-accent);
+  }
+
   .lm-coupon {
     display: flex;
     align-items: center;

@@ -19,7 +19,8 @@ import java.util.function.Supplier;
  * Fetches the Wave-13 SEO meta a crawlable shell needs — product meta from
  * {@code GET /srv/goods/meta/{id}} and the category name from the existing
  * {@code GET /srv/search/category/{id}?size=1} landing read (the same call
- * CategoryTree.tsx makes) — from goods-management over the load balancer,
+ * CategoryTree.tsx makes), plus Wave-20 DIY-page meta from
+ * {@code GET /srv/page/{id}} — from goods-management over the load balancer,
  * authenticated with the same machine token {@code MachineTokenRelayFilter}
  * relays for proxied public reads.
  *
@@ -82,6 +83,20 @@ public class SeoMetaClient implements SeoMetaSource {
                 .timeout(FETCH_BUDGET)
                 .onErrorResume(e -> Mono.empty())
                 .flatMap(body -> Mono.justOrEmpty(parseCategoryName(body)));
+    }
+
+    /**
+     * Wave-20 DIY-page meta from the public {@code GET /srv/page/{id}} read, or
+     * empty (never an error). The endpoint serves ACTIVE pages only — a draft
+     * or missing page answers a non-zero errno, which parses to empty and the
+     * navigation falls open to the plain shell.
+     */
+    @Override
+    public Mono<PageMeta> pageMeta(String pageId) {
+        return cached("page:" + pageId, () -> fetch("/srv/page/{id}", pageId))
+                .timeout(FETCH_BUDGET)
+                .onErrorResume(e -> Mono.empty())
+                .flatMap(body -> Mono.justOrEmpty(parsePage(pageId, body)));
     }
 
     private Mono<JsonNode> cached(String key, Supplier<Mono<JsonNode>> fetch) {
@@ -156,6 +171,49 @@ public class SeoMetaClient implements SeoMetaSource {
             }
         }
         return name;
+    }
+
+    private static PageMeta parsePage(String pageId, JsonNode body) {
+        if (body == null || body.path("errno").asInt(-1) != 0) {
+            return null;
+        }
+        JsonNode d = body.path("data");
+        if (!d.hasNonNull("name") || d.path("name").asText().isBlank()) {
+            return null;
+        }
+        return new PageMeta(
+                d.hasNonNull("id") ? d.path("id").asText() : pageId,
+                d.path("name").asText(),
+                firstComponentImage(d.path("components")));
+    }
+
+    /**
+     * The first image-bearing component's URL, in configured order: a banner's
+     * {@code config.image}, else the first usable entry of an image-row's
+     * {@code config.images[]}. Other palette components carry no image in
+     * config; {@code null} when nothing usable exists.
+     */
+    private static String firstComponentImage(JsonNode components) {
+        if (!components.isArray()) {
+            return null;
+        }
+        for (JsonNode component : components) {
+            JsonNode config = component.path("config");
+            String image = text(config, "image");
+            if (image != null) {
+                return image;
+            }
+            JsonNode images = config.path("images");
+            if (images.isArray()) {
+                for (JsonNode entry : images) {
+                    String rowImage = text(entry, "image");
+                    if (rowImage != null) {
+                        return rowImage;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private static String text(JsonNode node, String field) {
