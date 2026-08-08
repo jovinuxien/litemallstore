@@ -32,12 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V45 (CJ inventory intelligence) is the latest
-    // known migration; the exact-count assertion was replaced with a >= floor so this
-    // test no longer goes stale every time a script lands. Being a floor it still
-    // passes when it drifts, so it only asserts what it is raised to — bump it when
-    // you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 46;
+    // Hand-maintained floor: V54 (page category + templates, Wave 20) is the
+    // latest known migration; the exact-count assertion was replaced with a >= floor
+    // so this test no longer goes stale every time a script lands. Being a floor it
+    // still passes when it drifts, so it only asserts what it is raised to — bump it
+    // when you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 54;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -126,6 +126,9 @@ public class FlywayMigrationTest {
             {"litemall_order",        "tax_breakdown"},
             // V45: raw CJ wholesale cost captured at sync (Wave 12)
             {"litemall_cj_product",   "sell_price"},
+            // V54: page category + seed-only template flag (Wave 20)
+            {"litemall_page",         "category"},
+            {"litemall_page",         "is_template"},
         };
 
         try (var conn = MYSQL.createConnection("")) {

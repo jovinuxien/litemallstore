@@ -9,6 +9,7 @@ import org.linlinjava.litemall.goods.domain.content.PageConfigValidator;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsServiceResponseCode;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +32,9 @@ public class AdminPageController {
             Set.of(LitemallPage.POSITION_HOME, LitemallPage.POSITION_CUSTOM);
     private static final Set<String> STATUSES =
             Set.of(LitemallPage.STATUS_DRAFT, LitemallPage.STATUS_ACTIVE);
+    private static final Set<String> CATEGORIES =
+            Set.of(LitemallPage.CATEGORY_GENERAL, LitemallPage.CATEGORY_COUPON,
+                    LitemallPage.CATEGORY_GROUPON);
 
     private final PageService pageService;
 
@@ -43,6 +47,7 @@ public class AdminPageController {
         private Integer id;
         private String name;
         private String position;
+        private String category;
         private JsonNode config;
 
         public Integer getId() {
@@ -67,6 +72,14 @@ public class AdminPageController {
 
         public void setPosition(String position) {
             this.position = position;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public void setCategory(String category) {
+            this.category = category;
         }
 
         public JsonNode getConfig() {
@@ -94,6 +107,8 @@ public class AdminPageController {
     @GetMapping("/list")
     public Object list(@RequestParam(required = false) String position,
                        @RequestParam(required = false) String status,
+                       @RequestParam(required = false) String category,
+                       @RequestParam(required = false) Integer template,
                        @RequestParam(defaultValue = "1") Integer page,
                        @RequestParam(defaultValue = "10") Integer limit) {
         if (position != null && !position.isEmpty() && !POSITIONS.contains(position)) {
@@ -102,9 +117,17 @@ public class AdminPageController {
         if (status != null && !status.isEmpty() && !STATUSES.contains(status)) {
             return ResponseUtil.badArgumentValue();
         }
+        if (category != null && !category.isEmpty() && !CATEGORIES.contains(category)) {
+            return ResponseUtil.badArgumentValue();
+        }
+        if (template != null && template != 0 && template != 1) {
+            return ResponseUtil.badArgumentValue();
+        }
+        Boolean templateFilter = template == null ? null : template == 1;
         int safePage = page == null || page < 1 ? 1 : page;
         int safeLimit = limit == null || limit < 1 ? 10 : Math.min(limit, 100);
-        return ResponseUtil.ok(pageService.adminList(position, status, safePage, safeLimit));
+        return ResponseUtil.ok(
+                pageService.adminList(position, status, category, templateFilter, safePage, safeLimit));
     }
 
     /** Any status — this is also the draft-preview read. */
@@ -133,6 +156,11 @@ public class AdminPageController {
         if (!POSITIONS.contains(position)) {
             return ResponseUtil.badArgumentValue();
         }
+        String category = body.getCategory() == null ? LitemallPage.CATEGORY_GENERAL : body.getCategory();
+        if (!CATEGORIES.contains(category)) {
+            return ResponseUtil.fail(GoodsServiceResponseCode.PAGE_CONFIG_INVALID,
+                    "category must be one of " + CATEGORIES);
+        }
         if (body.getConfig() == null || body.getConfig().isNull()) {
             return ResponseUtil.badArgument();
         }
@@ -140,7 +168,7 @@ public class AdminPageController {
         if (!result.isValid()) {
             return ResponseUtil.fail(GoodsServiceResponseCode.PAGE_CONFIG_INVALID, result.getError());
         }
-        LitemallPage page = pageService.create(body.getName(), position, result.getNormalizedJson());
+        LitemallPage page = pageService.create(body.getName(), position, category, result.getNormalizedJson());
         return ResponseUtil.ok(pageService.adminRead(page));
     }
 
@@ -156,6 +184,10 @@ public class AdminPageController {
         if (body.getName() != null && (body.getName().isBlank() || body.getName().length() > 63)) {
             return ResponseUtil.badArgument();
         }
+        if (body.getCategory() != null && !CATEGORIES.contains(body.getCategory())) {
+            return ResponseUtil.fail(GoodsServiceResponseCode.PAGE_CONFIG_INVALID,
+                    "category must be one of " + CATEGORIES);
+        }
         String normalized = null;
         if (body.getConfig() != null && !body.getConfig().isNull()) {
             PageConfigValidator.Result result = pageService.validateConfig(body.getConfig().toString());
@@ -164,13 +196,28 @@ public class AdminPageController {
             }
             normalized = result.getNormalizedJson();
         }
-        if (body.getName() == null && normalized == null) {
+        if (body.getName() == null && body.getCategory() == null && normalized == null) {
             return ResponseUtil.badArgument();
         }
-        if (pageService.update(body.getId(), body.getName(), normalized) == 0) {
+        if (pageService.update(body.getId(), body.getName(), body.getCategory(), normalized) == 0) {
             return ResponseUtil.updatedDataFailed();
         }
         return ResponseUtil.ok();
+    }
+
+    /**
+     * Clone ANY page (template or otherwise) into a fresh DRAFT copy —
+     * "New from template" in admin. Position always {@code custom},
+     * category + config inherited; {@code is_template} and active status are
+     * never copied (clones are normal pages).
+     */
+    @PostMapping("/{id}/clone")
+    public Object clone(@PathVariable("id") Integer id) {
+        LitemallPage copy = pageService.clone(id);
+        if (copy == null) {
+            return ResponseUtil.badArgumentValue();
+        }
+        return ResponseUtil.ok(pageService.adminRead(copy));
     }
 
     /** Transactional home swap; a lost concurrent race → errno 641. */
