@@ -93,6 +93,8 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
     dealActive?: boolean;
     dealEndEpoch?: number;
     dealClaimedPct?: number;
+    coupon_flag?: number | string;
+    couponFlag?: number | string;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -109,6 +111,12 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const to = id != null ? productPath(id, name) : '/product/undefined';
   // Live flash deal: countdown chip (30s tick) + claimed bar. Fields ride the search DTO
   // only while a deal is live, so this renders nothing everywhere else.
+  // Wave-19 coupon visibility: search hits carry the numeric OCS source field
+  // `coupon_flag` (1 = an active publicly-claimable coupon's scope covers this
+  // product). Always-present 0/1 after reindex; missing (old index docs, or the
+  // home/list DTOs that never carry it) means 0. Tolerate a camelCase spelling
+  // and string "1" defensively.
+  const hasCoupon = Number(p.coupon_flag ?? p.couponFlag ?? 0) === 1;
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
   const now = useNow(dealEnd != null);
   const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
@@ -154,7 +162,12 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
       <Link to={to} className="lm-card__media">
         <img className="lm-card__img" src={picUrl} alt={name} loading="lazy" />
         {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
-        {isHot && <span className="lm-card__deal-label">Limited time deal</span>}
+        {(isHot || hasCoupon) && (
+          <span className="lm-card__flags">
+            {isHot && <span className="lm-card__deal-label">Limited time deal</span>}
+            {hasCoupon && <span className="lm-card__coupon">Coupon</span>}
+          </span>
+        )}
       </Link>
 
       <div className="lm-card__body">

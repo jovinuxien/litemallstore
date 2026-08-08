@@ -10,6 +10,7 @@ import {
   RefinementList,
   SortBy,
   Stats,
+  ToggleRefinement,
   useInstantSearch,
   useSearchBox,
 } from 'react-instantsearch';
@@ -25,6 +26,7 @@ import 'app/components/userComponents/card/product-card.scss';
 import CategoryTree from './instantsearch/CategoryTree';
 import CatalogTreeNav from './instantsearch/CatalogTreeNav';
 import ProductHit from './instantsearch/ProductHit';
+import SearchUnavailableState from './instantsearch/SearchUnavailableState';
 import { createSearchClient, PRIMARY_INDEX, sortIndex } from './instantsearch/litemallSearchClient';
 import { searchRouting } from './instantsearch/searchRouting';
 import './instantsearch/search.scss';
@@ -86,7 +88,8 @@ const prettySortLabel = (label: string): string => {
 // Facets rendered explicitly (with custom labels / a range control) above, plus
 // `category_names` which is the same data as the explicit `category_ids` facet
 // (by name instead of id) — showing both would duplicate the Category filter.
-const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price']);
+// `coupon_flag` has its own "Has coupon" toggle in the Offers section.
+const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price', 'coupon_flag']);
 
 // "attr_material" / "screen_size" -> "Material" / "Screen Size" for facet headers.
 const humanizeFacet = (field: string): string =>
@@ -336,10 +339,15 @@ const SearchView: React.FC = () => {
     (items: any[]) =>
       items.map(item => ({
         ...item,
-        label: item.attribute === 'category_ids' ? 'Category' : item.label,
+        label: item.attribute === 'category_ids' ? 'Category' : item.attribute === 'coupon_flag' ? 'Offers' : item.label,
         refinements: item.refinements.map((r: any) => ({
           ...r,
-          label: item.attribute === 'category_ids' ? categoryNames.get(String(r.value)) ?? r.label : r.label,
+          label:
+            item.attribute === 'category_ids'
+              ? categoryNames.get(String(r.value)) ?? r.label
+              : item.attribute === 'coupon_flag'
+                ? 'Has coupon'
+                : r.label,
         })),
       })),
     [categoryNames]
@@ -397,6 +405,15 @@ const SearchView: React.FC = () => {
               <RangeInput attribute="price" />
             </section>
 
+            {/* Wave-19: coupon_flag=1 rides the standard facetFilters path
+                (adapter maps it to the `coupon_flag=1` /srv/search param, OCS
+                filters on the indexed field) and round-trips the URL as
+                ?coupon_flag=1 via searchRouting's toggle mapping. */}
+            <section className="lm-isearch__facet">
+              <h3>Offers</h3>
+              <ToggleRefinement attribute="coupon_flag" on={1} label="Has coupon" />
+            </section>
+
             {/* Every other facet group the backend returns (attributes, variant
                 fields, …) — rendered dynamically so new OCS facets need no SPA change. */}
             <DynamicExtraFacets categoryId={params.id} />
@@ -420,7 +437,10 @@ const SearchView: React.FC = () => {
 
             <CurrentRefinements transformItems={transformCurrentRefinements} />
 
-            <NoResultsBoundary fallback={<SearchEmptyState />}>
+            {/* An outage (typed errno 502 / gateway unreachable — published by the
+                search client as meta.unavailable) is NOT a relevance miss: say so
+                honestly instead of showing the "no results" suggestions. */}
+            <NoResultsBoundary fallback={meta.unavailable ? <SearchUnavailableState /> : <SearchEmptyState />}>
               <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />
 
               <Pagination className="lm-isearch__pager" padding={2} />

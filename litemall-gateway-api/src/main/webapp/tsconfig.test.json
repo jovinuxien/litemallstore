@@ -1,0 +1,25 @@
+{
+  // Jest-only tsconfig (ts-jest): CommonJS + classic node resolution because the
+  // workspace-root ts-jest pairs with TypeScript 4.x, which does not know the
+  // main tsconfig's "moduleResolution": "Bundler". The webpack build keeps using
+  // tsconfig.json — this file exists solely for `npm test`.
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "useUnknownInCatchVariables": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./",
+    "paths": {
+      "app/*": ["app/*"],
+      "@litemall/shared": ["../../../../litemall-shared/src/index.ts"]
+    },
+    "types": ["jest", "node"]
+  },
+  "include": ["app"]
+}
