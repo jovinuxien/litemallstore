@@ -143,6 +143,16 @@ ocs:
               - Result
               - Filter
 
+          # Wave-19 coupon visibility: coupon_flag=1 = an active publicly-claimable coupon's
+          # scope matches this product. Filter powers the "Has coupon" toggle; Result powers
+          # the card badge. Same always-emit rule as deal_flag.
+          coupon_flag:
+            name: coupon_flag
+            type: number
+            usage:
+              - Result
+              - Filter
+
           # Live flash-deal signals (price-swap lifecycle) — emitted only while a deal is live.
           # deal_active: Filter (deal_active=1 scopes "live deals only"); deal_end_epoch: Sort
           # (sort=deal_end_epoch = "ending soon") + Result (card countdown); deal_claimed_pct:
@@ -208,14 +218,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result

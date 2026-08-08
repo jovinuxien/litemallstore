@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 19). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallPromoCandidateMapper">
+
+  <sql id="Base_Column_List">
+    id, kind, goods_id, `day`, tier, score, suggestion, reasons, status, ref_id, add_time, update_time, deleted
+  </sql>
+
+  <!-- Re-running the scorer refreshes scoring fields only while status is still 'proposed';
+       an admin's consume/dismiss decision is never clobbered by a later run. -->
+  <insert id="upsertProposal" parameterType="org.linlinjava.litemall.db.domain.LitemallPromoCandidate"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_promo_candidate
+      (kind, goods_id, `day`, tier, score, suggestion, reasons, status, add_time, update_time, deleted)
+    values
+      (#{kind}, #{goodsId}, #{day}, #{tier}, coalesce(#{score}, 0.00), #{suggestion}, #{reasons},
+       coalesce(#{status}, 'proposed'), now(), now(), 0)
+    on duplicate key update
+      tier = if(status = 'proposed', values(tier), tier),
+      score = if(status = 'proposed', values(score), score),
+      suggestion = if(status = 'proposed', values(suggestion), suggestion),
+      reasons = if(status = 'proposed', values(reasons), reasons),
+      update_time = if(status = 'proposed', now(), update_time)
+  </insert>
+
+  <select id="selectByKindAndDay" resultType="org.linlinjava.litemall.db.domain.LitemallPromoCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_promo_candidate
+    where kind = #{kind} and `day` = #{day} and deleted = 0
+    <if test="status != null">and status = #{status}</if>
+    order by score desc, id asc
+  </select>
+
+  <select id="selectLatestDay" resultType="java.time.LocalDate">
+    select max(`day`)
+    from litemall_promo_candidate
+    where kind = #{kind} and deleted = 0
+  </select>
+
+  <select id="selectByKindGoodsAndDay" resultType="org.linlinjava.litemall.db.domain.LitemallPromoCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_promo_candidate
+    where kind = #{kind} and goods_id = #{goodsId} and `day` = #{day} and deleted = 0
+  </select>
+
+  <select id="selectLatestByKindAndGoods" resultType="org.linlinjava.litemall.db.domain.LitemallPromoCandidate">
+    select <include refid="Base_Column_List"/>
+    from litemall_promo_candidate
+    where kind = #{kind} and goods_id = #{goodsId} and deleted = 0
+    order by `day` desc
+    limit 1
+  </select>
+
+  <update id="updateStatus">
+    update litemall_promo_candidate
+    set status = #{status},
+        ref_id = coalesce(#{refId}, ref_id),
+        update_time = now()
+    where id = #{id} and status = #{expect} and deleted = 0
+  </update>
+
+</mapper>

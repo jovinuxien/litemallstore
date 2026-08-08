@@ -293,4 +293,60 @@
                               and `day` &gt;= date_sub(curdate(), interval 7 day)))
   </select>
 
+  <!-- Wave 19: promo candidate intelligence. Same conventions as above. -->
+
+  <select id="selectPromoScoringPool" resultType="java.util.HashMap">
+    select
+      g.id as goodsId,
+      g.category_id as categoryId,
+      g.retail_price as retailPrice,
+      g.cost as cost,
+      round((g.retail_price - g.cost) / g.retail_price * 100, 2) as marginPct,
+      coalesce(p.stock_total, 0) as stockTotal,
+      coalesce(s.sales_qty, 0) as salesQty,
+      coalesce(v.views, 0) as views,
+      g.rating as rating,
+      g.review_count as reviewCount,
+      g.add_time as arrivalDate
+    from litemall_goods g
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = g.id
+    left join (<include refid="Sales_Subquery"/>) s on s.goods_id = g.id
+    left join (<include refid="Views_Subquery"/>) v on v.goods_id = g.id
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+      and g.cost &gt; 0 and g.retail_price &gt; 0
+    order by (g.retail_price - g.cost) / g.retail_price desc,
+      coalesce(p.stock_total, 0) desc, g.id asc
+    limit #{limit}
+  </select>
+
+  <select id="selectPromoCandidateRows" resultType="java.util.HashMap">
+    select
+      pc.id as id,
+      pc.goods_id as goodsId,
+      g.`name` as name,
+      g.pic_url as picUrl,
+      g.category_id as categoryId,
+      pc.kind as kind,
+      pc.`day` as day,
+      pc.tier as tier,
+      pc.score as score,
+      case when g.cost &gt; 0 then g.cost end as cost,
+      g.retail_price as retailPrice,
+      case when g.cost &gt; 0 and g.retail_price &gt; 0
+           then round((g.retail_price - g.cost) / g.retail_price * 100, 2) end as marginPct,
+      coalesce(p.stock_total, 0) as stockTotal,
+      g.rating as rating,
+      g.review_count as reviewCount,
+      pc.suggestion as suggestion,
+      pc.reasons as reasons,
+      pc.status as status,
+      pc.ref_id as refId
+    from litemall_promo_candidate pc
+    join litemall_goods g on g.id = pc.goods_id and g.deleted = 0
+    left join (<include refid="Stock_Subquery"/>) p on p.goods_id = pc.goods_id
+    where pc.deleted = 0 and pc.kind = #{kind} and pc.`day` = #{day}
+    <if test="status != null">and pc.status = #{status}</if>
+    order by pc.score desc, pc.id asc
+  </select>
+
 </mapper>

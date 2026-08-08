@@ -48,6 +48,7 @@ public class LitemallProductIndexingService {
     private final LitemallGoodsAttributeService attributeService;
     private final LitemallGoodsProductService productService;
     private final LitemallSeckillService seckillService;
+    private final CouponSignalResolver couponSignalResolver;
     private final LitemallSearchProperties properties;
 
     public LitemallProductIndexingService(LitemallBrandService brandService,
@@ -55,12 +56,14 @@ public class LitemallProductIndexingService {
                                           LitemallGoodsAttributeService attributeService,
                                           LitemallGoodsProductService productService,
                                           LitemallSeckillService seckillService,
+                                          CouponSignalResolver couponSignalResolver,
                                           LitemallSearchProperties properties) {
         this.brandService = brandService;
         this.categoryService = categoryService;
         this.attributeService = attributeService;
         this.productService = productService;
         this.seckillService = seckillService;
+        this.couponSignalResolver = couponSignalResolver;
         this.properties = properties;
     }
 
@@ -140,6 +143,11 @@ public class LitemallProductIndexingService {
         }
         doc.setCategoryNames(categoryNames);
         doc.setCategoryIds(categoryIds);
+
+        // Wave-19 coupon visibility: matched against the FULL ancestor chain built above, so a
+        // coupon scoped at any category level flags every product in its subtree. Always 1/0
+        // (never absent) — the deal-fields always-emit rule.
+        doc.setCouponFlag(couponSignalResolver.couponFlag(goods.getId(), categoryIds));
 
         // V31 ranking signals, read straight off the goods row (populated for CJ at promote, for
         // local by the review aggregator). Emitted as master-level numeric fields the searcher's
