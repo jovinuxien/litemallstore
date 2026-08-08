@@ -80,6 +80,8 @@ public class LitemallAdminOrderController {
     private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort;
     private final org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort;
     private final org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties;
+    // Admin-gated CJ placement (Wave 23, V59): pending list + approval stamp.
+    private final org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService cjPlacementApprovalService;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
@@ -91,7 +93,8 @@ public class LitemallAdminOrderController {
                                         org.linlinjava.litemall.order.application.internal.OrderAdminExtrasService adminExtrasService,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort,
-                                        org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties) {
+                                        org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties,
+                                        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService cjPlacementApprovalService) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
@@ -102,6 +105,7 @@ public class LitemallAdminOrderController {
         this.receiptPrinterPort = receiptPrinterPort;
         this.expressQueryPort = expressQueryPort;
         this.fulfillmentProperties = fulfillmentProperties;
+        this.cjPlacementApprovalService = cjPlacementApprovalService;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
@@ -476,6 +480,91 @@ public class LitemallAdminOrderController {
     }
 
     // ---- mapping helpers ------------------------------------------------------------
+
+    // ---- admin-gated CJ placement (Wave 23, V59) ------------------------------------
+
+    /**
+     * Paid CJ orders awaiting admin approval before placement (manual mode), oldest
+     * payment first. {@code cjReady} is a LOCAL variant-resolution verdict (no CJ call);
+     * {@code holdReason} names anything worth checking before approving. Standard
+     * paged envelope.
+     */
+    @GetMapping("/cj-placement/pending")
+    public Object cjPlacementPending(@RequestParam(defaultValue = "1") Integer page,
+                                     @RequestParam(defaultValue = "10") Integer limit) {
+        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService.PendingPage pending =
+                cjPlacementApprovalService.pending(page, limit);
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService.PendingOrder p
+                : pending.list()) {
+            LitemallOrderAggregate o = p.order();
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("orderId", o.getOrderId() == null ? null : o.getOrderId().getId());
+            row.put("orderSn", o.getOrderSn());
+            row.put("addTime", date(o.getAddTime()));
+            row.put("payTime", date(o.getPayTime()));
+            row.put("actualPrice", money(o.getActualPrice()));
+            row.put("consignee", o.getConsignee());
+            row.put("country", o.getCountryCode());
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderGoodsAggregate g : p.items()) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("goodsName", g.getGoodsName());
+                item.put("specifications", g.getSpecifications() == null
+                        ? "" : String.join(", ", g.getSpecifications()));
+                item.put("number", g.getNumber() == null ? 0 : (int) g.getNumber());
+                item.put("price", money(g.getPrice()));
+                item.put("picUrl", g.getPicUrl());
+                items.add(item);
+            }
+            row.put("items", items);
+            row.put("cjReady", p.cjReady());
+            if (p.holdReason() != null) {
+                row.put("holdReason", p.holdReason());
+            }
+            rows.add(row);
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", rows);
+        data.put("total", pending.total());
+        data.put("page", page);
+        data.put("limit", limit);
+        data.put("pages", limit == null || limit == 0 ? 0
+                : (int) Math.ceil((double) pending.total() / limit));
+        return ResponseUtil.ok(data);
+    }
+
+    /**
+     * Approve one paid CJ order for fulfilment: CAS-stamps
+     * {@code cj_placement_approved_time/_by} (approved_by = the caller's X-User-Id);
+     * the placement sweep sends it to CJ on its next tick. Idempotent — re-approving
+     * returns the existing stamp. Typed refusals ride the writeoff-style
+     * {@code [KIND] message} 422 envelope so the SPA can branch on kind while showing
+     * the message verbatim.
+     */
+    @PostMapping("/{orderId}/cj-placement/approve")
+    public Object cjPlacementApprove(@PathVariable Integer orderId,
+                                     @RequestHeader(value = "X-User-Id", required = false) String adminUserId) {
+        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService.ApproveResult result =
+                cjPlacementApprovalService.approve(orderId, adminUserId);
+        switch (result.status()) {
+            case APPROVED, ALREADY_APPROVED -> {
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("orderId", orderId);
+                data.put("status", result.status().name());
+                data.put("approvedTime", date(result.approvedTime()));
+                data.put("approvedBy", result.approvedBy());
+                data.put("message", result.message());
+                return ResponseUtil.ok(data);
+            }
+            default -> {
+                return ResponseEntity.unprocessableEntity()
+                        .body(ResponseUtil.fail(422, "[" + result.status().name() + "] " + result.message()));
+            }
+        }
+    }
 
     private Map<String, Object> toRow(LitemallOrderAggregate o) {
         Map<String, Object> row = new LinkedHashMap<>();

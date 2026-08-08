@@ -60,6 +60,8 @@ class CjPlacementServiceTest {
     private CjDropshipOrderFacade cjOrderFacade;
     @Mock
     private CjOpsNotifier opsNotifier;
+    @Mock
+    private CjPlacementMode placementMode; // isManual() defaults false = auto mode (pre-Wave-23 behavior)
 
     @InjectMocks
     private CjPlacementService service;
@@ -88,6 +90,52 @@ class CjPlacementServiceTest {
                 ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
         verify(statusHistoryRepository).record(hop.capture());
         assertEquals(CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT, hop.getValue().getChangeType());
+    }
+
+    /**
+     * Wave 23 (V59), manual mode: a paid order WITHOUT an admin approval stamp is held —
+     * no CJ traffic, no sentinel, no timeline noise. This also neutralizes the pay-path
+     * fast placement, whose callers are unchanged.
+     */
+    @Test
+    void manualMode_unapprovedPaidOrder_isHeld_noCjTraffic() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(placementMode.isManual()).thenReturn(true);
+
+        service.place(ORDER_ID, true, true);
+
+        verify(cjOrderFacade, never()).fetchOrderDetail(anyString());
+        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
+        verify(statusHistoryRepository, never()).record(any());
+    }
+
+    /** Wave 23 (V59), manual mode: an admin-approved paid order places normally. */
+    @Test
+    void manualMode_approvedOrder_isPlaced() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setCjPlacementApprovedTime(java.time.LocalDateTime.now());
+        order.setCjPlacementApprovedBy("7");
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(placementMode.isManual()).thenReturn(true);
+
+        service.place(ORDER_ID, false, true);
+
+        verify(cjFulfillmentService).placeForPaidOrder(eq(order), anyList());
+        verify(cjLifecycleService).advance(ORDER_ID);
+    }
+
+    /** Wave 23: refund-state orders never place in EITHER mode (status re-check first). */
+    @Test
+    void manualMode_refundStateOrder_neverPlaces_evenIfApproved() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setOrderStatus(LitemallOrderStatus.REFUND_REQUEST);
+        order.setCjPlacementApprovedTime(java.time.LocalDateTime.now());
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        service.place(ORDER_ID, false, true);
+
+        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
     }
 
     @Test

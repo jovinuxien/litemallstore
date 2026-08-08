@@ -44,10 +44,14 @@ class CustomerMailEnqueueListenerTest {
     private final MailOutboxMapper mailOutboxMapper = mock(MailOutboxMapper.class);
 
     private CustomerMailEnqueueListener listener(boolean enabled) {
+        return listener(enabled, ""); // Wave-23 admin notify OFF (the blank-env default)
+    }
+
+    private CustomerMailEnqueueListener listener(boolean enabled, String adminNotifyEmail) {
         CustomerMailProperties properties = new CustomerMailProperties();
         properties.setEnabled(enabled);
         return new CustomerMailEnqueueListener(orderRepository, orderGoodsRepository,
-                userMapper, mailOutboxMapper, properties);
+                userMapper, mailOutboxMapper, properties, adminNotifyEmail);
     }
 
     private static LitemallOrderAggregate order(int orderId) {
@@ -204,6 +208,81 @@ class CustomerMailEnqueueListenerTest {
     @Test
     void disabled_writesNothingAndReadsNothing() {
         listener(false).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        verify(mailOutboxMapper, after(500).never()).insert(any());
+        verifyZeroInteractions(orderRepository, orderGoodsRepository, userMapper);
+    }
+
+    // ------------------------------------------------------------------
+    // Wave 23: admin order-paid notification
+    // ------------------------------------------------------------------
+
+    @Test
+    void adminNotify_configured_enqueuesNoticeWithContractSubjectAndSummary() {
+        LitemallOrderAggregate order = order(42);
+        order.setCountryCode("US");
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", new String[]{"Black"}, 2, "9.99")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true, "contact@trovemo.com")
+                .onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS).times(2)).insert(captor.capture());
+        LitemallMailOutbox notice = captor.getAllValues().stream()
+                .filter(r -> "admin_order_paid".equals(r.getTemplateKey()))
+                .findFirst().orElseThrow();
+        assertThat(notice.getRecipient()).isEqualTo("contact@trovemo.com");
+        assertThat(notice.getSubject()).isEqualTo("New paid order 20260726000042 — $44.16");
+        assertThat(notice.getBody())
+                .contains("Wireless Mouse")
+                .contains("x2 @ $9.99")
+                .contains("Buyer country: US")
+                .contains("Total: $44.16")
+                .contains("Approve it for fulfilment in the admin panel");
+    }
+
+    /** The admin notice is NOT gated on the buyer having an email — customer skip, admin row. */
+    @Test
+    void adminNotify_emailLessBuyer_stillNotifiesAdmin() {
+        LitemallOrderAggregate order = order(42);
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", null, 1, "9.99")));
+        stubBuyerEmail(null);
+
+        listener(true, "contact@trovemo.com")
+                .onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        assertThat(captor.getValue().getTemplateKey()).isEqualTo("admin_order_paid");
+        verify(mailOutboxMapper, after(500).times(1)).insert(any());
+    }
+
+    @Test
+    void adminNotify_blankEnv_zeroAdminRows() {
+        LitemallOrderAggregate order = order(42);
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", null, 1, "9.99")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true, "  ").onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        // exactly the customer confirmation — no admin row
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        verify(mailOutboxMapper, after(500).times(1)).insert(any());
+        assertThat(captor.getValue().getTemplateKey()).isEqualTo(MailTemplates.KEY_ORDER_CONFIRMATION);
+    }
+
+    @Test
+    void adminNotify_disabledMailFlag_writesNothing() {
+        listener(false, "contact@trovemo.com")
+                .onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
 
         verify(mailOutboxMapper, after(500).never()).insert(any());
         verifyZeroInteractions(orderRepository, orderGoodsRepository, userMapper);
