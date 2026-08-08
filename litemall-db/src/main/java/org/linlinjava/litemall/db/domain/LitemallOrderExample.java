@@ -3329,6 +3329,17 @@ public class LitemallOrderExample {
             addCriterion("pink_id in", values, "pinkId");
             return (Criteria) this;
         }
+
+        // Hand-maintained (V59, Wave 23): admin-gated CJ placement approval stamp.
+        public Criteria andCjPlacementApprovedTimeIsNull() {
+            addCriterion("cj_placement_approved_time is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andCjPlacementApprovedTimeIsNotNull() {
+            addCriterion("cj_placement_approved_time is not null");
+            return (Criteria) this;
+        }
     }
 
     /**

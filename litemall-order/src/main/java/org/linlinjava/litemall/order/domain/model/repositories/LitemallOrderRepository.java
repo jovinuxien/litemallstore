@@ -152,4 +152,30 @@ public interface LitemallOrderRepository {
      * at {@code limit}.
      */
     List<LitemallOrderId> queryPlaceableCjOrders(int limit);
+
+    /**
+     * {@link #queryPlaceableCjOrders} restricted to admin-APPROVED orders (Wave 23, V59) —
+     * the sweep predicate in placement-mode 'manual'. Unapproved orders stay durably
+     * queued but never reach CJ.
+     */
+    List<LitemallOrderId> queryApprovedPlaceableCjOrders(int limit);
+
+    /**
+     * Paged pending list for the admin CJ-approval panel (Wave 23): paid CJ orders not
+     * yet placed at CJ and not yet approved, oldest payment first. Includes rows parked
+     * under the PLACEMENT_REJECTED sentinel (paid, unplaced — they need admin attention).
+     */
+    List<LitemallOrderAggregate> queryCjPlacementPending(int page, int limit);
+
+    /** Total for {@link #queryCjPlacementPending}. */
+    long countCjPlacementPending();
+
+    /**
+     * CAS admin-approval stamp for CJ placement (Wave 23, V59): sets
+     * {@code cj_placement_approved_time = now(), cj_placement_approved_by = approvedBy}
+     * exactly once — only on a PAID, unplaced, non-deleted CJ order whose stamp is still
+     * null. Returns the affected-row count (0 = already approved or not eligible; the
+     * caller re-reads the row to tell the two apart).
+     */
+    int stampCjPlacementApproval(LitemallOrderId orderId, String approvedBy);
 }

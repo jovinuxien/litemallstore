@@ -59,6 +59,14 @@ public class CustomerMailEnqueueListener {
     private final MailOutboxMapper mailOutboxMapper;
     private final CustomerMailProperties mailProperties;
 
+    /**
+     * Wave 23: ops/admin mailbox notified of every PAID order (env
+     * {@code LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY}; prod = contact@trovemo.com). Blank =
+     * no-op. Rides the same enabled flag + outbox as customer mail, but deliberately
+     * NOT gated on the buyer having an email — the admin hears about every paid order.
+     */
+    private final String adminNotifyEmail;
+
     /** 1 daemon worker, bounded queue: mail rendering never backs up payments. */
     private final ThreadPoolExecutor executor;
 
@@ -66,12 +74,15 @@ public class CustomerMailEnqueueListener {
                                        LitemallOrderGoodsRepository orderGoodsRepository,
                                        LitemallUserMapper userMapper,
                                        MailOutboxMapper mailOutboxMapper,
-                                       CustomerMailProperties mailProperties) {
+                                       CustomerMailProperties mailProperties,
+                                       @org.springframework.beans.factory.annotation.Value(
+                                               "${litemall.customer-mail.admin-notify-email:}") String adminNotifyEmail) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.userMapper = userMapper;
         this.mailOutboxMapper = mailOutboxMapper;
         this.mailProperties = mailProperties;
+        this.adminNotifyEmail = adminNotifyEmail == null ? "" : adminNotifyEmail.trim();
         AtomicInteger counter = new AtomicInteger();
         this.executor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(1000),
@@ -89,6 +100,36 @@ public class CustomerMailEnqueueListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onOrderPaid(LitemallOrderPaidEvent event) {
         submit(event.getOrderId().getId(), this::enqueuePaidMails);
+        submitAdminPaidNotice(event.getOrderId().getId());
+    }
+
+    /**
+     * Wave 23: admin order-paid notification. Separate submission because the customer
+     * path silently skips email-less buyers — the admin notice must not. Same executor,
+     * same enabled gate, same catch-all discipline.
+     */
+    private void submitAdminPaidNotice(Integer orderId) {
+        if (!mailProperties.isEnabled() || adminNotifyEmail.isEmpty()) {
+            return; // blank env or mail disabled: zero rows, zero reads
+        }
+        try {
+            executor.execute(() -> {
+                try {
+                    LitemallOrderAggregate order = orderRepository
+                            .findById(new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId(orderId))
+                            .orElse(null);
+                    if (order == null) {
+                        log.warn("Admin paid-order notice skipped: order {} not found after commit", orderId);
+                        return;
+                    }
+                    enqueueAdminPaidNotice(order);
+                } catch (Throwable t) {
+                    log.warn("Admin paid-order notice crashed for order {}: {}", orderId, t.toString());
+                }
+            });
+        } catch (RuntimeException e) {
+            log.warn("Admin paid-order notice submit failed for order {}: {}", orderId, e.getMessage());
+        }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
@@ -334,6 +375,49 @@ public class CustomerMailEnqueueListener {
         insertRow(email, MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn()),
                 MailHtmlTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(),
                         orderUrl(order), logoUrl()));
+    }
+
+    /**
+     * Wave 23: "New paid order" notice to the admin mailbox — order summary (items,
+     * buyer country, total) + the pointer to the CJ-approval step in the admin panel.
+     * Plain text only; any rendering hiccup degrades to the minimal summary line,
+     * never to a dropped notice.
+     */
+    private void enqueueAdminPaidNotice(LitemallOrderAggregate order) {
+        String total = money(order.getActualPrice());
+        String subject = "New paid order " + order.getOrderSn() + " — " + (total.isEmpty() ? "$?" : total);
+        StringBuilder body = new StringBuilder();
+        body.append("A new order was paid on ").append(payTime(order.getPayTime())).append(".\n\n");
+        body.append("Order: ").append(order.getOrderSn()).append('\n');
+        try {
+            List<LitemallOrderGoodsAggregate> orderGoods = orderGoodsRepository.findByOId(order.getOrderId());
+            body.append("Items:\n");
+            for (LitemallOrderGoodsAggregate goods : orderGoods) {
+                body.append("  - ").append(goods.getGoodsName());
+                String specs = specifications(goods.getSpecifications());
+                if (!specs.isEmpty()) {
+                    body.append(" (").append(specs).append(')');
+                }
+                body.append(" x").append(goods.getNumber() == null ? 0 : goods.getNumber())
+                        .append(" @ ").append(money(goods.getPrice())).append('\n');
+            }
+        } catch (Throwable t) {
+            log.warn("Admin paid-order notice: item list build failed for order {} — sending summary only: {}",
+                    order.getOrderId().getId(), t.toString());
+            body.append("Items: (unavailable — see the admin panel)\n");
+        }
+        String country = order.getCountryCode();
+        if (country != null && !country.isBlank()) {
+            body.append("Buyer country: ").append(country.trim()).append('\n');
+        }
+        body.append("Total: ").append(total.isEmpty() ? "unknown" : total).append('\n');
+        body.append("\nApprove it for fulfilment in the admin panel (Orders → Pending CJ approval).\n");
+        String orderLink = orderUrl(order);
+        if (!orderLink.isEmpty()) {
+            body.append("Order page: ").append(orderLink).append('\n');
+        }
+        insertRow(adminNotifyEmail,
+                new MailTemplates.RenderedMail("admin_order_paid", subject, body.toString()), null);
     }
 
     private void enqueueRefundApprovedMail(LitemallOrderAggregate order, String email) {
