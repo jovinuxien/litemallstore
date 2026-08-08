@@ -658,6 +658,28 @@
 >   template" (clone → open editor); Postiz panel gains a source picker
 >   (Products | DIY page) honoring the groupon-category refusal verbatim.
 >
+> **Wave 20 STATUS: MERGED to master `3e16420d5` (2026-08-08) — all four
+> halves (goods-management `77aa8784a`+`f1bf46cd6` V54 + palette v1.1 +
+> clone + seeded templates, tests 278-suite green; promotion `066b8e270`
+> V55 + Postiz page source, 114/0; gateway-api `53123bcb0` groupon-strip
+> renderer + /page/:id og-meta, jest 26/26 + module 65/0; gateway-admin
+> `8efc7197d` page filters/template flow/Postiz source picker, jest 57/57).
+> FlywayMigrationTest merge conflict union-resolved (floor 55). LIVE DEV
+> ACCEPTANCE PASSED same day: V54+V55 applied at boot; both seeded
+> templates listed → cloned (draft "Copy of …", isTemplate false) →
+> activated → public read serves category + components; Postiz page
+> preview composes the coupon page (text-only warning — seeds carry no
+> images by design), REFUSES the groupon page with errno 765, 764 on
+> not-active, env gate + real channel resolution live; edge /page/5
+> injects title/og:title/og:type/og:url, missing page = plain shell 200
+> fail-open. V55 also made litemall_postiz_post.goods_id NULLABLE (page
+> rows). Errnos: 764 page-not-active, 765 groupon-held, 766 page source
+> unavailable. PROD DEPLOY PENDING (user go). Dev gotchas: an OLD
+> promotion jar from a prior session held :8088 and answered with 402s —
+> verify the pid/cwd behind a port before trusting acceptance results;
+> pkill -f a jar name self-matches the launcher shell — launch via script
+> file.**
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
