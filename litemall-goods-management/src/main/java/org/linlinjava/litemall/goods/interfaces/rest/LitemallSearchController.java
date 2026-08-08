@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotEmpty;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.db.domain.LitemallSearchHistory;
 import org.linlinjava.litemall.goods.application.search.CategorySearchService;
 import org.linlinjava.litemall.goods.application.search.SearchHistoryService;
 import org.linlinjava.litemall.goods.application.search.SearchKeywordService;
@@ -63,10 +64,14 @@ public class LitemallSearchController {
         // Record BEFORE the OCS round-trip (upstream litemall-wx-api ordering):
         // the keyword is the user's intent, and an OCS outage — which surfaces
         // as an exception from search() — must not skip the history write.
-        recordHistory(query);
+        LitemallSearchHistory historyRow = recordHistory(query);
         try {
             // SearchService whitelists these to the index's Facet fields before they reach OCS.
-            return ResponseUtil.ok(searchService.search(query, page, size, sort, filters));
+            Map<String, Object> result = searchService.search(query, page, size, sort, filters);
+            // Wave 22: stamp the hit total back onto the history row (result_count; 0 = a real
+            // zero-result search). Best-effort like the record — an OCS failure leaves it NULL.
+            recordResultCount(historyRow, result);
+            return ResponseUtil.ok(result);
         } catch (RestClientException e) {
             // OCS unreachable/erroring must degrade to a typed error, never a 5xx (Wave 9).
             logger.warn("OCS search unavailable for q='" + query + "': " + e.getMessage());
@@ -75,18 +80,31 @@ public class LitemallSearchController {
     }
 
     /** Best-effort history write for logged-in searches — must NEVER fail the search itself. */
-    private void recordHistory(String query) {
+    private LitemallSearchHistory recordHistory(String query) {
         if (query == null || query.isBlank()) {
-            return;
+            return null;
         }
         Integer userId = resolveUserId();
         if (userId == null) {
+            return null;
+        }
+        try {
+            return searchHistoryService.record(userId, query);
+        } catch (Exception e) {
+            logger.warn("search-history write failed for user " + userId, e);
+            return null;
+        }
+    }
+
+    /** Best-effort result_count stamp (Wave 22) — null-safe, must NEVER fail the search itself. */
+    private void recordResultCount(LitemallSearchHistory historyRow, Map<String, Object> result) {
+        if (historyRow == null || result == null || !(result.get("total") instanceof Number total)) {
             return;
         }
         try {
-            searchHistoryService.record(userId, query);
+            searchHistoryService.recordResultCount(historyRow, total.longValue());
         } catch (Exception e) {
-            logger.warn("search-history write failed for user " + userId, e);
+            logger.warn("search-history result_count write failed for row " + historyRow.getId(), e);
         }
     }
 
