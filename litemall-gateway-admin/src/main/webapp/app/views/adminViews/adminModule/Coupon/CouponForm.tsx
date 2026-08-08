@@ -6,12 +6,13 @@ import {
   useReadCouponQuery,
   useUpdateCouponMutation,
 } from 'app/shared/reducers/private/services/adminPromotionApi';
-import { useGetInsightCategoriesQuery } from 'app/shared/reducers/private/services/insightApi';
+import { useConsumePromoCandidateMutation, useGetInsightCategoriesQuery } from 'app/shared/reducers/private/services/insightApi';
 import { fmtPct } from 'app/views/adminViews/adminModule/Insight/insightFormat';
+import { CouponPromoPrefill, createdRefId } from 'app/views/adminViews/adminModule/Insight/promoFormat';
 import CouponGoodsPicker from './CouponGoodsPicker';
 import { DISCOUNT_PERCENT, PERCENT_MAX, PERCENT_MIN, SCOPE_ALL, SCOPE_CATEGORY, SCOPE_GOODS, couponClientError } from './couponFormat';
 import * as React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 // Create / edit a coupon against promotion-service
 // (/srv/private/admin/promotion/coupon). Server requires a non-empty name; an
@@ -50,13 +51,22 @@ const CouponForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Wave 19: the promo-suggestions panel opens this form prefilled via router
+  // state; absent state changes nothing. Captured once — the suggestion only
+  // seeds the initial form, the admin's edits win from then on.
+  const [prefill] = React.useState<CouponPromoPrefill | null>(
+    () => (!isEdit && (location.state as { promoPrefill?: CouponPromoPrefill } | null)?.promoPrefill) || null
+  );
 
   const { data: existing, isLoading: loading } = useReadCouponQuery(id as string, { skip: !isEdit });
   const [createCoupon, { isLoading: creating }] = useCreateCouponMutation();
   const [updateCoupon, { isLoading: updating }] = useUpdateCouponMutation();
   const { data: categories, isLoading: categoriesLoading } = useGetInsightCategoriesQuery();
+  const [consumeCandidate] = useConsumePromoCandidateMutation();
 
-  const [form, setForm] = React.useState<ICoupon>(empty);
+  const [form, setForm] = React.useState<ICoupon>(() => (prefill ? { ...empty, ...prefill.coupon } : empty));
   const [error, setError] = React.useState<string | null>(null);
   // Set when the save succeeded but the guard reported uncosted goods: the
   // form is replaced by a success panel so the warning is actually seen
@@ -116,6 +126,13 @@ const CouponForm: React.FC = () => {
     if (msg) {
       setError(msg);
       return;
+    }
+    // Wave 19: opened from a promo suggestion → record the consumption with
+    // the created coupon id. FAIL-SOFT by construction: the un-unwrapped
+    // mutation promise never rejects, and the result is deliberately ignored —
+    // a failed consume must never block or roll back the create.
+    if (!isEdit && prefill) {
+      consumeCandidate({ ...prefill.consume, refId: createdRefId(res, 'couponId') });
     }
     const warning = promotionOpWarning(res);
     if (warning) {
