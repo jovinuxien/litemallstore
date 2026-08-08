@@ -86,10 +86,17 @@ public class LitemallPostizAdminController {
     @PostMapping("/preview")
     public ApiResponse<Map<String, Object>> preview(@RequestBody PostizBatchRequest request) {
         try {
-            BatchPreview preview = service.preview(toBatchRequest(request));
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("batch", preview.batch().stream().map(this::toPreviewDto).collect(Collectors.toList()));
-            body.put("warnings", preview.warnings());
+            if (request.getPageId() != null) {
+                // Wave-20 alternative body: {pageId, channelIds, startTime} — one post.
+                PostizPublishServiceImpl.PagePreview preview = service.previewPage(toPageRequest(request));
+                body.put("batch", List.of(toPagePreviewDto(preview)));
+                body.put("warnings", List.of());
+            } else {
+                BatchPreview preview = service.preview(toBatchRequest(request));
+                body.put("batch", preview.batch().stream().map(this::toPreviewDto).collect(Collectors.toList()));
+                body.put("warnings", preview.warnings());
+            }
             return ApiResponse.ok(body);
         } catch (PostizRequestException e) {
             return ApiResponse.fail(e.getErrno(), e.getMessage());
@@ -103,8 +110,12 @@ public class LitemallPostizAdminController {
             @RequestBody PostizBatchRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String adminId) {
         try {
-            List<ProductResult> results = service.publish(toBatchRequest(request),
-                    StringUtils.hasText(adminId) ? adminId : "admin");
+            String actor = StringUtils.hasText(adminId) ? adminId : "admin";
+            if (request.getPageId() != null) {
+                PostizPublishServiceImpl.PageResult result = service.publishPage(toPageRequest(request), actor);
+                return ApiResponse.ok(Map.of("results", List.of(toPageResultDto(result))));
+            }
+            List<ProductResult> results = service.publish(toBatchRequest(request), actor);
             return ApiResponse.ok(Map.of("results",
                     results.stream().map(this::toResultDto).collect(Collectors.toList())));
         } catch (PostizRequestException e) {
@@ -137,6 +148,36 @@ public class LitemallPostizAdminController {
     private BatchRequest toBatchRequest(PostizBatchRequest request) {
         return new BatchRequest(request.getGoodsIds(), request.getChannelIds(),
                 request.getStartTime(), request.getIntervalMinutes(), request.getCategoryId());
+    }
+
+    private PostizPublishServiceImpl.PageRequest toPageRequest(PostizBatchRequest request) {
+        return new PostizPublishServiceImpl.PageRequest(request.getPageId(),
+                request.getChannelIds(), request.getStartTime());
+    }
+
+    private Map<String, Object> toPagePreviewDto(PostizPublishServiceImpl.PagePreview preview) {
+        Map<String, Object> dto = new LinkedHashMap<>();
+        dto.put("pageId", preview.pageId());
+        dto.put("name", preview.name());
+        dto.put("picUrl", preview.picUrl());
+        dto.put("scheduleAt", preview.scheduleAt());
+        dto.put("warnings", preview.warnings());
+        dto.put("perChannel", preview.perChannel().stream().map(channel -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("integrationId", channel.integrationId());
+            row.put("content", channel.content());
+            row.put("settings", channel.settings());
+            return row;
+        }).collect(Collectors.toList()));
+        return dto;
+    }
+
+    private Map<String, Object> toPageResultDto(PostizPublishServiceImpl.PageResult result) {
+        Map<String, Object> dto = new LinkedHashMap<>();
+        dto.put("pageId", result.pageId());
+        dto.put("scheduleAt", result.scheduleAt());
+        dto.put("channels", result.channels().stream().map(this::toOutcomeDto).collect(Collectors.toList()));
+        return dto;
     }
 
     private ApiResponse<Map<String, Object>> unreachable(PostizGatewayException e) {
@@ -200,6 +241,7 @@ public class LitemallPostizAdminController {
         Map<String, Object> dto = new LinkedHashMap<>();
         dto.put("id", row.getId());
         dto.put("goodsId", row.getGoodsId());
+        dto.put("pageId", row.getPageId());
         dto.put("categoryId", row.getCategoryId());
         dto.put("integrationId", row.getIntegrationId());
         dto.put("channelIdentifier", row.getChannelIdentifier());

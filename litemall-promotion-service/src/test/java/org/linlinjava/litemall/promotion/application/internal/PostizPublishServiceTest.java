@@ -8,8 +8,12 @@ import org.linlinjava.litemall.promotion.application.internal.PostizPublishServi
 import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.ChannelView;
 import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.PostizRequestException;
 import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.ProductResult;
+import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.PagePreview;
+import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.PageRequest;
+import org.linlinjava.litemall.promotion.application.internal.PostizPublishServiceImpl.PageResult;
 import org.linlinjava.litemall.promotion.application.ports.PostizGatewayException;
 import org.linlinjava.litemall.promotion.application.ports.PostizPort;
+import org.linlinjava.litemall.promotion.application.ports.PromoPagePort;
 import org.linlinjava.litemall.promotion.application.ports.SocialCatalogPort;
 import org.linlinjava.litemall.promotion.domain.model.repositories.LitemallPostizPostRepository;
 import org.linlinjava.litemall.promotion.infrastructure.configuration.PostizProperties;
@@ -88,6 +92,19 @@ class PostizPublishServiceTest {
         }
     }
 
+    private static class FakePagePort implements PromoPagePort {
+        Map<Integer, PromoPage> pages = new HashMap<>();
+        PromoPageGatewayException failWith;
+
+        @Override
+        public java.util.Optional<PromoPage> fetchActive(Integer pageId) {
+            if (failWith != null) {
+                throw failWith;
+            }
+            return java.util.Optional.ofNullable(pages.get(pageId));
+        }
+    }
+
     private static class InMemoryRepo implements LitemallPostizPostRepository {
         final List<LitemallPostizPost> rows = new ArrayList<>();
         int nextId = 1;
@@ -117,6 +134,7 @@ class PostizPublishServiceTest {
 
     private FakePostizPort port;
     private FakeCatalog catalog;
+    private FakePagePort pagePort;
     private InMemoryRepo repo;
     private PostizProperties properties;
     private PostizPublishServiceImpl service;
@@ -127,11 +145,12 @@ class PostizPublishServiceTest {
     void setUp() {
         port = new FakePostizPort();
         catalog = new FakeCatalog();
+        pagePort = new FakePagePort();
         repo = new InMemoryRepo();
         properties = new PostizProperties();
         properties.setBaseUrl("http://localhost:4007/api/public/v1");
         properties.setApiKey("test-key");
-        service = new PostizPublishServiceImpl(port, properties, catalog, repo);
+        service = new PostizPublishServiceImpl(port, properties, catalog, pagePort, repo);
 
         port.channels.add(new PostizPort.PostizChannel(FB, "facebook", "Trovemo Page", "pic.png", false));
         catalog.goods.put(1, snapshot(1, "Blue Mug & Co", "/_cdn/cf/img1.jpg", "18.00"));
@@ -314,5 +333,137 @@ class PostizPublishServiceTest {
         assertTrue(results.get(0).channels().get(0).error().startsWith("skipped:"));
         assertTrue(port.calls.isEmpty());
         assertTrue(repo.rows.isEmpty());
+    }
+
+    // ---- page source (Wave 20) ---------------------------------------
+
+    private PromoPagePort.PromoPage page(int id, String name, String category,
+                                         PromoPagePort.PageComponent... components) {
+        return new PromoPagePort.PromoPage(id, name, category, List.of(components));
+    }
+
+    private PromoPagePort.PageComponent component(String type, Map<String, Object> config) {
+        return new PromoPagePort.PageComponent(type, config);
+    }
+
+    private PageRequest pageRequest(int pageId) {
+        return new PageRequest(pageId, List.of(FB), "2030-01-01T10:00:00Z");
+    }
+
+    @Test
+    void pagePreviewComposesHeadingLinkAndHeroImageWithoutSideEffects() {
+        pagePort.pages.put(12, page(12, "Summer Sale & More", "general",
+                component("banner", Map.of("imageUrl", "/_cdn/cf/hero.jpg", "link", "/category/5"))));
+
+        PagePreview preview = service.previewPage(pageRequest(12));
+
+        assertEquals(12, preview.pageId());
+        assertEquals("https://trovemo.com/_cdn/cf/hero.jpg", preview.picUrl());
+        assertEquals("2030-01-01T10:00:00Z", preview.scheduleAt());
+        String content = preview.perChannel().get(0).content();
+        assertTrue(content.contains("<h2>Summer Sale &amp; More</h2>"), content);
+        assertTrue(content.contains("https://trovemo.com/page/12"), content);
+        assertEquals(Map.of(), preview.perChannel().get(0).settings());
+
+        assertTrue(port.calls.isEmpty());
+        assertTrue(repo.rows.isEmpty());
+    }
+
+    @Test
+    void pageHeroScansComponentsInOrderIncludingImageLists() {
+        pagePort.pages.put(3, page(3, "Picks", "coupon",
+                component("goods-list", Map.of("categoryId", 5, "limit", 8)),
+                component("image-row", Map.of("images", List.of("/_cdn/cf/no-ext", "/_cdn/oss/row.webp")))));
+
+        PagePreview preview = service.previewPage(pageRequest(3));
+
+        assertEquals("https://trovemo.com/_cdn/oss/row.webp", preview.picUrl());
+        // Coupon pages get the coupon line; no hero warning since one was found.
+        assertTrue(preview.perChannel().get(0).content().contains("Coupons"),
+                preview.perChannel().get(0).content());
+        assertTrue(preview.warnings().isEmpty(), preview.warnings().toString());
+    }
+
+    @Test
+    void pageWithoutValidImageWarnsAndPublishesTextOnly() {
+        pagePort.pages.put(4, page(4, "Text Page", "general",
+                component("rich-text", Map.of("html", "<p>hello</p>")),
+                component("banner", Map.of("imageUrl", "/_cdn/cf/extensionless"))));
+
+        PagePreview preview = service.previewPage(pageRequest(4));
+        assertNull(preview.picUrl());
+        assertTrue(preview.warnings().stream().anyMatch(w -> w.contains("text-only")),
+                preview.warnings().toString());
+
+        PageResult result = service.publishPage(pageRequest(4), "admin");
+        assertTrue(result.channels().get(0).ok());
+        assertEquals(1, port.calls.size());
+        assertNull(port.calls.get(0).targets().get(0).imageUrl());
+        assertEquals("scheduled", repo.rows.get(0).getStatus());
+    }
+
+    @Test
+    void grouponPageRefusedTyped() {
+        pagePort.pages.put(9, page(9, "Rally", "groupon",
+                component("banner", Map.of("imageUrl", "/_cdn/cf/rally.jpg"))));
+
+        PostizRequestException e = assertThrows(PostizRequestException.class,
+                () -> service.previewPage(pageRequest(9)));
+        assertEquals(765, e.getErrno());
+        assertTrue(e.getMessage().contains("Phase 3"), e.getMessage());
+        assertEquals(765, assertThrows(PostizRequestException.class,
+                () -> service.publishPage(pageRequest(9), "admin")).getErrno());
+        assertTrue(port.calls.isEmpty());
+        assertTrue(repo.rows.isEmpty());
+    }
+
+    @Test
+    void inactivePageAndUnreachablePageSourceAreTyped() {
+        assertEquals(764, assertThrows(PostizRequestException.class,
+                () -> service.previewPage(pageRequest(404))).getErrno());
+
+        pagePort.failWith = new PromoPagePort.PromoPageGatewayException("connection refused");
+        PostizRequestException e = assertThrows(PostizRequestException.class,
+                () -> service.previewPage(pageRequest(1)));
+        assertEquals(766, e.getErrno());
+        assertTrue(e.getMessage().contains("connection refused"), e.getMessage());
+    }
+
+    @Test
+    void publishPageLedgersOneRowPerChannelWithPageId() {
+        port.channels.add(new PostizPort.PostizChannel("x-int", "x", "Trovemo X", null, false));
+        pagePort.pages.put(12, page(12, "Summer Sale", "general",
+                component("banner", Map.of("imageUrl", "/_cdn/cf/hero.jpg"))));
+
+        PageResult result = service.publishPage(
+                new PageRequest(12, List.of(FB, "x-int"), "2030-01-01T10:00:00Z"), "admin7");
+
+        assertEquals(12, result.pageId());
+        assertEquals(1, port.calls.size()); // ONE Postiz call targeting both channels
+        assertEquals(2, port.calls.get(0).targets().size());
+        assertEquals(2, result.channels().size());
+        assertTrue(result.channels().get(0).ok());
+        assertTrue(result.channels().get(1).ok());
+
+        assertEquals(2, repo.rows.size());
+        for (LitemallPostizPost row : repo.rows) {
+            assertEquals(12, row.getPageId());
+            assertNull(row.getGoodsId());
+            assertNull(row.getCategoryId());
+            assertEquals("scheduled", row.getStatus());
+            assertEquals("admin7", row.getPostedBy());
+            assertEquals(LocalDateTime.of(2030, 1, 1, 10, 0), row.getScheduleTime());
+        }
+        assertEquals("facebook", repo.rows.get(0).getChannelIdentifier());
+        assertEquals("x", repo.rows.get(1).getChannelIdentifier());
+    }
+
+    @Test
+    void unconfiguredEnvAnswersTypedErrnoOnPagePathToo() {
+        properties.setApiKey(null);
+        assertEquals(760, assertThrows(PostizRequestException.class,
+                () -> service.previewPage(pageRequest(1))).getErrno());
+        assertEquals(760, assertThrows(PostizRequestException.class,
+                () -> service.publishPage(pageRequest(1), "admin")).getErrno());
     }
 }

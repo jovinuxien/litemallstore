@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <!--
-  Hand-written mapper for litemall_postiz_post (Postiz publish ledger, V50).
+  Hand-written mapper for litemall_postiz_post (Postiz publish ledger, V50 + V55 page_id).
   NOT MyBatis-Generator output. Relies on the global mapUnderscoreToCamelCase=true
   (set on the SqlSessionFactory) so resultType columns map snake_case -> camelCase.
 -->
 <mapper namespace="org.linlinjava.litemall.db.dao.PostizPostMapper">
 
   <sql id="columns">
-    id, goods_id, category_id, integration_id, channel_identifier, postiz_post_id,
+    id, goods_id, page_id, category_id, integration_id, channel_identifier, postiz_post_id,
     schedule_time, status, error, posted_by, add_time, update_time, deleted
   </sql>
 
   <insert id="insert" parameterType="org.linlinjava.litemall.db.domain.LitemallPostizPost"
           useGeneratedKeys="true" keyProperty="id">
     insert into litemall_postiz_post
-      (goods_id, category_id, integration_id, channel_identifier, postiz_post_id,
+      (goods_id, page_id, category_id, integration_id, channel_identifier, postiz_post_id,
        schedule_time, status, error, posted_by, add_time, update_time, deleted)
     values
-      (#{goodsId}, #{categoryId}, #{integrationId}, #{channelIdentifier}, #{postizPostId},
+      (#{goodsId}, #{pageId}, #{categoryId}, #{integrationId}, #{channelIdentifier}, #{postizPostId},
        #{scheduleTime}, #{status}, #{error}, #{postedBy}, #{addTime}, #{updateTime}, #{deleted})
   </insert>
 

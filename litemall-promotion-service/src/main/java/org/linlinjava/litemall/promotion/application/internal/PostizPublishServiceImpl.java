@@ -4,6 +4,9 @@ import org.linlinjava.litemall.db.domain.LitemallPostizPost;
 import org.linlinjava.litemall.promotion.application.ports.PostizGatewayException;
 import org.linlinjava.litemall.promotion.application.ports.PostizPort;
 import org.linlinjava.litemall.promotion.application.ports.PostizPort.PostizChannel;
+import org.linlinjava.litemall.promotion.application.ports.PromoPagePort;
+import org.linlinjava.litemall.promotion.application.ports.PromoPagePort.PageComponent;
+import org.linlinjava.litemall.promotion.application.ports.PromoPagePort.PromoPage;
 import org.linlinjava.litemall.promotion.application.ports.SocialCatalogPort;
 import org.linlinjava.litemall.promotion.application.ports.SocialCatalogPort.GoodsSocialSnapshot;
 import org.linlinjava.litemall.promotion.application.ports.SocialCatalogPort.LiveDeal;
@@ -54,6 +57,12 @@ public class PostizPublishServiceImpl {
     public static final int ERRNO_BATCH_TOO_LARGE = 761;
     public static final int ERRNO_POSTIZ_UNREACHABLE = 762;
     public static final int ERRNO_UNKNOWN_TARGET = 763;
+    /** Wave-20 DIY-page source: page missing / draft / deactivated (goods errno 642 upstream). */
+    public static final int ERRNO_PAGE_NOT_ACTIVE = 764;
+    /** Wave-20 gating: groupon-category pages held until Phase-3 priced submit ships. */
+    public static final int ERRNO_PAGE_GROUPON_HELD = 765;
+    /** goods-management page read unreachable / unexpected envelope. */
+    public static final int ERRNO_PAGE_SOURCE_UNAVAILABLE = 766;
     public static final int ERRNO_BAD_PARAM = 402;
 
     /** Extensions Postiz accepts on an external image URL (query string ignored). */
@@ -81,6 +90,7 @@ public class PostizPublishServiceImpl {
     private final PostizPort postizPort;
     private final PostizProperties properties;
     private final SocialCatalogPort catalogPort;
+    private final PromoPagePort pagePort;
     private final LitemallPostizPostRepository repository;
 
     /** Channel-list cache — Postiz's shipped compose throttles the public API at 30 calls/h. */
@@ -89,10 +99,12 @@ public class PostizPublishServiceImpl {
     public PostizPublishServiceImpl(PostizPort postizPort,
                                     PostizProperties properties,
                                     SocialCatalogPort catalogPort,
+                                    PromoPagePort pagePort,
                                     LitemallPostizPostRepository repository) {
         this.postizPort = postizPort;
         this.properties = properties;
         this.catalogPort = catalogPort;
+        this.pagePort = pagePort;
         this.repository = repository;
     }
 
@@ -216,6 +228,175 @@ public class PostizPublishServiceImpl {
             repository.insert(row);
         }
         return new ProductResult(product.goodsId(), product.scheduleAtIso(), outcomes);
+    }
+
+    // ------------------------------------------------------------------
+    // Page source (Wave 20 — DIY promo pages)
+    // ------------------------------------------------------------------
+
+    /** Page-source preview: what {@link #publishPage} would send, ZERO side effects. */
+    public PagePreview previewPage(PageRequest request) {
+        requireConfigured();
+        ComposedPage composed = composePage(request);
+        List<PerChannel> perChannel = new ArrayList<>();
+        for (ResolvedChannel channel : composed.channels()) {
+            perChannel.add(new PerChannel(channel.integrationId(), composed.content(),
+                    channel.settings()));
+        }
+        return new PagePreview(composed.pageId(), composed.name(), composed.imageUrl(),
+                composed.scheduleAtIso(), composed.warnings(), perChannel);
+    }
+
+    /** Same composition as {@link #previewPage}; ONE Postiz call targeting all channels. */
+    public PageResult publishPage(PageRequest request, String adminId) {
+        requireConfigured();
+        ComposedPage composed = composePage(request);
+        List<ChannelOutcome> outcomes = new ArrayList<>();
+        Map<String, String> postIdByIntegration = new LinkedHashMap<>();
+        String failure = null;
+        try {
+            List<PostizPort.ChannelPost> targets = composed.channels().stream()
+                    .map(c -> new PostizPort.ChannelPost(c.integrationId(), composed.content(),
+                            composed.imageUrl(), c.settings()))
+                    .toList();
+            for (PostizPort.ScheduledPost scheduled : postizPort.schedulePost(composed.scheduleAtIso(), targets)) {
+                postIdByIntegration.put(scheduled.integrationId(), scheduled.postizPostId());
+            }
+        } catch (PostizGatewayException e) {
+            failure = (e.getProvider() != null ? e.getProvider() + ": " : "") + e.getMessage();
+            logger.warn("Postiz publish failed for page {}: {}", composed.pageId(), failure);
+        }
+        for (ResolvedChannel channel : composed.channels()) {
+            String postizPostId = postIdByIntegration.get(channel.integrationId());
+            boolean ok = failure == null && postizPostId != null;
+            String error = failure != null ? failure
+                    : (postizPostId == null ? "Postiz accepted the call but returned no post id" : null);
+            outcomes.add(new ChannelOutcome(channel.integrationId(), ok, postizPostId, error));
+
+            LitemallPostizPost row = new LitemallPostizPost();
+            row.setGoodsId(null);
+            row.setPageId(composed.pageId());
+            row.setCategoryId(null);
+            row.setIntegrationId(channel.integrationId());
+            row.setChannelIdentifier(channel.identifier());
+            row.setPostizPostId(postizPostId);
+            row.setScheduleTime(LocalDateTime.ofInstant(composed.scheduleAt(), ZoneOffset.UTC));
+            row.setStatus(ok ? "scheduled" : "failed");
+            row.setError(error != null && error.length() > 511 ? error.substring(0, 511) : error);
+            row.setPostedBy(adminId != null ? adminId : "admin");
+            repository.insert(row);
+        }
+        return new PageResult(composed.pageId(), composed.scheduleAtIso(), outcomes);
+    }
+
+    private ComposedPage composePage(PageRequest request) {
+        if (request.pageId() == null) {
+            throw new PostizRequestException(ERRNO_BAD_PARAM, "pageId is required");
+        }
+        if (request.channelIds() == null || request.channelIds().isEmpty()) {
+            throw new PostizRequestException(ERRNO_BAD_PARAM, "channelIds is required");
+        }
+        Instant start = parseStart(request.startTime());
+
+        PromoPage page;
+        try {
+            page = pagePort.fetchActive(request.pageId())
+                    .orElseThrow(() -> new PostizRequestException(ERRNO_PAGE_NOT_ACTIVE,
+                            "page " + request.pageId()
+                                    + " is not active — activate it before publishing"));
+        } catch (PromoPagePort.PromoPageGatewayException e) {
+            throw new PostizRequestException(ERRNO_PAGE_SOURCE_UNAVAILABLE,
+                    "page source unavailable: " + e.getMessage());
+        }
+        if ("groupon".equalsIgnoreCase(page.category())) {
+            throw new PostizRequestException(ERRNO_PAGE_GROUPON_HELD,
+                    "group-buy page publishing is held until priced groupon submit ships"
+                            + " (Phase 3) — publish a general or coupon page instead");
+        }
+
+        List<ResolvedChannel> channels = resolveChannels(request.channelIds());
+        List<String> warnings = new ArrayList<>();
+        if (start.isBefore(Instant.now())) {
+            warnings.add("start time is in the past — Postiz may reject or publish immediately");
+        }
+
+        // Hero image: first image-bearing component; a page without one still
+        // publishes (Postiz accepts text-only posts), unlike the goods path.
+        String imageUrl = absolutize(heroImage(page.components()));
+        if (imageUrl == null) {
+            warnings.add("no image with a supported extension (.png/.jpg/.jpeg/.gif/.webp)"
+                    + " found on the page — publishing text-only");
+        }
+        return new ComposedPage(page.id(), page.name(), imageUrl, pageContent(page), start,
+                channels, warnings);
+    }
+
+    /**
+     * Sanitizer-safe HTML for a page post: page name as heading, a short
+     * category-aware line, canonical storefront link.
+     */
+    private String pageContent(PromoPage page) {
+        String link = properties.getPublicBaseUrl() + "/page/" + page.id();
+        String line = "coupon".equalsIgnoreCase(page.category())
+                ? "Coupons and savings inside — claim yours before they're gone."
+                : "A hand-picked collection, fresh on Trovemo.";
+        return "<h2>" + escapeHtml(page.name()) + "</h2>"
+                + "<p>" + escapeHtml(line) + "</p>"
+                + "<p><a href=\"" + link + "\">See the page on Trovemo</a></p>";
+    }
+
+    /**
+     * First image candidate across the page's components, in render order.
+     * Component configs vary per type (banner {@code imageUrl}, image-row
+     * {@code images[]}, goods-list none), so the scan is defensive: any string
+     * under a key named {@code imageUrl}/{@code image}/{@code src} — or a bare
+     * string inside a list — counts when it ends in a real image extension.
+     */
+    private String heroImage(List<PageComponent> components) {
+        if (components == null) {
+            return null;
+        }
+        for (PageComponent component : components) {
+            String candidate = imageCandidate(component.config());
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static final List<String> IMAGE_CONFIG_KEYS = List.of("imageUrl", "image", "src");
+
+    private String imageCandidate(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            for (String key : IMAGE_CONFIG_KEYS) {
+                Object value = map.get(key);
+                if (value instanceof String s && StringUtils.hasText(s) && hasImageExtension(s)) {
+                    return s;
+                }
+            }
+            for (Object value : map.values()) {
+                if (value instanceof Map || value instanceof List) {
+                    String found = imageCandidate(value);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof String s && StringUtils.hasText(s) && hasImageExtension(s)) {
+                    return s;
+                }
+                if (item instanceof Map || item instanceof List) {
+                    String found = imageCandidate(item);
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -486,6 +667,18 @@ public class PostizPublishServiceImpl {
     public record ProductResult(Integer goodsId, String scheduleAt, List<ChannelOutcome> channels) {
     }
 
+    /** Wave-20 page-source body: one post per publish, no interval. */
+    public record PageRequest(Integer pageId, List<String> channelIds, String startTime) {
+    }
+
+    /** @param picUrl absolutized hero image; null when the page publishes text-only */
+    public record PagePreview(Integer pageId, String name, String picUrl, String scheduleAt,
+                              List<String> warnings, List<PerChannel> perChannel) {
+    }
+
+    public record PageResult(Integer pageId, String scheduleAt, List<ChannelOutcome> channels) {
+    }
+
     private record CachedChannels(List<PostizChannel> list, long fetchedAt) {
     }
 
@@ -503,5 +696,14 @@ public class PostizPublishServiceImpl {
 
     private record Composition(List<ComposedProduct> products, List<ResolvedChannel> channels,
                                List<String> batchWarnings) {
+    }
+
+    /** @param imageUrl absolutized hero image; null ⇒ text-only post */
+    private record ComposedPage(Integer pageId, String name, String imageUrl, String content,
+                                Instant scheduleAt, List<ResolvedChannel> channels,
+                                List<String> warnings) {
+        String scheduleAtIso() {
+            return UTC_ISO.format(scheduleAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+        }
     }
 }
