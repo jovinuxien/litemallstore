@@ -88,8 +88,8 @@ const prettySortLabel = (label: string): string => {
 // Facets rendered explicitly (with custom labels / a range control) above, plus
 // `category_names` which is the same data as the explicit `category_ids` facet
 // (by name instead of id) — showing both would duplicate the Category filter.
-// `coupon_flag` has its own "Has coupon" toggle in the Offers section.
-const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price', 'coupon_flag']);
+// `coupon_flag` / `groupon_flag` have their own toggles in the Offers section.
+const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price', 'coupon_flag', 'groupon_flag']);
 
 // "attr_material" / "screen_size" -> "Material" / "Screen Size" for facet headers.
 const humanizeFacet = (field: string): string =>
@@ -339,7 +339,12 @@ const SearchView: React.FC = () => {
     (items: any[]) =>
       items.map(item => ({
         ...item,
-        label: item.attribute === 'category_ids' ? 'Category' : item.attribute === 'coupon_flag' ? 'Offers' : item.label,
+        label:
+          item.attribute === 'category_ids'
+            ? 'Category'
+            : item.attribute === 'coupon_flag' || item.attribute === 'groupon_flag'
+              ? 'Offers'
+              : item.label,
         refinements: item.refinements.map((r: any) => ({
           ...r,
           label:
@@ -347,7 +352,9 @@ const SearchView: React.FC = () => {
               ? categoryNames.get(String(r.value)) ?? r.label
               : item.attribute === 'coupon_flag'
                 ? 'Has coupon'
-                : r.label,
+                : item.attribute === 'groupon_flag'
+                  ? 'Group buy'
+                  : r.label,
         })),
       })),
     [categoryNames]
@@ -405,13 +412,15 @@ const SearchView: React.FC = () => {
               <RangeInput attribute="price" />
             </section>
 
-            {/* Wave-19: coupon_flag=1 rides the standard facetFilters path
-                (adapter maps it to the `coupon_flag=1` /srv/search param, OCS
-                filters on the indexed field) and round-trips the URL as
-                ?coupon_flag=1 via searchRouting's toggle mapping. */}
+            {/* Wave-19 coupon_flag / Wave-21 groupon_flag toggles ride the
+                standard facetFilters path (adapter maps them onto the flat
+                `<flag>=1` /srv/search params, OCS filters on the indexed
+                fields) and round-trip the URL as ?coupon_flag=1 /
+                ?groupon_flag=1 via searchRouting's toggle mapping. */}
             <section className="lm-isearch__facet">
               <h3>Offers</h3>
               <ToggleRefinement attribute="coupon_flag" on={1} label="Has coupon" />
+              <ToggleRefinement attribute="groupon_flag" on={1} label="Group buy" />
             </section>
 
             {/* Every other facet group the backend returns (attributes, variant

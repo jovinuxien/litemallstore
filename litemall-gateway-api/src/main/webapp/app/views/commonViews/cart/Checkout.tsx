@@ -8,7 +8,7 @@ import type { Stripe } from '@stripe/stripe-js';
 import { loadStripe } from '@stripe/stripe-js/pure';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Form } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
@@ -35,7 +35,7 @@ import {
   ShippingInfo,
   TaxUnavailableError,
 } from 'app/shared/reducers/orderSlice';
-import { authApi, IAddress, ICoupon, orderApi, userApi } from 'app/shared/api';
+import { authApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
 import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
@@ -180,6 +180,15 @@ const StepSection: React.FC<{
 const CheckoutView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  // Wave-21 group-buy: `?pinkId=<own slot id>` rides the URL (refresh-safe)
+  // from the PDP strip / /groupon/:id landing. Submit carries it and the ORDER
+  // SERVICE prices the campaign line at the group price — the preview below
+  // does not reflect it, so a banner states the group price from campaign data
+  // and the server total governs. A stale/expired slot is REJECTED at submit
+  // with a typed message, surfaced verbatim with a regular-price fallback.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pinkIdRaw = Number(searchParams.get('pinkId'));
+  const groupPinkId = Number.isFinite(pinkIdRaw) && pinkIdRaw > 0 ? pinkIdRaw : null;
 
   const { cartList } = useAppSelector(state => state.cart.data);
   const { loading: orderLoading, errorMessage: orderError, phase } = useAppSelector(state => state.order);
@@ -246,6 +255,49 @@ const CheckoutView: React.FC = () => {
   const [promoCode, setPromoCode] = useState('');
   const [promoBusy, setPromoBusy] = useState(false);
   const [promoNotice, setPromoNotice] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Group-buy slot + campaign (display only — the group price is charged by
+  // the order service at submit). null while absent or still resolving.
+  const [groupSlot, setGroupSlot] = useState<{ pink: ICombinationPink; campaign: ICombination | null } | null>(null);
+  // The typed stale-slot rejection from submit, rendered VERBATIM with a
+  // "buy at regular price" fallback that drops the pinkId and retries.
+  const [groupError, setGroupError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (groupPinkId == null) {
+      setGroupSlot(null);
+      return undefined;
+    }
+    let cancelled = false;
+    promotionApi
+      .combinationPink(groupPinkId)
+      .then(async pink => {
+        const campaign =
+          pink?.combinationId != null ? await promotionApi.combinationDetail(pink.combinationId).catch(() => null) : null;
+        if (!cancelled) setGroupSlot(pink?.pinkId != null ? { pink, campaign } : null);
+      })
+      .catch(() => {
+        // Fail-soft: the banner just doesn't show campaign figures; submit
+        // still carries the pinkId and the server stays the authority.
+        if (!cancelled) setGroupSlot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [groupPinkId]);
+
+  /** Drop the group slot from this checkout and buy at the regular price. */
+  const dropGroupSlot = () => {
+    setGroupError(null);
+    setGroupSlot(null);
+    setSearchParams(
+      prev => {
+        prev.delete('pinkId');
+        return prev;
+      },
+      { replace: true }
+    );
+  };
 
   // Contact email (Wave 15): the paid-order confirmation mail's recipient is
   // litemall_user.email, which registration leaves optional — an email-less
@@ -635,6 +687,7 @@ const CheckoutView: React.FC = () => {
     setAddrError(null);
     setCouponError(null);
     setCardError(null);
+    setGroupError(null);
 
     // 0. Tax fails CLOSED: without a server total there is no number we are allowed to
     //    charge, so the order is not placed at all.
@@ -732,11 +785,22 @@ const CheckoutView: React.FC = () => {
     ].filter(g => g.items.length > 0);
 
     const next = { ...placed };
+    // The group-buy slot rides the submit of the group holding the campaign's
+    // goods (falling back to the first group when the campaign is unresolved) —
+    // the order service validates goodsId match and slot state either way.
+    const campaignGoodsId = groupSlot?.campaign?.goodsId;
+    const pinkGroup =
+      groupPinkId == null
+        ? null
+        : (campaignGoodsId != null
+            ? groups.find(g => g.items.some(it => Number(it.goodsId) === Number(campaignGoodsId)))?.group
+            : undefined) ?? groups[0]?.group ?? null;
     for (const { group, items } of groups) {
       if (next[group]) continue;
       // eslint-disable-next-line no-await-in-loop
       // A coupon redeems once — it rides the first submitted order only.
       const couponRides = group === groups[0].group && selectedCoupon != null;
+      const pinkRides = groupPinkId != null && group === pinkGroup;
       const res = await dispatch(
         placeOrder({
           group,
@@ -756,6 +820,9 @@ const CheckoutView: React.FC = () => {
           countryCode: group === 'cj' ? country.code : undefined,
           // V52: the carrier the customer picked in the delivery-option chooser.
           cjLogisticName: group === 'cj' ? (effectiveCjLogistic ?? undefined) : undefined,
+          // Wave-21: the buyer's own group slot — the order service validates
+          // it and prices the campaign line at the group price.
+          pinkId: pinkRides ? groupPinkId : undefined,
         })
       );
       if (!placeOrder.fulfilled.match(res)) {
@@ -767,6 +834,14 @@ const CheckoutView: React.FC = () => {
         // the message alone misses the common case; only the slice's own
         // pre-submit rejections (401 sign-in, 400 stale items) are excluded.
         const { errno = 0, errmsg = '' } = (res.payload as { errno?: number; errmsg?: string } | undefined) ?? {};
+        // A submit that carried the group slot and was rejected: surface the
+        // server's typed message VERBATIM (e.g. "this group has expired —
+        // start a new one or buy at regular price") with the regular-price
+        // fallback action. The slice's own pre-submit rejections (401 sign-in,
+        // 400 stale items) are not slot rejections.
+        if (pinkRides && errno !== 400 && errno !== 401 && errmsg) {
+          setGroupError(errmsg);
+        }
         if (couponRides && errno !== 400 && errno !== 401) {
           setCouponError(/coupon/i.test(errmsg) ? errmsg : `The selected coupon may not be usable for this order${errmsg ? ` (${errmsg})` : ''}.`);
         }
@@ -956,6 +1031,18 @@ const CheckoutView: React.FC = () => {
     ...((totals?.couponPrice ?? 0) > 0
       ? [{ label: 'Coupon', value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
       : []),
+    // Wave-21: the group price is applied by the ORDER SERVICE at submit — the
+    // preview cannot reflect it, so the summary carries an honest note
+    // (campaign figure, no client-side price math).
+    ...(groupPinkId != null && groupSlot?.campaign?.combinationPrice != null
+      ? [
+          {
+            label: 'Group price',
+            value: `$${priceNum(groupSlot.campaign.combinationPrice).toFixed(2)}/item at payment`,
+            variant: 'success' as const,
+          },
+        ]
+      : []),
     { label: 'Total', value: money(totals?.actualPrice), variant: 'total' as const },
   ];
 
@@ -978,6 +1065,30 @@ const CheckoutView: React.FC = () => {
       <div className='container lm-checkout'>
         <div className='row g-3'>
         <div className='col-lg-8'>
+        {/* Wave-21 group order banner. The preview totals below do NOT reflect
+            the group price — the order service applies it at submit — so this
+            states the campaign figure (server data, no client math) and the
+            server total governs. */}
+        {groupPinkId != null && !groupError && (
+          <Alert variant='info' className='d-flex justify-content-between align-items-center gap-2 flex-wrap'>
+            <span>
+              <i className='bi bi-people-fill me-1' /> <strong>Group order</strong>
+              {groupSlot?.campaign?.combinationPrice != null ? (
+                <>
+                  {' '}
+                  — group price applied at payment: <strong>${priceNum(groupSlot.campaign.combinationPrice).toFixed(2)}</strong> per item
+                  {groupSlot.campaign.title ? <> ({groupSlot.campaign.title})</> : null}. The total below may show the regular price
+                  until then.
+                </>
+              ) : (
+                <> — the group price for your slot is applied at payment; the total below may show the regular price until then.</>
+              )}
+            </span>
+            <button type='button' className='btn btn-sm btn-outline-secondary' onClick={dropGroupSlot} disabled={anyPlaced}>
+              Buy at regular price instead
+            </button>
+          </Alert>
+        )}
         {/* STEP 1 — delivery. Collapses to a "deliver to" recap once complete;
             frozen (no Change) while a placed order awaits a payment retry. */}
         <StepSection
@@ -1447,8 +1558,19 @@ const CheckoutView: React.FC = () => {
             )}
           </Alert>
         )}
+        {/* Wave-21 stale-slot rejection — the order service's typed message,
+            verbatim, with the regular-price fallback. Replaces the generic
+            order alert (same message) while active. */}
+        {groupError && (
+          <Alert variant='danger' className='d-flex justify-content-between align-items-center gap-2 flex-wrap'>
+            <span>{groupError}</span>
+            <button type='button' className='btn btn-sm btn-outline-light border' onClick={dropGroupSlot}>
+              Buy at regular price
+            </button>
+          </Alert>
+        )}
         {addrError && <Alert variant='danger'>{addrError}</Alert>}
-        {orderError && <Alert variant='danger'>{orderError}</Alert>}
+        {orderError && !groupError && <Alert variant='danger'>{orderError}</Alert>}
         {cardError && <Alert variant='danger'>{cardError}</Alert>}
         {/* Tax fails closed: we cannot price the cart, so we do not let it be ordered.
             Retryable — the provider being down is usually transient. */}

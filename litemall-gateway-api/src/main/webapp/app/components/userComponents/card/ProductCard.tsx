@@ -95,6 +95,8 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
     dealClaimedPct?: number;
     coupon_flag?: number | string;
     couponFlag?: number | string;
+    groupon_flag?: number | string;
+    grouponFlag?: number | string;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -117,6 +119,10 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   // home/list DTOs that never carry it) means 0. Tolerate a camelCase spelling
   // and string "1" defensively.
   const hasCoupon = Number(p.coupon_flag ?? p.couponFlag ?? 0) === 1;
+  // Wave-21 group-buy visibility: same contract as coupon_flag — numeric OCS
+  // source field `groupon_flag`, 1 = an ACTIVE combination campaign covers
+  // this product; missing (old docs / non-search DTOs) means 0.
+  const hasGroupon = Number(p.groupon_flag ?? p.grouponFlag ?? 0) === 1;
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
   const now = useNow(dealEnd != null);
   const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
@@ -162,10 +168,11 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
       <Link to={to} className="lm-card__media">
         <img className="lm-card__img" src={picUrl} alt={name} loading="lazy" />
         {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
-        {(isHot || hasCoupon) && (
+        {(isHot || hasCoupon || hasGroupon) && (
           <span className="lm-card__flags">
             {isHot && <span className="lm-card__deal-label">Limited time deal</span>}
             {hasCoupon && <span className="lm-card__coupon">Coupon</span>}
+            {hasGroupon && <span className="lm-card__groupon">Group buy</span>}
           </span>
         )}
       </Link>
