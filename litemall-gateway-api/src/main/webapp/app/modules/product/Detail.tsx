@@ -10,6 +10,7 @@ import ProductCard from 'app/components/userComponents/card/ProductCard';
 import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
 import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
+import { briefToText } from 'app/shared/util/briefText';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
@@ -149,6 +150,11 @@ const ProductDetailView: React.FC = () => {
     }
   }, [goods?.detail]);
 
+  // Brief = plain text only — 5.3k on-sale CJ goods carry a raw supplier HTML
+  // blob in this column, which used to render as literal "<p><img…" text
+  // right under the title.
+  const briefText = useMemo(() => briefToText(goods?.brief), [goods?.brief]);
+
   useEffect(() => {
     setActiveImage(goods?.picUrl ?? '');
   }, [goods?.picUrl]);
@@ -253,7 +259,7 @@ const ProductDetailView: React.FC = () => {
         {/* Title / price / variants */}
         <section className='lm-pdp__info'>
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
-          {goods.brief && <p className='lm-pdp__brief'>{goods.brief}</p>}
+          {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
 
           <div className='lm-pdp__pricebox'>
             <span className='lm-pdp__price'>
@@ -366,6 +372,22 @@ const ProductDetailView: React.FC = () => {
         </aside>
       </div>
 
+      {/* Related products — surfaced ahead of the description imagery and
+          reviews, the Amazon PDP order. */}
+      {related && related.length > 0 && (
+        <section className='lm-pdp__related'>
+          <h3 className='lm-pdp__relatedtitle'>You may also like</h3>
+          <div className='lm-pdp__relatedgrid'>
+            {related
+              .filter(r => goodId(r) !== gid)
+              .slice(0, 6)
+              .map(r => (
+                <ProductCard key={goodId(r)} product={r} />
+              ))}
+          </div>
+        </section>
+      )}
+
       {/* Tabs: description + full spec sheet */}
       <div className='lm-pdp__tabs'>
         <div className='lm-pdp__tabbar'>
@@ -390,8 +412,8 @@ const ProductDetailView: React.FC = () => {
                   onError={e => (e.currentTarget.style.display = 'none')}
                 />
               ))
-            ) : goods.brief ? (
-              <p>{goods.brief}</p>
+            ) : briefText ? (
+              <p>{briefText}</p>
             ) : (
               <p className='text-muted'>No description provided.</p>
             )}
@@ -420,21 +442,6 @@ const ProductDetailView: React.FC = () => {
 
       {/* Customer reviews (litemall-vue comment list); hidden until live. */}
       <Reviews goodsId={gid} />
-
-      {/* Related products */}
-      {related && related.length > 0 && (
-        <section className='lm-pdp__related'>
-          <h3 className='lm-pdp__relatedtitle'>You may also like</h3>
-          <div className='lm-pdp__relatedgrid'>
-            {related
-              .filter(r => goodId(r) !== gid)
-              .slice(0, 6)
-              .map(r => (
-                <ProductCard key={goodId(r)} product={r} />
-              ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 };

@@ -6,6 +6,9 @@
   margin: 0 auto;
   padding: 20px 16px 48px;
   color: var(--lm-text, #1f2a2e);
+  // Amazon-scale typography: 14px body, denser line height.
+  font-size: 14px;
+  line-height: 1.4;
 
   &__center {
     min-height: 50vh;
@@ -89,13 +92,14 @@
 
   // ---- center info ----
   &__title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    line-height: 1.35;
+    font-size: 24px;
+    font-weight: 500;
+    line-height: 32px;
     margin: 0 0 8px;
   }
   &__brief {
     color: var(--lm-muted, #6b7b82);
+    font-size: 14px;
     margin-bottom: 16px;
   }
   &__pricebox {
@@ -109,22 +113,24 @@
     margin-bottom: 20px;
   }
   &__price {
-    font-size: 1.9rem;
-    font-weight: 800;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
     color: var(--lm-accent, #ff5a5f);
   }
   &__orig {
     color: var(--lm-muted, #6b7b82);
+    font-size: 13px;
     text-decoration: line-through;
   }
   &__save {
     color: var(--lm-success, #1f9d6b);
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 13px;
   }
   &__unit {
     color: var(--lm-muted, #6b7b82);
-    font-size: 0.85rem;
+    font-size: 12px;
   }
 
   // ---- variant selectors ----
@@ -132,7 +138,7 @@
     margin-bottom: 16px;
   }
   &__optlabel {
-    font-size: 0.9rem;
+    font-size: 13px;
     color: var(--lm-muted, #6b7b82);
     margin-bottom: 8px;
 
@@ -154,7 +160,7 @@
     border-radius: 8px;
     background: #fff;
     color: var(--lm-text, #1f2a2e);
-    font-size: 0.9rem;
+    font-size: 13px;
     cursor: pointer;
     transition: all 0.15s;
 
@@ -187,7 +193,7 @@
       display: flex;
       justify-content: space-between;
       padding: 5px 0;
-      font-size: 0.9rem;
+      font-size: 13px;
 
       span {
         color: var(--lm-muted, #6b7b82);
@@ -206,14 +212,14 @@
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   }
   &__buyprice {
-    font-size: 1.5rem;
-    font-weight: 800;
+    font-size: 21px;
+    font-weight: 700;
     color: var(--lm-accent, #ff5a5f);
     margin-bottom: 6px;
   }
   &__stock {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 13px;
     margin-bottom: 14px;
 
     &.in {
@@ -231,7 +237,7 @@
 
     span {
       color: var(--lm-muted, #6b7b82);
-      font-size: 0.9rem;
+      font-size: 13px;
     }
     button {
       width: 32px;
@@ -261,9 +267,9 @@
     width: 100%;
     border: none;
     border-radius: 24px;
-    padding: 11px 16px;
+    padding: 10px 16px;
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 13px;
     cursor: pointer;
     margin-bottom: 10px;
     transition: filter 0.15s;
@@ -300,7 +306,7 @@
       align-items: center;
       gap: 8px;
       padding: 4px 0;
-      font-size: 0.85rem;
+      font-size: 12px;
       color: var(--lm-muted, #6b7b82);
 
       i {
@@ -324,7 +330,8 @@
     button {
       border: none;
       background: none;
-      padding: 14px 22px;
+      padding: 12px 20px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--lm-muted, #6b7b82);
       cursor: pointer;
@@ -357,8 +364,8 @@
     th,
     td {
       text-align: left;
-      padding: 10px 14px;
-      font-size: 0.92rem;
+      padding: 8px 14px;
+      font-size: 13px;
       border: 1px solid var(--lm-border, #eceff1);
     }
     th {
@@ -373,7 +380,7 @@
     margin-top: 40px;
   }
   &__relatedtitle {
-    font-size: 1.25rem;
+    font-size: 21px;
     font-weight: 700;
     margin-bottom: 16px;
   }
@@ -458,7 +465,7 @@
     padding-top: 18px;
     border-top: 1px solid var(--lm-border);
   }
-  &__reviewstitle { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; }
+  &__reviewstitle { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
   &__reviewlist { list-style: none; margin: 0; padding: 0; }
   &__review { padding: 12px 0; border-bottom: 1px solid var(--lm-border); }
   &__reviewhead { display: flex; gap: 12px; align-items: center; margin-bottom: 4px; }
