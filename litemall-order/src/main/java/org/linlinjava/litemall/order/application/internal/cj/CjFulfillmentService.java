@@ -117,6 +117,9 @@ public class CjFulfillmentService {
                 .address(joinNonBlank(address.getCounty(), address.getAddressDetail()))
                 .zip(address.getPostalCode())
                 .remark("")
+                // Delivery-option chooser (V52): the checkout pick rides along; the facade
+                // honors it only while CJ still offers that line for this shipment.
+                .preferredLogisticName(order.getCjLogisticName())
                 .lines(lines)
                 .build();
 

@@ -87,7 +87,12 @@ export interface IFreightQuote {
    * COMBINED charged figure (combine-mode max, not the breakdown sum).
    */
   breakdown?: IFreightBreakdownEntry[];
-  cj?: { logisticName?: string; logisticAging?: string } | null;
+  cj?: {
+    logisticName?: string;
+    logisticAging?: string;
+    /** V52: every line CJ offers for this shipment — the delivery-option chooser's data. */
+    options?: { logisticName?: string; logisticAging?: string }[];
+  } | null;
   cjNote?: string | null;
 }
 

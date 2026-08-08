@@ -564,6 +564,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         dataModel.setCjOrderId(orderAggregate.getCjOrderId());
         dataModel.setCjOrderNum(orderAggregate.getCjOrderNum());
         dataModel.setCjOrderStatus(orderAggregate.getCjOrderStatus());
+        dataModel.setCjLogisticName(orderAggregate.getCjLogisticName());
 
         // In-store pickup / write-off (Wave 4, V35).
         dataModel.setDeliveryType(orderAggregate.getDeliveryType());
@@ -640,6 +641,7 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         domainModel.setCjOrderId(record.getCjOrderId());
         domainModel.setCjOrderNum(record.getCjOrderNum());
         domainModel.setCjOrderStatus(record.getCjOrderStatus());
+        domainModel.setCjLogisticName(record.getCjLogisticName());
 
         // In-store pickup / write-off (Wave 4, V35).
         domainModel.setDeliveryType(record.getDeliveryType());

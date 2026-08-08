@@ -31,6 +31,7 @@ const Register: React.FC = () => {
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
+  const [mobileValid, setMobileValid] = useState(true);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -59,6 +60,10 @@ const Register: React.FC = () => {
     }
     if (password === username) {
       setLocalError('Password must differ from the username.');
+      return;
+    }
+    if (mobile && !mobileValid) {
+      setLocalError('The mobile number does not match the selected country — check the digit count.');
       return;
     }
     setSubmitted(true);
@@ -123,7 +128,7 @@ const Register: React.FC = () => {
           <Form.Label>
             Mobile <span className='text-muted'>(optional)</span>
           </Form.Label>
-          <PhoneInput onChange={setMobile} isInvalid={mobileTaken} />
+          <PhoneInput onChange={setMobile} isInvalid={mobileTaken} onValidityChange={setMobileValid} />
           {mobileTaken && <div className='invalid-feedback d-block'>This mobile number is already registered.</div>}
         </Form.Group>
         <Form.Group className='mb-3'>

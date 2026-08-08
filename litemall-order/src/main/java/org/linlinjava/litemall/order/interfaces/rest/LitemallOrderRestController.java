@@ -108,12 +108,18 @@ public class LitemallOrderRestController {
         FreightQuoteDtoResponse.CjInfo cjInfo = null;
         String cjNote = null;
         if (cjRequested) {
-            CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(),
-                    request.getCjItems().stream()
-                            .map(i -> new CjFreightQuoteService.QuoteItem(i.getProductId(), i.getQuantity()))
-                            .collect(Collectors.toList()));
+            List<CjFreightQuoteService.QuoteItem> quoteItems = request.getCjItems().stream()
+                    .map(i -> new CjFreightQuoteService.QuoteItem(i.getProductId(), i.getQuantity()))
+                    .collect(Collectors.toList());
+            // One cached freightCalculate call: the full offer list feeds the delivery-option
+            // chooser; the headline stays the line placement would pick by default.
+            List<CjLogisticsOption> options = cjFreightQuoteService.options(request.getCountryCode(), quoteItems);
+            CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(), quoteItems);
             if (option != null) {
-                cjInfo = new FreightQuoteDtoResponse.CjInfo(option.getLogisticName(), option.getLogisticAging());
+                cjInfo = new FreightQuoteDtoResponse.CjInfo(option.getLogisticName(), option.getLogisticAging(),
+                        options.stream()
+                                .map(o -> new FreightQuoteDtoResponse.Option(o.getLogisticName(), o.getLogisticAging()))
+                                .collect(Collectors.toList()));
             } else {
                 cjNote = "Logistics estimate unavailable right now";
             }
@@ -196,6 +202,7 @@ public class LitemallOrderRestController {
                 command.getGrouponRulesId(),
                 command.getGrouponLinkId(),
                 command.getCountryCode(),
+                command.getCjLogisticName(),
                 command.getDeliveryType(),
                 command.getStoreId(),
                 command.getPickupName(),

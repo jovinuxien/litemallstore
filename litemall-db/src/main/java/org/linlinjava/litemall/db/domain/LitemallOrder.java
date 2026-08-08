@@ -341,6 +341,13 @@ public class LitemallOrder {
     private String cjOrderStatus;
 
     /**
+     * Hand-maintained (V52): CJ logistics line the customer chose at checkout;
+     * pay-time placement uses it when CJ still offers that line (else default/cheapest).
+     * Corresponds to litemall_order.cj_logistic_name
+     */
+    private String cjLogisticName;
+
+    /**
      * Hand-maintained (V35): in-store pickup / write-off. How the order is fulfilled
      * to the customer: 'express' | 'pickup'.
      * Corresponds to litemall_order.delivery_type
@@ -1200,6 +1207,14 @@ public class LitemallOrder {
         this.cjOrderStatus = cjOrderStatus;
     }
 
+    public String getCjLogisticName() {
+        return cjLogisticName;
+    }
+
+    public void setCjLogisticName(String cjLogisticName) {
+        this.cjLogisticName = cjLogisticName;
+    }
+
     public String getDeliveryType() {
         return deliveryType;
     }
@@ -1563,6 +1578,8 @@ public class LitemallOrder {
         cjOrderNum("cj_order_num", "cjOrderNum", "VARCHAR", false),
 
         cjOrderStatus("cj_order_status", "cjOrderStatus", "VARCHAR", false),
+
+        cjLogisticName("cj_logistic_name", "cjLogisticName", "VARCHAR", false),
 
         deliveryType("delivery_type", "deliveryType", "VARCHAR", false),
 

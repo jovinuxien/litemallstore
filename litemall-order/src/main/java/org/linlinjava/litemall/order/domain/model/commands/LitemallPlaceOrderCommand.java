@@ -20,6 +20,9 @@ public class LitemallPlaceOrderCommand {
     // OPTIONAL: ISO destination country picked at checkout. The address book stores
     // no country, but a CJ-fulfilled order needs one for createOrder at pay time.
     private final String countryCode;
+    // OPTIONAL (V52): CJ logistics line the customer picked from the freight-quote
+    // options. Placement uses it only while CJ still offers it for the shipment.
+    private final String cjLogisticName;
 
     // In-store pickup (Wave 4, Task B). deliveryType: null/"express" (default) or
     // "pickup". Pickup requires storeId + pickupName + pickupMobile and makes
@@ -42,6 +45,7 @@ public class LitemallPlaceOrderCommand {
                                      @JsonProperty("grouponRulesId") Integer grouponRulesId,
                                      @JsonProperty("grouponLinkId") Integer grouponLinkId,
                                      @JsonProperty("countryCode") String countryCode,
+                                     @JsonProperty("cjLogisticName") String cjLogisticName,
                                      @JsonProperty("deliveryType") String deliveryType,
                                      @JsonProperty("storeId") Integer storeId,
                                      @JsonProperty("pickupName") String pickupName,
@@ -55,6 +59,7 @@ public class LitemallPlaceOrderCommand {
         this.grouponRulesId = grouponRulesId;
         this.grouponLinkId = grouponLinkId;
         this.countryCode = countryCode;
+        this.cjLogisticName = cjLogisticName;
         this.deliveryType = deliveryType;
         this.storeId = storeId;
         this.pickupName = pickupName;
@@ -67,7 +72,7 @@ public class LitemallPlaceOrderCommand {
                                      Integer grouponRulesId, Integer grouponLinkId,
                                      String countryCode) {
         this(userId, cartId, addressId, couponId, userCouponId, message,
-                grouponRulesId, grouponLinkId, countryCode, null, null, null, null);
+                grouponRulesId, grouponLinkId, countryCode, null, null, null, null, null);
     }
 
     /** True when the buyer chose in-store pickup. */

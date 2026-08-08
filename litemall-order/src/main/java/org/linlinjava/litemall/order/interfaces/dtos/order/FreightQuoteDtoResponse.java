@@ -81,10 +81,35 @@ public class FreightQuoteDtoResponse {
     }
 
     @Getter
-    @AllArgsConstructor
     public static class CjInfo {
+        /** The line placement would use with no explicit choice (default-else-cheapest). */
         private final String logisticName;
         /** Delivery-time estimate as CJ reports it, e.g. "8-12" (days). */
+        private final String logisticAging;
+        /**
+         * Every line CJ offers for this shipment (V52 delivery-option chooser). Carrier
+         * name + delivery estimate only — CJ's internal shipping cost is never surfaced.
+         * Null when only the headline estimate is known.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private final List<Option> options;
+
+        public CjInfo(String logisticName, String logisticAging) {
+            this(logisticName, logisticAging, null);
+        }
+
+        public CjInfo(String logisticName, String logisticAging, List<Option> options) {
+            this.logisticName = logisticName;
+            this.logisticAging = logisticAging;
+            this.options = options;
+        }
+    }
+
+    /** One offered CJ logistics line: carrier + delivery estimate (no internal cost). */
+    @Getter
+    @AllArgsConstructor
+    public static class Option {
+        private final String logisticName;
         private final String logisticAging;
     }
 }

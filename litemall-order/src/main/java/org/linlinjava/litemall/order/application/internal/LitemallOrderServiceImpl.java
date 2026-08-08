@@ -410,6 +410,14 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         if (pickup) {
             orderAggregate.setCountryCode(command.getCountryCode());
         }
+        // Delivery-option chooser (V52): capture the customer's CJ carrier pick — an
+        // OPTIONAL preference; pay-time placement validates it against what CJ still
+        // offers and falls back honestly, so no live CJ call belongs in this path.
+        String chosenLogistic = command.getCjLogisticName();
+        if (chosenLogistic != null && !chosenLogistic.isBlank()) {
+            orderAggregate.setCjLogisticName(
+                    chosenLogistic.trim().substring(0, Math.min(chosenLogistic.trim().length(), 64)));
+        }
         orderAggregate.setSource(orderSource);
         orderAggregate.setGoodsPrice(new LitemallMoney(checkedGoodsPrice));
         orderAggregate.setFreightPrice(new LitemallMoney(freightPrice));

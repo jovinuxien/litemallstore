@@ -1,26 +1,36 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { DialCountry, dialCountries, toE164 } from 'app/shared/data/dialCodes';
+import {
+  DialCountry,
+  checkPhoneLength,
+  dialCountries,
+  localeIso2,
+  splitInternational,
+  toE164,
+} from 'app/shared/data/dialCodes';
 
 /**
  * Phone input with a searchable country dial-code selector (Wave 16).
  * Emits the composed E.164 value (`+<dial><digits>`) — the store keeps ONE
  * canonical phone shape for orders and CJ. Static dataset, no external calls.
+ *
+ * The text field accepts a full international number too: typing or pasting
+ * `+49 170…` (or `0049…`) live-syncs the country selector to the dialled
+ * country and, on blur, normalizes the field back to the national digits —
+ * the two controls can never disagree. Digit counts are validated against the
+ * selected country's numbering plan (blur-time message, live validity out).
  */
 interface Props {
   value?: string;
   onChange: (e164: string) => void;
   /** Fires with the selected ISO2 on mount and on every country pick, so callers can follow the phone country. */
   onCountryChange?: (iso2: string) => void;
+  /** Fires whenever the number's validity (per-country digit count) changes. Empty input counts as valid. */
+  onValidityChange?: (ok: boolean) => void;
   defaultIso2?: string;
   isInvalid?: boolean;
   placeholder?: string;
 }
-
-const guessIso2 = (): string => {
-  const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
-  return dialCountries().some(c => c.iso2 === region) ? region : 'US';
-};
 
 // Split an existing stored value back into country + national digits so the
 // component can EDIT a pre-filled phone, not just capture a fresh one. E.164
@@ -29,35 +39,62 @@ const guessIso2 = (): string => {
 // a `key` to re-seed when the logical record behind the field changes.
 const parseInitial = (value: string | undefined): { iso2?: string; national: string } => {
   const v = (value ?? '').trim();
-  if (!v.startsWith('+')) return { national: v };
-  const digits = v.slice(1);
-  const matches = dialCountries().filter(c => digits.startsWith(c.dial));
-  if (!matches.length) return { national: digits };
-  const longest = Math.max(...matches.map(c => c.dial.length));
-  const candidates = matches.filter(c => c.dial.length === longest);
-  // Shared dials (+1 US/CA, +7 RU/KZ, …) are genuinely ambiguous — break the
-  // tie with the browser locale's country so a US visitor sees 🇺🇸, not the
-  // dataset's first +1 entry.
-  const best = candidates.find(c => c.iso2 === guessIso2()) ?? candidates[0];
-  return { iso2: best.iso2, national: digits.slice(best.dial.length) };
+  const intl = splitInternational(v);
+  if (!intl) return { national: v.startsWith('+') ? v.slice(1) : v };
+  return { iso2: intl.country.iso2, national: intl.national };
 };
 
-const PhoneInput: React.FC<Props> = ({ value, onChange, onCountryChange, defaultIso2, isInvalid, placeholder }) => {
+const PhoneInput: React.FC<Props> = ({
+  value,
+  onChange,
+  onCountryChange,
+  onValidityChange,
+  defaultIso2,
+  isInvalid,
+  placeholder,
+}) => {
   const [initial] = useState(() => parseInitial(value));
-  const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? guessIso2());
+  const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? localeIso2());
   const [national, setNational] = useState(initial.national);
+  const [touched, setTouched] = useState(false);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
+  const countries = dialCountries();
+
+  // International text ("+49…"/"0049…") overrides the picker while present: the
+  // dialled country is derived from the digits, so selector and text agree.
+  const intl = useMemo(() => splitInternational(national, iso2), [national, iso2]);
+  const effectiveIso2 = intl?.country.iso2 ?? iso2;
+  const selected = countries.find(c => c.iso2 === effectiveIso2) ?? countries[0];
+  const effectiveNational = intl ? intl.national : national;
+
   const countryChangeRef = useRef(onCountryChange);
   countryChangeRef.current = onCountryChange;
   useEffect(() => {
-    countryChangeRef.current?.(iso2); // mount + every pick — one code path
-  }, [iso2]);
+    countryChangeRef.current?.(effectiveIso2); // mount + every pick/dial-sync — one code path
+  }, [effectiveIso2]);
 
-  const countries = dialCountries();
-  const selected = countries.find(c => c.iso2 === iso2) ?? countries[0];
+  // "+999…" that matches no dial is its own error; length errors come from the plan table.
+  const unknownCode = !intl && national.trim().startsWith('+') && national.replace(/\D/g, '').length >= 1;
+  const lengthCheck = checkPhoneLength(effectiveIso2, effectiveNational);
+  const valid = !unknownCode && lengthCheck.ok;
+
+  const validityRef = useRef(onValidityChange);
+  validityRef.current = onValidityChange;
+  useEffect(() => {
+    validityRef.current?.(valid);
+  }, [valid]);
+
+  const lengthMessage = unknownCode
+    ? 'Unknown country code — check the digits after "+".'
+    : lengthCheck.ok
+      ? null
+      : `${lengthCheck.kind === 'short' ? 'Too short' : 'Too long'} for ${selected.name} (+${selected.dial}) — ` +
+        `${lengthCheck.min === lengthCheck.max ? `${lengthCheck.min}` : `${lengthCheck.min}–${lengthCheck.max}`} digits expected, you entered ${lengthCheck.count}.`;
+  const showError = touched && !valid;
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return countries;
@@ -66,11 +103,37 @@ const PhoneInput: React.FC<Props> = ({ value, onChange, onCountryChange, default
 
   const emit = (dial: string, nat: string) => onChange(toE164(dial, nat));
 
+  const handleText = (raw: string) => {
+    setNational(raw);
+    const split = splitInternational(raw, iso2);
+    if (split) {
+      emit(split.country.dial, split.national);
+    } else if (raw.trim().startsWith('+') || raw.trim().startsWith('00')) {
+      // International prefix but no dial matched (yet): pass the raw digits
+      // through untouched — never silently double-prefix the picker's dial.
+      const digits = raw.replace(/\D/g, '').replace(/^00/, '');
+      onChange(digits ? `+${digits}` : '');
+    } else {
+      emit(selected.dial, raw);
+    }
+  };
+
+  // Leaving the field folds "+49 170…" into selector=DE + national digits.
+  const handleBlur = () => {
+    setTouched(true);
+    if (intl) {
+      setIso2(intl.country.iso2);
+      setNational(intl.national);
+    }
+  };
+
   const pick = (c: DialCountry) => {
+    const nat = intl ? intl.national : national;
     setIso2(c.iso2);
+    if (intl) setNational(nat); // explicit pick wins over stale "+…" text
     setOpen(false);
     setFilter('');
-    emit(c.dial, national);
+    emit(c.dial, nat);
   };
 
   return (
@@ -89,15 +152,14 @@ const PhoneInput: React.FC<Props> = ({ value, onChange, onCountryChange, default
         </button>
         <input
           type='tel'
-          className={`form-control${isInvalid ? ' is-invalid' : ''}`}
+          className={`form-control${isInvalid || showError ? ' is-invalid' : ''}`}
           value={national}
           placeholder={placeholder ?? 'Phone number'}
-          onChange={e => {
-            setNational(e.target.value);
-            emit(selected.dial, e.target.value);
-          }}
+          onChange={e => handleText(e.target.value)}
+          onBlur={handleBlur}
         />
       </div>
+      {showError && lengthMessage && <div className='invalid-feedback d-block'>{lengthMessage}</div>}
       {open && (
         <div
           className='position-absolute bg-white border rounded shadow-sm mt-1 w-100'
@@ -119,8 +181,8 @@ const PhoneInput: React.FC<Props> = ({ value, onChange, onCountryChange, default
               key={c.iso2}
               type='button'
               role='option'
-              aria-selected={c.iso2 === iso2}
-              className={`dropdown-item d-flex align-items-center gap-2 py-1 ${c.iso2 === iso2 ? 'active' : ''}`}
+              aria-selected={c.iso2 === effectiveIso2}
+              className={`dropdown-item d-flex align-items-center gap-2 py-1 ${c.iso2 === effectiveIso2 ? 'active' : ''}`}
               onClick={() => pick(c)}
             >
               <span aria-hidden>{c.flag}</span>

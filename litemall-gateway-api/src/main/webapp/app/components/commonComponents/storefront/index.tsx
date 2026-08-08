@@ -112,14 +112,20 @@ export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, 
 export interface SummaryRow {
   label: React.ReactNode;
   value: React.ReactNode;
-  /** 'accent' (coral), 'success' (green discount), 'muted', or 'total'. */
-  variant?: 'accent' | 'success' | 'muted' | 'total';
+  /** 'accent' (coral), 'success' (green discount), 'muted', 'primary' (brand teal), or 'total'. */
+  variant?: 'accent' | 'success' | 'muted' | 'primary' | 'total';
 }
 export const OrderSummary: React.FC<{ rows: SummaryRow[] }> = ({ rows }) => (
   <div className='lm-summary'>
     {rows.map((r, i) => {
       const amtClass =
-        r.variant === 'success' ? 'lm-amount lm-amount--success' : r.variant === 'muted' ? 'lm-amount--muted' : 'lm-amount';
+        r.variant === 'success'
+          ? 'lm-amount lm-amount--success'
+          : r.variant === 'primary'
+            ? 'lm-amount lm-amount--primary'
+            : r.variant === 'muted'
+              ? 'lm-amount--muted'
+              : 'lm-amount';
       return (
         <div key={i} className={`lm-summary__row ${r.variant === 'total' ? 'lm-summary__row--total' : ''}`}>
           <span>{r.label}</span>

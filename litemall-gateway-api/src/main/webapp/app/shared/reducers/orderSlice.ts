@@ -65,6 +65,12 @@ export interface PlaceOrderParams {
    */
   countryCode?: string;
   /**
+   * V52 delivery-option chooser: the CJ logistics line the customer picked from the
+   * freight-quote options. Optional — placement falls back to default/cheapest when
+   * absent or no longer offered.
+   */
+  cjLogisticName?: string;
+  /**
    * Wave 4 pickup checkout (litemall-order/docs/handoff-gateway-api-pickup.md:
    * storeId/pickupName/pickupMobile required for pickup, addressId ignored).
    * Local group only — CJ lines always ship.
@@ -246,7 +252,7 @@ export const previewCheckoutTotals = async (
  */
 export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { rejectValue: ApiResult<null> }>(
   'order/place',
-  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, deliveryType, storeId, pickupName, pickupMobile }, thunkApi) => {
+  async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, cjLogisticName, deliveryType, storeId, pickupName, pickupMobile }, thunkApi) => {
     if (!isSignedIn()) {
       return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
     }
@@ -271,6 +277,7 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
       };
       if (addressId != null) submitBody.addressId = addressId; // else order service uses the default
       if (countryCode) submitBody.countryCode = countryCode; // CJ placement needs it at pay time
+      if (cjLogisticName) submitBody.cjLogisticName = cjLogisticName; // V52 carrier pick, optional
       // Pickup (Wave 4, assumed contract — only sent when the customer chose
       // pickup, so express submits are byte-identical to today's).
       if (deliveryType === 'pickup') {

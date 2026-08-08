@@ -28,6 +28,12 @@ public class CjOrderPlacement {
     private String zip;
     private String remark;
 
+    /**
+     * Customer-chosen CJ logistics line from checkout (V52), or null. The facade uses it
+     * only when freightCalculate still offers it — else configured default / cheapest.
+     */
+    private String preferredLogisticName;
+
     private List<Line> lines;
 
     /** One CJ line: the CJ variant id and quantity. */
