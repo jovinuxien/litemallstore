@@ -674,7 +674,11 @@
 > injects title/og:title/og:type/og:url, missing page = plain shell 200
 > fail-open. V55 also made litemall_postiz_post.goods_id NULLABLE (page
 > rows). Errnos: 764 page-not-active, 765 groupon-held, 766 page source
-> unavailable. PROD DEPLOY PENDING (user go). Dev gotchas: an OLD
+> unavailable. **DEPLOYED to trovemo.com 2026-08-08** (staged: goods
+> V54+V55 — prod schema verified at 55 — then promotion, then gateways;
+> smoke 200s incl. /page/ shell + public read envelope). Templates are
+> seeded as DRAFTS in prod — nothing customer-visible until an admin
+> clones + activates one (by design). Dev gotchas: an OLD
 > promotion jar from a prior session held :8088 and answered with 402s —
 > verify the pid/cwd behind a port before trusting acceptance results;
 > pkill -f a jar name self-matches the launcher shell — launch via script
