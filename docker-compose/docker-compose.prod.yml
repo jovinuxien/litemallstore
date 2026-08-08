@@ -601,6 +601,14 @@ services:
       # → /srv/goods/videos on goods-management:8082; order-statistics → order:8085.
       GOODS_SERVICE_URL: http://goods-management:8082
       ORDER_SERVICE_URL: http://order:8085
+      # Wave-18 coupon margin guard: machine token for the goods-management
+      # margin-basis call (GoodsMachineTokenProvider — same recipe/env pair as
+      # the order service above). The baked defaults are dev-only
+      # (localhost:8089 + dev secret); inside this container nothing listens
+      # on localhost:8089, so without these the guard fails CLOSED and EVERY
+      # coupon create/update is rejected with "margin guard unavailable".
+      LITEMALL_GOODS_AUTH_TOKEN_URI: http://authserver:8089/oauth2/token
+      LITEMALL_GOODS_AUTH_CLIENT_SECRET: ${GATEWAY_API_CLIENT_SECRET:?set GATEWAY_API_CLIENT_SECRET in .env}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8088/actuator/health"]}
     mem_limit: 1g
 
