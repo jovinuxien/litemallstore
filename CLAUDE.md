@@ -819,6 +819,57 @@
 > COMPLETE. Wave 23 (admin-gated CJ placement) stays CANCELLED — spec
 > preserved at `cb4909fee`; CJ key still HELD disarmed.
 >
+> **Wave 23 (RE-COMMISSIONED 2026-08-08, after Wave 22 shipped) —
+> ADMIN-GATED CJ PLACEMENT + ADMIN ORDER NOTIFICATIONS.** USER DIRECTIVE
+> (2026-08-08, reconfirmed same day: "first take wave-23 approved before
+> the arming process"): paid orders must NOT auto-place at CJ — they wait
+> PENDING until an admin validates them in the admin panel; the admin is
+> notified by email (contact@trovemo.com) when an order is paid; approval
+> sends the order to CJ. Full admin control. Context: the user's
+> CJ_API_KEY is VALIDATED (live token issued 2026-08-08) but sits DISARMED
+> in prod env (marked HELD) until this wave deploys — paid orders keep
+> queueing harmlessly (prod backlog today: orders 7 $38.38, 10 $83.31,
+> 11 $8.90 at status 201; order 9 is 202 refund-applied and must NOT be
+> placed). ⚠ CJ config is all-or-nothing: CjTokenService refuses boot when
+> exactly one of CJ_EMAIL/CJ_API_KEY is set (observed live) — deploy must
+> set BOTH + the mode env together.
+> **Wave-23 CONTRACT:**
+> - **order**: config `litemall.order.cj.placement-mode` = auto|manual (env
+>   `LITEMALL_ORDER_CJ_PLACEMENT_MODE`, DEFAULT **manual**). **V59** (order
+>   scope; dev+prod applied through V58 — check `flyway_schema_history`
+>   immediately before first boot): `litemall_order.
+>   cj_placement_approved_time` DATETIME NULL + `cj_placement_approved_by`
+>   VARCHAR(63) NULL. In manual mode the placement sweep ONLY places
+>   paid CJ orders with an approval stamp; auto mode = today's behavior.
+>   Admin endpoints on the EXISTING order admin surface (X-User-Roles
+>   recipe): `GET .../cj-placement/pending` → paged {orderId, orderSn,
+>   addTime, payTime, actualPrice, consignee, country, items[], cjReady
+>   (bool: variants resolvable), holdReason?}; `POST .../{orderId}/
+>   cj-placement/approve` → stamps approval (approved_by = X-User-Id;
+>   idempotent; typed refusal when not paid / not CJ / already placed);
+>   the sweep then places on its next tick. Unapproved orders NEVER
+>   place, even with CJ configured.
+> - **admin notify mail**: on order PAID, enqueue an ADMIN notification to
+>   `litemall.customer-mail.admin-notify-email` (env
+>   `LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY`, prod = contact@trovemo.com;
+>   blank ⇒ no-op) through the EXISTING mail outbox/SMTP (Brevo live):
+>   subject "New paid order <sn> — $<amount>", body = order summary
+>   (items, buyer country, total) + "approve it for fulfilment in the
+>   admin panel". Rides the same enabled flag as customer mail.
+> - **gateway-admin**: order panel gains a "Pending CJ approval"
+>   filter/tab (count badge), order detail gains "Approve for CJ
+>   fulfilment" (confirm dialog, result verbatim, shows approval stamp
+>   after). No blocking dependency — code to THIS contract, not the
+>   order branch.
+> - Deploy activation (main session): rebuild order + gateway-admin; set
+>   CJ_API_KEY (held value) + CJ_EMAIL (= CJ_CATALOG_EMAIL) +
+>   LITEMALL_ORDER_CJ_PLACEMENT_MODE=manual +
+>   LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY=contact@trovemo.com together;
+>   watch the boot (the half-config guard + the one unexplained unhealthy
+>   first-arm) and confirm orders 7/10/11 appear in the pending list and
+>   place ONLY on admin approval; user reviews orders 7/10 for test-
+>   purchase status BEFORE approving them.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -858,10 +909,44 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (Wave 18 mini SHIPPED)
-- **No active assignment.** (Phase 3 groupon priced submit — Wave 21 —
-  will land here when commissioned; specs already in
-  `litemall-order/docs/followup-groupon-priced-submit.md`.)
+### Worktree: `order` — Wave 23 admin-gated CJ placement
+- **Branch:** `fix/order` — FIRST: `git merge master` (the branch sits at
+  the old commission commit; master has since moved). · **Scope:**
+  `litemall-order/` + the single **V59** migration in litemall-db
+  (shared-module discipline: hand-edit LitemallOrder + OrderMapper.xml
+  TOGETHER — ⚠ the recurring OrderMapper.xml-goes-missing gotcha —
+  `mvn install` litemall-db, restart every dependent; check
+  `flyway_schema_history` immediately before first boot — dev+prod
+  applied through V58).
+- **Task — Wave 23 (backend): admin-gated CJ placement + admin notify
+  mail.** Code to the Wave-23 CONTRACT above.
+  1. **V59** `cj_placement_approved_time` DATETIME NULL +
+     `cj_placement_approved_by` VARCHAR(63) NULL on `litemall_order`.
+  2. **Placement mode**: `litemall.order.cj.placement-mode` auto|manual
+     (env `LITEMALL_ORDER_CJ_PLACEMENT_MODE`, DEFAULT manual). The
+     retained-placement sweep in manual mode places ONLY paid CJ orders
+     bearing an approval stamp; auto = today's behavior unchanged.
+     Refund-state orders (e.g. 202) must never be placed in either mode.
+  3. **Admin endpoints** per contract on the existing order admin
+     surface (X-User-Roles recipe): pending list (cjReady = variants
+     resolvable; holdReason for IOSS/refund/uncosted holds) + approve
+     (idempotent CAS; approved_by = X-User-Id; typed refusals).
+  4. **Admin notify mail** on the paid seam via the EXISTING outbox
+     (blank env ⇒ no-op; rides the customer-mail enabled flag).
+  5. **Tests**: mode gating matrix (manual blocks unapproved / places
+     approved / auto unchanged / refund never), approve idempotency +
+     typed refusals, pending shape, notify enqueue + blank no-op. Mind
+     the "Tests run:" gotcha.
+- **Acceptance (dev, through :18080/:9000):** in manual mode a paid CJ
+  order stays un-placed and appears in the pending list with honest
+  cjReady/holdReason; approve stamps the row (DB-verified) and the next
+  sweep tick attempts placement (dev has NO CJ key — verify the attempt
+  reaches the placement path and parks in its typed retryable state,
+  never a fake success); unapproved + refund-state orders never reach
+  placement; admin-notify row lands in the outbox with the contract
+  subject/body and MailHog (:8025) shows it; blank notify env = zero
+  rows; V59 applied cleanly; module tests green with real "Tests run:"
+  counts.
 - **History — Wave 18 (mini): scope facts on coupon redeem.** SHIPPED +
   DEPLOYED 2026-08-06 (`9b4faa292`, merge `bc75d67b5`): redeem passes
   cart goodsIds/categoryIds; module 189/0.
@@ -1089,9 +1174,28 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — idle (Wave 22 SHIPPED)
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten.
+### Worktree: `gateway-admin` — Wave 23 CJ approval surfaces
+- **Branch:** `fix/gateway-admin` — FIRST: `git merge master`. ·
+  **Scope:** `litemall-gateway-admin/` only. NO migration.
+- **Task — Wave 23 (admin UI): pending-approval tab + approve action.**
+  Code to the Wave-23 CONTRACT above; do NOT read the order branch.
+  1. Orders panel gains a **"Pending CJ approval"** tab/filter backed by
+     the pending endpoint, with a count badge on the tab; rows show sn,
+     paid time, amount, consignee/country, items summary, cjReady, and
+     holdReason verbatim when present.
+  2. Order detail gains **"Approve for CJ fulfilment"**: confirm dialog
+     (states that approval sends the order to CJ and spends real
+     fulfilment money), result shown verbatim (incl. typed refusals);
+     after success the approval stamp (who + when) renders on the
+     detail and the row leaves the pending tab.
+  3. Approved-but-not-yet-placed orders show their state honestly (the
+     sweep places on its next tick — no fake "placed" until
+     cj_order_id exists).
+- **Acceptance (dev, against the order half on :18080/:9000):** pending
+  tab lists the un-approved paid CJ order with badge count; approve
+  flips it (stamp rendered, row gone from tab, refusal cases verbatim);
+  existing order panels regression-green; webapp tests green with real
+  counts.
 - **History — Wave 22 (admin UI): search analytics + RFM delivery
   surfaces.** SHIPPED + DEPLOYED 2026-08-08 (`76e47cd13`): Search
   analytics panel (top/zero-result queries w/ CTR, totals, Refresh
