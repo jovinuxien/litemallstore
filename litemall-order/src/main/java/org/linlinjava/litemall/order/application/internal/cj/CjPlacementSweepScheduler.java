@@ -31,6 +31,7 @@ public class CjPlacementSweepScheduler {
     private final LitemallOrderRepository orderRepository;
     private final CjPlacementService placementService;
     private final CjTokenService cjTokenService;
+    private final CjPlacementMode placementMode;
 
     /** Max unplaced CJ orders visited per sweep (each costs up to ~3 CJ calls). */
     @Value("${litemall.order.cj-place-batch:10}")
@@ -38,10 +39,12 @@ public class CjPlacementSweepScheduler {
 
     public CjPlacementSweepScheduler(LitemallOrderRepository orderRepository,
                                      CjPlacementService placementService,
-                                     CjTokenService cjTokenService) {
+                                     CjTokenService cjTokenService,
+                                     CjPlacementMode placementMode) {
         this.orderRepository = orderRepository;
         this.placementService = placementService;
         this.cjTokenService = cjTokenService;
+        this.placementMode = placementMode;
     }
 
     @Scheduled(fixedDelayString = "${litemall.order.cj-place-sweep-ms:300000}")
@@ -49,7 +52,12 @@ public class CjPlacementSweepScheduler {
         if (!cjTokenService.isEnabled()) {
             return; // CJ disabled: orders are retained by the queue predicate; nothing to do
         }
-        List<LitemallOrderId> due = orderRepository.queryPlaceableCjOrders(batchSize);
+        // Wave 23 (V59): manual mode only visits admin-approved orders — unapproved ones
+        // stay durably queued (and listed in the admin pending panel) without burning
+        // sweep batch slots or CJ budget.
+        List<LitemallOrderId> due = placementMode.isManual()
+                ? orderRepository.queryApprovedPlaceableCjOrders(batchSize)
+                : orderRepository.queryPlaceableCjOrders(batchSize);
         if (due == null || due.isEmpty()) {
             return;
         }

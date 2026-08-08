@@ -356,6 +356,21 @@ public class LitemallOrder {
     private Integer pinkId;
 
     /**
+     * Hand-maintained (V59, Wave 23): admin approval stamp for CJ placement.
+     * NULL = not (yet) approved — in placement-mode 'manual' the placement sweep
+     * skips the order until this is set (CAS on NULL, set exactly once).
+     * Corresponds to litemall_order.cj_placement_approved_time
+     */
+    private LocalDateTime cjPlacementApprovedTime;
+
+    /**
+     * Hand-maintained (V59, Wave 23): the approving admin (X-User-Id), audit
+     * trail — same shape as verified_by (V35).
+     * Corresponds to litemall_order.cj_placement_approved_by
+     */
+    private String cjPlacementApprovedBy;
+
+    /**
      * Hand-maintained (V35): in-store pickup / write-off. How the order is fulfilled
      * to the customer: 'express' | 'pickup'.
      * Corresponds to litemall_order.delivery_type
@@ -1231,6 +1246,22 @@ public class LitemallOrder {
         this.pinkId = pinkId;
     }
 
+    public LocalDateTime getCjPlacementApprovedTime() {
+        return cjPlacementApprovedTime;
+    }
+
+    public void setCjPlacementApprovedTime(LocalDateTime cjPlacementApprovedTime) {
+        this.cjPlacementApprovedTime = cjPlacementApprovedTime;
+    }
+
+    public String getCjPlacementApprovedBy() {
+        return cjPlacementApprovedBy;
+    }
+
+    public void setCjPlacementApprovedBy(String cjPlacementApprovedBy) {
+        this.cjPlacementApprovedBy = cjPlacementApprovedBy;
+    }
+
     public String getDeliveryType() {
         return deliveryType;
     }
@@ -1598,6 +1629,10 @@ public class LitemallOrder {
         cjLogisticName("cj_logistic_name", "cjLogisticName", "VARCHAR", false),
 
         pinkId("pink_id", "pinkId", "INTEGER", false),
+
+        cjPlacementApprovedTime("cj_placement_approved_time", "cjPlacementApprovedTime", "TIMESTAMP", false),
+
+        cjPlacementApprovedBy("cj_placement_approved_by", "cjPlacementApprovedBy", "VARCHAR", false),
 
         deliveryType("delivery_type", "deliveryType", "VARCHAR", false),
 
