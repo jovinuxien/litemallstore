@@ -8,6 +8,7 @@ import {
   useListArticlesQuery,
   useUpdateArticleCategoryMutation,
 } from 'app/shared/reducers/private/services/adminContentApi';
+import { fromServerDateTime } from 'app/shared/util/server-datetime';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
@@ -19,7 +20,12 @@ import { Link } from 'react-router-dom';
 // articles still reference it (errno 641) — the errmsg is surfaced inline.
 // Contract: litemall-goods-management/docs/handoff-content-endpoints.md §1.
 
-const fmtTime = (t?: string) => (t ? t.replace('T', ' ').slice(0, 16) : '—');
+// Tolerates the raw array shape too — a data-shape surprise must never throw
+// in render (a crash here trips the app-level ErrorBoundary for the session).
+const fmtTime = (t?: unknown) => {
+  const s = fromServerDateTime(t);
+  return s ? s.replace('T', ' ').slice(0, 16) : '—';
+};
 
 // ----- Articles tab ---------------------------------------------------------
 
