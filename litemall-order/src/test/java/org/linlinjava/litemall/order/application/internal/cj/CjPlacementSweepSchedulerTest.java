@@ -35,10 +35,12 @@ class CjPlacementSweepSchedulerTest {
     private CjPlacementService placementService;
     @Mock
     private CjTokenService cjTokenService;
+    @Mock
+    private CjPlacementMode placementMode; // isManual() defaults false = auto mode
 
     private CjPlacementSweepScheduler scheduler() {
-        CjPlacementSweepScheduler s =
-                new CjPlacementSweepScheduler(orderRepository, placementService, cjTokenService);
+        CjPlacementSweepScheduler s = new CjPlacementSweepScheduler(
+                orderRepository, placementService, cjTokenService, placementMode);
         ReflectionTestUtils.setField(s, "batchSize", 10);
         return s;
     }
@@ -62,6 +64,32 @@ class CjPlacementSweepSchedulerTest {
 
         verify(placementService).place(eq(new LitemallOrderId(1)), eq(true), eq(false));
         verify(placementService).place(eq(new LitemallOrderId(2)), eq(true), eq(false));
+    }
+
+    /** Wave 23: manual mode sweeps ONLY the admin-approved queue — never the full one. */
+    @Test
+    void manualMode_sweepsOnlyApprovedOrders() {
+        when(cjTokenService.isEnabled()).thenReturn(true);
+        when(placementMode.isManual()).thenReturn(true);
+        when(orderRepository.queryApprovedPlaceableCjOrders(10))
+                .thenReturn(List.of(new LitemallOrderId(3)));
+
+        scheduler().sweep();
+
+        verify(orderRepository, org.mockito.Mockito.never()).queryPlaceableCjOrders(anyInt());
+        verify(placementService).place(eq(new LitemallOrderId(3)), eq(true), eq(false));
+    }
+
+    /** Wave 23: manual mode with nothing approved = a silent, cheap no-op sweep. */
+    @Test
+    void manualMode_noApprovedOrders_placesNothing() {
+        when(cjTokenService.isEnabled()).thenReturn(true);
+        when(placementMode.isManual()).thenReturn(true);
+        when(orderRepository.queryApprovedPlaceableCjOrders(10)).thenReturn(List.of());
+
+        scheduler().sweep();
+
+        verify(placementService, org.mockito.Mockito.never()).place(any(), anyBoolean(), anyBoolean());
     }
 
     @Test

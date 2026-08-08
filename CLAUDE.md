@@ -909,44 +909,31 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — Wave 23 admin-gated CJ placement
-- **Branch:** `fix/order` — FIRST: `git merge master` (the branch sits at
-  the old commission commit; master has since moved). · **Scope:**
-  `litemall-order/` + the single **V59** migration in litemall-db
-  (shared-module discipline: hand-edit LitemallOrder + OrderMapper.xml
-  TOGETHER — ⚠ the recurring OrderMapper.xml-goes-missing gotcha —
-  `mvn install` litemall-db, restart every dependent; check
-  `flyway_schema_history` immediately before first boot — dev+prod
-  applied through V58).
-- **Task — Wave 23 (backend): admin-gated CJ placement + admin notify
-  mail.** Code to the Wave-23 CONTRACT above.
-  1. **V59** `cj_placement_approved_time` DATETIME NULL +
-     `cj_placement_approved_by` VARCHAR(63) NULL on `litemall_order`.
-  2. **Placement mode**: `litemall.order.cj.placement-mode` auto|manual
-     (env `LITEMALL_ORDER_CJ_PLACEMENT_MODE`, DEFAULT manual). The
-     retained-placement sweep in manual mode places ONLY paid CJ orders
-     bearing an approval stamp; auto = today's behavior unchanged.
-     Refund-state orders (e.g. 202) must never be placed in either mode.
-  3. **Admin endpoints** per contract on the existing order admin
-     surface (X-User-Roles recipe): pending list (cjReady = variants
-     resolvable; holdReason for IOSS/refund/uncosted holds) + approve
-     (idempotent CAS; approved_by = X-User-Id; typed refusals).
-  4. **Admin notify mail** on the paid seam via the EXISTING outbox
-     (blank env ⇒ no-op; rides the customer-mail enabled flag).
-  5. **Tests**: mode gating matrix (manual blocks unapproved / places
-     approved / auto unchanged / refund never), approve idempotency +
-     typed refusals, pending shape, notify enqueue + blank no-op. Mind
-     the "Tests run:" gotcha.
-- **Acceptance (dev, through :18080/:9000):** in manual mode a paid CJ
-  order stays un-placed and appears in the pending list with honest
-  cjReady/holdReason; approve stamps the row (DB-verified) and the next
-  sweep tick attempts placement (dev has NO CJ key — verify the attempt
-  reaches the placement path and parks in its typed retryable state,
-  never a fake success); unapproved + refund-state orders never reach
-  placement; admin-notify row lands in the outbox with the contract
-  subject/body and MailHog (:8025) shows it; blank notify env = zero
-  rows; V59 applied cleanly; module tests green with real "Tests run:"
-  counts.
+### Worktree: `order` — idle (Wave 23 order half SHIPPED)
+- **No active assignment.**
+- **History — Wave 23 (backend): admin-gated CJ placement + admin
+  order-paid notify mail.** MERGED to master `3ed350725` + pushed
+  (2026-08-08; branch commit `5a3bad2e7`; module tests 256/0). V59
+  `cj_placement_approved_time/_by` (all 10 LitemallOrderMapper.xml sites;
+  Flyway floor 59); `CjPlacementMode` fail-safe (only the literal `auto`
+  disables the gate) gating BOTH `place()` (neutralizes the pay-path
+  fast placement) and an approved-only sweep query;
+  `GET /srv/private/admin/order/cj-placement/pending` (cjReady = local
+  resolveVid, NO CJ calls on request paths; holdReason for
+  rejected-park / missing cj_vid / open aftersale / EU-without-IOSS) +
+  `POST /{id}/cj-placement/approve` (CAS, idempotent, typed
+  [NOT_FOUND]/[NOT_CJ]/[NOT_PAID]/[ALREADY_PLACED] 422s, timeline hop);
+  admin-notify mail "New paid order <sn> — $<amount>" — ⚠ env
+  `LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY` binds via an EXPLICIT yml
+  placeholder (`admin-notify-email` does not relax-bind); notice NOT
+  gated on buyer email. Dev acceptance green end-to-end (order 114:
+  paid → held → pending cjReady:true → approved by admin 1 via :18080 →
+  sweep visited ONLY the approved order (1 of 18) → typed retryable park
+  on dummy-cred CJ auth failure → MailHog got both mails; refusals
+  verbatim; V59 applied at boot). Dev trick: dummy CJ_EMAIL+CJ_API_KEY
+  make the sweep attempt observable. Prod deploy + arming = MAIN session
+  (set CJ_API_KEY + CJ_EMAIL + placement-mode + notify TOGETHER; verify
+  orders 7/10/11 pending; order 9 (202) structurally unplaceable).
 - **History — Wave 18 (mini): scope facts on coupon redeem.** SHIPPED +
   DEPLOYED 2026-08-06 (`9b4faa292`, merge `bc75d67b5`): redeem passes
   cart goodsIds/categoryIds; module 189/0.

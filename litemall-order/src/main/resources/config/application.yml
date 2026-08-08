@@ -150,6 +150,14 @@ litemall:
     # credentials are empty. See CjPlacementSweepScheduler / CjPlacementService.
     cj-place-sweep-ms: 300000
     cj-place-batch: 10
+    cj:
+      # Wave 23 (V59): admin-gated CJ placement. 'manual' (the default) = paid CJ
+      # orders wait in the durable placement queue until an admin approves them in
+      # the admin panel (POST /srv/private/admin/order/{id}/cj-placement/approve);
+      # only approved orders are placed by the sweep. 'auto' = pre-Wave-23 behavior
+      # (place every paid CJ order as soon as CJ is configured). Any other value is
+      # treated as 'manual' (fail-safe: never place without approval by accident).
+      placement-mode: ${LITEMALL_ORDER_CJ_PLACEMENT_MODE:manual}
     # Ops mailbox for CJ fulfilment attention signals (terminal placement rejection,
     # CJ-side cancellation of a paid order). Blank = log-only (mail rows need the
     # litemall.customer-mail seam enabled anyway).
@@ -208,6 +216,10 @@ litemall:
   customer-mail:
     sweep-ms: 60000
     sweep-batch: 50
+    # Wave 23: admin mailbox notified of every PAID order (prod = contact@trovemo.com).
+    # Blank (the default) = no admin notices; rides the same enabled flag + SMTP seam
+    # as customer mail. Explicit placeholder because the env name doesn't relax-bind.
+    admin-notify-email: ${LITEMALL_CUSTOMERMAIL_ADMIN_NOTIFY:}
   # Behavioral targeting Phase 0 (doc/behavioral-events.md): server-side value
   # signals — AFTER_COMMIT listeners write purchase/refund rows to
   # litemall_user_event. Same kill-switch name as goods-management's ingest.
