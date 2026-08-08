@@ -5,13 +5,17 @@ import {
   useReadCombinationQuery,
   useUpdateCombinationMutation,
 } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { useConsumePromoCandidateMutation } from 'app/shared/reducers/private/services/insightApi';
+import { GrouponPromoPrefill, createdRefId } from 'app/views/adminViews/adminModule/Insight/promoFormat';
 import * as React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 // Create / edit a group-buy (combination) campaign against promotion-service.
 // Create needs goodsId + title + prices + requiredMembers + window; the
 // update command carries no goodsId (the campaign stays bound to its goods).
-// New campaigns start in DRAFT — activate from the list view.
+// New campaigns start in DRAFT — activate from the list view. That holds for
+// Wave-19 promo-suggestion prefills too: suggested campaigns are NEVER
+// auto-activated (Phase-3 gating decision).
 
 const empty: ICombination = {
   goodsId: undefined,
@@ -29,12 +33,21 @@ const GrouponRuleForm: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Wave 19: the promo-suggestions panel opens this form prefilled via router
+  // state; absent state changes nothing. Captured once — the suggestion only
+  // seeds the initial form, the admin's edits win from then on.
+  const [prefill] = React.useState<GrouponPromoPrefill | null>(
+    () => (!isEdit && (location.state as { promoPrefill?: GrouponPromoPrefill } | null)?.promoPrefill) || null
+  );
 
   const { data: existing, isLoading: loading } = useReadCombinationQuery(id as string, { skip: !isEdit });
   const [createCombination, { isLoading: creating }] = useCreateCombinationMutation();
   const [updateCombination, { isLoading: updating }] = useUpdateCombinationMutation();
+  const [consumeCandidate] = useConsumePromoCandidateMutation();
 
-  const [form, setForm] = React.useState<ICombination>(empty);
+  const [form, setForm] = React.useState<ICombination>(() => (prefill ? { ...empty, ...prefill.combination } : empty));
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -71,6 +84,14 @@ const GrouponRuleForm: React.FC = () => {
     if (msg) {
       setError(msg);
       return;
+    }
+    // Wave 19: opened from a promo suggestion → record the consumption with
+    // the created combination id. FAIL-SOFT by construction: the un-unwrapped
+    // mutation promise never rejects, and the result is deliberately ignored —
+    // a failed consume must never block or roll back the create. The campaign
+    // itself stays DRAFT (no auto-activation — Phase-3 gating decision).
+    if (!isEdit && prefill) {
+      consumeCandidate({ ...prefill.consume, refId: createdRefId(res, 'combinationId') });
     }
     navigate('/admin/promotion/groupon-rule');
   };
