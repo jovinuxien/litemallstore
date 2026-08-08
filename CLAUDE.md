@@ -610,9 +610,11 @@
 > 50% negative control rejected with stated max; full reindex 9,642 docs;
 > `/srv/search?...&coupon_flag=1` returns exactly the couponed product
 > with coupon_flag:1 in the hit (the passthrough fix the gateway-api agent
-> caught). PROD DEPLOY PENDING — needs goods-management + both gateways
-> rebuilt, indexer/searcher config update, and reindex BEFORE searcher
-> restart. UI click-through = user-side.**
+> caught). **DEPLOYED to trovemo.com 2026-08-08**: staged script (indexer
+> recreate → goods-management V53 → reindex 12,824 docs → searcher recreate
+> → gateways), smoke 200s; live probe: 3 prod products already return
+> coupon_flag:1 through the edge (an existing scoped coupon matched).
+> Nightly scorer runs 04:30; UI click-through = user-side.**
 >
 > **Wave 20 (2026-08-08) — DIY PROMO PAGES + SOCIAL PAGE PUBLISHING
 > (commissioned together with Wave 19; starts AFTER Wave 19 merges).**
