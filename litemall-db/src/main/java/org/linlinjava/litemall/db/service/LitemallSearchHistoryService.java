@@ -22,6 +22,12 @@ public class LitemallSearchHistoryService {
         searchHistoryMapper.insertSelective(searchHistory);
     }
 
+    /** Selective update by id (Wave 22: refreshes result_count after the search completes). */
+    public int updateById(LitemallSearchHistory searchHistory) {
+        searchHistory.setUpdateTime(LocalDateTime.now());
+        return searchHistoryMapper.updateByPrimaryKeySelective(searchHistory);
+    }
+
     public List<LitemallSearchHistory> queryByUid(int uid) {
         LitemallSearchHistoryExample example = new LitemallSearchHistoryExample();
         example.or().andUserIdEqualTo(uid).andDeletedEqualTo(false);

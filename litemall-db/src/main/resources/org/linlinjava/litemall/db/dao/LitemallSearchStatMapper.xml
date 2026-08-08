@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (Wave 22). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallSearchStatMapper">
+
+  <!-- Full per-day recompute: counts are overwritten absolutely, so re-rolling
+       a day (late-arriving clamped events, manual re-run) is idempotent. -->
+  <insert id="upsertDay" parameterType="org.linlinjava.litemall.db.domain.LitemallSearchStatDaily"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_search_stat_daily
+      (`day`, keyword, searches, zero_results, clicks, add_time, update_time, deleted)
+    values
+      (#{day}, #{keyword}, coalesce(#{searches}, 0), coalesce(#{zeroResults}, 0),
+       coalesce(#{clicks}, 0), now(), now(), 0)
+    on duplicate key update
+      searches = values(searches),
+      zero_results = values(zero_results),
+      clicks = values(clicks),
+      update_time = now()
+  </insert>
+
+  <select id="selectRange" resultType="java.util.HashMap">
+    select keyword,
+           cast(sum(searches) as signed) as searches,
+           cast(sum(zero_results) as signed) as zeroResults,
+           cast(sum(clicks) as signed) as clicks
+    from litemall_search_stat_daily
+    where `day` between #{from} and #{to} and deleted = 0
+    group by keyword
+    order by searches desc, keyword asc
+    limit #{limit}
+  </select>
+
+  <select id="selectRangeZeroTop" resultType="java.util.HashMap">
+    select keyword,
+           cast(sum(searches) as signed) as searches,
+           cast(sum(zero_results) as signed) as zeroResults,
+           cast(sum(clicks) as signed) as clicks
+    from litemall_search_stat_daily
+    where `day` between #{from} and #{to} and deleted = 0
+    group by keyword
+    having zeroResults &gt; 0
+    order by zeroResults desc, searches desc, keyword asc
+    limit #{limit}
+  </select>
+
+  <select id="selectRangeTotals" resultType="java.util.HashMap">
+    select cast(coalesce(sum(searches), 0) as signed) as searches,
+           cast(coalesce(sum(zero_results), 0) as signed) as zeroResults,
+           cast(coalesce(sum(clicks), 0) as signed) as clicks
+    from litemall_search_stat_daily
+    where `day` between #{from} and #{to} and deleted = 0
+  </select>
+
+  <!-- Source (a): logged-in searches. deleted rows count on purpose — clearhistory
+       clears the user's rail, not the aggregate; no identity leaves this query. -->
+  <select id="selectHistoryAgg" resultType="java.util.HashMap">
+    select substring(lower(trim(keyword)), 1, 127) as keyword,
+           cast(count(*) as signed) as searches,
+           cast(sum(case when result_count = 0 then 1 else 0 end) as signed) as zeroResults
+    from litemall_search_history
+    where add_time &gt;= #{start} and add_time &lt; #{end}
+      and trim(keyword) != ''
+    group by substring(lower(trim(keyword)), 1, 127)
+  </select>
+
+  <!-- Source (b1): anonymous consented search events only (user_id IS NULL) —
+       logged-in searches are already counted once through the history source. -->
+  <select id="selectSearchEventAgg" resultType="java.util.HashMap">
+    select substring(lower(trim(search_query)), 1, 127) as keyword,
+           cast(count(*) as signed) as searches
+    from litemall_user_event
+    where event_type = 'search'
+      and occurred_at &gt;= #{start} and occurred_at &lt; #{end}
+      and user_id is null
+      and search_query is not null and trim(search_query) != ''
+    group by substring(lower(trim(search_query)), 1, 127)
+  </select>
+
+  <!-- Source (b2): result clicks attributed to a query (single source for clicks). -->
+  <select id="selectClickEventAgg" resultType="java.util.HashMap">
+    select substring(lower(trim(search_query)), 1, 127) as keyword,
+           cast(count(*) as signed) as clicks
+    from litemall_user_event
+    where event_type = 'click_result'
+      and occurred_at &gt;= #{start} and occurred_at &lt; #{end}
+      and search_query is not null and trim(search_query) != ''
+    group by substring(lower(trim(search_query)), 1, 127)
+  </select>
+
+</mapper>
