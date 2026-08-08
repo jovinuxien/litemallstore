@@ -74,11 +74,13 @@ export interface IPageComponent {
   config: Record<string, unknown>;
 }
 
-/** PageView — /srv/page/home | /srv/page/{id} (spec §4). */
+/** PageView — /srv/page/home | /srv/page/{id} (spec §4; category since Wave 20). */
 export interface IPageView {
   id: number;
   name?: string;
   position?: 'home' | 'custom';
+  /** Wave-20 V54: 'general' | 'coupon' | 'groupon'; absent on pre-V54 payloads. */
+  category?: string;
   components: IPageComponent[];
   updateTime?: string | number[];
 }
