@@ -37,6 +37,7 @@ import {
 } from 'app/shared/reducers/orderSlice';
 import { authApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
 import { couponPickerLabel } from 'app/shared/util/couponFormat';
+import { money as fmtMoney } from 'app/shared/util/money';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -78,10 +79,10 @@ const stripePromiseFor = (publishableKey: string): Promise<Stripe | null> => {
 const STRIPE_CURRENCY = 'usd';
 
 /**
- * Render a server-computed amount. `undefined` shows a placeholder rather than $0.00 —
+ * Render a server-computed amount. `undefined` shows a placeholder rather than €0.00 —
  * "we haven't been told yet" and "it's free" must never look the same on a checkout.
  */
-const money = (v?: number): string => (v == null ? '—' : `$${v.toFixed(2)}`);
+const money = (v?: number): string => (v == null ? '—' : fmtMoney(v));
 
 /** Pull a readable message out of an axios/envelope error. */
 const messageOf = (error: unknown, fallback: string): string => {
@@ -552,7 +553,7 @@ const CheckoutView: React.FC = () => {
   }, [coupons]);
 
   /**
-   * Display-only, and NOT money we charge: this drives the coupon picker's "spend $X more"
+   * Display-only, and NOT money we charge: this drives the coupon picker's "spend €X more"
    * hint and the CJ/local group split. The charged figures all come from `totals`.
    */
   const cartLinesSubtotal = useMemo(
@@ -677,7 +678,7 @@ const CheckoutView: React.FC = () => {
 
   const couponCellValue =
     (totals?.couponPrice ?? 0) > 0
-      ? `−$${totals!.couponPrice.toFixed(2)}`
+      ? `−${fmtMoney(totals!.couponPrice)}`
       : coupons.length > 0
         ? `${coupons.length} available`
         : 'None available';
@@ -979,7 +980,7 @@ const CheckoutView: React.FC = () => {
           'Digital wallet (balance)'
         )}
       </div>
-      {(totals?.couponPrice ?? 0) > 0 && <div className='small text-success'>Coupon applied — −${totals!.couponPrice.toFixed(2)}</div>}
+      {(totals?.couponPrice ?? 0) > 0 && <div className='small text-success'>Coupon applied — −{fmtMoney(totals!.couponPrice)}</div>}
     </>
   );
 
@@ -1012,7 +1013,7 @@ const CheckoutView: React.FC = () => {
     ...(!quoteLoading && !isPickup
       ? [...(quotes.local?.breakdown ?? []), ...(quotes.cj?.breakdown ?? [])].map(b => ({
           label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? 'Standard shipping' : b.source ?? 'Shipping')}`,
-          value: `$${Number(b.amount ?? 0).toFixed(2)}${b.note ? ` — ${b.note}` : ''}`,
+          value: `${fmtMoney(b.amount)}${b.note ? ` — ${b.note}` : ''}`,
           variant: 'muted' as const,
         }))
       : []),
@@ -1020,9 +1021,7 @@ const CheckoutView: React.FC = () => {
       ? [
           {
             label: 'Free shipping',
-            value: `on orders over $${Number(
-              quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold
-            ).toFixed(2)}`,
+            value: `on orders over ${fmtMoney(quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold)}`,
             variant: 'muted' as const,
           },
         ]
@@ -1038,7 +1037,7 @@ const CheckoutView: React.FC = () => {
       ? [
           {
             label: 'Group price',
-            value: `$${priceNum(groupSlot.campaign.combinationPrice).toFixed(2)}/item at payment`,
+            value: `${fmtMoney(priceNum(groupSlot.campaign.combinationPrice))}/item at payment`,
             variant: 'success' as const,
           },
         ]
@@ -1076,7 +1075,7 @@ const CheckoutView: React.FC = () => {
               {groupSlot?.campaign?.combinationPrice != null ? (
                 <>
                   {' '}
-                  — group price applied at payment: <strong>${priceNum(groupSlot.campaign.combinationPrice).toFixed(2)}</strong> per item
+                  — group price applied at payment: <strong>{fmtMoney(priceNum(groupSlot.campaign.combinationPrice))}</strong> per item
                   {groupSlot.campaign.title ? <> ({groupSlot.campaign.title})</> : null}. The total below may show the regular price
                   until then.
                 </>
@@ -1623,7 +1622,7 @@ const CheckoutView: React.FC = () => {
                         <div className='lm-delivery__name'>Standard shipping</div>
                         <div className='lm-delivery__meta'>
                           {(quotes.local?.freightPrice ?? 0) > 0
-                            ? `$${Number(quotes.local?.freightPrice ?? 0).toFixed(2)}`
+                            ? fmtMoney(quotes.local?.freightPrice)
                             : 'Free'}
                           {hasCjItems ? ' — items shipped from our store' : ''}
                         </div>

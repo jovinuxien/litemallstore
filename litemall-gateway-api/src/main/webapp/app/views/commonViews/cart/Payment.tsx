@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CheckoutPaymentMethod, payOrder } from 'app/shared/reducers/orderSlice';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { Cell, CellGroup, Page, PageHead, PaymentBrandIcons, SubmitBar } from 'app/components/commonComponents/storefront';
 
 /**
@@ -43,7 +44,7 @@ const Payment: React.FC = () => {
         {/* Order summary */}
         <CellGroup title='Order'>
           <Cell title='Order no.' value={orderSn} />
-          <Cell title='Amount due' value={<span className='lm-amount'>${(amountDue ?? 0).toFixed(2)}</span>} />
+          <Cell title='Amount due' value={<span className='lm-amount'>{money(amountDue)}</span>} />
         </CellGroup>
 
         {/* Payment method */}

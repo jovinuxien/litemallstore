@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+import { money } from 'app/shared/util/money';
+
 import './storefront.scss';
 
 /**
@@ -97,7 +99,7 @@ export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, 
           </div>
         )}
         <div className='lm-goods-card__footer'>
-          {price != null && <span className='lm-goods-card__price'>${price.toFixed(2)}</span>}
+          {price != null && <span className='lm-goods-card__price'>{money(price)}</span>}
           {qtyControl != null ? qtyControl : qty != null && <span className='lm-goods-card__qty'>× {qty}</span>}
           {trailing}
         </div>
@@ -157,7 +159,7 @@ export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label = 'Total:', b
     {total != null && (
       <div className='lm-submit-bar__totals'>
         <span className='lm-submit-bar__label'>{label} </span>
-        <span className='lm-submit-bar__total'>${total.toFixed(2)}</span>
+        <span className='lm-submit-bar__total'>{money(total)}</span>
       </div>
     )}
     <button type='button' className='btn btn-lm-primary lm-submit-bar__action' onClick={onSubmit} disabled={disabled || loading}>

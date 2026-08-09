@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
+import { money } from 'app/shared/util/money';
 import './order.scss';
 
 /** litemall-vue order-list showType tabs (index === showType 0–4). */
@@ -101,7 +102,7 @@ const OrderList: React.FC = () => {
                 ))}
               </div>
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>Total: ${priceNum(o.actualPrice).toFixed(2)}</span>
+                <span className='lm-amount'>Total: {money(priceNum(o.actualPrice))}</span>
                 <div className='lm-order-panel__actions'>
                   {o.handleOption?.pay && (
                     <button type='button' className='btn btn-sm btn-lm-primary' disabled={pending} onClick={() => navigate(`/pay/${o.id}`)}>

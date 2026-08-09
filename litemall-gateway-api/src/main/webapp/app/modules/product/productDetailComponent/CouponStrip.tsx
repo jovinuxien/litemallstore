@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { ICoupon, userApi } from 'app/shared/api';
 import { couponValueShort, isPercentCoupon } from 'app/shared/util/couponFormat';
+import { EURO } from 'app/shared/util/money';
 
 /**
  * Receivable-coupon strip on the detail page, mirroring litemall-vue's coupon
@@ -49,8 +50,8 @@ const CouponStrip: React.FC = () => {
             <i className='bi bi-tag-fill' /> Save {couponValueShort(c)}
           </span>
           <span className='lm-pdp__coupon-min'>
-            {c.min ? `over $${c.min}` : 'no minimum'}
-            {isPercentCoupon(c) && c.discountCap ? ` · up to $${c.discountCap}` : ''}
+            {c.min ? `over ${EURO}${c.min}` : 'no minimum'}
+            {isPercentCoupon(c) && c.discountCap ? ` · up to ${EURO}${c.discountCap}` : ''}
           </span>
           <span className='lm-pdp__coupon-cta'>
             {c.id != null && claimed[c.id] ? (
