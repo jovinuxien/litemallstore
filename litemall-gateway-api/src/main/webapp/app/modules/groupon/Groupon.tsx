@@ -3,6 +3,7 @@ import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { contentApi, promotionApi, ICombinationPink, IGrouponItem } from 'app/shared/api';
 import { toDisplayTime } from './grouponUtils';
 import 'app/shared/scss/content.scss';
@@ -160,8 +161,8 @@ const Groupon: React.FC = () => {
                 <img src={g.picUrl} alt={g.goodsName} />
                 <div className='lm-groupon-card__name'>{g.goodsName}</div>
                 <div className='lm-groupon-card__price'>
-                  <span className='lm-groupon-card__now'>${priceNum(g.grouponPrice ?? g.retailPrice ?? 0).toFixed(2)}</span>
-                  {g.discount != null && <span className='lm-groupon-card__badge'>−${g.discount}</span>}
+                  <span className='lm-groupon-card__now'>{money(priceNum(g.grouponPrice ?? g.retailPrice ?? 0))}</span>
+                  {g.discount != null && <span className='lm-groupon-card__badge'>−{money(g.discount)}</span>}
                 </div>
               </Link>
               <div className='small text-muted mt-1'>{g.discountMember ?? '?'} people per group</div>

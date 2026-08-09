@@ -2,6 +2,7 @@ package org.linlinjava.litemall.goods.application.search;
 
 import org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -18,10 +19,14 @@ import java.util.regex.Pattern;
  *
  * <p>Before Wave 12 the formula ({@code sellPrice × usdToCny 7.2 × margin 2.0}) was duplicated
  * across the sync, enrichment and detail services — and the raw wholesale cost was discarded.
- * The currency factor is GONE (deliberately deleted, not set to 1): prices now live in the USD
- * basis, {@code cost} is persisted ({@code litemall_cj_product.sell_price},
+ * {@code cost} is persisted ({@code litemall_cj_product.sell_price},
  * {@code litemall_goods[_product].cost}), and the margin default is
  * {@code spring.cjdropship.pricing.margin} = 1.25.
+ *
+ * <p>Wave 24: CJ quotes USD but the store charges EUR — {@code litemall.goods.fx-usd-eur}
+ * (default 1.0 identity) converts raw CJ amounts at intake ({@link #parseCost}/{@link #cost}),
+ * so stored cost and every retail derived from it persist in the store currency and all
+ * ratio-based math downstream needs no currency awareness.
  *
  * <p>CJ {@code sellPrice} strings may be a single value ("11.85") or a variant range
  * ("14.71 -- 64.38") — a range collapses to its LOWER bound (the entry-level "from" cost).
@@ -35,6 +40,7 @@ public class CjPricing {
 
     private final CJDropshippingConfig config;
     private final CategoryMarginResolver marginResolver;
+    private final BigDecimal fxUsdEur;
 
     /** Global-margin-only pricing (tests and non-category contexts). */
     public CjPricing(CJDropshippingConfig config) {
@@ -42,16 +48,27 @@ public class CjPricing {
     }
 
     public CjPricing(CJDropshippingConfig config, CategoryMarginResolver marginResolver) {
+        this(config, marginResolver, BigDecimal.ONE);
+    }
+
+    /** Explicit-fx pricing (tests; production wires litemall.goods.fx-usd-eur). */
+    public CjPricing(CJDropshippingConfig config, CategoryMarginResolver marginResolver, BigDecimal fxUsdEur) {
         this.config = config;
         this.marginResolver = marginResolver;
+        this.fxUsdEur = fxUsdEur != null ? fxUsdEur : BigDecimal.ONE;
     }
 
     @Autowired
-    public CjPricing(CJDropshippingConfig config, ObjectProvider<CategoryMarginResolver> marginResolver) {
-        this(config, marginResolver.getIfAvailable());
+    public CjPricing(CJDropshippingConfig config, ObjectProvider<CategoryMarginResolver> marginResolver,
+                     LitemallGoodsProperties goodsProperties) {
+        this(config, marginResolver.getIfAvailable(), goodsProperties.getFxUsdEur());
     }
 
-    /** Raw USD cost from a CJ {@code sellPrice} string (range → lower bound); null when unparseable. */
+    /**
+     * Store-currency cost from a CJ {@code sellPrice} string (range → lower bound); null when
+     * unparseable. CJ quotes USD; Wave 24 multiplies by {@code litemall.goods.fx-usd-eur}
+     * (default 1.0 identity) before the single 2dp HALF_UP rounding.
+     */
     public BigDecimal parseCost(String sellPrice) {
         if (sellPrice == null || sellPrice.isBlank()) {
             return null;
@@ -61,12 +78,17 @@ public class CjPricing {
             LOGGER.warn("Unparseable CJ sellPrice '{}'", sellPrice);
             return null;
         }
-        return new BigDecimal(m.group()).setScale(2, RoundingMode.HALF_UP);
+        return toStore(new BigDecimal(m.group()));
     }
 
-    /** Raw USD cost from a numeric CJ price; null-safe. */
+    /** Store-currency cost from a numeric CJ USD price (fx applied); null-safe. */
     public BigDecimal cost(Double sellPrice) {
-        return sellPrice == null ? null : BigDecimal.valueOf(sellPrice).setScale(2, RoundingMode.HALF_UP);
+        return sellPrice == null ? null : toStore(BigDecimal.valueOf(sellPrice));
+    }
+
+    /** Raw CJ USD → store currency: × fx, then 2dp HALF_UP (one rounding, after the multiply). */
+    private BigDecimal toStore(BigDecimal usd) {
+        return usd.multiply(fxUsdEur).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** Retail = cost × global margin (default 1.25), 2dp HALF_UP; null when the cost is unknown. */

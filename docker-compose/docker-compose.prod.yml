@@ -491,6 +491,10 @@ services:
       LITEMALL_ORDER_STRIPE_ENABLED: ${STRIPE_ENABLED:-false}
       LITEMALL_ORDER_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Wave 24 EUR flip: charge currency + CJ-freight fx ride the same
+      # deploy-day env change (defaults keep pre-flip behavior).
+      LITEMALL_ORDER_STRIPE_CURRENCY: ${LITEMALL_ORDER_STRIPE_CURRENCY:-usd}
+      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
       LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
       # CJ auth needs the account email alongside the key (Wave 8: the committed
       # dev credentials are gone from order's application.yml). BOTH blank ⇒ CJ
@@ -582,6 +586,10 @@ services:
       # Both blank ⇒ enrichment fails soft exactly as before.
       CJ_API_KEY: ${CJ_CATALOG_API_KEY:-}
       CJ_EMAIL: ${CJ_CATALOG_EMAIL:-}
+      # Wave 24 EUR flip: fx applied at CJ cost intake + currency label for
+      # meta/JSON-LD/feed (defaults keep pre-flip behavior).
+      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
+      LITEMALL_GOODS_CURRENCY: ${LITEMALL_GOODS_CURRENCY:-USD}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 

@@ -13,8 +13,8 @@ import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
 import { trackCartAdd, trackEvent, trackOrder } from 'app/shared/tracking/matomo';
 import { pixelTrack } from 'app/shared/tracking/metaPixel';
 
-/** Storefront display currency — mirrors checkout's STRIPE_CURRENCY (usd). */
-const CURRENCY = 'USD';
+/** Storefront display currency — mirrors checkout's STRIPE_CURRENCY (eur, Wave 24). */
+const CURRENCY = 'EUR';
 
 export interface ProductFacts {
   id: string;

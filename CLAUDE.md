@@ -953,16 +953,28 @@
 >   surfaces (insight, orders, coupons, deals, dashboards).
 > - Money stays plain decimals; NO currency columns; errno envelope
 >   unchanged; NO changes to stored order history.
-> Deploy activation (MAIN session, single staged pass): set
-> `LITEMALL_FX_USD_EUR` (rate user-approved on deploy day) +
-> `LITEMALL_GOODS_CURRENCY=EUR` + `LITEMALL_ORDER_STRIPE_CURRENCY=eur`
-> together; run the conversion transaction; rebuild goods-management +
-> order + both gateways; full reindex; purge the Cloudflare cache of
-> /meta-catalog.csv; smoke € on PDP/meta/feed + a staged checkout.
-> USER-SIDE after deploy: enable EU payment methods in the Stripe
-> Dashboard (appear in checkout with no rebuild); Stripe Tax
-> registrations + activation; ONE real-card live purchase end-to-end
-> (still never formally verified).
+> **Wave 24 STATUS: SHIPPED + DEPLOYED — THE STORE CHARGES EUR
+> (flipped 2026-08-09 ~18:45 UTC, rate 0.866, master `c6f7fa3bf`).**
+> All four halves + the PDP variant-tiles rider live. Flip executed as
+> two user-fired guarded scripts (classifier boundary): part 1 = env +
+> decimal SQL (avg retail €15.33, freight 6.93; DIED at the JSON step —
+> ⚠ `litemall_cj_product` keys on `pid` varchar, not `id`); part 2 =
+> JSON conversion (72 seckill swap maps + 27,093 variants_json —
+> derived `variant_price` only, raw CJ USD fields untouched) + recreate
+> all four + machine-token reindex (client-credentials gateway-api @
+> authserver:8089 + X-User-Id/X-User-Roles → `{"indexed":13585}`) +
+> smoke. Verified live: PDP €5.32/EUR exact (was $6.14), JSON-LD EUR,
+> new bundle `main.183c3207…`, order boot "Stripe payments ENABLED
+> (currency=eur)". Deliberately skipped: dead-feature tables (bargain/
+> topic/shipping-templates/recharge/user-level/groupon_rules legacy).
+> Known follow-ups: /meta-catalog.csv + sitemap money regenerate with
+> the 03:30 nightly (stale-USD until then, nothing consumes them yet);
+> deal/promo candidates re-propose in EUR at 04:30/04:45.
+> USER-SIDE after deploy: Matomo ecommerce currency SITE SETTING → EUR
+> (admin UI, SPA cannot set it); enable EU payment methods in the
+> Stripe Dashboard (Klarna/SEPA/iDEAL/Bancontact/MobilePay — appear in
+> checkout with no rebuild); Stripe Tax registrations + activation;
+> ONE real-card live EUR purchase end-to-end.
 >
 > **Wave 25 (2026-08-09, QUEUED — starts after Wave 24 merges; same
 > worktrees) — MERCHANT FEED QUALITY + SUPPLIER/BRAND ATTRIBUTION.**
@@ -1038,7 +1050,10 @@
 >   taxonomy map) and brief-derived descriptions (Wave-13 sanitizer)
 >   replacing title-duplicates.
 > - Catalog hygiene rides along: the 23 Chinese-named goods renamed
->   (or off-saled with a reason) — they poison feed review.
+>   (or off-saled with a reason) — they poison feed review. ALSO
+>   (spotted 2026-08-09): some goods carry a Chinese `litemall_goods.
+>   unit` glyph ("件") that renders beside the € price on the PDP —
+>   normalize units (map to "pc"/blank) in the same hygiene pass.
 > - errno envelope; no new anonymous paths; money untouched (Wave 24
 >   owns money).
 > **Acceptance (dev):** coverage probe logged; an enriched good gets a
@@ -1089,8 +1104,13 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: Wave 24 (EUR freight conversion)
-- **Task — Wave 24: convert CJ freight USD→EUR at the quote seam.**
+### Worktree: `order` — done (Wave 24 half MERGED to master `bc9ede8cc`)
+- **Status 2026-08-09:** freight fx seam SHIPPED (branch `1f5078d2e`,
+  261/0). ⚠ Handoff fact for the MAIN deploy: customer-charged CJ
+  freight also includes the `litemall_system` flat rule — the
+  conversion script converts `litemall_express_freight_value/_min`
+  (encoded in doc/wave24-deploy-plan.md).
+- **Task (HISTORICAL) — Wave 24: convert CJ freight USD→EUR at the quote seam.**
   Code to the Wave-24 CONTRACT above. Config
   `litemall.order.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`, default 1.0,
   EXPLICIT yml placeholder); multiply every CJ freight amount by fx at
@@ -1133,9 +1153,51 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 24 (EUR pricing seam)
-- **Task — Wave 24: land CJ costs in EUR + env-flippable currency
-  label.** Code to the Wave-24 CONTRACT above.
+### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
+- **Task — Wave 25 backend: supplier/brand attribution + Merchant-feed
+  quality.** Code to the Wave-25 CONTRACT above (V60 spec, guard rails,
+  probe-driven display gate). Deliverables in order:
+  1. **Coverage probe FIRST**: during the enrichment rotation, log the
+     %-populated of CJ `supplierName`/`supplierId` (fields already
+     parsed in the detail DTO, never persisted). No extra CJ calls —
+     ride the existing rotation (⚠ daily API points quota, see audit).
+  2. **V60** exactly per CONTRACT (check `flyway_schema_history`
+     immediately before first boot — prod applied through V59, Wave 24
+     shipped with NONE).
+  3. `AttributionProvider` seam + CJ-supplier impl #1: upsert brand
+     rows keyed (source, external_id), kind=1, display_enabled=0;
+     promote links `goods.brand_id` via the existing resolveBrandId
+     seam extended to (source, externalId, name); providers NEVER
+     overwrite manual assignments.
+  4. **Feed quality** (same single artifact /srv/goods/meta-catalog.csv):
+     drop the hardcoded brand "Trovemo" (brand column ONLY from kind=0
+     display-enabled rows); add `google_product_category` via a static
+     CJ-L1 → Google-taxonomy map; add `identifier_exists=false` for
+     unbranded rows; description falls back to the Wave-13 brief
+     sanitizer instead of duplicating the title. Keep RFC-4180 + the
+     13-column base intact (extra columns appended are legal for both
+     Meta and Google — verify header order stays backward-compatible).
+  5. **Catalog hygiene**: rename the 23 Chinese-named on-sale goods
+     (translate; off-sale with reason if untranslatable) and normalize
+     Chinese `litemall_goods.unit` glyphs ("件" → "pc"/blank).
+- **Acceptance (dev, through :9000/:8090):** probe % logged; V60
+  applied at boot; an enriched good gets a brand row (cj-supplier,
+  kind=1, display_enabled=0) + brand_id linked with NO public render;
+  after admin enable the public read exposes it; feed row for a
+  supplier-attributed good = blank brand + identifier_exists=false +
+  real google_product_category; a manual kind=0 enabled brand lands in
+  the feed brand column; zero Chinese-named/unit on-sale goods left in
+  dev sample; module tests green with real "Tests run:" counts.
+- **History — done (Wave 24 half MERGED to master `31636c79c`)**
+- **Status 2026-08-09:** fx at the single CjPricing intake (all four
+  raw-USD call sites) SHIPPED (branch `3e4619c24`, suite 318 run / 2
+  pre-existing live-OCS failures). Live dev acceptance PASSED (EUR
+  label on meta+feed, fx=0.5 boot, margin ratios, identity default);
+  the CJ-enrichment leg was blocked by the account's DAILY API POINTS
+  exhaustion (errno 16900500 — quota shared with prod nightly syncs).
+  `LITEMALL_GOODS_CURRENCY` binding pre-existed — verified, no change.
+- **Task (HISTORICAL) — Wave 24: land CJ costs in EUR + env-flippable
+  currency label.** Code to the Wave-24 CONTRACT above.
   1. Config `litemall.goods.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`,
      default 1.0, EXPLICIT yml placeholder). Multiply CJ USD amounts by
      fx AT COST LANDING — both seams: `CjSnapshotSyncService.toRow()`
@@ -1199,7 +1261,32 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: Wave 24 (€ storefront display)
+### Worktree: `gateway-api` — ACTIVE: Wave 25 (Sold-by storefront surfaces)
+- **Task — Wave 25 storefront: honest attribution render.** Code to
+  the Wave-25 CONTRACT above. PDP gains an attribution row when the
+  product's brand row is display-enabled: kind=1 → "Sold by <name>" +
+  "More from this store" linking the EXISTING brand page
+  (`BrandDetail.tsx` / `/brand/:id` — currently orphaned, verify it
+  still works and restyle to the current storefront look); kind=0 →
+  "Brand: <name>" linking the same page. brand_id==0 or not-enabled ⇒
+  NO row (never fake attribution; a raw CJ legal-entity name must
+  never render). Check what the detail payload exposes for brand
+  (extend rendering only — any payload gap is goods-management's,
+  raise it against the CONTRACT, don't work around). `/brands` index
+  page: verify, restyle minimally, badge Store vs Brand.
+- **Acceptance (dev, through :9000/:8090):** PDP shows no row for
+  unattributed goods; after enabling a supplier row in admin the PDP
+  shows "Sold by" + the store page lists that supplier's goods; a
+  manual kind=0 brand renders "Brand:"; € formatting untouched
+  (formatMoney everywhere new); jest + touched-file checks green with
+  real counts.
+- **History — done (Wave 24 half + variant tiles SHIPPED, flip live)**
+- **Status 2026-08-09:** € sweep `259573d7f` (jest 106/106, live e2e
+  all-green, unicode-minus `−${x}` leak sites caught) + Amazon-style
+  variant grid tiles `e4cc1f980`+`5a27edfd7` all merged and DEPLOYED
+  with the EUR flip (`c6f7fa3bf`). ⚠ Matomo currency = SITE SETTING
+  (user-side); DisputePanel `*Usd` field names are store-currency.
+- **Task (HISTORICAL) — Wave 24 (€ storefront display)**
 - **Task — Wave 24: € everywhere the customer sees money.** Code to the
   Wave-24 CONTRACT above. ONE shared formatter module (e.g.
   `app/shared/util/money.ts`, "€12.34", 2dp) replacing EVERY $-money
@@ -1390,8 +1477,27 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — ACTIVE: Wave 24 (€ admin display)
-- **Task — Wave 24: $→€ across admin money surfaces.** Code to the
+### Worktree: `gateway-admin` — ACTIVE: Wave 25 (brand curation surface)
+- **Task — Wave 25 admin (SMALL half): brand/store curation.** Code to
+  the Wave-25 CONTRACT above. Find the existing admin brand surface
+  (legacy litemall had brand CRUD — verify what survived the Wave-4
+  decommission); ensure an admin can: list brand rows w/ source, kind,
+  display_enabled, linked-goods count; RENAME (the curation act — raw
+  CJ legal names → customer-worthy store names); toggle
+  display_enabled; badge Store (kind=1) vs Brand (kind=0). No create
+  flow for provider rows (they arrive via enrichment); manual create
+  keeps working. € money display (Wave-24 formatter) on any money.
+- **Acceptance (dev, through :18080):** list shows a cj-supplier row
+  disabled by default; rename + enable persists and the storefront
+  PDP row appears; disable hides it again; jest green with real
+  counts; existing panels regression-green.
+- **History — done (Wave 24 half MERGED to master `d3b72d1a4`)**
+- **Status 2026-08-09:** € formatter across admin money surfaces
+  SHIPPED (`ae3ffd01d`, jest 100/100, headless 11/11). CJ balance tile
+  deliberately stays "<amt> USD" (external wallet). ⚠ The admin
+  container must NOT be rebuilt until the prod flip (it would render €
+  on USD data).
+- **Task (HISTORICAL) — Wave 24: $→€ across admin money surfaces.** Code to the
   Wave-24 CONTRACT above. Same shared-formatter approach as the
   storefront half (do NOT read its branch): one money formatter module,
   swapped in across insight panels (margins, potential profit, deal/
