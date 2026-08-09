@@ -1071,20 +1071,27 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: Wave 24 (EUR freight conversion)
-- **Task — Wave 24: convert CJ freight USD→EUR at the quote seam.**
-  Code to the Wave-24 CONTRACT above. Config
-  `litemall.order.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`, default 1.0,
-  EXPLICIT yml placeholder); multiply every CJ freight amount by fx at
-  `CjFreightQuoteService` (2dp HALF_UP) so the V52 chooser options, the
-  server-side submit recompute, and the persisted `freight_price` all
-  inherit the conversion from ONE seam. NO other money change, NO
-  migration, NO Stripe code change (charge currency is already env).
-- **Acceptance (dev, through :9000/:8090):** with `LITEMALL_FX_USD_EUR=
-  0.5` set, checkout delivery options price at exactly half the raw CJ
-  USD quote and a submitted order persists the converted freight;
-  fx unset ⇒ identity (existing freight e2e regression-green); module
-  tests green with real "Tests run:" counts.
+### Worktree: `order` — idle (Wave 24 order half MERGED)
+- **No active assignment.**
+- **History — Wave 24: CJ freight USD→EUR fx at the quote seam.**
+  MERGED to master `116aee40e` + pushed (2026-08-09; branch commit
+  `1f5078d2e`; module tests 261/0 on the merged tree, 5 new in
+  `CjFreightQuoteServiceFxTest`). `litemall.order.fx-usd-eur` (env
+  `LITEMALL_FX_USD_EUR`, explicit yml placeholder, default 1.0
+  identity) multiplies every CJ freightCalculate amount inside
+  `CjFreightQuoteService` — 2dp HALF_UP in the cache loader (cached
+  values pre-converted; `quote()` inherits); non-positive/missing rate
+  ⇒ WARN + identity (fail-safe). Prod compose passthrough added on the
+  order container (dormant at 1.0). **AUDIT CORRECTION (user-approved
+  2026-08-09):** customer-charged CJ freight is the `litemall_system`
+  flat rule (`litemall_express_freight_value`/`_min`), NOT the CJ
+  quote — the V52 chooser shows no prices by design and CJ USD only
+  feeds the cheapest-line fallback, so the fx seam is future-proofing
+  with no customer-visible effect today; acceptance proven at the
+  unit-test seam (dev has no CJ creds ⇒ no live quotes to halve).
+  ⚠ MAIN's deploy-day conversion script must decide on the two
+  `litemall_system` freight values — they are the amounts actually
+  charged as CJ-cart freight.
 - **History — Wave 23 (backend): admin-gated CJ placement + admin
   order-paid notify mail.** MERGED to master `3ed350725` + pushed
   (2026-08-08; branch commit `5a3bad2e7`; module tests 256/0). V59
