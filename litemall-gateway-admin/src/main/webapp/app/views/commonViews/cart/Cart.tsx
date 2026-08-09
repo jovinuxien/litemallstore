@@ -203,11 +203,11 @@ const CartView = () => {
                   <dd className='col-6 text-end'>${cartTotal?.goodsAmount}</dd>
 
                   <dt className='col-6 text-success'>Discount:</dt>
-                  <dd className='col-6 text-success text-end'>-$0.00</dd>
+                  <dd className='col-6 text-success text-end'>-€0.00</dd>
                   <dt className='col-6 text-success'>
                     Coupon: <span className='small text-muted'>N/A</span>{' '}
                   </dt>
-                  <dd className='col-6 text-success text-end'>-$0.00</dd>
+                  <dd className='col-6 text-success text-end'>-€0.00</dd>
                 </dl>
 
                 <dl className='row'>

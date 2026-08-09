@@ -1,8 +1,10 @@
+import { money } from 'app/shared/util/money';
+
 // Wave 12: shared formatters for the CJ inventory-insight views. Margin/cost
 // fields are `null` while the goods' CJ cost is not captured yet (Wave-12
 // CONTRACT: null, never 0) — render those as an explicit "—".
 
-export const fmtMoney = (v?: number | null): string => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
+export const fmtMoney = (v?: number | null): string => money(v);
 
 export const fmtPct = (v?: number | null): string => (v == null ? '—' : `${Number(v).toFixed(1)}%`);
 

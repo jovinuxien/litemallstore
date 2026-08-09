@@ -2,13 +2,13 @@ import { ILedgerRow, usePromoterLedgerQuery } from 'app/shared/reducers/private/
 import { ElTag, PAGE_SIZES, Pagination, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { money } from 'app/shared/util/money';
 
 // Per-affiliate brokerage ledger drill-down (Wave 5, read-only): the V7
 // litemall_user_brokerage_record rows for one promoter, served by the edge at
 // /srv/private/admin/promoter/ledger. The write side lives in order's
 // BrokerageService — this is an audit view.
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 const when = (v?: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '—');
 
 const statusTag = (row: ILedgerRow): { tag: ElTag; label: string } => {
