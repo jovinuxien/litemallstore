@@ -13,6 +13,12 @@ export interface IBrand {
   desc?: string;
   picUrl?: string;
   floorPrice?: number;
+  // Wave-25 attribution fields (V60; absent on pre-V60 rows): kind 0 = consumer
+  // brand / 1 = supplier store; disabled rows must never render (curation gate).
+  source?: string;
+  externalId?: string;
+  kind?: number;
+  displayEnabled?: number | boolean;
 }
 
 export interface ITopic {
