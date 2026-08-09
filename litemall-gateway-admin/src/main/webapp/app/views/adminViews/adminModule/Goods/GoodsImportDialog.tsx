@@ -295,8 +295,8 @@ const GoodsImportDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 <th>Category</th>
                 <th>Brand</th>
                 <th>Image URL</th>
-                <th style={{ width: 110 }}>Counter $</th>
-                <th style={{ width: 110 }}>Price $ *</th>
+                <th style={{ width: 110 }}>Counter €</th>
+                <th style={{ width: 110 }}>Price € *</th>
                 <th style={{ width: 90 }}>Stock</th>
                 <th style={{ width: 70 }}>On sale</th>
                 {editable && <th style={{ width: 46 }} />}

@@ -1,9 +1,8 @@
 import { CouponSegment, ICouponDeliverResult, ICouponDelivery } from 'app/shared/reducers/private/services/adminPromotionApi';
+import { money } from 'app/shared/util/money';
 
 // Wave 22: pure helpers for the "Deliver to segment" dialog + deliveries
 // history (RFM-targeted coupon delivery). Kept view-free for unit tests.
-
-const money = (v: number): string => `$${Number(v).toFixed(2)}`;
 
 /** Raw dialog inputs (input[type=number] state — strings, blank = unset). */
 export interface SegmentInputs {
