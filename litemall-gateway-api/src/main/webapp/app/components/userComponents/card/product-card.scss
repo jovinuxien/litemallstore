@@ -27,6 +27,7 @@
 // CJ's warehouse/country chips are deliberately not reproduced. The footer adds
 // what CJ doesn't have: a quantity stepper + add-to-cart CTA.
 .lm-card {
+  position: relative; // anchor for the stretched title link (whole-card click)
   display: flex;
   flex-direction: column;
   background: var(--lm-surface);
@@ -155,28 +156,66 @@
     gap: 8px;
   }
 
+  // Amazon-style price: big integer, superscript cents.
   &__price {
     color: var(--lm-text);
     font-weight: 700;
-    font-size: 19px;
+    font-size: 21px;
     line-height: 1.1;
   }
 
   &__cur {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
+    vertical-align: super;
+  }
+
+  &__cents {
+    font-size: 12px;
+    font-weight: 700;
+    top: -0.55em;
+  }
+
+  // Coral "-N%" token in the price row (when the overlay slot went to a
+  // higher-priority badge) — mirrors the PDP price block.
+  &__disc {
+    align-self: center;
+    background: var(--lm-accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.2;
   }
 
   &__orig {
     color: var(--lm-muted);
-    font-size: 13px;
+    font-size: 12.5px;
 
     s {
       text-decoration: line-through;
     }
   }
 
-  // CJ order: the title leads the stack, 2 lines, quiet weight.
+  // Demoted signal chips under the price (overlay slot lost to a higher
+  // priority): same class names as the overlay pills, quieter geometry.
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    .lm-card__coupon,
+    .lm-card__groupon {
+      position: static;
+      margin: 0;
+      font-size: 10.5px;
+      padding: 2px 8px;
+    }
+  }
+
+  // Title leads the stack, 2 lines, quiet weight. Its ::after stretches over
+  // the whole card so every dead zone navigates; buttons re-layer above it.
   &__title {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -188,6 +227,12 @@
     min-height: 2.7em;
     color: var(--lm-text);
     text-decoration: none;
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
 
     &:hover {
       color: var(--lm-primary);
@@ -205,11 +250,15 @@
   &__rating {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
   }
 
-  &__star {
+  // Amazon-style 5-star icon row (bi-star-fill / -half / bi-star).
+  &__stars {
     color: var(--lm-star);
+    font-size: 12px;
+    letter-spacing: 1px;
+    line-height: 1;
   }
 
   &__rcount {
@@ -227,54 +276,16 @@
     color: var(--lm-success);
   }
 
-  // Footer: quantity stepper + CTA on one row, pinned to the card bottom so
-  // footers align across a grid row regardless of title/meta height.
+  // Footer: single CTA pinned to the card bottom so footers align across a
+  // grid row regardless of title/meta height. Layered above the stretched
+  // title link so the button, not navigation, wins the click.
   &__actions {
     margin-top: auto;
     padding-top: 6px;
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-
-  &__qty {
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--lm-border);
-    border-radius: 16px;
-    overflow: hidden;
-    flex: 0 0 auto;
-  }
-
-  &__qty-btn {
-    border: none;
-    background: transparent;
-    color: var(--lm-primary);
-    font-size: 15px;
-    font-weight: 700;
-    width: 26px;
-    height: 28px;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.15s ease;
-
-    &:hover:not(:disabled) {
-      background: var(--lm-primary-soft);
-    }
-
-    &:disabled {
-      color: var(--lm-muted);
-      opacity: 0.5;
-      cursor: default;
-    }
-  }
-
-  &__qty-val {
-    min-width: 22px;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--lm-text);
+    position: relative;
+    z-index: 1;
   }
 
   &__cart {
@@ -285,7 +296,7 @@
     color: #fff;
     font-size: 13.5px;
     font-weight: 600;
-    padding: 6px 10px;
+    padding: 7px 10px;
     white-space: nowrap;
     cursor: pointer;
     transition: background 0.2s ease;
