@@ -254,6 +254,29 @@
     }
   }
 
+  // Amazon-style compact SIZE chips (split variant groups, variantDisplay):
+  // uniform small boxes that pack horizontally instead of 50 full-name
+  // buttons. Unavailable combos (under the chosen color) render dashed/muted.
+  &__optsize {
+    min-width: 48px;
+    padding: 7px 8px;
+    justify-content: center;
+    text-align: center;
+    font-weight: 600;
+
+    img {
+      display: none;
+    }
+
+    &.is-disabled {
+      border-style: dashed;
+      color: var(--lm-muted, #6b7b82);
+      background: var(--lm-bg, #f6f9fa);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+  }
+
   // ---- "About this item" bullets (Amazon-style) ----
   &__about {
     margin-top: 20px;

@@ -1,6 +1,7 @@
 import { useAppSelector } from 'app/config/store';
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { money } from 'app/shared/util/money';
 import './FloatingCartSidebar.scss';
 
 const FloatingCartSidebar = ({ isOpen, onClose }) => {
@@ -17,12 +18,12 @@ const FloatingCartSidebar = ({ isOpen, onClose }) => {
           cartList.map(item => (
             <li key={item.id}>
               <span>{item.goodsName}</span>
-              <span>${item.price * item.number}</span>
+              <span>{money(item.price * item.number)}</span>
             </li>
           ))}
       </ul>
       <div className='cart-total'>
-        <strong>Total: ${cartTotal?.checkedGoodsAmount}</strong>
+        <strong>Total: {money(cartTotal?.checkedGoodsAmount)}</strong>
       </div>
       <Link to='/cart' className='btn btn-primary'>
         View Cart
