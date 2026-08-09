@@ -78,23 +78,23 @@ const Invoice = () => {
                         Maecenas suscipit volutpat gravida. Nulla hendrerit nisi a lectus blandit aliquam. Integer enim magna, consequat sed justo nec, auctor
                         sagittis urna.
                       </td>
-                      <td className='col-2 text-center'>$50.00</td>
+                      <td className='col-2 text-center'>€50.00</td>
                       <td className='col-1 text-center'>10</td>
-                      <td className='col-2 text-end'>$500.00</td>
+                      <td className='col-2 text-end'>€500.00</td>
                     </tr>
                     <tr>
                       <td>Sweater</td>
                       <td className='text-1'>Nulla sodales sit amet orci eu vehicula.</td>
-                      <td className='text-center'>$120.00</td>
+                      <td className='text-center'>€120.00</td>
                       <td className='text-center'>10</td>
-                      <td className='text-end'>$1200.00</td>
+                      <td className='text-end'>€1,200.00</td>
                     </tr>
                     <tr>
                       <td>Jeans</td>
                       <td className='text-1'>A pair of nice jeans</td>
-                      <td className='text-center'>$450.00</td>
+                      <td className='text-center'>€450.00</td>
                       <td className='text-center'>1</td>
-                      <td className='text-end'>$450.00</td>
+                      <td className='text-end'>€450.00</td>
                     </tr>
                   </tbody>
                   <tfoot className='card-footer'>
@@ -102,19 +102,19 @@ const Invoice = () => {
                       {/* <td colSpan='4' className='text-end'>
                         <strong>Sub Total:</strong>
                       </td> */}
-                      <td className='text-end'>$2150.00</td>
+                      <td className='text-end'>€2,150.00</td>
                     </tr>
                     <tr>
                       {/*  <td colSpan='4' className='text-end'>
                         <strong>Tax:</strong>
                       </td> */}
-                      <td className='text-end'>$215.00</td>
+                      <td className='text-end'>€215.00</td>
                     </tr>
                     <tr>
                       {/*  <td colSpan='4' className='text-end border-bottom-0'>
                         <strong>Total:</strong>
                       </td> */}
-                      <td className='text-end border-bottom-0'>$2365.00</td>
+                      <td className='text-end border-bottom-0'>€2,365.00</td>
                     </tr>
                   </tfoot>
                 </table>

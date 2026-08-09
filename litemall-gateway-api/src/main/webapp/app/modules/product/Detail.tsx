@@ -11,6 +11,7 @@ import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
 import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { briefToText } from 'app/shared/util/briefText';
+import { EURO, moneyAmount } from 'app/shared/util/money';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
@@ -26,8 +27,6 @@ import RecentlyViewed from './productDetailComponent/RecentlyViewed';
 import Reviews from './productDetailComponent/Reviews';
 import ShareButton from './productDetailComponent/ShareButton';
 import './Detail.scss';
-
-const fmt = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const productId = (p: DetailProduct): number | undefined => {
   const raw = p.goodsProductId;
@@ -279,11 +278,11 @@ const ProductDetailView: React.FC = () => {
           <div className='lm-pdp__pricebox'>
             {hasDiscount && <span className='lm-pdp__disc'>-{discountPct}%</span>}
             <span className='lm-pdp__price'>
-              US&nbsp;${fmt(retail)}
+              {EURO}{moneyAmount(retail)}
             </span>
             {hasDiscount && (
               <span className='lm-pdp__orig'>
-                List Price: <s>US&nbsp;${fmt(counter)}</s>
+                List Price: <s>{EURO}{moneyAmount(counter)}</s>
               </span>
             )}
             {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
@@ -345,7 +344,7 @@ const ProductDetailView: React.FC = () => {
 
         {/* Buy box */}
         <aside className='lm-pdp__buybox'>
-          <div className='lm-pdp__buyprice'>US&nbsp;${fmt(retail)}</div>
+          <div className='lm-pdp__buyprice'>{EURO}{moneyAmount(retail)}</div>
           <div className={`lm-pdp__stock${inStock ? ' in' : ' out'}`}>
             {!onSale
               ? 'Currently unavailable'
