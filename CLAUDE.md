@@ -1089,8 +1089,13 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: Wave 24 (EUR freight conversion)
-- **Task — Wave 24: convert CJ freight USD→EUR at the quote seam.**
+### Worktree: `order` — done (Wave 24 half MERGED to master `bc9ede8cc`)
+- **Status 2026-08-09:** freight fx seam SHIPPED (branch `1f5078d2e`,
+  261/0). ⚠ Handoff fact for the MAIN deploy: customer-charged CJ
+  freight also includes the `litemall_system` flat rule — the
+  conversion script converts `litemall_express_freight_value/_min`
+  (encoded in doc/wave24-deploy-plan.md).
+- **Task (HISTORICAL) — Wave 24: convert CJ freight USD→EUR at the quote seam.**
   Code to the Wave-24 CONTRACT above. Config
   `litemall.order.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`, default 1.0,
   EXPLICIT yml placeholder); multiply every CJ freight amount by fx at
@@ -1133,9 +1138,16 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 24 (EUR pricing seam)
-- **Task — Wave 24: land CJ costs in EUR + env-flippable currency
-  label.** Code to the Wave-24 CONTRACT above.
+### Worktree: `goods-management` — done (Wave 24 half MERGED to master `31636c79c`)
+- **Status 2026-08-09:** fx at the single CjPricing intake (all four
+  raw-USD call sites) SHIPPED (branch `3e4619c24`, suite 318 run / 2
+  pre-existing live-OCS failures). Live dev acceptance PASSED (EUR
+  label on meta+feed, fx=0.5 boot, margin ratios, identity default);
+  the CJ-enrichment leg was blocked by the account's DAILY API POINTS
+  exhaustion (errno 16900500 — quota shared with prod nightly syncs).
+  `LITEMALL_GOODS_CURRENCY` binding pre-existed — verified, no change.
+- **Task (HISTORICAL) — Wave 24: land CJ costs in EUR + env-flippable
+  currency label.** Code to the Wave-24 CONTRACT above.
   1. Config `litemall.goods.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`,
      default 1.0, EXPLICIT yml placeholder). Multiply CJ USD amounts by
      fx AT COST LANDING — both seams: `CjSnapshotSyncService.toRow()`
@@ -1390,8 +1402,13 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — ACTIVE: Wave 24 (€ admin display)
-- **Task — Wave 24: $→€ across admin money surfaces.** Code to the
+### Worktree: `gateway-admin` — done (Wave 24 half MERGED to master `d3b72d1a4`)
+- **Status 2026-08-09:** € formatter across admin money surfaces
+  SHIPPED (`ae3ffd01d`, jest 100/100, headless 11/11). CJ balance tile
+  deliberately stays "<amt> USD" (external wallet). ⚠ The admin
+  container must NOT be rebuilt until the prod flip (it would render €
+  on USD data).
+- **Task (HISTORICAL) — Wave 24: $→€ across admin money surfaces.** Code to the
   Wave-24 CONTRACT above. Same shared-formatter approach as the
   storefront half (do NOT read its branch): one money formatter module,
   swapped in across insight panels (margins, potential profit, deal/
