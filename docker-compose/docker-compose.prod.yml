@@ -498,6 +498,11 @@ services:
       # once the pair appears. Exactly one set ⇒ order REFUSES TO BOOT.
       CJ_EMAIL: ${CJ_EMAIL:-}
       CJ_OPS_MAIL: ${CJ_OPS_MAIL:-}
+      # Wave 24 (EUR storefront): USD→EUR rate for CJ freight amounts at the quote
+      # seam (litemall.order.fx-usd-eur). 1.0 = identity (dormant). Deploy-day flip
+      # sets the real rate in .env TOGETHER with LITEMALL_GOODS_CURRENCY=EUR and
+      # LITEMALL_ORDER_STRIPE_CURRENCY=eur (single staged pass, MAIN session).
+      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
       # order mints its OWN machine token (GoodsMachineTokenProvider) to call
       # goods-management when it re-resolves a cart line's price server-side. It
       # reads litemall.goods.auth.* — NOT the standard spring.security.oauth2
