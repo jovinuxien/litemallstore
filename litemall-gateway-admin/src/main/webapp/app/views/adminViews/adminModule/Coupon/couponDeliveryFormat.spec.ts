@@ -36,7 +36,7 @@ describe('segmentClientError', () => {
 describe('segmentLabel', () => {
   it('labels each criterion honestly and joins them', () => {
     expect(segmentLabel({ recencyDays: 30, minFrequency: 2, minMonetary: 50 })).toBe(
-      'bought within 30 days · at least 2 orders · spent at least $50.00'
+      'bought within 30 days · at least 2 orders · spent at least €50.00'
     );
   });
 
@@ -52,7 +52,7 @@ describe('segmentLabel', () => {
 
 describe('deliverySegmentLabel', () => {
   it('parses a stored JSON string', () => {
-    expect(deliverySegmentLabel({ segmentJson: '{"recencyDays":7,"minMonetary":25}' })).toBe('bought within 7 days · spent at least $25.00');
+    expect(deliverySegmentLabel({ segmentJson: '{"recencyDays":7,"minMonetary":25}' })).toBe('bought within 7 days · spent at least €25.00');
   });
 
   it('accepts an already-parsed object and empty storage', () => {
