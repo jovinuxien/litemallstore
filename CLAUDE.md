@@ -1153,7 +1153,42 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — done (Wave 24 half MERGED to master `31636c79c`)
+### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
+- **Task — Wave 25 backend: supplier/brand attribution + Merchant-feed
+  quality.** Code to the Wave-25 CONTRACT above (V60 spec, guard rails,
+  probe-driven display gate). Deliverables in order:
+  1. **Coverage probe FIRST**: during the enrichment rotation, log the
+     %-populated of CJ `supplierName`/`supplierId` (fields already
+     parsed in the detail DTO, never persisted). No extra CJ calls —
+     ride the existing rotation (⚠ daily API points quota, see audit).
+  2. **V60** exactly per CONTRACT (check `flyway_schema_history`
+     immediately before first boot — prod applied through V59, Wave 24
+     shipped with NONE).
+  3. `AttributionProvider` seam + CJ-supplier impl #1: upsert brand
+     rows keyed (source, external_id), kind=1, display_enabled=0;
+     promote links `goods.brand_id` via the existing resolveBrandId
+     seam extended to (source, externalId, name); providers NEVER
+     overwrite manual assignments.
+  4. **Feed quality** (same single artifact /srv/goods/meta-catalog.csv):
+     drop the hardcoded brand "Trovemo" (brand column ONLY from kind=0
+     display-enabled rows); add `google_product_category` via a static
+     CJ-L1 → Google-taxonomy map; add `identifier_exists=false` for
+     unbranded rows; description falls back to the Wave-13 brief
+     sanitizer instead of duplicating the title. Keep RFC-4180 + the
+     13-column base intact (extra columns appended are legal for both
+     Meta and Google — verify header order stays backward-compatible).
+  5. **Catalog hygiene**: rename the 23 Chinese-named on-sale goods
+     (translate; off-sale with reason if untranslatable) and normalize
+     Chinese `litemall_goods.unit` glyphs ("件" → "pc"/blank).
+- **Acceptance (dev, through :9000/:8090):** probe % logged; V60
+  applied at boot; an enriched good gets a brand row (cj-supplier,
+  kind=1, display_enabled=0) + brand_id linked with NO public render;
+  after admin enable the public read exposes it; feed row for a
+  supplier-attributed good = blank brand + identifier_exists=false +
+  real google_product_category; a manual kind=0 enabled brand lands in
+  the feed brand column; zero Chinese-named/unit on-sale goods left in
+  dev sample; module tests green with real "Tests run:" counts.
+- **History — done (Wave 24 half MERGED to master `31636c79c`)**
 - **Status 2026-08-09:** fx at the single CjPricing intake (all four
   raw-USD call sites) SHIPPED (branch `3e4619c24`, suite 318 run / 2
   pre-existing live-OCS failures). Live dev acceptance PASSED (EUR
@@ -1226,7 +1261,26 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — done (Wave 24 half + variant tiles SHIPPED, flip live)
+### Worktree: `gateway-api` — ACTIVE: Wave 25 (Sold-by storefront surfaces)
+- **Task — Wave 25 storefront: honest attribution render.** Code to
+  the Wave-25 CONTRACT above. PDP gains an attribution row when the
+  product's brand row is display-enabled: kind=1 → "Sold by <name>" +
+  "More from this store" linking the EXISTING brand page
+  (`BrandDetail.tsx` / `/brand/:id` — currently orphaned, verify it
+  still works and restyle to the current storefront look); kind=0 →
+  "Brand: <name>" linking the same page. brand_id==0 or not-enabled ⇒
+  NO row (never fake attribution; a raw CJ legal-entity name must
+  never render). Check what the detail payload exposes for brand
+  (extend rendering only — any payload gap is goods-management's,
+  raise it against the CONTRACT, don't work around). `/brands` index
+  page: verify, restyle minimally, badge Store vs Brand.
+- **Acceptance (dev, through :9000/:8090):** PDP shows no row for
+  unattributed goods; after enabling a supplier row in admin the PDP
+  shows "Sold by" + the store page lists that supplier's goods; a
+  manual kind=0 brand renders "Brand:"; € formatting untouched
+  (formatMoney everywhere new); jest + touched-file checks green with
+  real counts.
+- **History — done (Wave 24 half + variant tiles SHIPPED, flip live)**
 - **Status 2026-08-09:** € sweep `259573d7f` (jest 106/106, live e2e
   all-green, unicode-minus `−${x}` leak sites caught) + Amazon-style
   variant grid tiles `e4cc1f980`+`5a27edfd7` all merged and DEPLOYED
@@ -1423,7 +1477,21 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — done (Wave 24 half MERGED to master `d3b72d1a4`)
+### Worktree: `gateway-admin` — ACTIVE: Wave 25 (brand curation surface)
+- **Task — Wave 25 admin (SMALL half): brand/store curation.** Code to
+  the Wave-25 CONTRACT above. Find the existing admin brand surface
+  (legacy litemall had brand CRUD — verify what survived the Wave-4
+  decommission); ensure an admin can: list brand rows w/ source, kind,
+  display_enabled, linked-goods count; RENAME (the curation act — raw
+  CJ legal names → customer-worthy store names); toggle
+  display_enabled; badge Store (kind=1) vs Brand (kind=0). No create
+  flow for provider rows (they arrive via enrichment); manual create
+  keeps working. € money display (Wave-24 formatter) on any money.
+- **Acceptance (dev, through :18080):** list shows a cj-supplier row
+  disabled by default; rename + enable persists and the storefront
+  PDP row appears; disable hides it again; jest green with real
+  counts; existing panels regression-green.
+- **History — done (Wave 24 half MERGED to master `d3b72d1a4`)**
 - **Status 2026-08-09:** € formatter across admin money surfaces
   SHIPPED (`ae3ffd01d`, jest 100/100, headless 11/11). CJ balance tile
   deliberately stays "<amt> USD" (external wallet). ⚠ The admin
