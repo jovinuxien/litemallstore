@@ -11,6 +11,7 @@ import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
 import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { briefToText } from 'app/shared/util/briefText';
+import { analyzeVariantGroup, SplitDisplay } from 'app/shared/util/variantDisplay';
 import { EURO, moneyAmount } from 'app/shared/util/money';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
@@ -116,6 +117,13 @@ const ProductDetailView: React.FC = () => {
     return groups;
   }, [specifications]);
 
+  // Amazon-style split rendering for CJ single-group variants (presentation
+  // only — `selected` and SKU matching keep the ORIGINAL full values).
+  const displayGroups = useMemo(
+    () => specGroups.map(g => ({ group: g, display: analyzeVariantGroup(g.values) })),
+    [specGroups]
+  );
+
   // Default the variant selection to the first value of every group.
   useEffect(() => {
     if (specGroups.length) {
@@ -193,6 +201,17 @@ const ProductDetailView: React.FC = () => {
   const pickVariant = (name: string, value: string, picUrl?: string) => {
     setSelected(prev => ({ ...prev, [name]: value }));
     if (picUrl) setActiveImage(picUrl);
+  };
+
+  // Split-dim pick: recompose the full original value; when the combo is
+  // absent under the other dim's pick, jump to the first SKU carrying this
+  // pick (Amazon's color-switch behavior).
+  const pickSplitDim = (groupName: string, display: SplitDisplay, values: { value: string }[], dimName: string, val: string) => {
+    const current = display.picksOf(selected[groupName] ?? '') ?? {};
+    const full =
+      display.fullValue({ ...current, [dimName]: val }) ??
+      values.map(v => v.value).find(fv => display.picksOf(fv)?.[dimName] === val);
+    if (full) setSelected(prev => ({ ...prev, [groupName]: full }));
   };
 
   // CJ Dropshipping lines now live in the native catalog (source 'cj'); the legacy DB-served
@@ -307,26 +326,59 @@ const ProductDetailView: React.FC = () => {
             }}
           />
 
-          {specGroups.map(g => (
-            <div key={g.name} className='lm-pdp__optgroup'>
-              <div className='lm-pdp__optlabel'>
-                {g.name}: <strong>{selected[g.name]}</strong>
+          {displayGroups.map(({ group: g, display }) =>
+            display.kind === 'plain' ? (
+              <div key={g.name} className='lm-pdp__optgroup'>
+                <div className='lm-pdp__optlabel'>
+                  {g.name}: <strong>{selected[g.name]}</strong>
+                </div>
+                <div className='lm-pdp__opts'>
+                  {g.values.map(v => (
+                    <button
+                      key={v.value}
+                      type='button'
+                      className={`lm-pdp__opt${selected[g.name] === v.value ? ' is-active' : ''}`}
+                      onClick={() => pickVariant(g.name, v.value, v.picUrl)}
+                    >
+                      {v.picUrl && <img src={v.picUrl} alt='' />}
+                      {v.value}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className='lm-pdp__opts'>
-                {g.values.map(v => (
-                  <button
-                    key={v.value}
-                    type='button'
-                    className={`lm-pdp__opt${selected[g.name] === v.value ? ' is-active' : ''}`}
-                    onClick={() => pickVariant(g.name, v.value, v.picUrl)}
-                  >
-                    {v.picUrl && <img src={v.picUrl} alt='' />}
-                    {v.value}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+            ) : (
+              display.dims.map(dim => {
+                const picks = display.picksOf(selected[g.name] ?? '') ?? {};
+                return (
+                  <div key={`${g.name}-${dim.name}`} className='lm-pdp__optgroup'>
+                    <div className='lm-pdp__optlabel'>
+                      {dim.name}: <strong>{picks[dim.name] ?? ''}</strong>
+                    </div>
+                    <div className='lm-pdp__opts'>
+                      {dim.values.map(v => {
+                        const active = picks[dim.name] === v;
+                        const available = display.fullValue({ ...picks, [dim.name]: v }) != null;
+                        const isSize = dim.name === 'Size';
+                        return (
+                          <button
+                            key={v}
+                            type='button'
+                            className={`lm-pdp__opt${isSize ? ' lm-pdp__optsize' : ''}${active ? ' is-active' : ''}${
+                              !available && isSize ? ' is-disabled' : ''
+                            }`}
+                            disabled={isSize && !available}
+                            onClick={() => pickSplitDim(g.name, display, g.values, dim.name, v)}
+                          >
+                            {v}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })
+            )
+          )}
 
           {attributes && attributes.length > 0 && (
             <div className='lm-pdp__about'>
