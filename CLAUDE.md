@@ -895,6 +895,75 @@
 > balance (auto-pay-balance on). EU orders park on missing IOSS until
 > the CJ dashboard IOSS option is set.
 >
+> **Wave 24 (2026-08-09) — EUR STOREFRONT: single-currency flip for the
+> DE/FR/DK/SE market.** USER DECISIONS (2026-08-09): the store prices and
+> charges **EUR** storewide (single currency, NOT multi-currency); lead
+> marketing category = **Home, Garden & Furniture** (Home Improvement
+> adjacent) — recorded for the upcoming feed/ads waves, NO code impact
+> this wave; EU local payment methods (Klarna/SEPA/iDEAL/Bancontact/
+> MobilePay) are enabled USER-SIDE in the Stripe Dashboard AFTER this
+> wave deploys (the Stripe adapter already sends
+> `automatic_payment_methods=true` — verified, no code needed there).
+> Audit facts (2026-08-09, verified against master + prod DB):
+> - Pricing math has ONE home: `CjPricing` (retail = cost × margin,
+>   per-L1 overrides). CJ costs land in USD at TWO seams:
+>   `CjSnapshotSyncService.toRow()` and `CjDetailEnrichmentService`
+>   (per-variant). Everything downstream (margin guard, insight, deal
+>   floors, coupon guard) is ratio- or cost-based — landing cost AND
+>   retail in EUR keeps it all coherent with ZERO changes there.
+> - Currency labels: `litemall.goods.currency` (default "USD") feeds
+>   /srv/goods/meta JSON-LD + meta-catalog.csv (single source of truth);
+>   Stripe charge currency = `LITEMALL_ORDER_STRIPE_CURRENCY` (usd).
+>   Storefront + admin SPAs hardcode "$" at money display sites
+>   (13 toFixed money files in the customer SPA).
+> - CJ freight quotes arrive in USD (`CjFreightQuoteService`, order) and
+>   flow to the V52 chooser + the server-side submit recompute — ONE seam.
+> - Prod USD-denominated live rows are SMALL (checked 2026-08-09): 1
+>   active coupon, open paid orders 7/9/10/11 (order history is NEVER
+>   rewritten — mixed-currency history is ACCEPTED and renders as plain
+>   numbers), possibly active flash-deal swaps (`original_sku_prices`
+>   JSON) + combinations; wallet balances checked at deploy.
+> - **NO Flyway migration this wave** (prod applied through V59; every
+>   worktree expects NONE). The storewide flip is a DEPLOY-DAY script
+>   (MAIN session): one transaction converting
+>   `litemall_goods.{cost,retail_price,counter_price}` +
+>   `litemall_goods_product.{cost,price}` + live coupon/deal/swap/
+>   combination money ×fx, then full reindex. After the flip, the
+>   fx-at-cost-landing seams keep new arrivals EUR automatically.
+> **Wave-24 CONTRACT (worktrees code to THIS, not to each other's
+> branches):**
+> - Shared env **`LITEMALL_FX_USD_EUR`** (decimal; DEFAULT 1.0 =
+>   identity, dev-safe; prod sets the real rate at deploy). EXPLICIT yml
+>   placeholders everywhere (the admin-notify-email relax-binding
+>   lesson). 2dp HALF_UP after multiplication, always.
+> - **goods-management:** multiply CJ USD amounts by fx AT COST LANDING
+>   (both seams) so cost and retail persist EUR; verify
+>   `LITEMALL_GOODS_CURRENCY` actually env-binds
+>   `litemall.goods.currency` (add an explicit placeholder if not) so
+>   feed/meta/JSON-LD flip by env alone; confirm the Wave-14
+>   margin-override reprice paths stay coherent (they reprice FROM the
+>   stored cost — automatic once cost is EUR).
+> - **order:** multiply CJ freight amounts by fx at
+>   `CjFreightQuoteService` (covers chooser + submit recompute + persisted
+>   freight_price). Stripe charge currency stays env-driven — no code.
+> - **gateway-api:** ONE shared money formatter module (€, 2dp)
+>   replacing every $-money display site; Matomo ecommerce events + Meta
+>   Pixel events carry currency "EUR".
+> - **gateway-admin:** same formatter swap ($→€) across admin money
+>   surfaces (insight, orders, coupons, deals, dashboards).
+> - Money stays plain decimals; NO currency columns; errno envelope
+>   unchanged; NO changes to stored order history.
+> Deploy activation (MAIN session, single staged pass): set
+> `LITEMALL_FX_USD_EUR` (rate user-approved on deploy day) +
+> `LITEMALL_GOODS_CURRENCY=EUR` + `LITEMALL_ORDER_STRIPE_CURRENCY=eur`
+> together; run the conversion transaction; rebuild goods-management +
+> order + both gateways; full reindex; purge the Cloudflare cache of
+> /meta-catalog.csv; smoke € on PDP/meta/feed + a staged checkout.
+> USER-SIDE after deploy: enable EU payment methods in the Stripe
+> Dashboard (appear in checkout with no rebuild); Stripe Tax
+> registrations + activation; ONE real-card live purchase end-to-end
+> (still never formally verified).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -934,8 +1003,20 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (Wave 23 order half SHIPPED)
-- **No active assignment.**
+### Worktree: `order` — ACTIVE: Wave 24 (EUR freight conversion)
+- **Task — Wave 24: convert CJ freight USD→EUR at the quote seam.**
+  Code to the Wave-24 CONTRACT above. Config
+  `litemall.order.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`, default 1.0,
+  EXPLICIT yml placeholder); multiply every CJ freight amount by fx at
+  `CjFreightQuoteService` (2dp HALF_UP) so the V52 chooser options, the
+  server-side submit recompute, and the persisted `freight_price` all
+  inherit the conversion from ONE seam. NO other money change, NO
+  migration, NO Stripe code change (charge currency is already env).
+- **Acceptance (dev, through :9000/:8090):** with `LITEMALL_FX_USD_EUR=
+  0.5` set, checkout delivery options price at exactly half the raw CJ
+  USD quote and a submitted order persists the converted freight;
+  fx unset ⇒ identity (existing freight e2e regression-green); module
+  tests green with real "Tests run:" counts.
 - **History — Wave 23 (backend): admin-gated CJ placement + admin
   order-paid notify mail.** MERGED to master `3ed350725` + pushed
   (2026-08-08; branch commit `5a3bad2e7`; module tests 256/0). V59
@@ -966,9 +1047,32 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (Wave 22 SHIPPED)
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten.
+### Worktree: `goods-management` — ACTIVE: Wave 24 (EUR pricing seam)
+- **Task — Wave 24: land CJ costs in EUR + env-flippable currency
+  label.** Code to the Wave-24 CONTRACT above.
+  1. Config `litemall.goods.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`,
+     default 1.0, EXPLICIT yml placeholder). Multiply CJ USD amounts by
+     fx AT COST LANDING — both seams: `CjSnapshotSyncService.toRow()`
+     and the per-variant path in `CjDetailEnrichmentService` — BEFORE
+     `CjPricing` runs, so `litemall_goods[_product].cost` and every
+     derived retail persist EUR. `CjPricing`, margin guard, insight,
+     deal floors are ratio/cost-based and must need ZERO changes —
+     verify, don't edit.
+  2. Verify `LITEMALL_GOODS_CURRENCY` env-binds
+     `litemall.goods.currency` (meta + JSON-LD + meta-catalog.csv all
+     read it); add an explicit placeholder if relaxed binding fails
+     (the admin-notify-email lesson).
+  3. Confirm the Wave-14 margin-override reprice paths stay coherent
+     post-flip (they reprice FROM stored cost — automatic once cost is
+     EUR); document any exception found instead of patching around it.
+  NO migration this wave (prod at V59; the storewide conversion of
+  EXISTING rows is a deploy-day script owned by the MAIN session).
+- **Acceptance (dev, through :9000/:8090):** with fx=0.5 set, a dev
+  sync/enrichment batch lands cost and retail at exactly half their
+  prior values with marginPct unchanged (20%) in the insight endpoints;
+  with `LITEMALL_GOODS_CURRENCY=EUR` set, `/srv/goods/meta/{id}` serves
+  currency EUR and meta-catalog.csv rows read "x.xx EUR"; fx unset ⇒
+  identity; module tests green with real "Tests run:" counts.
 - **History — Wave 22 (backend): search demand analytics.** SHIPPED +
   DEPLOYED 2026-08-08 (`66fc6d327`, prod V57): nightly 04:45 rollup into
   `litemall_search_stat_daily`, result_count on history writes, insight
@@ -1009,10 +1113,24 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — idle (Waves 19–21 SHIPPED)
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten. (Wave 22 had NO gateway-api
-  half.)
+### Worktree: `gateway-api` — ACTIVE: Wave 24 (€ storefront display)
+- **Task — Wave 24: € everywhere the customer sees money.** Code to the
+  Wave-24 CONTRACT above. ONE shared formatter module (e.g.
+  `app/shared/util/money.ts`, "€12.34", 2dp) replacing EVERY $-money
+  display site in the storefront SPA (13 files carry toFixed money
+  sites; also sweep literal "$" renders — e.g. the Wave-18 percent
+  coupon "up to $C" string, and the NEW "US $" sites introduced by the
+  PDP Amazon-parity commit `bbb2048aa` already sitting on
+  fix/gateway-api and not yet on master). Matomo ecommerce events + Meta Pixel
+  events (`ecommerce.ts` seam) carry currency "EUR". NO edge/Java work;
+  NO backend calls change (amounts arrive as plain decimals as always).
+- **Acceptance (dev, through :9000/:8090):** grep shows no remaining
+  hardcoded $-money renders in `app/`; PDP, search hits, cart,
+  checkout (incl. freight options + coupon lines), order list/detail,
+  coupons center, deals and groupon surfaces all render €; with consent
+  granted the Matomo dev console shows EUR on the ecommerce events;
+  jest + existing checkout/coupon e2e regression-green with real
+  counts.
 - **History — Waves 19/20/21 (storefront).** All SHIPPED + DEPLOYED
   2026-08-08: W19 coupon badge/facet (`3917c884f`), W20 groupon-strip +
   /page/:id og-meta (`53123bcb0`), W21 group-buy landing
@@ -1186,10 +1304,18 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — idle (Wave 23 admin half SHIPPED)
-- **No active assignment.** Branch merged to master; awaiting the main
-  session's Wave-23 prod deploy (rebuild order + gateway-admin, arm CJ
-  envs together).
+### Worktree: `gateway-admin` — ACTIVE: Wave 24 (€ admin display)
+- **Task — Wave 24: $→€ across admin money surfaces.** Code to the
+  Wave-24 CONTRACT above. Same shared-formatter approach as the
+  storefront half (do NOT read its branch): one money formatter module,
+  swapped in across insight panels (margins, potential profit, deal/
+  promo candidates), orders (incl. the Wave-23 CJ pending tab amounts),
+  coupons, deals, dashboards. Mixed-currency history is ACCEPTED —
+  pre-flip orders render as plain numbers with the € symbol; no
+  per-row currency logic.
+- **Acceptance (dev, through :18080):** admin panels named above render
+  €, no remaining hardcoded $-money renders in the admin `app/`; jest
+  green with real counts; existing panel e2e regression-green.
 - **History — Wave 23 (admin UI): CJ approval surfaces.** DONE 2026-08-08
   (`df86b817b` + handoff `1042e63bf`): Orders "Pending CJ approval" tab
   (count badge via limit-1 probe; holdReason verbatim; honest error
