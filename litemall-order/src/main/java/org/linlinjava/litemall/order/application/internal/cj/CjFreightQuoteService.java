@@ -8,8 +8,11 @@ import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjLo
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderPlacement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +35,29 @@ public class CjFreightQuoteService {
 
     private final CjDropshipOrderFacade cjOrderFacade;
     private final CjOrderLineResolver lineResolver;
+    /**
+     * Wave 24 (EUR storefront): CJ's freightCalculate prices in USD; the store prices in a
+     * single currency. Every option's amount is converted here — the one freight seam — so
+     * anything downstream (cheapest-line fallback today, any future surfaced/charged
+     * per-carrier freight) inherits the store currency. 1.0 = identity. A missing or
+     * non-positive rate falls back to identity (fail-safe: never zero or negate freight).
+     */
+    private final BigDecimal fxUsdEur;
     private final Cache<String, List<CjLogisticsOption>> cache = Caffeine.newBuilder()
             .maximumSize(500)
             .expireAfterWrite(Duration.ofMinutes(15))
             .build();
 
-    public CjFreightQuoteService(CjDropshipOrderFacade cjOrderFacade, CjOrderLineResolver lineResolver) {
+    public CjFreightQuoteService(CjDropshipOrderFacade cjOrderFacade, CjOrderLineResolver lineResolver,
+                                 @Value("${litemall.order.fx-usd-eur:1.0}") BigDecimal fxUsdEur) {
         this.cjOrderFacade = cjOrderFacade;
         this.lineResolver = lineResolver;
+        if (fxUsdEur == null || fxUsdEur.signum() <= 0) {
+            log.warn("litemall.order.fx-usd-eur={} is not a positive rate — using identity 1.0", fxUsdEur);
+            this.fxUsdEur = BigDecimal.ONE;
+        } else {
+            this.fxUsdEur = fxUsdEur;
+        }
     }
 
     /**
@@ -67,8 +85,10 @@ public class CjFreightQuoteService {
                 .sorted()
                 .collect(Collectors.joining(","));
         // Caffeine serializes concurrent loads per key; negative results are cached too so a lane
-        // CJ offers nothing for doesn't hammer the quota on every checkout re-render.
-        return cache.get(key, k -> cjOrderFacade.quoteLogisticsOptions(countryCode.trim().toUpperCase(), lines));
+        // CJ offers nothing for doesn't hammer the quota on every checkout re-render. Cached
+        // values are already currency-converted (the rate is fixed for the process lifetime).
+        return cache.get(key, k -> convert(
+                cjOrderFacade.quoteLogisticsOptions(countryCode.trim().toUpperCase(), lines)));
     }
 
     /**
@@ -77,6 +97,27 @@ public class CjFreightQuoteService {
      */
     public CjLogisticsOption quote(String countryCode, List<QuoteItem> items) {
         return cjOrderFacade.chooseLogistics(options(countryCode, items), null);
+    }
+
+    /** USD → store currency on every option amount, 2dp HALF_UP; null amounts stay null. */
+    private List<CjLogisticsOption> convert(List<CjLogisticsOption> options) {
+        if (options == null || options.isEmpty()) {
+            return List.of();
+        }
+        if (log.isDebugEnabled() && fxUsdEur.compareTo(BigDecimal.ONE) != 0) {
+            options.forEach(o -> log.debug("CJ freight fx {}: {} {} -> {}", fxUsdEur,
+                    o.getLogisticName(), o.getLogisticPrice(),
+                    o.getLogisticPrice() == null
+                            ? null : o.getLogisticPrice().multiply(fxUsdEur).setScale(2, RoundingMode.HALF_UP)));
+        }
+        return options.stream()
+                .map(o -> new CjLogisticsOption(
+                        o.getLogisticName(),
+                        o.getLogisticPrice() == null
+                                ? null
+                                : o.getLogisticPrice().multiply(fxUsdEur).setScale(2, RoundingMode.HALF_UP),
+                        o.getLogisticAging()))
+                .collect(Collectors.toList());
     }
 
     private List<CjOrderPlacement.Line> resolveLines(List<QuoteItem> items) {

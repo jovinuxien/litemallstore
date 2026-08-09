@@ -164,6 +164,14 @@ litemall:
     # CJ-side cancellation of a paid order). Blank = log-only (mail rows need the
     # litemall.customer-mail seam enabled anyway).
     cj-ops-mail: ${CJ_OPS_MAIL:}
+    # Wave 24 (EUR storefront): USD→EUR rate applied to CJ freight amounts at the
+    # quote seam (CjFreightQuoteService), 2dp HALF_UP. CJ's freightCalculate always
+    # returns USD; the store prices in a single currency, so every CJ freight amount
+    # inside this service is converted once, here. 1.0 = identity (dev-safe default);
+    # prod sets the real rate at deploy together with LITEMALL_GOODS_CURRENCY and
+    # LITEMALL_ORDER_STRIPE_CURRENCY. Explicit placeholder — the shared env name
+    # LITEMALL_FX_USD_EUR does not relax-bind to fx-usd-eur.
+    fx-usd-eur: ${LITEMALL_FX_USD_EUR:1.0}
     # Wave 4 (Task D): fulfillment seams — disabled by default. printer.provider:
     # none|yly (yly needs client-id/client-secret/machine-code/machine-secret —
     # supply via env, e.g. LITEMALL_ORDER_PRINTER_CLIENT_SECRET). express.provider:
