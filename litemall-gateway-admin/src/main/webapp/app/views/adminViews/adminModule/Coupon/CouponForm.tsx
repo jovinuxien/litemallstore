@@ -215,7 +215,7 @@ const CouponForm: React.FC = () => {
               onChange={() => set({ discountType: 0, discountCap: undefined })}
             />
             <label className='form-check-label' htmlFor='discount-flat'>
-              Flat amount ($ off)
+              Flat amount (€ off)
             </label>
           </div>
           <div className='form-check form-check-inline'>
@@ -234,7 +234,7 @@ const CouponForm: React.FC = () => {
         </div>
         <div className='row'>
           <div className='col-md-3 mb-3'>
-            <label className='form-label'>{isPercent ? `Rate (% off, ${PERCENT_MIN}–${PERCENT_MAX})` : 'Discount ($ off)'}</label>
+            <label className='form-label'>{isPercent ? `Rate (% off, ${PERCENT_MIN}–${PERCENT_MAX})` : 'Discount (€ off)'}</label>
             <input
               className='form-control'
               type='number'

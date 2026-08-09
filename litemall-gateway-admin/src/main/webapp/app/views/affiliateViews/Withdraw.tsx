@@ -5,6 +5,7 @@ import {
 } from 'app/shared/reducers/private/services/affiliateApi';
 import { ElTag, PAGE_SIZES, Pagination, Tag, errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
+import { money } from 'app/shared/util/money';
 
 // Withdraw (Wave 5): request a brokerage payout (POST
 // /srv/private/affiliate/extract with source='brokerage' — below-minimum or
@@ -12,7 +13,6 @@ import * as React from 'react';
 // request history with pending/completed/rejected chips and the admin's
 // rejection reason.
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 const when = (v?: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '—');
 
 export const extractStatus = (status?: number): { tag: ElTag; label: string } => {

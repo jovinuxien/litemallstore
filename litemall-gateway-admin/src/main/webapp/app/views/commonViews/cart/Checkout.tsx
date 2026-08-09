@@ -233,7 +233,7 @@ const CheckoutView = () => {
                   </li>
                 ))}
                 <li className='list-group-item d-flex justify-content-between'>
-                  <span>Total (USD)</span>
+                  <span>Total (EUR)</span>
                   <strong>${cartTotal?.checkedGoodsAmount}</strong>
                 </li>
               </ul>
