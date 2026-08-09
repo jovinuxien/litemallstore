@@ -25,7 +25,7 @@ const chartOpts: ChartOptions<'line'> = {
 
 const moneyChartOpts: ChartOptions<'line'> = {
   ...chartOpts,
-  scales: { y: { ticks: { callback: v => `$${v}` } } },
+  scales: { y: { ticks: { callback: v => `€${v}` } } },
   plugins: {
     legend: { display: true },
     tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${money(ctx.parsed.y)}` } },
@@ -141,7 +141,12 @@ const Dashboard: React.FC = () => {
   // CJ dropship account balance (order's /srv/private/admin/order/cj/balance,
   // Wave-3 dependency — renders '—' until the order side ships it).
   const { data: cjBalance, isError: cjBalanceError } = useGetCjBalanceQuery();
-  const cjBalanceValue = !cjBalanceError && cjBalance?.available && cjBalance.amount != null ? money(cjBalance.amount) : '—';
+  // The CJ wallet is external money in CJ's own currency (USD today) — label it
+  // with the returned currency code instead of the store's € formatter.
+  const cjBalanceValue =
+    !cjBalanceError && cjBalance?.available && cjBalance.amount != null
+      ? `${Number(cjBalance.amount).toFixed(2)} ${cjBalance.currency ?? 'USD'}`
+      : '—';
 
   React.useEffect(() => {
     dispatch(fetchOrderStats());

@@ -1,13 +1,13 @@
 import { useGetDashboardQuery } from 'app/shared/reducers/private/services/affiliateApi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { money } from 'app/shared/util/money';
 
 // Affiliate dashboard (Wave 5): the headline sums from
 // GET /srv/private/affiliate/dashboard — available (withdrawable
 // brokerage_price), frozen, lifetime/this-month earnings and referral counts.
 // Self-scoped server-side; nothing here takes an id.
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 
 interface CardProps {
   label: string;

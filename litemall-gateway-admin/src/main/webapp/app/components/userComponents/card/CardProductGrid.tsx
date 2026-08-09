@@ -40,9 +40,9 @@ const CardProductGrid = ({ data }: CardProductGridProps1): JSX.Element => {
       {/* If the product has a discount, display a badge with the discount percentage or price */}
       {(product.counterPrice > 0 || product.counterPrice > 0) && (
         <span className={`rounded position-absolute p-2 bg-warning  ms-2 small ${product.isNew ? 'mt-5' : 'mt-2'}`}>
-          {/*           -{product.discountPercentage > 0 ? product.discountPercentage + '%' : '$' + product.discountPrice}
+          {/*           -{product.discountPercentage > 0 ? product.discountPercentage + '%' : '€' + product.discountPrice}
            */}{' '}
-          {product.counterPrice > 0 ? product.counterPrice + '%' : '$' + product.counterPrice}
+          {product.counterPrice > 0 ? product.counterPrice + '%' : '€' + product.counterPrice}
         </span>
       )}
       <div className='card-body'>

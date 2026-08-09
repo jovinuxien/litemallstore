@@ -6,6 +6,7 @@ import {
 } from 'app/shared/reducers/private/services/adminAffiliateApi';
 import { ElTag, PAGE_SIZES, Pagination, Spinner, Tag, errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
+import { money } from 'app/shared/util/money';
 
 // Withdrawal approval console (Wave 5): litemall_user_extract requests served
 // by order at /srv/private/admin/extract/*. Approve only transitions PENDING
@@ -13,7 +14,6 @@ import * as React from 'react';
 // brokerage balance and stores the reason as fail_msg (visible to the
 // affiliate in their history).
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 const when = (v?: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '—');
 
 const statusTag = (status?: number): { tag: ElTag; label: string } => {
