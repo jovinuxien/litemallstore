@@ -31,7 +31,7 @@ const OrdersView = () => {
                     <span className='text-muted me-2'>Size:</span>
                     <span className='me-3'>M</span>
                     <span className='text-muted me-2'>Price:</span>
-                    <span className='me-3'>$1234</span>
+                    <span className='me-3'>€1234</span>
                     <span className='text-muted me-2'>Color:</span>
                     <span className='me-3'>
                       <span className='bg-primary px-1 rounded'>&nbsp;&nbsp;&nbsp;</span>
@@ -86,7 +86,7 @@ const OrdersView = () => {
                     <span className='text-muted me-2'>Size:</span>
                     <span className='me-3'>M</span>
                     <span className='text-muted me-2'>Price:</span>
-                    <span className='me-3'>$1234</span>
+                    <span className='me-3'>€1234</span>
                     <span className='text-muted me-2'>Color:</span>
                     <span className='me-3'>
                       <span className='bg-primary px-1 rounded'>&nbsp;&nbsp;&nbsp;</span>
@@ -130,7 +130,7 @@ const OrdersView = () => {
                     <span className='text-muted me-2'>Size:</span>
                     <span className='me-3'>M</span>
                     <span className='text-muted me-2'>Price:</span>
-                    <span className='me-3'>$1234</span>
+                    <span className='me-3'>€1234</span>
                     <span className='text-muted me-2'>Color:</span>
                     <span className='me-3'>
                       <span className='bg-primary px-1 rounded'>&nbsp;&nbsp;&nbsp;</span>
@@ -174,7 +174,7 @@ const OrdersView = () => {
                     <span className='text-muted me-2'>Size:</span>
                     <span className='me-3'>M</span>
                     <span className='text-muted me-2'>Price:</span>
-                    <span className='me-3'>$1234</span>
+                    <span className='me-3'>€1234</span>
                     <span className='text-muted me-2'>Color:</span>
                     <span className='me-3'>
                       <span className='bg-primary px-1 rounded'>&nbsp;&nbsp;&nbsp;</span>

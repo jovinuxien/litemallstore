@@ -34,7 +34,7 @@ describe('fmtPromoSuggestion', () => {
       discountCap: 5,
       minAmount: 30,
     });
-    expect(fmtPromoSuggestion(c, "Women's Clothing")).toBe("10% off Women's Clothing, cap $5.00, min spend $30.00");
+    expect(fmtPromoSuggestion(c, "Women's Clothing")).toBe("10% off Women's Clothing, cap €5.00, min spend €30.00");
   });
 
   it('falls back to the category id when the name is unknown', () => {
@@ -44,7 +44,7 @@ describe('fmtPromoSuggestion', () => {
 
   it('renders a flat single-product coupon without cap/min noise', () => {
     const c = couponCandidate({ scopeType: 'goods', goodsIds: [10008302], discountType: 0, discount: 4, minAmount: 0 });
-    expect(fmtPromoSuggestion(c)).toBe('$4.00 off this product');
+    expect(fmtPromoSuggestion(c)).toBe('€4.00 off this product');
   });
 
   it('counts a multi-product scope', () => {
@@ -54,7 +54,7 @@ describe('fmtPromoSuggestion', () => {
 
   it('renders a groupon suggestion as price + members + window + limit', () => {
     const c = grouponCandidate({ combinationPrice: 12.99, originalPrice: 25, requiredMembers: 3, limitPerUser: 1, windowDays: 7 });
-    expect(fmtPromoSuggestion(c)).toBe('group price $12.99, 3 members, 7-day window, limit 1/user');
+    expect(fmtPromoSuggestion(c)).toBe('group price €12.99, 3 members, 7-day window, limit 1/user');
   });
 
   it('renders a dash when the suggestion is missing (uncaptured cost)', () => {
@@ -81,7 +81,7 @@ describe('couponPrefill', () => {
     expect(coupon.discount).toBe(10);
     expect(coupon.discountCap).toBe(5);
     expect(coupon.min).toBe(30);
-    expect(coupon.name).toBe("10% off Women's Clothing, cap $5.00, min spend $30.00");
+    expect(coupon.name).toBe("10% off Women's Clothing, cap €5.00, min spend €30.00");
     expect(consume).toEqual({ kind: 'coupon', goodsId: 10008302, day: '2026-08-08' });
   });
 

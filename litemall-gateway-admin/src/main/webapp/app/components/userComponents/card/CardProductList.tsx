@@ -66,7 +66,7 @@ const CardProductList: React.FC<CardProductListProps1> = props => {
               {product.counterPrice > 0 && <del className='small text-muted ms-2'>${product.counterPrice}</del>}
               {(product.counterPrice > 0 || product.counterPrice > 0) && (
                 <span className={`rounded p-1 bg-warning ms-2 small`}>
-                  -{product.counterPrice > 0 ? product.counterPrice + '%' : '$' + product.counterPrice}
+                  -{product.counterPrice > 0 ? product.counterPrice + '%' : '€' + product.counterPrice}
                 </span>
               )}
             </div>
