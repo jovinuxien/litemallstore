@@ -194,6 +194,11 @@ litemall:
     # Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO,
     # mirroring the order service's LITEMALL_ORDER_STRIPE_CURRENCY (usd).
     currency: ${LITEMALL_GOODS_CURRENCY:USD}
+    # Wave 24: USD→EUR factor applied to raw CJ amounts at cost landing (CjPricing
+    # intake — sync, enrichment, on-demand detail), BEFORE margin markup, so stored
+    # cost/retail persist in the store currency. 1.0 = identity; prod sets the real
+    # rate at the EUR flip together with LITEMALL_GOODS_CURRENCY=EUR.
+    fx-usd-eur: ${LITEMALL_FX_USD_EUR:1.0}
   # Wave 14: inventory governance. The governor sizes nightly retirement proposals
   # against catalog-target; the 02:00 executor flips due APPROVED batches off-sale
   # (reversible via the normal admin on-sale toggle). Crons stay clear of the nightly
