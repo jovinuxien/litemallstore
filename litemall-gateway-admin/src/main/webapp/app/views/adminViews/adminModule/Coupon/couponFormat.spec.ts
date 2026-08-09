@@ -15,14 +15,14 @@ import {
 // Wave 18: coupon scope + percent rendering/validation helpers.
 
 describe('fmtCouponDiscount', () => {
-  it('renders a flat coupon as "$D off"', () => {
-    expect(fmtCouponDiscount({ discount: 5 })).toBe('$5.00 off');
-    expect(fmtCouponDiscount({ discount: 5, discountType: 0 })).toBe('$5.00 off');
+  it('renders a flat coupon as "€D off"', () => {
+    expect(fmtCouponDiscount({ discount: 5 })).toBe('€5.00 off');
+    expect(fmtCouponDiscount({ discount: 5, discountType: 0 })).toBe('€5.00 off');
   });
 
   it('renders a percent coupon with and without cap', () => {
     expect(fmtCouponDiscount({ discount: 10, discountType: DISCOUNT_PERCENT })).toBe('10% off');
-    expect(fmtCouponDiscount({ discount: 12.5, discountType: DISCOUNT_PERCENT, discountCap: 5 })).toBe('12.5% off (up to $5.00)');
+    expect(fmtCouponDiscount({ discount: 12.5, discountType: DISCOUNT_PERCENT, discountCap: 5 })).toBe('12.5% off (up to €5.00)');
   });
 
   it('renders a dash when the discount is unknown', () => {

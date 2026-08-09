@@ -1,6 +1,7 @@
 import { ICombination, ICoupon } from 'app/shared/model/admin/promotion-system.model';
 import { IPromoCandidate, PromoKind } from 'app/shared/reducers/private/services/insightApi';
 import { DISCOUNT_FLAT, SCOPE_CATEGORY, SCOPE_GOODS } from 'app/views/adminViews/adminModule/Coupon/couponFormat';
+import { money } from 'app/shared/util/money';
 
 // Wave 19: pure render/prefill helpers for the promo-suggestions panel
 // (/srv/private/admin/insight/promo-candidates). Kept view-free so they are
@@ -8,14 +9,12 @@ import { DISCOUNT_FLAT, SCOPE_CATEGORY, SCOPE_GOODS } from 'app/views/adminViews
 // the Wave-18 margin guard server-side; these helpers only render it and map
 // it onto the EXISTING CouponForm / GrouponRuleForm via router state.
 
-const money = (v: number): string => `$${Number(v).toFixed(2)}`;
-
 const rate = (v: number): string => (Number.isInteger(v) ? String(v) : Number(v).toFixed(1));
 
 // ---- human suggestion sentence ---------------------------------------------
 
-// "10% off Women's Clothing, cap $5.00, min spend $30.00" |
-// "$4.00 off this product" | "group price $12.99, 3 members, 7-day window".
+// "10% off Women's Clothing, cap €5.00, min spend €30.00" |
+// "€4.00 off this product" | "group price €12.99, 3 members, 7-day window".
 export const fmtPromoSuggestion = (c: IPromoCandidate, categoryName?: string): string => {
   const s = c.suggestion;
   if (!s) return '—';
