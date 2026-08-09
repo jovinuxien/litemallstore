@@ -72,4 +72,34 @@ public class CjEnrichmentRepriceTest {
         assertEquals(new BigDecimal("13.00"), captor.getValue().getPrice(),
                 "enrichment must reprice: 10.40 × 1.25, not the stale 149.76");
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void fxConvertsDetailCostAtLanding() {
+        // Wave 24: the enrichment seam lands the detail cost × fx-usd-eur; retail derives
+        // from the converted cost so the margin ratio is untouched.
+        CJDropshippingConfig config = new CJDropshippingConfig();
+        config.setEnabled(true);
+        service = new CjDetailEnrichmentService(cjProductService, cjProductStore,
+                promotionService, mock(SearchReindexService.class), config, new ObjectMapper(),
+                new CjPricing(config, null, new BigDecimal("0.5")),
+                (ObjectProvider<InventoryFlowGateway>) mock(ObjectProvider.class));
+
+        LitemallCjProduct row = new LitemallCjProduct();
+        row.setPid("pid-2");
+        when(cjProductStore.findByPid("pid-2")).thenReturn(row);
+
+        CJProductDetailData detail = new CJProductDetailData();
+        detail.setSellPrice(10.40);
+        when(cjProductService.getProductDetail("pid-2")).thenReturn(detail);
+        when(cjProductService.getProductComments(anyString(), anyInt(), anyInt())).thenReturn(null);
+        when(promotionService.promote(any())).thenReturn(42);
+
+        service.enrichByPid("pid-2");
+
+        ArgumentCaptor<LitemallCjProduct> captor = ArgumentCaptor.forClass(LitemallCjProduct.class);
+        verify(cjProductStore).enrich(captor.capture());
+        assertEquals(new BigDecimal("5.20"), captor.getValue().getSellPrice(), "detail cost lands × fx");
+        assertEquals(new BigDecimal("6.50"), captor.getValue().getPrice(), "retail = converted cost × 1.25");
+    }
 }

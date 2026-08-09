@@ -57,4 +57,39 @@ public class CjPricingTest {
         assertEquals(new BigDecimal("11.85"), pricing.cost(11.849));
         assertEquals(new BigDecimal("14.81"), pricing.retail(pricing.cost(11.85)));
     }
+
+    // ---- Wave 24: fx-usd-eur applied at cost intake ------------------------------------------
+
+    @Test
+    public void fxDefaultsToIdentity() {
+        CjPricing explicit = new CjPricing(new CJDropshippingConfig(), (org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver) null, null);
+        assertEquals(new BigDecimal("11.85"), explicit.parseCost("11.85"));
+        assertEquals(new BigDecimal("11.85"), explicit.cost(11.85));
+    }
+
+    @Test
+    public void fxConvertsRawCjAmountsAtIntake() {
+        CjPricing fx = new CjPricing(new CJDropshippingConfig(), null, new BigDecimal("0.5"));
+        // 11.85 × 0.5 = 5.925 → single 2dp HALF_UP AFTER the multiply → 5.93 (not 5.92 via pre-round).
+        assertEquals(new BigDecimal("5.93"), fx.parseCost("11.85"));
+        assertEquals(new BigDecimal("5.93"), fx.cost(11.85));
+        // Range still collapses to the lower bound, then converts.
+        assertEquals(new BigDecimal("7.36"), fx.parseCost("14.71 -- 64.38"));
+        // Retail derives from the converted cost — margin ratio unchanged.
+        assertEquals(new BigDecimal("7.41"), fx.retail(fx.parseCost("11.85")));
+    }
+
+    @Test
+    public void fxDoesNotTouchStoredCostPaths() {
+        CjPricing fx = new CjPricing(new CJDropshippingConfig(), null, new BigDecimal("0.5"));
+        // retail() prices an already-stored (store-currency) cost — no re-conversion.
+        assertEquals(new BigDecimal("12.50"), fx.retail(new BigDecimal("10.00")));
+    }
+
+    @Test
+    public void fxNullOrMissingCostStaysNull() {
+        CjPricing fx = new CjPricing(new CJDropshippingConfig(), null, new BigDecimal("0.5"));
+        assertNull(fx.parseCost(null));
+        assertNull(fx.cost(null));
+    }
 }
