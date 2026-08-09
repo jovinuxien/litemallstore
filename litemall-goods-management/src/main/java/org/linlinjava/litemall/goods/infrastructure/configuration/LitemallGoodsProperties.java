@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.goods.infrastructure.configuration;
 
+import java.math.BigDecimal;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -9,6 +11,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "litemall.goods")
 public class LitemallGoodsProperties {
+
+    /**
+     * Wave 24: USD→EUR conversion applied to raw CJ amounts at cost landing (CjPricing
+     * intake). 1.0 = identity (dev-safe default); prod sets the real rate at deploy via
+     * LITEMALL_FX_USD_EUR. Stored cost/retail then persist in the store currency, so all
+     * ratio-based math downstream (margin guard, insight, deal floors) is unaffected.
+     */
+    private BigDecimal fxUsdEur = BigDecimal.ONE;
 
     /** Minimum stock count below which a goods/product is considered unavailable. */
     private short stockLowThreshold = 5;
@@ -34,5 +44,13 @@ public class LitemallGoodsProperties {
 
     public void setCurrency(String currency) {
         this.currency = currency;
+    }
+
+    public BigDecimal getFxUsdEur() {
+        return fxUsdEur;
+    }
+
+    public void setFxUsdEur(BigDecimal fxUsdEur) {
+        this.fxUsdEur = fxUsdEur;
     }
 }

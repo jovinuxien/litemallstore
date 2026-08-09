@@ -82,6 +82,24 @@ public class CjSnapshotSyncServiceTest {
     }
 
     @Test
+    public void fxConvertsCostAndRetailAtLanding() {
+        // Wave 24: with fx-usd-eur set, sell_price and price land converted while the
+        // margin RATIO is unchanged (retail/cost stays 1.25 → marginPct 20%).
+        service = new CjSnapshotSyncService(cjProductService, cjProductStore, config,
+                new ObjectMapper(), mock(CjRawCacheRepository.class), mock(CjCategoryTreeSyncService.class),
+                new CjPricing(config, null, new BigDecimal("0.5")));
+        stubFetch(product("eur-pid", "10.00 -- 25.00"));
+        when(cjProductStore.queryLivePids()).thenReturn(List.of());
+
+        service.syncAll();
+
+        ArgumentCaptor<LitemallCjProduct> row = ArgumentCaptor.forClass(LitemallCjProduct.class);
+        verify(cjProductStore).upsert(row.capture());
+        assertEquals(new BigDecimal("5.00"), row.getValue().getSellPrice(), "cost lands × fx");
+        assertEquals(new BigDecimal("6.25"), row.getValue().getPrice(), "retail = converted cost × 1.25");
+    }
+
+    @Test
     public void unparseableSellPriceLeavesCostAndPriceNull() {
         stubFetch(product("odd-pid", "call us"));
         when(cjProductStore.queryLivePids()).thenReturn(List.of());
