@@ -45,7 +45,7 @@ export interface ICoupon {
   endTime?: string;
   /** Wave 18: 0 flat (default when absent) / 1 percent-off. */
   discountType?: number;
-  /** Wave 18: optional dollar cap for percent coupons ("up to $C"). */
+  /** Wave 18: optional euro cap for percent coupons ("up to €C"). */
   discountCap?: number;
   /** Scope: 0 all goods / 1 categories / 2 specific goods (absent ⇒ all). */
   goodsType?: number;

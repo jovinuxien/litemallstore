@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
+import { money } from 'app/shared/util/money';
 import './order.scss';
 
 /**
@@ -64,7 +65,7 @@ const RefundList: React.FC = () => {
                 />
               ))}
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>Total: ${priceNum(o.actualPrice).toFixed(2)}</span>
+                <span className='lm-amount'>Total: {money(priceNum(o.actualPrice))}</span>
               </div>
             </Link>
           ))

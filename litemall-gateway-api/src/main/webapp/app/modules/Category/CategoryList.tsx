@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
 import { productPath } from 'app/shared/util/slug';
+import { money } from 'app/shared/util/money';
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Col, Container, Row } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -89,9 +90,9 @@ const CategoryList: React.FC<CategoryListProps> = () => {
                       <Card.Text className='product-description small text-muted mb-2'>{product.brief}</Card.Text>
                       <div className='mt-auto'>
                         <div className='d-flex justify-content-between align-items-center mb-2'>
-                          <span className='product-price h4 mb-0 text-success'>${product.retailPrice}</span>
+                          <span className='product-price h4 mb-0 text-success'>{money(product.retailPrice)}</span>
                           <span className='product-original-price text-muted small'>
-                            <del>${product.counterPrice}</del>
+                            <del>{money(product.counterPrice)}</del>
                           </span>
                         </div>
                         <div className='d-flex justify-content-between align-items-center'>

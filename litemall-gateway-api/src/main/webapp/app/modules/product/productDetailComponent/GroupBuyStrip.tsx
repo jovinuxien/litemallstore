@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAppSelector } from 'app/config/store';
 import { ICombination, promotionApi } from 'app/shared/api';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 
 /**
  * Wave-21 PDP group-buy entry. When an active combination campaign exists for
@@ -97,10 +98,10 @@ const GroupBuyStrip: React.FC<{
         flexWrap: 'wrap',
       }}
     >
-      <strong>Group buy ${groupPrice.toFixed(2)}</strong>
+      <strong>Group buy {money(groupPrice)}</strong>
       {originalPrice > groupPrice && (
         <span style={{ opacity: 0.85 }}>
-          <s>${originalPrice.toFixed(2)}</s>
+          <s>{money(originalPrice)}</s>
         </span>
       )}
       {campaign.requiredMembers != null && <span style={{ opacity: 0.9 }}>{campaign.requiredMembers} people per group</span>}

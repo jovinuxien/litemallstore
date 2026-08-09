@@ -9,6 +9,7 @@ import CardServices from 'app/components/userComponents/card/CardServices';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import { IGood } from 'app/shared/model/product/product.model';
 import { productPath } from 'app/shared/util/slug';
+import { money } from 'app/shared/util/money';
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Col, Container, Row } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -312,10 +313,10 @@ const SubCategoryList: React.FC<ProductListViewProps> = () => {
                             <div className='price-container flex-grow-1 me-2 mb-2'>
                               <div className='d-flex align-items-baseline'>
                                 <span className='current-price me-2' style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#e53935' }}>
-                                  ${product.retailPrice}
+                                  {money(product.retailPrice)}
                                 </span>
                                 <span className='original-price text-muted' style={{ fontSize: '0.9rem', textDecoration: 'line-through' }}>
-                                  ${product.counterPrice}
+                                  {money(product.counterPrice)}
                                 </span>
                               </div>
                               <div className='discount-badge'>

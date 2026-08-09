@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { userApi } from 'app/shared/api';
 import './user.scss';
 
@@ -58,7 +59,7 @@ const Footprint: React.FC = () => {
                 <div>{it.name ?? it.goodsName}</div>
                 {it.addTime && <div className='text-muted small'>{it.addTime}</div>}
               </div>
-              <div className='lm-foot-row__price'>${priceNum(it.retailPrice).toFixed(2)}</div>
+              <div className='lm-foot-row__price'>{money(priceNum(it.retailPrice))}</div>
             </Link>
           ))}
         </div>

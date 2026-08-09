@@ -76,8 +76,8 @@ describe('groupon-strip (palette v1.1)', () => {
     const first = container.querySelector('.lm-rail > a') as HTMLAnchorElement;
     expect(first.getAttribute('href')).toBe('/product/501-ceramic-table-lamp');
     expect(first.textContent).toContain('Ceramic table lamp');
-    expect(first.textContent).toContain('$12.5');
-    expect(first.textContent).toContain('$19.99');
+    expect(first.textContent).toContain('€12.50');
+    expect(first.textContent).toContain('€19.99');
     expect(first.textContent).toContain('2-person group');
     expect(first.textContent).toContain('Group up & save');
     expect(container.textContent!.toLowerCase()).not.toContain('buy at');
@@ -114,7 +114,7 @@ describe('groupon-strip (palette v1.1)', () => {
 });
 
 describe('coupon-strip (v1 backward-compat + v1.1 extensions)', () => {
-  it('v1 config renders exactly as before: strip class, no headline, $ amounts, limit slice', async () => {
+  it('v1 config renders exactly as before: strip class, no headline, € amounts, limit slice', async () => {
     wireNetwork();
     const { container } = renderPage(page('coupon-strip', { title: 'Coupons', limit: 2 }));
     await waitFor(() => expect(container.querySelectorAll('.lm-coupon')).toHaveLength(2));
@@ -123,7 +123,7 @@ describe('coupon-strip (v1 backward-compat + v1.1 extensions)', () => {
     expect(wrapper.className).toBe('lm-coupons'); // no --grid modifier
     expect(container.querySelector('.lm-coupons__headline')).toBeNull();
     const amounts = Array.from(container.querySelectorAll('.lm-coupon__amount')).map(n => n.textContent);
-    expect(amounts).toEqual(['$5', '$10']);
+    expect(amounts).toEqual(['€5', '€10']);
     expect((container.querySelector('.lm-coupon') as HTMLAnchorElement).getAttribute('href')).toBe('/user/coupons');
   });
 
@@ -134,9 +134,9 @@ describe('coupon-strip (v1 backward-compat + v1.1 extensions)', () => {
 
     const names = Array.from(container.querySelectorAll('.lm-coupon__name')).map(n => n.textContent);
     expect(names).toEqual(['Percent', 'Welcome']);
-    // Wave-18 percent coupon shows its rate, flat stays dollars.
+    // Wave-18 percent coupon shows its rate, flat stays euros.
     const amounts = Array.from(container.querySelectorAll('.lm-coupon__amount')).map(n => n.textContent);
-    expect(amounts).toEqual(['15%', '$5']);
+    expect(amounts).toEqual(['15%', '€5']);
   });
 
   it('an explicitly picked coupon missing from the available list is skipped (R1)', async () => {

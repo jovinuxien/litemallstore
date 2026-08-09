@@ -219,27 +219,38 @@
       color: var(--lm-text, #1f2a2e);
     }
   }
+  // Amazon-style variant tiles: a grid of UNIFORM boxes aligned horizontally;
+  // long option text WRAPS to multiple lines inside its box instead of
+  // stretching the button (user-directed 2026-08-09).
   &__opts {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     gap: 8px;
+    max-width: 640px;
   }
   &__opt {
-    display: inline-flex;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    justify-content: center;
+    gap: 4px;
+    min-height: 52px;
+    padding: 8px 10px;
     border: 1.5px solid var(--lm-border, #eceff1);
     border-radius: 8px;
     background: #fff;
     color: var(--lm-text, #1f2a2e);
-    font-size: 13px;
+    font-size: 12.5px;
+    line-height: 1.25;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
     cursor: pointer;
     transition: all 0.15s;
 
     img {
-      width: 22px;
-      height: 22px;
+      width: 28px;
+      height: 28px;
       object-fit: cover;
       border-radius: 4px;
     }
@@ -251,6 +262,29 @@
       background: var(--lm-primary-soft, #e3f2f3);
       color: var(--lm-primary-dark, #0a5d65);
       font-weight: 600;
+    }
+  }
+
+  // SIZE dim: smaller square tiles (numeric/letter sizes never wrap).
+  &__opts--size {
+    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+    max-width: 520px;
+  }
+  &__optsize {
+    min-height: 40px;
+    padding: 7px 6px;
+    font-weight: 600;
+
+    img {
+      display: none;
+    }
+
+    &.is-disabled {
+      border-style: dashed;
+      color: var(--lm-muted, #6b7b82);
+      background: var(--lm-bg, #f6f9fa);
+      cursor: not-allowed;
+      opacity: 0.7;
     }
   }
 
