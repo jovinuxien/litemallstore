@@ -1038,7 +1038,10 @@
 >   taxonomy map) and brief-derived descriptions (Wave-13 sanitizer)
 >   replacing title-duplicates.
 > - Catalog hygiene rides along: the 23 Chinese-named goods renamed
->   (or off-saled with a reason) — they poison feed review.
+>   (or off-saled with a reason) — they poison feed review. ALSO
+>   (spotted 2026-08-09): some goods carry a Chinese `litemall_goods.
+>   unit` glyph ("件") that renders beside the € price on the PDP —
+>   normalize units (map to "pc"/blank) in the same hygiene pass.
 > - errno envelope; no new anonymous paths; money untouched (Wave 24
 >   owns money).
 > **Acceptance (dev):** coverage probe logged; an enriched good gets a
