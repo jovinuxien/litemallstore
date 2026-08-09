@@ -980,10 +980,18 @@
 >   for most items").
 > - CJ detail DTO parses `supplierName`/`supplierId` TODAY but nothing
 >   persists them; CJ has NO brand field in list OR detail APIs.
->   `supplierName` fill-rate is UNKNOWN — the wave's FIRST deliverable
->   is a coverage probe (log %-populated over an enrichment rotation);
->   the feature must degrade honestly if coverage is low (row simply
->   absent).
+>   **Live probe (2026-08-09, prod creds, n=4 valid):** supplierName
+>   populated ~half the time, and the values are RAW LEGAL-ENTITY
+>   names ("Wenling Chengdong Jiuwei Shoe and Hat Business", "XIN BO
+>   EDUCATIONAL CONSULTATION PTE. LTD.") — unpolished for customer
+>   display. Hence the display-curation gate below. The wave's FIRST
+>   deliverable stays a full coverage probe over an enrichment
+>   rotation; honest degradation when absent (row simply absent).
+> - ⚠ CJ API has a DAILY POINTS budget shared account-wide (observed
+>   exhausted at 85,600 used after the nightly catalog run; resets
+>   daily; exhaustion answers errno 16900500). Supplier capture MUST
+>   ride the existing enrichment rotation — no extra standalone CJ
+>   call loops.
 > - SPA has ORPHANED brand surfaces: `/brands` + `BrandDetail.tsx`
 >   (header + goods via `/srv/goods/list?brandId=`). The PDP renders NO
 >   brand/store row at all.
@@ -996,8 +1004,17 @@
 >   claims NONE): `litemall_brand` gains `source` varchar(31) NOT NULL
 >   default 'manual' ('manual' | 'cj-supplier' | future API names),
 >   `external_id` varchar(63) NULL, `kind` tinyint NOT NULL default 0
->   (0 = consumer brand / 1 = supplier store), UNIQUE (source,
->   external_id). Existing rows → manual/kind 0.
+>   (0 = consumer brand / 1 = supplier store), `display_enabled`
+>   tinyint NOT NULL default 0, UNIQUE (source, external_id).
+>   Existing rows → manual/kind 0/display_enabled 1.
+> - **Display-curation gate (probe-driven):** provider-created rows
+>   land display_enabled=0 — captured and linked (goods.brand_id set)
+>   but NOT rendered until an admin renames the store to something
+>   customer-worthy and enables it (raw CJ legal-entity names must
+>   never render as-is by default). Manual rows default enabled.
+>   Curation = the existing admin brand CRUD + an enable toggle (tiny
+>   gateway-admin half; if no brand panel exists, a minimal
+>   list+rename+toggle lands under the existing admin surfaces).
 > - **Attribution seam (the future-API hook):** goods-management
 >   interface `AttributionProvider` — in: goods/snapshot context; out:
 >   `{kind, name, externalId, logo?}`. Impl #1 = CJ supplier (fields
@@ -1025,8 +1042,9 @@
 > - errno envelope; no new anonymous paths; money untouched (Wave 24
 >   owns money).
 > **Acceptance (dev):** coverage probe logged; an enriched good gets a
-> brand row (source='cj-supplier', kind=1) + goods.brand_id set → PDP
-> shows "Sold by" and the store page lists that supplier's goods; a
+> brand row (source='cj-supplier', kind=1, display_enabled=0) +
+> goods.brand_id set with NO PDP row yet; after admin rename+enable the
+> PDP shows "Sold by" and the store page lists that supplier's goods; a
 > manually created kind=0 brand renders as "Brand" AND lands in the
 > feed brand column while the supplier-attributed good exports blank
 > brand + identifier_exists=false; feed validates for both Meta and
