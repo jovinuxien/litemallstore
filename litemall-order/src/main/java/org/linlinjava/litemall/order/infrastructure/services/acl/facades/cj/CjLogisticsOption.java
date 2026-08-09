@@ -13,7 +13,11 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class CjLogisticsOption {
     private String logisticName;
-    /** CJ's own shipping cost (USD) — internal merchant cost, never surfaced to customers. */
+    /**
+     * CJ's own shipping cost — internal merchant cost, never surfaced to customers. USD as
+     * fetched from CJ; {@code CjFreightQuoteService} converts to the store currency
+     * ({@code litemall.order.fx-usd-eur}) at the quote seam.
+     */
     private BigDecimal logisticPrice;
     /** Delivery-time estimate as CJ reports it, e.g. "8-12" (days). */
     private String logisticAging;

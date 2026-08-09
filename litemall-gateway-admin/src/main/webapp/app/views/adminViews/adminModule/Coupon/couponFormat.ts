@@ -1,4 +1,5 @@
 import { ICoupon } from 'app/shared/model/admin/promotion-system.model';
+import { money } from 'app/shared/util/money';
 
 // Wave 18: pure render/validation helpers for the coupon scope + percent
 // surfaces (CouponForm / CouponList). Kept view-free so they are unit-testable.
@@ -17,9 +18,7 @@ export const PERCENT_MIN = 1;
 export const PERCENT_MAX = 90;
 export const MAX_SCOPE_GOODS = 500;
 
-const money = (v: number): string => `$${Number(v).toFixed(2)}`;
-
-// "10% off (up to $5.00)" | "$5.00 off" — for lists and read-only surfaces.
+// "10% off (up to €5.00)" | "€5.00 off" — for lists and read-only surfaces.
 export const fmtCouponDiscount = (c: ICoupon): string => {
   if (c.discount == null) return '—';
   if ((c.discountType ?? DISCOUNT_FLAT) === DISCOUNT_PERCENT) {

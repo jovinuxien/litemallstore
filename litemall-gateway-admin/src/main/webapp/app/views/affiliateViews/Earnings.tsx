@@ -1,6 +1,7 @@
 import { IBrokerageRecord, useListRecordsQuery } from 'app/shared/reducers/private/services/affiliateApi';
 import { ElTag, PAGE_SIZES, Pagination, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
+import { money } from 'app/shared/util/money';
 
 // Earnings ledger (Wave 5): the affiliate's own litemall_user_brokerage_record
 // rows from GET /srv/private/affiliate/records — commissions (pm=1) and
@@ -19,7 +20,6 @@ export const recordStatus = (row: IBrokerageRecord): { tag: ElTag; label: string
   }
 };
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 const when = (v?: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '—');
 
 const AffiliateEarnings: React.FC = () => {

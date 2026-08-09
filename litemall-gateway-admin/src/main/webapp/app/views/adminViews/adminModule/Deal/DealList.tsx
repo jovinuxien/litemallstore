@@ -8,6 +8,7 @@ import {
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { money } from 'app/shared/util/money';
 
 // Flash Deals admin list (adminDealApi → /srv/private/admin/deal through the
 // gateway). Paged .el-table in the BrandList/FreightTemplateList look: goods
@@ -16,7 +17,7 @@ import { Link } from 'react-router-dom';
 // are currently running. Business errors (errno 650/651/652) surface their
 // errmsg inline instead of navigating away.
 
-const fmtPrice = (v?: number | null): string => (v == null ? '—' : Number(v).toFixed(2));
+const fmtPrice = (v?: number | null): string => money(v);
 // ISO LocalDateTime "2026-07-15T18:00:00" → "2026-07-15 18:00:00" for display.
 const fmtTime = (v?: string): string => (v ? v.replace('T', ' ') : '—');
 

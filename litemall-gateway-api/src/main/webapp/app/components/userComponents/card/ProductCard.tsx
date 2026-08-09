@@ -5,6 +5,7 @@ import { useAppDispatch } from 'app/config/store';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
 import { productPath } from 'app/shared/util/slug';
+import { starIcons } from 'app/shared/util/stars';
 import './product-card.scss';
 
 /**
@@ -64,23 +65,18 @@ interface Props {
 }
 
 /**
- * Storefront product card, laid out like a cjdropshipping.com catalog card —
- * a clean vertical stack: square image, 2-line title, a small meta line
- * (rating / sold, CJ's "Lists:" analog), then the price — restyled onto the
- * storefront's Teal & Coral tokens (--lm-* in product-card.scss), so the CJ
- * structure wears this shop's colors. The discount badge overlays the image
- * (the stack below stays as clean as CJ's); flash-deal countdown, free
- * shipping and the add-to-cart CTA keep their places below the price.
- * Deliberately NOT copied from CJ: the warehouse/country chips.
- *
- * A quantity stepper rides next to the CTA so a shopper can drop N of a
- * product into the cart straight from the grid (SKU/variant choice still
- * happens on the detail page).
+ * Storefront product card — Amazon-parity polish over the CJ-style vertical
+ * stack: square image, 2-line title, five-star rating row, price with
+ * superscript cents + "List:" strikethrough, then the add-to-cart CTA.
+ * BADGE DISCIPLINE: at most ONE overlay badge on the image (deal >
+ * discount-% > coupon > group buy); signals that lose the slot demote to
+ * small text chips under the price so no card ever stacks a badge wall.
+ * The whole card is a click target (stretched title link); the CTA layers
+ * above it. Quantity moved to the PDP/cart — grid adds are always qty 1.
  */
 const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const dispatch = useAppDispatch();
   const [added, setAdded] = useState(false);
-  const [qty, setQty] = useState(1);
   // The backend goods DTO uses goodsName / goodsId:{id} / new / hot, while IGood
   // types them as name / id / isNew / isHot. Read whichever is present so cards
   // work against both the OCS search shape and the home/list payloads.
@@ -128,9 +124,25 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
   const claimedPct = p.dealActive && typeof p.dealClaimedPct === 'number' ? Math.min(100, p.dealClaimedPct) : undefined;
 
-  // Quick add: drop the goods into the (local) cart at the stepper's quantity.
-  // SKU/spec selection still happens on the detail page; this gives the
-  // marketplace an N-tap-free add. Carry `source` so a CJ line is recognized at
+  // One overlay badge, by priority; every other signal demotes to a text chip
+  // under the price. Discount always keeps its coral "-N%" token in the price
+  // row (the PDP pattern), so it never needs a chip.
+  const overlay: 'deal' | 'discount' | 'coupon' | 'groupon' | null = isHot
+    ? 'deal'
+    : hasDiscount
+      ? 'discount'
+      : hasCoupon
+        ? 'coupon'
+        : hasGroupon
+          ? 'groupon'
+          : null;
+
+  // Amazon-style price: integer part big, cents superscript. toFixed keeps the
+  // split locale-stable; the List: strikethrough stays locale-formatted.
+  const [priceInt, priceCents] = retail.toFixed(2).split('.');
+
+  // Quick add: drop ONE unit into the (local) cart. SKU/spec selection still
+  // happens on the detail page. Carry `source` so a CJ line is recognized at
   // checkout — a CJ quick-add has no chosen variant (productId), so checkout
   // will prompt the shopper to open it and pick one.
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -143,7 +155,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         goodsId: String(id),
         goodsName: name,
         price: retail,
-        number: qty,
+        number: 1,
         picUrl,
         specifications: [],
         checked: true,
@@ -151,43 +163,38 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
       })
     );
     setAdded(true);
-    setQty(1);
     setTimeout(() => setAdded(false), 1400);
-  };
-
-  const stepQty = (e: React.MouseEvent, delta: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setQty(prev => Math.min(999, Math.max(1, prev + delta)));
   };
 
   return (
     <div className="lm-card">
-      {/* Square, CJ-style image; the discount % and deal flag overlay it so the
-          text stack below stays as clean as CJ's. */}
-      <Link to={to} className="lm-card__media">
+      {/* Square image; ONE overlay badge max (priority above). */}
+      <Link to={to} className="lm-card__media" tabIndex={-1} aria-hidden="true">
         <img className="lm-card__img" src={picUrl} alt={name} loading="lazy" />
-        {hasDiscount && <span className="lm-card__discount">-{discountPct}%</span>}
-        {(isHot || hasCoupon || hasGroupon) && (
+        {overlay === 'discount' && <span className="lm-card__discount">-{discountPct}%</span>}
+        {overlay && overlay !== 'discount' && (
           <span className="lm-card__flags">
-            {isHot && <span className="lm-card__deal-label">Limited time deal</span>}
-            {hasCoupon && <span className="lm-card__coupon">Coupon</span>}
-            {hasGroupon && <span className="lm-card__groupon">Group buy</span>}
+            {overlay === 'deal' && <span className="lm-card__deal-label">Limited time deal</span>}
+            {overlay === 'coupon' && <span className="lm-card__coupon">Coupon</span>}
+            {overlay === 'groupon' && <span className="lm-card__groupon">Group buy</span>}
           </span>
         )}
       </Link>
 
       <div className="lm-card__body">
-        {/* CJ stack: title → meta count line → price. */}
+        {/* Stretched link: this anchor's ::after covers the whole card. */}
         <Link to={to} className="lm-card__title" title={name}>
           {nameNode ?? name}
         </Link>
 
         <div className="lm-card__meta">
           {rating > 0 && (
-            <span className="lm-card__rating">
-              <span className="lm-card__star">★</span>
-              {rating.toFixed(1)}
+            <span className="lm-card__rating" aria-label={`${rating.toFixed(1)} of 5 stars`}>
+              <span className="lm-card__stars">
+                {starIcons(rating).map((cls, i) => (
+                  <i key={i} className={`bi ${cls}`} />
+                ))}
+              </span>
               {Number(p.reviewCount) > 0 && <span className="lm-card__rcount">({Number(p.reviewCount)})</span>}
             </span>
           )}
@@ -195,9 +202,11 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         </div>
 
         <div className="lm-card__price-row">
+          {hasDiscount && overlay !== 'discount' && <span className="lm-card__disc">-{discountPct}%</span>}
           <span className="lm-card__price">
             <span className="lm-card__cur">US&nbsp;$</span>
-            {fmtPrice(retail)}
+            {priceInt}
+            <sup className="lm-card__cents">{priceCents}</sup>
           </span>
           {hasDiscount && (
             <span className="lm-card__orig">
@@ -205,6 +214,14 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
             </span>
           )}
         </div>
+
+        {/* Signals that lost the overlay slot demote to quiet text chips. */}
+        {((hasCoupon && overlay !== 'coupon') || (hasGroupon && overlay !== 'groupon')) && (
+          <div className="lm-card__chips">
+            {hasCoupon && overlay !== 'coupon' && <span className="lm-card__coupon">Coupon</span>}
+            {hasGroupon && overlay !== 'groupon' && <span className="lm-card__groupon">Group buy</span>}
+          </div>
+        )}
 
         {remaining && (
           <div className="lm-card__deal" style={{ fontSize: '0.78rem', color: '#CC0C39', fontWeight: 600 }}>
@@ -221,15 +238,6 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         {p.isFreeShipping && <div className="lm-card__shipping">🚚 Free shipping</div>}
 
         <div className="lm-card__actions">
-          <div className="lm-card__qty" aria-label="Quantity">
-            <button type="button" className="lm-card__qty-btn" onClick={e => stepQty(e, -1)} disabled={qty <= 1} aria-label="Decrease quantity">
-              −
-            </button>
-            <span className="lm-card__qty-val">{qty}</span>
-            <button type="button" className="lm-card__qty-btn" onClick={e => stepQty(e, 1)} aria-label="Increase quantity">
-              +
-            </button>
-          </div>
           <button type="button" className={`lm-card__cart${added ? ' lm-card__cart--added' : ''}`} onClick={handleAddToCart}>
             {added ? 'Added ✓' : 'Add to cart'}
           </button>

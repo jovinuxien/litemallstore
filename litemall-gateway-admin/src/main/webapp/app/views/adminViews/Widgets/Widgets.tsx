@@ -17,7 +17,7 @@ class Widgets extends React.Component {
             <Widget01 color='info' header='12.124' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget01 color='warning' header='$98.111,00' smallText=''>
+            <Widget01 color='warning' header='€98.111,00' smallText=''>
               <small className='text-muted'>Excepteur sint occaecat...</small>
             </Widget01>
           </Col>
@@ -31,7 +31,7 @@ class Widgets extends React.Component {
             <Widget01 color='warning' variant='inverse' header='12.124' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget01 color='danger' variant='inverse' header='$98.111,00' smallText=''>
+            <Widget01 color='danger' variant='inverse' header='€98.111,00' smallText=''>
               <small className='text-muted'>Excepteur sint occaecat...</small>
             </Widget01>
           </Col>
@@ -41,54 +41,54 @@ class Widgets extends React.Component {
         </Row>
         <Row>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-laptop' color='info' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-laptop' color='info' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-bell' color='danger' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-bell' color='danger' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' footer link='#/charts' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' footer link='#/charts' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-laptop' color='info' footer />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-laptop' color='info' footer />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' footer />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' footer />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-bell' color='danger' footer />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-bell' color='danger' footer />
           </Col>
         </Row>
         <Row>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' variant='1' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' variant='1' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-laptop' color='info' variant='1' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-laptop' color='info' variant='1' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' variant='1' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' variant='1' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-bell' color='danger' variant='1' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-bell' color='danger' variant='1' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' variant='2' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-cogs' color='primary' variant='2' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-laptop' color='info' variant='2' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-laptop' color='info' variant='2' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' variant='2' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-moon-o' color='warning' variant='2' />
           </Col>
           <Col xs='12' sm='6' lg='3'>
-            <Widget02 header='$1.999,50' mainText='Income' icon='fa fa-bell' color='danger' variant='2' />
+            <Widget02 header='€1.999,50' mainText='Income' icon='fa fa-bell' color='danger' variant='2' />
           </Col>
         </Row>
         <Row>

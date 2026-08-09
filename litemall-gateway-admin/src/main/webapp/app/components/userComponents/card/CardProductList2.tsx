@@ -49,7 +49,7 @@ const CardProductList2: React.FC<CardProductList2Props> = props => {
               {product.originPrice > 0 && <del className='small text-muted me-2'>${product.originPrice}</del>}
               {(product.discountPercentage > 0 || product.discountPrice > 0) && (
                 <span className={`rounded p-1 bg-warning me-2 small`}>
-                  -{product.discountPercentage > 0 ? product.discountPercentage + '%' : '$' + product.discountPrice}
+                  -{product.discountPercentage > 0 ? product.discountPercentage + '%' : '€' + product.discountPrice}
                 </span>
               )}
               {product.isFreeShipping && (

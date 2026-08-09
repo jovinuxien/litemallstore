@@ -6,13 +6,13 @@ import {
 import { PAGE_SIZES, Pagination, Spinner, Tag, errnoMessage } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { money } from 'app/shared/util/money';
 
 // Promoters (Wave 5): search litemall_user and grant/revoke the is_promoter
 // flag — promoters are ADMIN-GRANTED only (locked design; no self-serve
 // signup). Revoking also kills the user's affiliate sessions edge-side. Each
 // row links to the read-only brokerage ledger drill-down.
 
-const money = (v?: number) => (v == null ? '—' : `$${Number(v).toFixed(2)}`);
 const when = (v?: string) => (v ? String(v).replace('T', ' ').slice(0, 19) : '—');
 
 const PromoterList: React.FC = () => {
