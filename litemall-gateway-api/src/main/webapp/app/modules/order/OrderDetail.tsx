@@ -7,6 +7,7 @@ import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHea
 import { orderApi } from 'app/shared/api';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { orderAddressLines } from 'app/shared/util/address';
+import { money } from 'app/shared/util/money';
 import { QRCodeSVG } from 'qrcode.react';
 
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
@@ -150,16 +151,16 @@ const OrderDetailView: React.FC = () => {
         <CellGroup>
           <OrderSummary
             rows={[
-              { label: 'Goods total', value: `$${priceNum(order.goodsPrice).toFixed(2)}` },
+              { label: 'Goods total', value: money(priceNum(order.goodsPrice)) },
               {
                 label: 'Shipping',
-                value: priceNum(order.freightPrice) > 0 ? `$${priceNum(order.freightPrice).toFixed(2)}` : 'Free',
+                value: priceNum(order.freightPrice) > 0 ? money(priceNum(order.freightPrice)) : 'Free',
                 variant: 'muted',
               },
               ...(priceNum(order.couponPrice) > 0
-                ? [{ label: 'Coupon', value: `−$${priceNum(order.couponPrice).toFixed(2)}`, variant: 'success' as const }]
+                ? [{ label: 'Coupon', value: `−${money(priceNum(order.couponPrice))}`, variant: 'success' as const }]
                 : []),
-              { label: 'Total paid', value: `$${priceNum(order.actualPrice).toFixed(2)}`, variant: 'total' },
+              { label: 'Total paid', value: money(priceNum(order.actualPrice)), variant: 'total' },
             ]}
           />
         </CellGroup>

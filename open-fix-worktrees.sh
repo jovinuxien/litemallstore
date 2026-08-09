@@ -11,16 +11,15 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Active worktrees (2026-08-09, Wave 24: EUR storefront currency flip).
-# Launch with FRESH=1 when a NEW wave is commissioned so the assignment
-# prompt is delivered instead of resuming a finished session. Parked:
-# "promotion", "platform". Each name must have a matching
+# Active worktrees (2026-08-09, Wave 25: feed quality + supplier/brand
+# attribution). Launch with FRESH=1 when a NEW wave is commissioned so the
+# assignment prompt is delivered instead of resuming a finished session.
+# Parked: "order", "promotion", "platform". Each name must have a matching
 # '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "goods-management"  # EUR at the CJ cost-landing seams + currency label
-  "order"             # CJ freight USD→EUR at the quote seam
-  "gateway-api"       # € formatter across the storefront + analytics EUR
-  "gateway-admin"     # $→€ across admin money surfaces
+  "goods-management"  # V60 attribution seam + Merchant-feed quality + hygiene
+  "gateway-api"       # PDP "Sold by" row + brand/store pages revive
+  "gateway-admin"     # brand curation: rename + display_enabled toggle
 )
 
 mkdir -p "$WT_BASE"

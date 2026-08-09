@@ -1,4 +1,5 @@
 import { ICoupon, userApi } from 'app/shared/api';
+import { EURO } from 'app/shared/util/money';
 
 /**
  * Wave-18 coupon rendering helpers — ONE place that knows the flat-vs-percent
@@ -6,9 +7,9 @@ import { ICoupon, userApi } from 'app/shared/api';
  * picker) says the same thing.
  *
  * Contract facts (Wave-18, CLAUDE.md):
- *  - `discountType` 0/absent = flat dollars off; 1 = percent-off where
- *    `discount` holds the RATE (1–90) and `discountCap` an optional dollar cap.
- *  - EXCEPTION: `/srv/coupon/selectlist` returns the COMPUTED effective dollar
+ *  - `discountType` 0/absent = flat euros off; 1 = percent-off where
+ *    `discount` holds the RATE (1–90) and `discountCap` an optional euro cap.
+ *  - EXCEPTION: `/srv/coupon/selectlist` returns the COMPUTED effective euro
  *    discount in `discount` for BOTH types (order math is unchanged) — use
  *    {@link couponPickerLabel} there, never the rate-based labels.
  *  - Pre-Wave-18 payloads carry none of the new fields: absent ⇒ flat,
@@ -17,30 +18,30 @@ import { ICoupon, userApi } from 'app/shared/api';
 
 export const isPercentCoupon = (c: ICoupon): boolean => c.discountType === 1;
 
-const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? ` (up to $${c.discountCap})` : '');
+const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? ` (up to ${EURO}${c.discountCap})` : '');
 
-/** Compact value for card/strip headings: "15%" or "$5". */
+/** Compact value for card/strip headings: "15%" or "€5". */
 export const couponValueShort = (c: ICoupon): string =>
-  isPercentCoupon(c) ? `${c.discount ?? 0}%` : `$${c.discount ?? 0}`;
+  isPercentCoupon(c) ? `${c.discount ?? 0}%` : `${EURO}${c.discount ?? 0}`;
 
-/** Full sentence label: "15% off (up to $20)" or "$5 off". */
+/** Full sentence label: "15% off (up to €20)" or "€5 off". */
 export const couponDiscountLabel = (c: ICoupon): string =>
-  isPercentCoupon(c) ? `${c.discount ?? 0}% off${cap(c)}` : `$${c.discount ?? 0} off`;
+  isPercentCoupon(c) ? `${c.discount ?? 0}% off${cap(c)}` : `${EURO}${c.discount ?? 0} off`;
 
-/** Threshold line: "Spend $50" / "No minimum", with the percent cap appended. */
+/** Threshold line: "Spend €50" / "No minimum", with the percent cap appended. */
 export const couponConditionLabel = (c: ICoupon): string =>
-  `${c.min ? `Spend $${c.min}` : 'No minimum'}${isPercentCoupon(c) && c.discountCap ? ` · up to $${c.discountCap}` : ''}`;
+  `${c.min ? `Spend ${EURO}${c.min}` : 'No minimum'}${isPercentCoupon(c) && c.discountCap ? ` · up to ${EURO}${c.discountCap}` : ''}`;
 
 /**
  * Checkout-picker option text. `c` comes from selectlist, so `discount` is the
- * server-computed effective DOLLAR discount for this cart even for percent
- * coupons — render dollars (that is what will be charged) and flag the type.
+ * server-computed effective EURO discount for this cart even for percent
+ * coupons — render euros (that is what will be charged) and flag the type.
  */
 export const couponPickerLabel = (c: ICoupon): string => {
   const name = c.name ? `${c.name} — ` : '';
-  const min = c.min ? ` (over $${c.min})` : '';
-  const kind = isPercentCoupon(c) ? ` · percent coupon${c.discountCap ? `, up to $${c.discountCap}` : ''}` : '';
-  return `${name}−$${c.discount}${min}${kind}`;
+  const min = c.min ? ` (over ${EURO}${c.min})` : '';
+  const kind = isPercentCoupon(c) ? ` · percent coupon${c.discountCap ? `, up to ${EURO}${c.discountCap}` : ''}` : '';
+  return `${name}−${EURO}${c.discount}${min}${kind}`;
 };
 
 /** Scope target for "shop eligible items": category landing, PDP, or search. */

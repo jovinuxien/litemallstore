@@ -3,6 +3,7 @@ import { Alert, Button, Spinner } from 'react-bootstrap';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { useAppSelector } from 'app/config/store';
 import { ICombination, ICombinationPink, promotionApi } from 'app/shared/api';
@@ -227,11 +228,11 @@ const GrouponDetail: React.FC = () => {
             </Link>
             <div className='mt-2 d-flex align-items-baseline gap-2 flex-wrap'>
               <span className='fs-4 fw-bold' style={{ color: 'var(--lm-primary, #0d7d80)' }}>
-                ${groupPrice.toFixed(2)}
+                {money(groupPrice)}
               </span>
               {originalPrice > groupPrice && (
                 <span className='text-muted'>
-                  <s>${originalPrice.toFixed(2)}</s> regular
+                  <s>{money(originalPrice)}</s> regular
                 </span>
               )}
             </div>
@@ -289,7 +290,7 @@ const GrouponDetail: React.FC = () => {
             <div className='mt-3 d-flex gap-2 flex-wrap'>
               {myCta === 'checkout' && mySlot.pinkId != null && (
                 <Button size='sm' variant='primary' onClick={() => toProductWithSlot(mySlot.pinkId!)}>
-                  Buy now at ${groupPrice.toFixed(2)}
+                  Buy now at {money(groupPrice)}
                 </Button>
               )}
               {canInvite(mySlot, now) && myLeaderId != null && (
@@ -326,7 +327,7 @@ const GrouponDetail: React.FC = () => {
               <div className='small text-muted mt-1'>Join to buy this product at the group price.</div>
             )}
             <Button size='sm' variant='primary' className='mt-2' disabled={actionBusy} onClick={() => void joinGroup()}>
-              {isAuthenticated ? `Join this group — $${groupPrice.toFixed(2)}` : 'Sign in to join'}
+              {isAuthenticated ? `Join this group — ${money(groupPrice)}` : 'Sign in to join'}
             </Button>
           </div>
         )}

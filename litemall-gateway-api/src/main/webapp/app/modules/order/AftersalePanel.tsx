@@ -5,6 +5,7 @@ import { Cell, CellGroup } from 'app/components/commonComponents/storefront';
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { orderApi } from 'app/shared/api';
 import { IAftersale } from 'app/shared/model/order/order.model';
+import { money } from 'app/shared/util/money';
 
 const TYPE_LABELS: Record<number, string> = {
   0: 'Refund (goods not received)',
@@ -83,7 +84,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
         <Cell key={a.id} title={`${TYPE_LABELS[a.type ?? 1] ?? 'After-sales'} · ${a.statusText ?? ''}`}>
           <div className='small text-muted'>
             {a.reason}
-            {a.amount != null && <> · requested ${Number(a.amount).toFixed(2)}</>}
+            {a.amount != null && <> · requested {money(a.amount)}</>}
             {a.addTime && <> · {a.addTime}</>}
           </div>
           {a.status === 1 && a.id != null && (

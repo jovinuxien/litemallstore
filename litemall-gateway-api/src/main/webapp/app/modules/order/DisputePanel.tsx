@@ -4,6 +4,7 @@ import { Alert, Form, Spinner } from 'react-bootstrap';
 import { CellGroup } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { IDispute, IDisputeContext } from 'app/shared/model/order/order.model';
+import { money } from 'app/shared/util/money';
 
 /**
  * "Report a problem" panel for a DROPSHIP (source='cj') order: lists the order's CJ
@@ -125,7 +126,7 @@ const DisputePanel: React.FC<{ orderId: number }> = ({ orderId }) => {
                   <span className='badge text-bg-secondary'>Cancelled</span>
                 ) : d.resolution ? (
                   <span className={`badge ${d.resolution === 'REJECTED' ? 'text-bg-danger' : 'text-bg-success'}`}>
-                    {d.resolution === 'REFUND' && `Refunded${d.refundAmountUsd != null ? ` $${d.refundAmountUsd}` : ''}`}
+                    {d.resolution === 'REFUND' && `Refunded${d.refundAmountUsd != null ? ` ${money(d.refundAmountUsd)}` : ''}`}
                     {d.resolution === 'REISSUE' && `Reissued${d.resendOrderCode ? ` (${d.resendOrderCode})` : ''}`}
                     {d.resolution === 'REJECTED' && 'Rejected'}
                   </span>
@@ -159,7 +160,7 @@ const DisputePanel: React.FC<{ orderId: number }> = ({ orderId }) => {
                   id={`dl-${l.lineItemId}`}
                   checked={(selected[l.lineItemId] ?? 0) > 0}
                   onChange={e => setSelected(prev => ({ ...prev, [l.lineItemId]: e.target.checked ? l.maxQuantity : 0 }))}
-                  label={`${l.productName ?? 'Item'} ($${l.unitPriceUsd ?? '?'} × up to ${l.maxQuantity})`}
+                  label={`${l.productName ?? 'Item'} (${l.unitPriceUsd != null ? money(l.unitPriceUsd) : '?'} × up to ${l.maxQuantity})`}
                 />
                 {(selected[l.lineItemId] ?? 0) > 0 && l.maxQuantity > 1 && (
                   <Form.Select

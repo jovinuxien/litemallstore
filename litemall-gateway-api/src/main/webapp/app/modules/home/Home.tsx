@@ -7,6 +7,8 @@ import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { contentApi, IPageView } from 'app/shared/api';
 import { IBanner } from 'app/shared/model/home.models';
+import { couponValueShort } from 'app/shared/util/couponFormat';
+import { EURO } from 'app/shared/util/money';
 import { IGood } from 'app/shared/model/product/product.model';
 import PageRenderer from '../page/PageRenderer';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
@@ -249,10 +251,10 @@ const HomeView: React.FC = () => {
             </div>
             {coupons.slice(0, 1).map(coupon => (
               <div key={coupon.id} className="lm-coupon">
-                <div className="lm-coupon__amount">${coupon.discount}</div>
+                <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                 <div>
                   <div className="lm-coupon__name">{coupon.name}</div>
-                  {coupon.min != null && <div className="lm-coupon__min">Spend ${coupon.min}</div>}
+                  {coupon.min != null && <div className="lm-coupon__min">Spend {EURO}{coupon.min}</div>}
                 </div>
               </div>
             ))}
@@ -265,10 +267,10 @@ const HomeView: React.FC = () => {
             <div className="lm-coupons">
               {coupons.map(coupon => (
                 <div key={coupon.id} className="lm-coupon">
-                  <div className="lm-coupon__amount">${coupon.discount}</div>
+                  <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                   <div>
                     <div className="lm-coupon__name">{coupon.name}</div>
-                    {coupon.min != null && <div className="lm-coupon__min">Spend ${coupon.min}</div>}
+                    {coupon.min != null && <div className="lm-coupon__min">Spend {EURO}{coupon.min}</div>}
                   </div>
                 </div>
               ))}
