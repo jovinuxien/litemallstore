@@ -1,4 +1,4 @@
-import { analyzeVariantGroup, SplitDisplay } from './variantDisplay';
+import { analyzeVariantGroup, dimImageMap, SplitDisplay } from './variantDisplay';
 
 /** CJ single-group variant decomposition (Amazon-style Color/Size rows). */
 describe('analyzeVariantGroup', () => {
@@ -56,6 +56,21 @@ describe('analyzeVariantGroup', () => {
     expect(d.dims[0].values).toEqual(['Brass Head', 'Plastic Head']);
     expect(d.fullValue({ Option: 'Brass Head' })).toBe('Garden Hose Nozzle Brass Head');
     expect(d.fullValue({ Option: 'Steel Head' })).toBeUndefined();
+  });
+
+  it('maps dim values to distinct SKU images, skipping the main photo (dimImageMap)', () => {
+    const d = analyzeVariantGroup(sandals) as SplitDisplay;
+    const skus = [
+      { full: 'Mens Outdoor Casual Beach Sandals Flip-Flops Black 38', url: '/black.jpg' },
+      { full: 'Mens Outdoor Casual Beach Sandals Flip-Flops Black 39', url: '/black-39.jpg' }, // first per style wins
+      { full: 'Mens Outdoor Casual Beach Sandals Flip-Flops Dark Brown 38', url: '/main.jpg' }, // = main pic → skipped
+      { full: 'Mens Outdoor Casual Beach Sandals Flip-Flops Light Brown 40', url: '/light.jpg' },
+      { full: 'not a variant value', url: '/junk.jpg' },
+      { full: 'Mens Outdoor Casual Beach Sandals Flip-Flops Light Brown 41' }, // no url
+    ];
+    expect(dimImageMap(skus, d, 'Color', '/main.jpg')).toEqual({ Black: '/black.jpg', 'Light Brown': '/light.jpg' });
+    // today's catalog: every SKU carries the main photo → empty map, tiles stay text-only
+    expect(dimImageMap(skus.map(s => ({ ...s, url: '/main.jpg' })), d, 'Color', '/main.jpg')).toEqual({});
   });
 
   it('stays plain for short unshared values, images, and lossy decompositions', () => {
