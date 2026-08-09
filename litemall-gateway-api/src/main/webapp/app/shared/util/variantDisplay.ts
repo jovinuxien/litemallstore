@@ -157,3 +157,29 @@ export const analyzeVariantGroup = (values: VariantValue[]): VariantDisplay => {
 
   return plain;
 };
+
+/**
+ * Per-tile representative images for a split dim (Amazon color swatches):
+ * dimValue -> the first SKU image that (a) belongs to that dim value and
+ * (b) DIFFERS from the main product photo. Returns an empty map until the
+ * catalog carries real per-variant images (today every SKU shares the main
+ * photo — the goods-management variantImage capture backfills this), so the
+ * tiles stay text-only exactly as before.
+ *
+ * `skus` = the SKU list projected to {full: specifications[groupIndex], url}.
+ */
+export const dimImageMap = (
+  skus: Array<{ full?: string; url?: string }>,
+  display: SplitDisplay,
+  dimName: string,
+  mainPicUrl?: string
+): Record<string, string> => {
+  const map: Record<string, string> = {};
+  for (const sku of skus) {
+    if (!sku.url || !sku.full || sku.url === mainPicUrl) continue;
+    const picks = display.picksOf(sku.full);
+    const v = picks?.[dimName];
+    if (v != null && map[v] == null) map[v] = sku.url;
+  }
+  return map;
+};

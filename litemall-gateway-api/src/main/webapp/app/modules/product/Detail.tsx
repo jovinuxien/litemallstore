@@ -11,7 +11,7 @@ import { setPageTitle, resetPageTitle } from 'app/shared/util/pageTitle';
 import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce';
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { briefToText } from 'app/shared/util/briefText';
-import { analyzeVariantGroup, SplitDisplay } from 'app/shared/util/variantDisplay';
+import { analyzeVariantGroup, dimImageMap, SplitDisplay } from 'app/shared/util/variantDisplay';
 import { EURO, moneyAmount } from 'app/shared/util/money';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
@@ -142,10 +142,23 @@ const ProductDetailView: React.FC = () => {
     return products.find(p => sameSpecs(p.specifications, wanted)) ?? products[0];
   }, [products, specGroups, selected]);
 
+  // The photo follows the selection (Amazon behavior): when the resolved SKU
+  // carries a picture of its own, stage it. Inert while SKUs share the main
+  // photo (today's whole catalog — the goods-management variantImage capture
+  // backfills real per-variant shots product by product).
+  useEffect(() => {
+    const u = selectedSku?.url;
+    if (u && u !== goods?.picUrl) setActiveImage(u);
+  }, [selectedSku, goods?.picUrl]);
+
   const gallery = useMemo(() => {
-    const imgs = [goods?.picUrl, ...(goods?.gallery ?? [])].filter((x): x is string => !!x);
-    return Array.from(new Set(imgs));
-  }, [goods]);
+    // Distinct per-SKU variant images join the strip (and the lightbox) once
+    // the catalog carries them — today every SKU shares the main photo, so
+    // this adds nothing (the goods-management variantImage capture backfills).
+    const skuUrls = (products ?? []).map(p => p.url).filter((u): u is string => !!u && u !== goods?.picUrl);
+    const imgs = [goods?.picUrl, ...(goods?.gallery ?? []), ...skuUrls].filter((x): x is string => !!x);
+    return Array.from(new Set(imgs)).slice(0, 16);
+  }, [goods, products]);
 
   // Description = the first TWO images out of the goods.detail HTML blob, text dropped
   // (the raw supplier HTML — CJ especially — is a wall of duplicated text and imagery).
@@ -349,6 +362,18 @@ const ProductDetailView: React.FC = () => {
             ) : (
               display.dims.map(dim => {
                 const picks = display.picksOf(selected[g.name] ?? '') ?? {};
+                // Amazon color swatches: tiles show their variant's own photo
+                // once the catalog carries per-SKU images (empty map today).
+                const gi = specGroups.findIndex(x => x.name === g.name);
+                const tilePics =
+                  dim.name === 'Size'
+                    ? {}
+                    : dimImageMap(
+                        (products ?? []).map(p => ({ full: p.specifications?.[gi], url: p.url })),
+                        display,
+                        dim.name,
+                        goods.picUrl
+                      );
                 return (
                   <div key={`${g.name}-${dim.name}`} className='lm-pdp__optgroup'>
                     <div className='lm-pdp__optlabel'>
@@ -369,6 +394,7 @@ const ProductDetailView: React.FC = () => {
                             disabled={isSize && !available}
                             onClick={() => pickSplitDim(g.name, display, g.values, dim.name, v)}
                           >
+                            {tilePics[v] && <img src={tilePics[v]} alt='' loading='lazy' />}
                             {v}
                           </button>
                         );
