@@ -16,12 +16,15 @@ import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
 import Breadcrumb from './productDetailComponent/Breadcrumb';
 import CollectButton from './productDetailComponent/CollectButton';
+import CommonQuestions from './productDetailComponent/CommonQuestions';
 import CouponStrip from './productDetailComponent/CouponStrip';
 import DealBanner from './productDetailComponent/DealBanner';
 import GalleryLightbox from './productDetailComponent/GalleryLightbox';
 import GroupBuyStrip from './productDetailComponent/GroupBuyStrip';
 import RatingSummary from './productDetailComponent/RatingSummary';
+import RecentlyViewed from './productDetailComponent/RecentlyViewed';
 import Reviews from './productDetailComponent/Reviews';
+import ShareButton from './productDetailComponent/ShareButton';
 import './Detail.scss';
 
 const fmt = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -268,6 +271,7 @@ const ProductDetailView: React.FC = () => {
 
         {/* Title / price / variants */}
         <section className='lm-pdp__info'>
+          {goods.hot && <span className='lm-pdp__popular'>Popular</span>}
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
           <RatingSummary goodsId={gid} />
           {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
@@ -285,6 +289,10 @@ const ProductDetailView: React.FC = () => {
             {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
           </div>
 
+          {/* Claimable coupons, Amazon coupon-row style, tight under the price.
+              Store-wide offers — the public list carries no scope fields. */}
+          <CouponStrip />
+
           <DealBanner goodsId={gid} isCj={isCj} />
 
           {/* Wave-21 group-buy entry — renders only when an active combination
@@ -299,9 +307,6 @@ const ProductDetailView: React.FC = () => {
               trackAdd();
             }}
           />
-
-          {/* Receivable coupons (litemall-vue coupon row); hidden until live. */}
-          <CouponStrip />
 
           {specGroups.map(g => (
             <div key={g.name} className='lm-pdp__optgroup'>
@@ -374,6 +379,7 @@ const ProductDetailView: React.FC = () => {
           </button>
 
           <CollectButton goodsId={gid} />
+          <ShareButton goodsId={gid} name={goods.goodsName} />
 
           {/* Amazon-style label/value trust rows. Delivery copy stays honest —
               dropshipping times vary by destination (the FAQ framing); freight
@@ -477,8 +483,12 @@ const ProductDetailView: React.FC = () => {
         )}
       </div>
 
+      <CommonQuestions />
+
       {/* Customer reviews (litemall-vue comment list); hidden until live. */}
       <Reviews goodsId={gid} />
+
+      <RecentlyViewed currentGoodsId={gid} />
 
       {lightboxOpen && (
         <GalleryLightbox

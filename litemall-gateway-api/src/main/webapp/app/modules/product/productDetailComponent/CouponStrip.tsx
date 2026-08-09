@@ -45,12 +45,22 @@ const CouponStrip: React.FC = () => {
     <div className='lm-pdp__coupons'>
       {coupons.map(c => (
         <button key={c.id} type='button' className='lm-pdp__coupon' onClick={() => claim(c)} disabled={c.id != null && claimed[c.id]}>
-          <span className='lm-pdp__coupon-val'>−{couponValueShort(c)}</span>
+          <span className='lm-pdp__coupon-val'>
+            <i className='bi bi-tag-fill' /> Save {couponValueShort(c)}
+          </span>
           <span className='lm-pdp__coupon-min'>
             {c.min ? `over $${c.min}` : 'no minimum'}
             {isPercentCoupon(c) && c.discountCap ? ` · up to $${c.discountCap}` : ''}
           </span>
-          <span className='lm-pdp__coupon-cta'>{c.id != null && claimed[c.id] ? 'Claimed' : 'Claim'}</span>
+          <span className='lm-pdp__coupon-cta'>
+            {c.id != null && claimed[c.id] ? (
+              <>
+                <i className='bi bi-check-lg' /> Collected
+              </>
+            ) : (
+              'Claim coupon'
+            )}
+          </span>
         </button>
       ))}
       <Link to='/coupons' className='lm-pdp__coupon-all small text-decoration-none align-self-center flex-shrink-0'>
