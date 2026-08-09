@@ -49,6 +49,8 @@ const COLOR_WORDS = new Set([
   'black', 'white', 'brown', 'blue', 'red', 'green', 'grey', 'gray', 'beige',
   'khaki', 'navy', 'pink', 'purple', 'yellow', 'orange', 'gold', 'silver',
   'cream', 'ivory', 'tan', 'wine', 'coffee', 'apricot', 'camel', 'burgundy',
+  'peach', 'mint', 'teal', 'cyan', 'magenta', 'rose', 'coral', 'lavender',
+  'violet', 'turquoise', 'champagne', 'bronze', 'multicolor', 'colorful',
 ]);
 
 const words = (s: string): string[] => s.trim().split(/\s+/).filter(Boolean);
@@ -101,7 +103,10 @@ export const analyzeVariantGroup = (values: VariantValue[]): VariantDisplay => {
 
     const hasStyle = styles.some(s => s !== '');
     if (hasStyle && styles.some(s => s === '')) return plain; // mixed shapes — bail
-    const styleName = hasStyle && styles.every(s => words(s).some(w => COLOR_WORDS.has(w.toLowerCase()))) ? 'Color' : 'Style';
+    // Majority rule: CJ color names drift beyond any fixed list ("Peach",
+    // brand shades) — label the dim "Color" when MOST values look like colors.
+    const colorish = styles.filter(s => words(s).some(w => COLOR_WORDS.has(w.toLowerCase()))).length;
+    const styleName = hasStyle && colorish * 2 > styles.length ? 'Color' : 'Style';
 
     const dims: VariantDim[] = hasStyle
       ? [
