@@ -23,6 +23,11 @@ export const catalogApi = {
   goodsDetail: (id: string) => unwrap(baseAxios.get(`${SRV}/goods/detail?id=${encodeURIComponent(id)}`)),
   /** GET /srv/goods/related?id= — related products row. */
   related: (id: string) => unwrap(baseAxios.get(`${SRV}/goods/related?id=${encodeURIComponent(id)}`)),
+  /** GET /srv/goods/meta/{id} — slim public meta (Wave-13 SEO contract): rating, reviewCount, categoryName…. Numeric ids only. */
+  goodsMeta: (id: number | string) =>
+    unwrap<{ rating?: number | null; reviewCount?: number; categoryId?: number; categoryName?: string }>(
+      baseAxios.get(`${SRV}/goods/meta/${encodeURIComponent(String(id))}`)
+    ),
   /** GET /srv/goods/list — flat SQL listing (used for hot/new/category quick lists). */
   goodsList: (params: GoodsListParams) => unwrap(baseAxios.get(`${SRV}/goods/list`, { params })),
   /** GET /srv/catalog/all — full category tree (mega menu). */

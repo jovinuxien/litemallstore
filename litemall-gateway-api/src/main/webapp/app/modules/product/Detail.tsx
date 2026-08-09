@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { userApi } from 'app/shared/api';
@@ -14,10 +14,13 @@ import { briefToText } from 'app/shared/util/briefText';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
+import Breadcrumb from './productDetailComponent/Breadcrumb';
 import CollectButton from './productDetailComponent/CollectButton';
 import CouponStrip from './productDetailComponent/CouponStrip';
 import DealBanner from './productDetailComponent/DealBanner';
+import GalleryLightbox from './productDetailComponent/GalleryLightbox';
 import GroupBuyStrip from './productDetailComponent/GroupBuyStrip';
+import RatingSummary from './productDetailComponent/RatingSummary';
 import Reviews from './productDetailComponent/Reviews';
 import './Detail.scss';
 
@@ -59,6 +62,7 @@ const ProductDetailView: React.FC = () => {
   const [activeImage, setActiveImage] = useState<string>('');
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<'description' | 'specs'>('description');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -232,13 +236,19 @@ const ProductDetailView: React.FC = () => {
 
   return (
     <div className='lm-pdp'>
+      <Breadcrumb categoryIds={data.categoryIds} />
       <div className='lm-pdp__top'>
         {/* Gallery */}
         <section className='lm-pdp__gallery'>
-          <div className='lm-pdp__stage'>
+          <button
+            type='button'
+            className='lm-pdp__stage'
+            aria-label='View image fullscreen'
+            onClick={() => setLightboxOpen(true)}
+          >
             <img src={activeImage} alt={goods.goodsName} />
             {hasDiscount && <span className='lm-pdp__badge'>-{discountPct}%</span>}
-          </div>
+          </button>
           {gallery.length > 1 && (
             <div className='lm-pdp__thumbs'>
               {gallery.map(img => (
@@ -259,14 +269,19 @@ const ProductDetailView: React.FC = () => {
         {/* Title / price / variants */}
         <section className='lm-pdp__info'>
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
+          <RatingSummary goodsId={gid} />
           {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
 
           <div className='lm-pdp__pricebox'>
+            {hasDiscount && <span className='lm-pdp__disc'>-{discountPct}%</span>}
             <span className='lm-pdp__price'>
               US&nbsp;${fmt(retail)}
             </span>
-            {hasDiscount && <span className='lm-pdp__orig'>US&nbsp;${fmt(counter)}</span>}
-            {hasDiscount && <span className='lm-pdp__save'>You save {discountPct}%</span>}
+            {hasDiscount && (
+              <span className='lm-pdp__orig'>
+                List Price: <s>US&nbsp;${fmt(counter)}</s>
+              </span>
+            )}
             {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
           </div>
 
@@ -310,14 +325,16 @@ const ProductDetailView: React.FC = () => {
           ))}
 
           {attributes && attributes.length > 0 && (
-            <ul className='lm-pdp__highlights'>
-              {attributes.slice(0, 4).map((a, i) => (
-                <li key={`${a.attributeName}-${i}`}>
-                  <span>{a.attributeName}</span>
-                  <strong>{a.attributeValue}</strong>
-                </li>
-              ))}
-            </ul>
+            <div className='lm-pdp__about'>
+              <h2>About this item</h2>
+              <ul>
+                {attributes.slice(0, 8).map((a, i) => (
+                  <li key={`${a.attributeName}-${i}`}>
+                    <strong>{a.attributeName}:</strong> {a.attributeValue}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </section>
 
@@ -358,17 +375,37 @@ const ProductDetailView: React.FC = () => {
 
           <CollectButton goodsId={gid} />
 
-          <ul className='lm-pdp__assurance'>
-            <li>
-              <i className='bi bi-truck' /> Fast dispatch
-            </li>
-            <li>
-              <i className='bi bi-arrow-counterclockwise' /> 30-day returns
-            </li>
-            <li>
-              <i className='bi bi-shield-check' /> Buyer protection
-            </li>
-          </ul>
+          {/* Amazon-style label/value trust rows. Delivery copy stays honest —
+              dropshipping times vary by destination (the FAQ framing); freight
+              is charged at checkout, so no "FREE delivery" claim. */}
+          <dl className='lm-pdp__trust'>
+            <div>
+              <dt>Delivery</dt>
+              <dd>
+                <Link to='/help'>Varies by destination</Link>
+              </dd>
+            </div>
+            <div>
+              <dt>Ships from</dt>
+              <dd>Trovemo</dd>
+            </div>
+            <div>
+              <dt>Sold by</dt>
+              <dd>Trovemo</dd>
+            </div>
+            <div>
+              <dt>Returns</dt>
+              <dd>
+                <Link to='/returns'>30-day returns</Link>
+              </dd>
+            </div>
+            <div>
+              <dt>Payment</dt>
+              <dd>
+                <i className='bi bi-shield-check' /> Secure transaction
+              </dd>
+            </div>
+          </dl>
         </aside>
       </div>
 
@@ -442,6 +479,15 @@ const ProductDetailView: React.FC = () => {
 
       {/* Customer reviews (litemall-vue comment list); hidden until live. */}
       <Reviews goodsId={gid} />
+
+      {lightboxOpen && (
+        <GalleryLightbox
+          images={gallery.length ? gallery : [activeImage].filter(Boolean)}
+          current={activeImage}
+          onSelect={setActiveImage}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 };
