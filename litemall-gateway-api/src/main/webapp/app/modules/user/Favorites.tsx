@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { userApi } from 'app/shared/api';
 import './user.scss';
 
@@ -71,7 +72,7 @@ const Favorites: React.FC = () => {
                   <div className='lm-fav-card__name'>{it.name ?? it.goodsName}</div>
                 </Link>
                 <div className='lm-fav-card__foot'>
-                  <span className='lm-fav-card__price'>${priceNum(it.retailPrice ?? it.price).toFixed(2)}</span>
+                  <span className='lm-fav-card__price'>{money(priceNum(it.retailPrice ?? it.price))}</span>
                   <button type='button' className='lm-fav-card__remove' onClick={() => remove(pid)} aria-label='Remove'>
                     <i className='bi bi-heart-fill' />
                   </button>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { userApi } from 'app/shared/api';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
 
 /**
@@ -53,7 +54,7 @@ const RecentlyViewed: React.FC<Props> = ({ currentGoodsId }) => {
           <Link key={`${it.goodsId}-${it.id ?? ''}`} to={productPath(it.goodsId!, it.name ?? it.goodsName)} className='lm-pdp__recentcard'>
             <img src={it.picUrl} alt='' loading='lazy' onError={e => (e.currentTarget.style.visibility = 'hidden')} />
             <span className='lm-pdp__recentname'>{it.name ?? it.goodsName}</span>
-            <span className='lm-pdp__recentprice'>US&nbsp;${priceNum(it.retailPrice).toFixed(2)}</span>
+            <span className='lm-pdp__recentprice'>{money(priceNum(it.retailPrice))}</span>
           </Link>
         ))}
       </div>

@@ -33,7 +33,7 @@ const Terms: React.FC = () => (
     <h2 className='h6 mt-4'>Payment</h2>
     <p className='text-muted small'>
       We accept credit/debit cards (processed by Stripe) and your wallet balance. Card details are entered
-      directly with Stripe and never reach our servers. All prices are shown in US dollars (USD).
+      directly with Stripe and never reach our servers. All prices are shown in euros (EUR).
     </p>
 
     <h2 className='h6 mt-4'>Delivery</h2>

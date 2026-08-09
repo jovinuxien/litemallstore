@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
+import { money } from 'app/shared/util/money';
 import { authApi, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
 import { trackPurchase } from 'app/shared/tracking/ecommerce';
@@ -140,10 +141,10 @@ const OrderConfirmation: React.FC = () => {
     const couponPrice = priceNum(d.couponPrice ?? 0);
     const freightPrice = priceNum(d.freightPrice ?? 0);
     return [
-      { label: 'Goods total', value: `$${priceNum(d.goodsPrice ?? 0).toFixed(2)}` },
-      { label: 'Shipping', value: freightPrice > 0 ? `$${freightPrice.toFixed(2)}` : 'Free', variant: 'muted' as const },
-      ...(couponPrice > 0 ? [{ label: 'Coupon', value: `−$${couponPrice.toFixed(2)}`, variant: 'success' as const }] : []),
-      { label: 'Total charged', value: `$${priceNum(d.actualPrice ?? 0).toFixed(2)}`, variant: 'total' as const },
+      { label: 'Goods total', value: money(priceNum(d.goodsPrice ?? 0)) },
+      { label: 'Shipping', value: freightPrice > 0 ? money(freightPrice) : 'Free', variant: 'muted' as const },
+      ...(couponPrice > 0 ? [{ label: 'Coupon', value: `−${money(couponPrice)}`, variant: 'success' as const }] : []),
+      { label: 'Total charged', value: money(priceNum(d.actualPrice ?? 0)), variant: 'total' as const },
     ];
   };
   const fetchedDetails = orderIds.map(orderId => details[orderId]).filter((d): d is IOrderDetail => !!d);

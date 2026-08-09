@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { baseAxios, contentApi, IArticle, ICombination, IPageComponent, IPageView, promotionApi, SRV, unwrap } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
+import { EURO, money } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
 import 'app/components/userComponents/card/product-card.scss';
 import 'app/modules/home/storefront-home.scss';
@@ -178,7 +179,7 @@ interface ICouponAvailable {
   tag?: string;
   discount?: number;
   min?: number;
-  /** Wave-18: 0/absent = flat dollars off; 1 = percent (discount holds the rate). */
+  /** Wave-18: 0/absent = flat euros off; 1 = percent (discount holds the rate). */
   discountType?: number;
   discountCap?: number;
 }
@@ -230,10 +231,10 @@ const CouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config })
         {coupons.map((c, i) => (
           <Link key={c.couponId ?? i} to='/user/coupons' className='lm-coupon text-decoration-none'>
             {/* Percent coupons (Wave-18) show the rate; flat renders exactly as v1. */}
-            <div className='lm-coupon__amount'>{c.discountType === 1 ? `${c.discount}%` : `$${c.discount}`}</div>
+            <div className='lm-coupon__amount'>{c.discountType === 1 ? `${c.discount}%` : `${EURO}${c.discount}`}</div>
             <div>
               <div className='lm-coupon__name'>{c.name}</div>
-              {c.min != null && <div className='lm-coupon__min'>Spend ${c.min}</div>}
+              {c.min != null && <div className='lm-coupon__min'>Spend {EURO}{c.min}</div>}
             </div>
           </Link>
         ))}
@@ -289,9 +290,9 @@ const GrouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
               {g.picUrl && <img src={g.picUrl} alt='' style={{ width: '100%', borderRadius: 6 }} loading='lazy' />}
               <div className='small text-truncate mt-1'>{g.title}</div>
               <div>
-                <span className='fw-bold text-danger'>${g.combinationPrice}</span>
+                <span className='fw-bold text-danger'>{money(g.combinationPrice)}</span>
                 {g.originalPrice != null && (
-                  <span className='small text-muted text-decoration-line-through ms-1'>${g.originalPrice}</span>
+                  <span className='small text-muted text-decoration-line-through ms-1'>{money(g.originalPrice)}</span>
                 )}
               </div>
               {g.requiredMembers != null && <div className='small text-muted'>{g.requiredMembers}-person group</div>}
@@ -349,7 +350,7 @@ const SeckillStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
             <div className='card p-2 h-100' style={{ minWidth: 180 }}>
               {s.picUrl && <img src={s.picUrl} alt='' style={{ width: '100%', borderRadius: 6 }} loading='lazy' />}
               <div className='small text-truncate mt-1'>{s.goodsName}</div>
-              <div className='fw-bold text-danger'>${s.price}</div>
+              <div className='fw-bold text-danger'>{money(s.price)}</div>
               {s.sales != null && <div className='small text-muted'>{s.sales} sold</div>}
             </div>
           );
