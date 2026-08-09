@@ -354,7 +354,7 @@ const ProductDetailView: React.FC = () => {
                     <div className='lm-pdp__optlabel'>
                       {dim.name}: <strong>{picks[dim.name] ?? ''}</strong>
                     </div>
-                    <div className='lm-pdp__opts'>
+                    <div className={`lm-pdp__opts${dim.name === 'Size' ? ' lm-pdp__opts--size' : ''}`}>
                       {dim.values.map(v => {
                         const active = picks[dim.name] === v;
                         const available = display.fullValue({ ...picks, [dim.name]: v }) != null;
