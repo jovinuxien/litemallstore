@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAppDispatch } from 'app/config/store';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
+import { EURO, moneyAmount, moneyParts } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
 import { starIcons } from 'app/shared/util/stars';
 import './product-card.scss';
@@ -30,8 +31,6 @@ export const goodId = (raw: unknown): number | undefined => {
   if (r.id != null) return r.id;
   return typeof r.goodsId === 'object' ? r.goodsId?.id : r.goodsId;
 };
-
-const fmtPrice = (n: number): string => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Compact "sold" count: 1203 -> "1.2k+".
 const fmtSold = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k+` : `${n}`);
@@ -137,9 +136,9 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
           ? 'groupon'
           : null;
 
-  // Amazon-style price: integer part big, cents superscript. toFixed keeps the
-  // split locale-stable; the List: strikethrough stays locale-formatted.
-  const [priceInt, priceCents] = retail.toFixed(2).split('.');
+  // Amazon-style price: integer part big, cents superscript. moneyParts keeps
+  // the split locale-stable; the List: strikethrough stays locale-formatted.
+  const { int: priceInt, cents: priceCents } = moneyParts(retail);
 
   // Quick add: drop ONE unit into the (local) cart. SKU/spec selection still
   // happens on the detail page. Carry `source` so a CJ line is recognized at
@@ -204,13 +203,13 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         <div className="lm-card__price-row">
           {hasDiscount && overlay !== 'discount' && <span className="lm-card__disc">-{discountPct}%</span>}
           <span className="lm-card__price">
-            <span className="lm-card__cur">US&nbsp;$</span>
+            <span className="lm-card__cur">{EURO}</span>
             {priceInt}
             <sup className="lm-card__cents">{priceCents}</sup>
           </span>
           {hasDiscount && (
             <span className="lm-card__orig">
-              List: <s>US&nbsp;${fmtPrice(counter)}</s>
+              List: <s>{EURO}{moneyAmount(counter)}</s>
             </span>
           )}
         </div>

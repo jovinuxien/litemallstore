@@ -2,8 +2,12 @@
 
 Status: DRAFT prepared 2026-08-09 while the worktree halves are in flight.
 Owner: main session. Executes ONLY after all four Wave-24 halves are merged
-to master. The FX rate is chosen and user-approved on deploy day (env
-`LITEMALL_FX_USD_EUR`, e.g. ~0.86 — verify the day's USD→EUR rate).
+to master. **FX rate (USER-APPROVED 2026-08-09): the live market USD→EUR
+rate looked up on flip day** — state the number in the deploy log, use the
+SAME value for the conversion SQL and `LITEMALL_FX_USD_EUR`.
+STAGE 1 DONE 2026-08-09: order + goods-management deployed DORMANT (envs
+present at pre-flip defaults, behavior verified unchanged). Remaining =
+gateway-api € sweep merge, then steps below with BOTH SPA containers.
 
 ## Ordering (single staged pass)
 
