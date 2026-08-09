@@ -953,16 +953,28 @@
 >   surfaces (insight, orders, coupons, deals, dashboards).
 > - Money stays plain decimals; NO currency columns; errno envelope
 >   unchanged; NO changes to stored order history.
-> Deploy activation (MAIN session, single staged pass): set
-> `LITEMALL_FX_USD_EUR` (rate user-approved on deploy day) +
-> `LITEMALL_GOODS_CURRENCY=EUR` + `LITEMALL_ORDER_STRIPE_CURRENCY=eur`
-> together; run the conversion transaction; rebuild goods-management +
-> order + both gateways; full reindex; purge the Cloudflare cache of
-> /meta-catalog.csv; smoke € on PDP/meta/feed + a staged checkout.
-> USER-SIDE after deploy: enable EU payment methods in the Stripe
-> Dashboard (appear in checkout with no rebuild); Stripe Tax
-> registrations + activation; ONE real-card live purchase end-to-end
-> (still never formally verified).
+> **Wave 24 STATUS: SHIPPED + DEPLOYED — THE STORE CHARGES EUR
+> (flipped 2026-08-09 ~18:45 UTC, rate 0.866, master `c6f7fa3bf`).**
+> All four halves + the PDP variant-tiles rider live. Flip executed as
+> two user-fired guarded scripts (classifier boundary): part 1 = env +
+> decimal SQL (avg retail €15.33, freight 6.93; DIED at the JSON step —
+> ⚠ `litemall_cj_product` keys on `pid` varchar, not `id`); part 2 =
+> JSON conversion (72 seckill swap maps + 27,093 variants_json —
+> derived `variant_price` only, raw CJ USD fields untouched) + recreate
+> all four + machine-token reindex (client-credentials gateway-api @
+> authserver:8089 + X-User-Id/X-User-Roles → `{"indexed":13585}`) +
+> smoke. Verified live: PDP €5.32/EUR exact (was $6.14), JSON-LD EUR,
+> new bundle `main.183c3207…`, order boot "Stripe payments ENABLED
+> (currency=eur)". Deliberately skipped: dead-feature tables (bargain/
+> topic/shipping-templates/recharge/user-level/groupon_rules legacy).
+> Known follow-ups: /meta-catalog.csv + sitemap money regenerate with
+> the 03:30 nightly (stale-USD until then, nothing consumes them yet);
+> deal/promo candidates re-propose in EUR at 04:30/04:45.
+> USER-SIDE after deploy: Matomo ecommerce currency SITE SETTING → EUR
+> (admin UI, SPA cannot set it); enable EU payment methods in the
+> Stripe Dashboard (Klarna/SEPA/iDEAL/Bancontact/MobilePay — appear in
+> checkout with no rebuild); Stripe Tax registrations + activation;
+> ONE real-card live EUR purchase end-to-end.
 >
 > **Wave 25 (2026-08-09, QUEUED — starts after Wave 24 merges; same
 > worktrees) — MERCHANT FEED QUALITY + SUPPLIER/BRAND ATTRIBUTION.**
@@ -1214,7 +1226,13 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: Wave 24 (€ storefront display)
+### Worktree: `gateway-api` — done (Wave 24 half + variant tiles SHIPPED, flip live)
+- **Status 2026-08-09:** € sweep `259573d7f` (jest 106/106, live e2e
+  all-green, unicode-minus `−${x}` leak sites caught) + Amazon-style
+  variant grid tiles `e4cc1f980`+`5a27edfd7` all merged and DEPLOYED
+  with the EUR flip (`c6f7fa3bf`). ⚠ Matomo currency = SITE SETTING
+  (user-side); DisputePanel `*Usd` field names are store-currency.
+- **Task (HISTORICAL) — Wave 24 (€ storefront display)**
 - **Task — Wave 24: € everywhere the customer sees money.** Code to the
   Wave-24 CONTRACT above. ONE shared formatter module (e.g.
   `app/shared/util/money.ts`, "€12.34", 2dp) replacing EVERY $-money
