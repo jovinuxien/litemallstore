@@ -964,6 +964,74 @@
 > registrations + activation; ONE real-card live purchase end-to-end
 > (still never formally verified).
 >
+> **Wave 25 (2026-08-09, QUEUED — starts after Wave 24 merges; same
+> worktrees) — MERCHANT FEED QUALITY + SUPPLIER/BRAND ATTRIBUTION.**
+> USER DECISIONS (2026-08-09): CJ `supplierName`/`supplierId` become an
+> honest **"Store"** attribution on the PDP (NEVER presented as a
+> consumer "Brand"); the architecture must accept a FUTURE brand/
+> supplier API with no schema rework (adapter seam + source-tagged
+> rows); feed stops claiming `brand=Trovemo` (misrepresentation risk).
+> Audit facts (2026-08-09 scan, verified against master + prod):
+> - `litemall_brand` exists (49 legacy seed rows; **0/13,492** on-sale
+>   goods carry brand_id>0); `goods.brand_id` ready; the promote path
+>   ALREADY resolves brand strings → rows
+>   (`CjProductPromotionService.resolveBrandId`, currently dead because
+>   `CjSnapshotSyncService.java:207` sets brand null — "CJ has no brand
+>   for most items").
+> - CJ detail DTO parses `supplierName`/`supplierId` TODAY but nothing
+>   persists them; CJ has NO brand field in list OR detail APIs.
+>   `supplierName` fill-rate is UNKNOWN — the wave's FIRST deliverable
+>   is a coverage probe (log %-populated over an enrichment rotation);
+>   the feature must degrade honestly if coverage is low (row simply
+>   absent).
+> - SPA has ORPHANED brand surfaces: `/brands` + `BrandDetail.tsx`
+>   (header + goods via `/srv/goods/list?brandId=`). The PDP renders NO
+>   brand/store row at all.
+> - Feed gaps (live-verified): `google_product_category` empty on ALL
+>   rows, no `identifier_exists`, description==title for most rows,
+>   brand hardcoded "Trovemo", 23 on-sale goods still Chinese-named.
+> **Wave-25 CONTRACT (worktrees code to THIS):**
+> - **V60** (goods-management scope; check `flyway_schema_history`
+>   immediately before first boot — prod applied through V59, Wave 24
+>   claims NONE): `litemall_brand` gains `source` varchar(31) NOT NULL
+>   default 'manual' ('manual' | 'cj-supplier' | future API names),
+>   `external_id` varchar(63) NULL, `kind` tinyint NOT NULL default 0
+>   (0 = consumer brand / 1 = supplier store), UNIQUE (source,
+>   external_id). Existing rows → manual/kind 0.
+> - **Attribution seam (the future-API hook):** goods-management
+>   interface `AttributionProvider` — in: goods/snapshot context; out:
+>   `{kind, name, externalId, logo?}`. Impl #1 = CJ supplier (fields
+>   captured at detail enrichment). A future brand/supplier API = ONE
+>   new provider bean writing the SAME table via the SAME upsert
+>   (keyed source+external_id) — no schema change, no SPA change.
+>   Providers NEVER overwrite a manual admin assignment (manual wins;
+>   provider writes only fill brand_id==0 or rows they own).
+> - Enrichment persists supplier fields; promote links
+>   `goods.brand_id` through the existing resolveBrandId seam
+>   (extended to source+externalId+name).
+> - **Display semantics (gateway-api):** kind=1 renders as "Store" —
+>   PDP row "Sold by <name>" + "More from this store" linking the
+>   EXISTING brand page; kind=0 renders as "Brand". A supplier is
+>   NEVER labeled "Brand". PDP row absent when brand_id==0 (no fake
+>   attribution).
+> - **Feed rules:** `brand` column filled ONLY from kind=0 rows; else
+>   blank + `identifier_exists=false`. Same single feed artifact
+>   (extra columns are legal for both Meta and Google) additionally
+>   gains real `google_product_category` (static CJ-L1 → Google
+>   taxonomy map) and brief-derived descriptions (Wave-13 sanitizer)
+>   replacing title-duplicates.
+> - Catalog hygiene rides along: the 23 Chinese-named goods renamed
+>   (or off-saled with a reason) — they poison feed review.
+> - errno envelope; no new anonymous paths; money untouched (Wave 24
+>   owns money).
+> **Acceptance (dev):** coverage probe logged; an enriched good gets a
+> brand row (source='cj-supplier', kind=1) + goods.brand_id set → PDP
+> shows "Sold by" and the store page lists that supplier's goods; a
+> manually created kind=0 brand renders as "Brand" AND lands in the
+> feed brand column while the supplier-attributed good exports blank
+> brand + identifier_exists=false; feed validates for both Meta and
+> Google column rules; admin brand CRUD regression-green.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
