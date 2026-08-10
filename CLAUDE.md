@@ -1289,6 +1289,19 @@
   4. Verify the image host is covered by the `/_cdn` edge rewrite
      (cf/oss-cf hosts are; anything else must fall back to main photo,
      not serve mixed-content).
+  5. **Supplier-junk validation (prod finding 2026-08-10):** CJ's
+     detail payload delivers the LITERAL STRING "{}" for
+     supplierName/supplierId on some products, and the
+     AttributionProvider upserts it — prod row 1046002 has name AND
+     external_id "{}" (linked to goods 10014602), and
+     UNIQUE(source, external_id) funnels EVERY such product onto that
+     one garbage row (cross-supplier mis-attribution if ever enabled;
+     curation gate keeps it invisible today). Fix: validate BOTH
+     fields before upsert — treat "{}", "", "null", whitespace, and
+     non-name junk as ABSENT (no row, no link; honest degradation).
+     Add the negative-path tests. Cleanup of the existing junk row
+     (delete 1046002 + reset its goods' brand_id) = MAIN session at
+     deploy; your acceptance just proves no NEW junk rows appear.
 - **Acceptance (dev, through :9000/:8090):** unit tests prove DTO
   mapping + variants_json write + promote url landing (mocked CJ
   payload, real counts); if dev CJ creds are available, ONE on-demand
