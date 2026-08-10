@@ -970,8 +970,12 @@
 > Known follow-ups: /meta-catalog.csv + sitemap money regenerate with
 > the 03:30 nightly (stale-USD until then, nothing consumes them yet);
 > deal/promo candidates re-propose in EUR at 04:30/04:45.
-> USER-SIDE after deploy: Matomo ecommerce currency SITE SETTING → EUR
-> (admin UI, SPA cannot set it); enable EU payment methods in the
+> USER-SIDE after deploy: ~~Matomo ecommerce currency SITE SETTING →
+> EUR~~ (MOOT, verified 2026-08-10: Matomo was NEVER ACTIVATED in prod —
+> live site-config serves matomoUrl/matomoSiteId null; the open item is
+> whether to activate analytics at all: deploy the marketing-stack
+> Matomo container + envs, or rely on the live first-party event log +
+> Meta Pixel for now); enable EU payment methods in the
 > Stripe Dashboard (Klarna/SEPA/iDEAL/Bancontact/MobilePay — appear in
 > checkout with no rebuild); Stripe Tax registrations + activation;
 > ONE real-card live EUR purchase end-to-end.
