@@ -1157,23 +1157,25 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: Wave 24.1 (courier upgrade-delta freight)
-- **Task — Wave 24.1: price the customer's courier pick as an upgrade
-  delta.** Code to the Wave-24.1 CONTRACT above. Charged CJ freight =
-  flatComponent (today's ladder incl. FREE_MIN) + max(0,
-  selected − default) from the CJ options (post-fx). The preview
-  endpoint gains optional `cjLogisticName`; submit reads the existing
-  command field; `CheckoutSummaryService.resolveFreight` and the submit
-  pricing MUST share the one implementation (single-authority rule).
-  Absent/unknown courier name ⇒ delta 0, never an error. NO migration.
-- **Acceptance (dev, through :9000/:8090):** preview with no courier =
-  today's number; preview with a pricier courier = flat + exact delta;
-  FREE_MIN cart + upgraded courier charges ONLY the delta; submit
-  charges what the preview showed (DB-verified freight_price); unknown
-  name falls back silently; module tests green with real "Tests run:"
-  counts.
-- **History — idle (Wave 24 order half MERGED)**
+### Worktree: `order` — idle (Wave 24.1 order half DONE)
 - **No active assignment.**
+- **History — Wave 24.1: courier upgrade-delta freight.** Branch commit
+  `95954a08f` (2026-08-10; module tests 278/0, 13 new). Charged CJ
+  freight = flat ladder (incl. FREE_MIN) + `CjFreightQuoteService
+  .upgradeDelta` — max(0, selected − default) over the POST-FX cached
+  options; the ONE implementation behind both
+  `CheckoutSummaryService.resolveFreight` and the submit pricing.
+  `GET /srv/cart/checkout` gained optional `cjLogisticName` (4-arg
+  overload keeps old callers byte-identical); submit reads the existing
+  command field and persists the full charged amount in freight_price
+  (FREE_MIN cart + upgrade = delta only). Absent/unknown pick, CJ
+  outage, or unpriceable lines ⇒ 0.00 (today's charge, never an error).
+  `POST /srv/order/freight-quote` options each carry an ADDITIVE
+  `upgradeDelta` (0.00 = "Included"; null = unpriceable, show no label)
+  for the chooser labels — raw CJ costs remain unsurfaced. ⚠ Dev has no
+  CJ creds ⇒ live options are empty and every live delta is 0 — the
+  delta math is proven at the unit seam (Wave-24 precedent); first
+  nonzero-delta verification happens in prod smoke after deploy.
 - **History — Wave 24: CJ freight USD→EUR fx at the quote seam.**
   MERGED to master `116aee40e` + pushed (2026-08-09; branch commit
   `1f5078d2e`; module tests 261/0 on the merged tree, 5 new in
