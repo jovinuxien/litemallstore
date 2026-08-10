@@ -11,15 +11,11 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Active worktrees (2026-08-09, Wave 25: feed quality + supplier/brand
-# attribution). Launch with FRESH=1 when a NEW wave is commissioned so the
+# Active worktrees: NONE (2026-08-10 — Waves 24, 24.1 and 25 all SHIPPED +
+# DEPLOYED). Launch with FRESH=1 when a NEW wave is commissioned so the
 # assignment prompt is delivered instead of resuming a finished session.
-# Parked: "order", "promotion", "platform". Each name must have a matching
-# '### Worktree: `<short>`' block in CLAUDE.md.
+# Each name must have a matching '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
-  "goods-management"  # V60 attribution seam + Merchant-feed quality + hygiene
-  "gateway-api"       # PDP "Sold by" row + brand/store pages revive
-  "gateway-admin"     # brand curation: rename + display_enabled toggle
 )
 
 mkdir -p "$WT_BASE"

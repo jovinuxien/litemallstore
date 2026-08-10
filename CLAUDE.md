@@ -1138,6 +1138,26 @@
 > storefront smoke (gateway-api session running it). USER-SIDE: create
 > real coupons in admin (the junk test pair was expired 2026-08-10).
 >
+> **Wave 25 STATUS: SHIPPED + DEPLOYED to trovemo.com (2026-08-10 ~02:2x
+> UTC; prod schema V60).** All halves live: goods-management `31922ed8b`
+> (attribution seam + feed quality + hygiene), gateway-admin `3ee441669`
+> (curation UI), gateway-api `65ab8c75b` (Sold-by surfaces, fail-closed).
+> Deploy evidence: startup refresh 543 new / 13,257 updated, promote
+> 27,640/0 failed; reindex 14,132; sitemap 14,147 URLs; feed 14,131 rows
+> with google_product_category on ALL rows + blank brand +
+> identifier_exists=false (Merchant-Center-valid); hygiene run scanned
+> 27,879 → 239 unit glyphs normalized, 0 renames needed (the audit's 23
+> CJK-named goods had already aged out via retire cycles); live bundles
+> verified by CHUNK CONTENT (SoldByRow 493 / BrandList 923 / upgradeDelta
+> 340); smoke all green. Known limits: CF serves a cached pre-deploy
+> feed copy until it ages out/nightly regen — the .env.prod
+> CLOUDFLARE_API_TOKEN is DNS-SCOPED and CANNOT purge cache (a
+> purge-scoped token is needed if deploy-day purges are ever wanted);
+> ⚠ CF 403s python-urllib UA silently — use a browser UA for chunk
+> sweeps. USER-SIDE: admin curation click-through (rename + enable a
+> supplier store → PDP "Sold by" + store page appear) and Merchant
+> Center registration with the live feed.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -1245,7 +1265,10 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
+### Worktree: `goods-management` — idle (Wave 25 SHIPPED + DEPLOYED)
+- **No active assignment.** Launch with FRESH=1 only after a new wave is
+  commissioned and this block is rewritten.
+- **History — Wave 25 (attribution + feed quality), original spec below.**
 - **Status 2026-08-10: Wave-25 backend MERGED to master `d9584114d` +
   pushed; dev acceptance PASSED (incl. both peer halves' cross-half
   acceptance against this V60 dev service — the gateway-api raise about
@@ -1396,7 +1419,10 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: Wave 24.1 (checkout money honesty SPA)
+### Worktree: `gateway-api` — idle (Waves 24.1 + 25 halves SHIPPED + DEPLOYED)
+- **No active assignment.** Launch with FRESH=1 only after a new wave is
+  commissioned and this block is rewritten.
+- **History — Wave 24.1 (checkout money honesty SPA), original spec below.**
 - **Task — Wave 24.1 storefront half.** Code to the Wave-24.1 CONTRACT
   above: CouponStrip passes `goodsId`; checkout coupon cell renders
   verbose unusable coupons greyed with server reasons; courier chooser
@@ -1740,7 +1766,10 @@
   comment). CI's gitleaks job was RED on master per
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
-### Worktree: `promotion` — ACTIVE: Wave 24.1 (scoped coupon list + reasons)
+### Worktree: `promotion` — idle (Wave 24.1 half SHIPPED + DEPLOYED)
+- **No active assignment.** Launch with FRESH=1 only after a new wave is
+  commissioned and this block is rewritten.
+- **History — Wave 24.1 (scoped coupon list + reasons), original spec below.**
 - **Task — Wave 24.1: scope-filtered public coupon list + verbose
   selectlist.** Code to the Wave-24.1 CONTRACT above. (1)
   `GET /srv/coupon/list?goodsId=` returns ONLY coupons matching that
