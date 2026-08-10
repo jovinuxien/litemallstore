@@ -91,9 +91,10 @@ export interface IFreightQuote {
     logisticName?: string;
     logisticAging?: string;
     /** V52: every line CJ offers for this shipment — the delivery-option chooser's data.
-     *  Wave-24.1: `price` (post-fx decimal) feeds the "+€x.xx / Included" upgrade
-     *  labels; absent (pre-24.1 order half) ⇒ the chooser renders priceless. */
-    options?: { logisticName?: string; logisticAging?: string; price?: number }[];
+     *  Wave-24.1: `upgradeDelta` (post-fx decimal vs the default line; 0.00 ⇒ "Included",
+     *  null ⇒ unpriceable) feeds the labels VERBATIM — raw CJ courier costs are never
+     *  surfaced. Absent (pre-24.1 order half) ⇒ the chooser renders label-less. */
+    options?: { logisticName?: string; logisticAging?: string; upgradeDelta?: number | null }[];
   } | null;
   cjNote?: string | null;
 }

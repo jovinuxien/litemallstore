@@ -58,14 +58,14 @@ export const unusableReasonLabel = (reason?: string, minGap?: number): string =>
 };
 
 /**
- * "+€x.xx" upgrade label vs the default courier line; "Included" for the
- * default itself (or anything not pricier). Null when either price is
- * missing (pre-24.1 order half) — caller renders no label.
+ * Label for the server's `options[].upgradeDelta` — rendered VERBATIM, no
+ * client-side price math (raw CJ courier costs are never surfaced): 0.00 (or
+ * anything ≤0) ⇒ "Included", positive ⇒ "+€x.xx", null/absent ⇒ null and the
+ * caller renders no label (unpriceable line, or the pre-24.1 order half).
  */
-export const courierDeltaLabel = (optionPrice?: number, defaultPrice?: number): string | null => {
-  const opt = Number(optionPrice);
-  const base = Number(defaultPrice);
-  if (!Number.isFinite(opt) || !Number.isFinite(base)) return null;
-  const delta = opt - base;
+export const courierDeltaLabel = (upgradeDelta?: number | null): string | null => {
+  if (upgradeDelta == null) return null;
+  const delta = Number(upgradeDelta);
+  if (!Number.isFinite(delta)) return null;
   return delta > 0.004 ? `+${money(delta)}` : 'Included';
 };

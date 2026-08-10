@@ -1657,13 +1657,10 @@ const CheckoutView: React.FC = () => {
                     (cjOptions.length > 0 ? (
                       cjOptions.map(o => {
                         const isSelected = o.logisticName === effectiveCjLogistic;
-                        // Wave-24.1: upgrade delta vs the server's default line
-                        // ("Included" / "+€x.xx"); null while the quote carries
-                        // no option prices (pre-24.1 order half) — no label.
-                        const deltaLabel = courierDeltaLabel(
-                          o.price,
-                          cjOptions.find(d => d.logisticName === quotes.cj?.cj?.logisticName)?.price
-                        );
+                        // Wave-24.1: the server's upgradeDelta rendered verbatim
+                        // ("Included" / "+€x.xx"); null/absent ⇒ no label
+                        // (unpriceable line, or the pre-24.1 order half).
+                        const deltaLabel = courierDeltaLabel(o.upgradeDelta);
                         return (
                           <button
                             type='button'

@@ -34,16 +34,17 @@ describe('unusableReasonLabel', () => {
   });
 });
 
-describe('courierDeltaLabel', () => {
-  it('labels upgrades with the € delta and the default as Included', () => {
-    expect(courierDeltaLabel(9.13, 5.93)).toBe('+€3.20');
-    expect(courierDeltaLabel(5.93, 5.93)).toBe('Included');
-    expect(courierDeltaLabel(4.0, 5.93)).toBe('Included'); // cheaper than default never charges extra
+describe('courierDeltaLabel (renders options[].upgradeDelta verbatim)', () => {
+  it('labels positive deltas in € and zero/negative as Included', () => {
+    expect(courierDeltaLabel(3.2)).toBe('+€3.20');
+    expect(courierDeltaLabel(0)).toBe('Included');
+    expect(courierDeltaLabel(0.0)).toBe('Included');
+    expect(courierDeltaLabel(-1)).toBe('Included'); // server never sends this, but never label a discount as an upcharge
   });
 
-  it('returns null (no label) while option prices are absent — pre-24.1 order half', () => {
-    expect(courierDeltaLabel(undefined, 5.93)).toBeNull();
-    expect(courierDeltaLabel(9.13, undefined)).toBeNull();
-    expect(courierDeltaLabel(NaN, 5)).toBeNull();
+  it('returns null (no label) for null/absent/junk — unpriceable line or pre-24.1 order half', () => {
+    expect(courierDeltaLabel(null)).toBeNull();
+    expect(courierDeltaLabel(undefined)).toBeNull();
+    expect(courierDeltaLabel(NaN)).toBeNull();
   });
 });
