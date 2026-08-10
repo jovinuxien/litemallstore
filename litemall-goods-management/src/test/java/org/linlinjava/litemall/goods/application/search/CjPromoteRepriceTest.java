@@ -43,7 +43,8 @@ public class CjPromoteRepriceTest {
                 mock(LitemallGoodsSpecificationMapper.class), mock(LitemallCategoryMapper.class),
                 mock(LitemallBrandMapper.class), mock(LitemallSeckillMapper.class),
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
-                config, new CjPricing(config, resolver), mock(PlatformTransactionManager.class));
+                config, new CjPricing(config, resolver), List.of(),
+                mock(PlatformTransactionManager.class));
     }
 
     private static LitemallGoods goods(String cost, String retail, Integer categoryId) {

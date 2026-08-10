@@ -24,16 +24,33 @@ public class BrandQueryService {
         this.brandService = brandService;
     }
 
-    /** Paginated brand list (PageHelper-backed; total preserved for okList). */
+    /**
+     * Paginated brand/store list (PageHelper-backed; total preserved for okList). Wave 25: only
+     * display-enabled rows — provider-captured raw supplier names stay hidden until an admin
+     * curates them — and each row carries {@code kind} (Store vs Brand badge) + the computed
+     * {@code goodsCount} (lets the SPA hide empty brands without its N+1 probe).
+     */
     public List<LitemallBrand> list(Integer page, Integer limit, String sort, String order) {
-        return brandService.query(page, limit, sort, order);
+        List<LitemallBrand> brands = brandService.queryDisplayEnabled(page, limit, sort, order);
+        brandService.attachGoodsCounts(brands);
+        return brands;
     }
 
-    /** A single brand by id, or null when absent. */
+    /**
+     * A single brand by id, or null when absent, deleted, or not display-enabled (the curation
+     * gate applies to the public read exactly as to the list).
+     */
     public LitemallBrand detail(Integer id) {
         if (id == null) {
             return null;
         }
-        return brandService.findById(id);
+        LitemallBrand brand = brandService.findById(id);
+        if (brand == null
+                || Boolean.TRUE.equals(brand.getDeleted())
+                || !Boolean.TRUE.equals(brand.getDisplayEnabled())) {
+            return null;
+        }
+        brandService.attachGoodsCounts(List.of(brand));
+        return brand;
     }
 }

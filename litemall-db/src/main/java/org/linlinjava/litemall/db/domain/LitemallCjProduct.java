@@ -43,6 +43,10 @@ public class LitemallCjProduct {
     private BigDecimal rating;
     private LocalDateTime cjCreateTime;
     private LocalDateTime reviewsSyncedTime;
+    // Supplier attribution (V60), captured during detail enrichment. supplier_name is the RAW
+    // CJ legal-entity name — never rendered publicly until an admin curates the brand row.
+    private String supplierId;
+    private String supplierName;
 
     public String getPid() {
         return pid;
@@ -234,5 +238,21 @@ public class LitemallCjProduct {
 
     public void setReviewsSyncedTime(LocalDateTime reviewsSyncedTime) {
         this.reviewsSyncedTime = reviewsSyncedTime;
+    }
+
+    public String getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(String supplierId) {
+        this.supplierId = supplierId;
+    }
+
+    public String getSupplierName() {
+        return supplierName;
+    }
+
+    public void setSupplierName(String supplierName) {
+        this.supplierName = supplierName;
     }
 }

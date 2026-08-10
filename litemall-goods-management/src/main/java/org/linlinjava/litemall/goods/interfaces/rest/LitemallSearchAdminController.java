@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.goods.interfaces.rest;
 
 import org.linlinjava.litemall.core.util.ResponseUtil;
+import org.linlinjava.litemall.goods.application.search.CatalogHygieneService;
 import org.linlinjava.litemall.goods.application.search.CategoryImageBackfillService;
 import org.linlinjava.litemall.goods.application.search.CjDetailEnrichmentService;
 import org.linlinjava.litemall.goods.application.search.CjProductPromotionService;
@@ -35,19 +36,33 @@ public class LitemallSearchAdminController {
     private final CjProductPromotionService cjProductPromotionService;
     private final CategoryImageBackfillService categoryImageBackfill;
     private final RankingSignalService rankingSignalService;
+    private final CatalogHygieneService catalogHygieneService;
 
     public LitemallSearchAdminController(SearchReindexService reindexService,
                                          CjSnapshotSyncService cjSnapshotSyncService,
                                          CjDetailEnrichmentService cjDetailEnrichmentService,
                                          CjProductPromotionService cjProductPromotionService,
                                          CategoryImageBackfillService categoryImageBackfill,
-                                         RankingSignalService rankingSignalService) {
+                                         RankingSignalService rankingSignalService,
+                                         CatalogHygieneService catalogHygieneService) {
         this.reindexService = reindexService;
         this.cjSnapshotSyncService = cjSnapshotSyncService;
         this.cjDetailEnrichmentService = cjDetailEnrichmentService;
         this.cjProductPromotionService = cjProductPromotionService;
         this.categoryImageBackfill = categoryImageBackfill;
         this.rankingSignalService = rankingSignalService;
+        this.catalogHygieneService = catalogHygieneService;
+    }
+
+    /**
+     * Wave-25 catalog hygiene pass (idempotent, no CJ API calls): normalize CJK unit glyphs to
+     * blank, rename Chinese-named on-sale goods from their CJ snapshot's English title (off-sale
+     * with a logged reason when no clean title exists), reindex changed rows, and rebuild the
+     * sitemap + merchant feed. Returns honest counts.
+     */
+    @PostMapping("/catalog-hygiene")
+    public Object catalogHygiene() {
+        return ResponseUtil.ok(catalogHygieneService.run());
     }
 
     /**

@@ -42,6 +42,8 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
     @Autowired
     private LitemallBrandServiceApi brandService;
     @Autowired
+    private org.linlinjava.litemall.db.service.LitemallBrandService brandRowService;
+    @Autowired
     private LitemallCatalogService catalogService;
     @Autowired
     private QCodeService qCodeService;
@@ -156,6 +158,7 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
             data.put("products", goodsProductTask.get());
             data.put("attributes", goodsAttributeTask.get());
             data.put("categoryIds", categoryIds);
+            attachBrand(data, goodsAggregate);
 
         } catch (InterruptedException ie) {
             throw new RuntimeException(ie);
@@ -164,6 +167,35 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
         }
 
         return data;
+    }
+
+    /**
+     * Wave 25 honest attribution: the detail payload carries a {@code brand} key ONLY when the
+     * goods is linked to a live, display-enabled brand/store row — {@code kind} tells the SPA
+     * whether to render "Brand" (0) or "Sold by" (1). Unattributed or uncurated goods get NO key
+     * (never a raw supplier legal-entity name), and any lookup failure degrades to the same.
+     */
+    private void attachBrand(Map<String, Object> data, LitemallGoodsAggregate goodsAggregate) {
+        try {
+            Integer brandId = goodsAggregate.getManufacturerId() != null
+                    ? goodsAggregate.getManufacturerId().getId() : null;
+            if (brandId == null || brandId <= 0) {
+                return;
+            }
+            org.linlinjava.litemall.db.domain.LitemallBrand brand = brandRowService.findById(brandId);
+            if (brand == null
+                    || Boolean.TRUE.equals(brand.getDeleted())
+                    || !Boolean.TRUE.equals(brand.getDisplayEnabled())) {
+                return;
+            }
+            Map<String, Object> brandInfo = new HashMap<>();
+            brandInfo.put("id", brand.getId());
+            brandInfo.put("name", brand.getName());
+            brandInfo.put("kind", brand.getKind());
+            data.put("brand", brandInfo);
+        } catch (RuntimeException ex) {
+            // attribution is decoration — never let it break the PDP
+        }
     }
 
     @Override
