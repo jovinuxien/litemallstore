@@ -106,10 +106,22 @@ public class FreightQuoteDtoResponse {
     }
 
     /** One offered CJ logistics line: carrier + delivery estimate (no internal cost). */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     @Getter
     @AllArgsConstructor
     public static class Option {
         private final String logisticName;
         private final String logisticAging;
+        /**
+         * Wave 24.1: what picking this line adds to the charged freight —
+         * {@code max(0, line − default)}, the exact surcharge submit will apply.
+         * 0.00 on the default line ("Included"); null when the line can't be priced.
+         * Only the delta is exposed — CJ's raw costs remain internal.
+         */
+        private final BigDecimal upgradeDelta;
+
+        public Option(String logisticName, String logisticAging) {
+            this(logisticName, logisticAging, null);
+        }
     }
 }
