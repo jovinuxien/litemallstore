@@ -78,6 +78,31 @@
     limit 1
   </select>
 
+  <!-- uk_brand_source_external guarantees at most one row per (source, external_id), deleted or not -->
+  <select id="findBrandBySourceAndExternalId" resultMap="org.linlinjava.litemall.db.dao.LitemallBrandMapper.BaseResultMap">
+    select <include refid="org.linlinjava.litemall.db.dao.LitemallBrandMapper.Base_Column_List"/>
+    from litemall_brand
+    where source = #{source} and external_id = #{externalId}
+    limit 1
+  </select>
+
+  <select id="findBrandSourceOfGoods" resultType="java.lang.String">
+    select b.source from litemall_goods g
+    join litemall_brand b on b.id = g.brand_id and b.deleted = 0
+    where g.id = #{goodsId}
+    limit 1
+  </select>
+
+  <select id="countOnSaleGoodsByBrand" resultType="map">
+    select brand_id as brandId, count(*) as goodsCount
+    from litemall_goods
+    where deleted = 0 and is_on_sale = 1 and brand_id in
+    <foreach collection="brandIds" item="bid" open="(" separator="," close=")">
+      #{bid}
+    </foreach>
+    group by brand_id
+  </select>
+
   <!--
     V31 ranking signals: written directly onto litemall_goods without the generated
     insert/update (which don't carry these columns). COALESCE preserves a column when its

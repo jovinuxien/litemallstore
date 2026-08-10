@@ -96,6 +96,15 @@ public class GoodsMetaService {
      * that too is empty or image-only markup, the original brief stands.
      */
     private String description(LitemallGoods goods) {
+        return descriptionOf(goods, DESCRIPTION_MAX);
+    }
+
+    /**
+     * Shared SEO description policy (head injection + merchant feed): brief unless it merely
+     * repeats the name, else the opening prose of the detail body, else the original brief.
+     * Package-visible so {@link MetaCatalogFeedService} applies the identical fallback.
+     */
+    static String descriptionOf(LitemallGoods goods, int max) {
         String brief = HtmlText.clean(goods.getBrief());
         String name = goods.getName() == null ? "" : goods.getName().trim();
         if (!brief.isEmpty() && !brief.equalsIgnoreCase(name)) {
@@ -103,7 +112,7 @@ public class GoodsMetaService {
         }
         String detail = HtmlText.clean(goods.getDetail());
         if (!detail.isEmpty() && !detail.equalsIgnoreCase(name)) {
-            return HtmlText.truncateAtWord(detail, DESCRIPTION_MAX);
+            return HtmlText.truncateAtWord(detail, max);
         }
         return goods.getBrief();
     }

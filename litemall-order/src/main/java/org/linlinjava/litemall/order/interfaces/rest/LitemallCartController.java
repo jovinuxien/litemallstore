@@ -84,7 +84,9 @@ public class LitemallCartController {
      * <p>All params optional: the cart page previews before an address or coupon is
      * chosen. {@code countryCode} is what tax is sourced from (the address book stores
      * none — submit takes it from the place-order command for the same reason); without it
-     * taxPrice is 0.00 and the total is not final.
+     * taxPrice is 0.00 and the total is not final. {@code cjLogisticName} (Wave 24.1) is
+     * the customer's courier pick — a CJ cart's freight then includes the same upgrade
+     * delta submit will charge; unknown/absent names preview today's flat charge.
      *
      * <p>The preview degrades softly for coupons (an unreachable promotion service shows no
      * discount) but NOT for tax: if tax is enabled and cannot be computed for a known
@@ -97,10 +99,12 @@ public class LitemallCartController {
             @RequestHeader("X-User-Id") Integer userId,
             @RequestParam(required = false) Integer addressId,
             @RequestParam(required = false) Integer couponId,
-            @RequestParam(required = false) String countryCode) {
+            @RequestParam(required = false) String countryCode,
+            @RequestParam(required = false) String cjLogisticName) {
         try {
             return ResponseEntity.ok(ok(
-                    orchestrator.checkoutSummary(new LitemallUserId(userId), addressId, couponId, countryCode)));
+                    orchestrator.checkoutSummary(new LitemallUserId(userId), addressId, couponId,
+                            countryCode, cjLogisticName)));
         } catch (org.linlinjava.litemall.order.application.util.exception.tax.LitemallTaxUnavailableException e) {
             // Typed 503 (transient/retryable), never the untyped 502 the global handler
             // would produce, and never a silently untaxed total.
