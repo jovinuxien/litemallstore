@@ -1104,25 +1104,27 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — done (Wave 24 half MERGED to master `bc9ede8cc`)
-- **Status 2026-08-09:** freight fx seam SHIPPED (branch `1f5078d2e`,
-  261/0). ⚠ Handoff fact for the MAIN deploy: customer-charged CJ
-  freight also includes the `litemall_system` flat rule — the
-  conversion script converts `litemall_express_freight_value/_min`
-  (encoded in doc/wave24-deploy-plan.md).
-- **Task (HISTORICAL) — Wave 24: convert CJ freight USD→EUR at the quote seam.**
-  Code to the Wave-24 CONTRACT above. Config
-  `litemall.order.fx-usd-eur` (env `LITEMALL_FX_USD_EUR`, default 1.0,
-  EXPLICIT yml placeholder); multiply every CJ freight amount by fx at
-  `CjFreightQuoteService` (2dp HALF_UP) so the V52 chooser options, the
-  server-side submit recompute, and the persisted `freight_price` all
-  inherit the conversion from ONE seam. NO other money change, NO
-  migration, NO Stripe code change (charge currency is already env).
-- **Acceptance (dev, through :9000/:8090):** with `LITEMALL_FX_USD_EUR=
-  0.5` set, checkout delivery options price at exactly half the raw CJ
-  USD quote and a submitted order persists the converted freight;
-  fx unset ⇒ identity (existing freight e2e regression-green); module
-  tests green with real "Tests run:" counts.
+### Worktree: `order` — idle (Wave 24 order half MERGED)
+- **No active assignment.**
+- **History — Wave 24: CJ freight USD→EUR fx at the quote seam.**
+  MERGED to master `116aee40e` + pushed (2026-08-09; branch commit
+  `1f5078d2e`; module tests 261/0 on the merged tree, 5 new in
+  `CjFreightQuoteServiceFxTest`). `litemall.order.fx-usd-eur` (env
+  `LITEMALL_FX_USD_EUR`, explicit yml placeholder, default 1.0
+  identity) multiplies every CJ freightCalculate amount inside
+  `CjFreightQuoteService` — 2dp HALF_UP in the cache loader (cached
+  values pre-converted; `quote()` inherits); non-positive/missing rate
+  ⇒ WARN + identity (fail-safe). Prod compose passthrough added on the
+  order container (dormant at 1.0). **AUDIT CORRECTION (user-approved
+  2026-08-09):** customer-charged CJ freight is the `litemall_system`
+  flat rule (`litemall_express_freight_value`/`_min`), NOT the CJ
+  quote — the V52 chooser shows no prices by design and CJ USD only
+  feeds the cheapest-line fallback, so the fx seam is future-proofing
+  with no customer-visible effect today; acceptance proven at the
+  unit-test seam (dev has no CJ creds ⇒ no live quotes to halve).
+  ⚠ MAIN's deploy-day conversion script must decide on the two
+  `litemall_system` freight values — they are the amounts actually
+  charged as CJ-cart freight.
 - **History — Wave 23 (backend): admin-gated CJ placement + admin
   order-paid notify mail.** MERGED to master `3ed350725` + pushed
   (2026-08-08; branch commit `5a3bad2e7`; module tests 256/0). V59
@@ -1201,6 +1203,18 @@
   5. **Catalog hygiene**: rename the 23 Chinese-named on-sale goods
      (translate; off-sale with reason if untranslatable) and normalize
      Chinese `litemall_goods.unit` glyphs ("件" → "pc"/blank).
+  6. **Per-variant image capture** (commissioned via the PDP session
+     2026-08-09; user confirms at plan approval): CJ's variant payload
+     carries an image the DTO never mapped — map it in
+     `CJProductVariantData`, persist per-variant image into
+     `variants_json` at enrichment, and at promote write it to
+     `litemall_goods_product.url` ONLY when non-blank (main-photo
+     fallback stays; today every SKU url == main photo). Backfill
+     rides the existing enrichment rotation + on-demand path — NO new
+     CJ call loops (points quota), NO new endpoint (detail already
+     serves `products[].url`). The SPA half is ALREADY DONE + MERGED
+     (`ba934d8e4`, inert) — it lights up product-by-product as this
+     backfill lands.
 - **Acceptance (dev, through :9000/:8090):** probe % logged; V60
   applied at boot; an enriched good gets a brand row (cj-supplier,
   kind=1, display_enabled=0) + brand_id linked with NO public render;
@@ -1283,6 +1297,14 @@
   `c5fdae86f`; live feed validated).
 
 ### Worktree: `gateway-api` — ACTIVE: Wave 25 (Sold-by storefront surfaces)
+- ⚠ **Worktree-sharing rule:** another session (PDP/variant work) may be
+  active in THIS worktree. NEVER stash, checkout, or reset files you did
+  not author — that already destroyed a peer's in-flight edit once
+  (2026-08-09). If the tree is dirty with foreign changes, leave them,
+  scope your `git add` to your own files, and raise conflicts through
+  the MAIN session. The variant-image SPA pre-wiring is DONE + MERGED
+  (`ba934d8e4`) — do NOT redo or touch `variantDisplay.ts` beyond your
+  own task's needs.
 - **Task — Wave 25 storefront: honest attribution render.** Code to
   the Wave-25 CONTRACT above. PDP gains an attribution row when the
   product's brand row is display-enabled: kind=1 → "Sold by <name>" +

@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
 
 import ProductCard from 'app/components/userComponents/card/ProductCard';
 import { catalogApi, contentApi, IBrand } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
+import { attributionOf } from 'app/shared/util/attribution';
 import 'app/shared/scss/content.scss';
 
 /**
- * Brand storefront, modelled on litemall-vue `items/brand`: the brand header
- * plus its products (via `/srv/goods/list?brandId=`). Brand meta from
- * `/srv/brand/detail`. Graceful when endpoints aren't live.
+ * Brand / store page: header plus its products (via `/srv/goods/list?brandId=`),
+ * meta from `/srv/brand/detail`. Wave-25 honest attribution: the header renders
+ * ONLY through the display-enabled gate — a disabled row (raw CJ supplier legal
+ * names pre-curation) shows the goods grid with no name. kind=1 rows are framed
+ * as a "Store" (the PDP's "Sold by" target), kind=0 as a "Brand".
  */
 const BrandDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +40,8 @@ const BrandDetail: React.FC = () => {
     };
   }, [id]);
 
+  const attribution = useMemo(() => attributionOf(brand), [brand]);
+
   if (loading) {
     return (
       <div className='text-center my-5'>
@@ -51,18 +56,25 @@ const BrandDetail: React.FC = () => {
         <i className='bi bi-chevron-left' /> All brands
       </Link>
 
-      {brand && (
+      {attribution && brand && (
         <div className='lm-brand-header'>
-          {brand.picUrl && <img src={brand.picUrl} alt={brand.name} />}
+          {brand.picUrl && <img src={brand.picUrl} alt={attribution.name} />}
           <div>
-            <h1 className='h4 mb-1'>{brand.name}</h1>
+            <span className={`lm-brand-badge lm-brand-badge--${attribution.label}`}>
+              {attribution.label === 'store' ? 'Store' : 'Brand'}
+            </span>
+            <h1 className='h4 mb-1'>
+              {attribution.label === 'store' ? <>Sold by {attribution.name}</> : attribution.name}
+            </h1>
             {brand.desc && <p className='text-muted mb-0'>{brand.desc}</p>}
           </div>
         </div>
       )}
 
       {goods.length === 0 ? (
-        <p className='text-muted text-center my-5'>No products listed for this brand yet.</p>
+        <p className='text-muted text-center my-5'>
+          No products listed for this {attribution?.label === 'store' ? 'store' : 'brand'} yet.
+        </p>
       ) : (
         <div className='lm-grid'>
           {goods.map((g, i) => (

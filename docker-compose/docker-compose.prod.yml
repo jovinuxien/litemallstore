@@ -491,10 +491,6 @@ services:
       LITEMALL_ORDER_STRIPE_ENABLED: ${STRIPE_ENABLED:-false}
       LITEMALL_ORDER_STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      # Wave 24 EUR flip: charge currency + CJ-freight fx ride the same
-      # deploy-day env change (defaults keep pre-flip behavior).
-      LITEMALL_ORDER_STRIPE_CURRENCY: ${LITEMALL_ORDER_STRIPE_CURRENCY:-usd}
-      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
       LITEMALL_CJ_API_KEY: ${CJ_API_KEY:-}
       # CJ auth needs the account email alongside the key (Wave 8: the committed
       # dev credentials are gone from order's application.yml). BOTH blank ⇒ CJ
@@ -502,6 +498,11 @@ services:
       # once the pair appears. Exactly one set ⇒ order REFUSES TO BOOT.
       CJ_EMAIL: ${CJ_EMAIL:-}
       CJ_OPS_MAIL: ${CJ_OPS_MAIL:-}
+      # Wave 24 (EUR storefront): USD→EUR rate for CJ freight amounts at the quote
+      # seam (litemall.order.fx-usd-eur). 1.0 = identity (dormant). Deploy-day flip
+      # sets the real rate in .env TOGETHER with LITEMALL_GOODS_CURRENCY=EUR and
+      # LITEMALL_ORDER_STRIPE_CURRENCY=eur (single staged pass, MAIN session).
+      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
       # order mints its OWN machine token (GoodsMachineTokenProvider) to call
       # goods-management when it re-resolves a cart line's price server-side. It
       # reads litemall.goods.auth.* — NOT the standard spring.security.oauth2
@@ -545,6 +546,10 @@ services:
       # dev stays harmless; prod .env.prod sets false — an approved order must
       # REALLY place, a simulation answering an approval is a fake success.
       LITEMALL_ORDER_CJ_SANDBOX: ${LITEMALL_ORDER_CJ_SANDBOX:-true}
+      # Wave 24: Stripe charge currency (litemall.order.stripe.currency,
+      # application.yml:204). Without this passthrough a deploy-day .env flip to
+      # eur would silently no-op — the container would keep charging usd.
+      LITEMALL_ORDER_STRIPE_CURRENCY: ${LITEMALL_ORDER_STRIPE_CURRENCY:-usd}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 
@@ -586,10 +591,14 @@ services:
       # Both blank ⇒ enrichment fails soft exactly as before.
       CJ_API_KEY: ${CJ_CATALOG_API_KEY:-}
       CJ_EMAIL: ${CJ_CATALOG_EMAIL:-}
-      # Wave 24 EUR flip: fx applied at CJ cost intake + currency label for
-      # meta/JSON-LD/feed (defaults keep pre-flip behavior).
-      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
+      # Wave 24 (EUR storefront) — the flip trio's goods half. currency feeds
+      # /srv/goods/meta JSON-LD + meta-catalog.csv (litemall.goods.currency,
+      # env-bound since Wave 13); fx is the CONTRACT-frozen shared rate the
+      # goods EUR cost-intake seam reads (litemall.goods.fx-usd-eur — rides the
+      # fix/goods-management merge; passing the env before that merge is inert).
+      # Both dormant at their defaults until the deploy-day .env flip.
       LITEMALL_GOODS_CURRENCY: ${LITEMALL_GOODS_CURRENCY:-USD}
+      LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 
