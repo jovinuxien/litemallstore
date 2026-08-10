@@ -114,6 +114,11 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     @Autowired
     private FreightCalculationService freightCalculationService;
 
+    // Wave 24.1: the courier upgrade delta — same shared implementation the checkout
+    // preview adds, so a picked courier's surcharge previews and charges identically.
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService cjFreightQuoteService;
+
     // Tax seam (Wave 7): the same port backs GET /srv/cart/checkout, for exactly the
     // reason freight is shared above. FAILS CLOSED — never catch its exception into a
     // zero; disabled (default) yields 0.00 via ZeroTaxAdapter.
@@ -351,6 +356,21 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             freightPrice = freightCalculationService.quote(freightLines,
                     command.getCountryCode(), addressAggregate.getProvince(), checkedGoodsPrice,
                     LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)).getFreight();
+            // Wave 24.1: a CJ cart with a courier pick pays the flat rule PLUS the exact
+            // price difference over the default line — the same upgradeDelta the checkout
+            // preview added, so preview and charge agree. Unknown/absent pick, CJ outage,
+            // or an unpriceable line all yield 0 (today's charge), never an error.
+            if (LitemallOrderAggregate.SOURCE_CJ.equals(orderSource)) {
+                freightPrice = freightPrice.add(cjFreightQuoteService.upgradeDelta(
+                        command.getCountryCode(),
+                        cartList.stream()
+                                .filter(Objects::nonNull)
+                                .map(item -> new org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService.QuoteItem(
+                                        item.getProductId() == null ? null : item.getProductId().getId(),
+                                        item.getNumber()))
+                                .collect(Collectors.toList()),
+                        command.getCjLogisticName()));
+            }
         }
         // Other money available，For example, user points
         BigDecimal integralPrice = new BigDecimal(0);

@@ -99,6 +99,50 @@ public class CjFreightQuoteService {
         return cjOrderFacade.chooseLogistics(options(countryCode, items), null);
     }
 
+    /**
+     * Wave 24.1 (upgrade-delta freight): what picking {@code selectedLogisticName} costs ON TOP
+     * of the default line — {@code max(0, selected − default)}, the amount checkout charges over
+     * the flat rule. The ONE implementation both the checkout preview and the submit pricing
+     * call (single-authority rule). 0.00 whenever the pick can't be priced: name absent, CJ
+     * options unavailable (no creds / outage / no lane), name not offered, or a null price —
+     * an unpriceable upgrade falls back to today's flat charge, never an error.
+     */
+    public BigDecimal upgradeDelta(String countryCode, List<QuoteItem> items, String selectedLogisticName) {
+        if (selectedLogisticName == null || selectedLogisticName.isBlank()) {
+            return ZERO_2DP;
+        }
+        List<CjLogisticsOption> offered = options(countryCode, items);
+        if (offered.isEmpty()) {
+            return ZERO_2DP;
+        }
+        String wanted = selectedLogisticName.trim();
+        CjLogisticsOption selected = offered.stream()
+                .filter(o -> wanted.equalsIgnoreCase(o.getLogisticName()))
+                .findFirst()
+                .orElse(null);
+        BigDecimal delta = delta(selected, cjOrderFacade.chooseLogistics(offered, null));
+        return delta == null ? ZERO_2DP : delta;
+    }
+
+    /**
+     * Pairwise delta formula (shared with the freight-quote endpoint's per-option labels):
+     * {@code max(0, option − default)}, 2dp. Null when the option itself can't be priced;
+     * 0.00 when the default can't be (nothing to upgrade from ⇒ nothing extra to charge).
+     */
+    public static BigDecimal delta(CjLogisticsOption option, CjLogisticsOption defaultOption) {
+        if (option == null || option.getLogisticPrice() == null) {
+            return null;
+        }
+        if (defaultOption == null || defaultOption.getLogisticPrice() == null) {
+            return ZERO_2DP;
+        }
+        return option.getLogisticPrice().subtract(defaultOption.getLogisticPrice())
+                .max(BigDecimal.ZERO)
+                .setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static final BigDecimal ZERO_2DP = BigDecimal.ZERO.setScale(2);
+
     /** USD → store currency on every option amount, 2dp HALF_UP; null amounts stay null. */
     private List<CjLogisticsOption> convert(List<CjLogisticsOption> options) {
         if (options == null || options.isEmpty()) {

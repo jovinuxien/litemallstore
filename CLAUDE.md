@@ -1165,23 +1165,25 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: Wave 24.1 (courier upgrade-delta freight)
-- **Task — Wave 24.1: price the customer's courier pick as an upgrade
-  delta.** Code to the Wave-24.1 CONTRACT above. Charged CJ freight =
-  flatComponent (today's ladder incl. FREE_MIN) + max(0,
-  selected − default) from the CJ options (post-fx). The preview
-  endpoint gains optional `cjLogisticName`; submit reads the existing
-  command field; `CheckoutSummaryService.resolveFreight` and the submit
-  pricing MUST share the one implementation (single-authority rule).
-  Absent/unknown courier name ⇒ delta 0, never an error. NO migration.
-- **Acceptance (dev, through :9000/:8090):** preview with no courier =
-  today's number; preview with a pricier courier = flat + exact delta;
-  FREE_MIN cart + upgraded courier charges ONLY the delta; submit
-  charges what the preview showed (DB-verified freight_price); unknown
-  name falls back silently; module tests green with real "Tests run:"
-  counts.
-- **History — idle (Wave 24 order half MERGED)**
+### Worktree: `order` — idle (Wave 24.1 order half DONE)
 - **No active assignment.**
+- **History — Wave 24.1: courier upgrade-delta freight.** Branch commit
+  `95954a08f` (2026-08-10; module tests 278/0, 13 new). Charged CJ
+  freight = flat ladder (incl. FREE_MIN) + `CjFreightQuoteService
+  .upgradeDelta` — max(0, selected − default) over the POST-FX cached
+  options; the ONE implementation behind both
+  `CheckoutSummaryService.resolveFreight` and the submit pricing.
+  `GET /srv/cart/checkout` gained optional `cjLogisticName` (4-arg
+  overload keeps old callers byte-identical); submit reads the existing
+  command field and persists the full charged amount in freight_price
+  (FREE_MIN cart + upgrade = delta only). Absent/unknown pick, CJ
+  outage, or unpriceable lines ⇒ 0.00 (today's charge, never an error).
+  `POST /srv/order/freight-quote` options each carry an ADDITIVE
+  `upgradeDelta` (0.00 = "Included"; null = unpriceable, show no label)
+  for the chooser labels — raw CJ costs remain unsurfaced. ⚠ Dev has no
+  CJ creds ⇒ live options are empty and every live delta is 0 — the
+  delta math is proven at the unit seam (Wave-24 precedent); first
+  nonzero-delta verification happens in prod smoke after deploy.
 - **History — Wave 24: CJ freight USD→EUR fx at the quote seam.**
   MERGED to master `116aee40e` + pushed (2026-08-09; branch commit
   `1f5078d2e`; module tests 261/0 on the merged tree, 5 new in
@@ -1232,6 +1234,32 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
+- **Status 2026-08-10: Wave-25 backend MERGED to master `d9584114d` +
+  pushed; dev acceptance PASSED (incl. both peer halves' cross-half
+  acceptance against this V60 dev service — the gateway-api raise about
+  raw disabled names on /srv/brand is resolved by the display_enabled
+  gating in this merge). Deploy = MAIN session (V60 at boot + reindex;
+  run POST /srv/private/admin/search/catalog-hygiene on prod after —
+  the 23 Chinese-named goods + unit glyphs).** V60 applied at dev boot (source pre-existed from V23 — V60
+  re-baselines 'local'→'manual' instead of adding it; ALSO adds
+  litemall_cj_product supplier_id/supplier_name — required, the nightly list
+  upsert would erase in-memory-only capture — and flips goods.unit default
+  件→''; both deviations user-approved 2026-08-10). Live dev evidence: full
+  promote 9,644/0 created the seeded supplier row as (cj-supplier, kind 1,
+  display_enabled 0) + linked brand_id with NO public render; SQL-simulated
+  rename+enable flipped PDP brand {kind:1} + /srv/brand/list|detail (+kind,
+  +goodsCount) + store goods list; a manual kind-0 assignment SURVIVED the
+  full re-promote (manual-wins); all 9,638 "件" units normalized via promote;
+  feed 14 cols — 0 "Trovemo", supplier rows blank brand +
+  identifier_exists=false, manual brand exported, google_product_category
+  filled from the L1 map; reindex 9,642 + search smoke green. Tests: module
+  334 run / 2 pre-existing live-OCS failures (same two as Wave 24);
+  FlywayMigrationTest 4/4 at floor 60. Gotchas: admin machine-token secret is
+  env-only in this dev stack — admin endpoints verified 401-routed, the
+  rename+enable click-through stays USER-SIDE via gateway-admin; dev
+  description==title mostly remains (fallback needs detail_html — only 103
+  dev rows enriched; prod coverage is far higher); catalog-hygiene endpoint
+  (Chinese-name pass) is unit-tested, prod run = MAIN post-merge.
 - **Task — Wave 25 backend: supplier/brand attribution + Merchant-feed
   quality.** Code to the Wave-25 CONTRACT above (V60 spec, guard rails,
   probe-driven display gate). Deliverables in order:

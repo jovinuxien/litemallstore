@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.application.seo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.linlinjava.litemall.db.dao.LitemallGoodsProductMapper;
+import org.linlinjava.litemall.db.domain.LitemallBrand;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.service.LitemallBrandService;
@@ -27,6 +28,7 @@ public class MetaCatalogFeedServiceTest {
     private LitemallGoodsService goodsService;
     private LitemallGoodsProductMapper goodsProductMapper;
     private LitemallBrandService brandService;
+    private GoogleTaxonomyMap googleTaxonomy;
     private MetaCatalogFeedService service;
 
     @BeforeEach
@@ -34,14 +36,16 @@ public class MetaCatalogFeedServiceTest {
         goodsService = Mockito.mock(LitemallGoodsService.class);
         goodsProductMapper = Mockito.mock(LitemallGoodsProductMapper.class);
         brandService = Mockito.mock(LitemallBrandService.class);
+        googleTaxonomy = Mockito.mock(GoogleTaxonomyMap.class);
+        when(googleTaxonomy.resolve(any())).thenReturn("");
         service = new MetaCatalogFeedService(goodsService, goodsProductMapper, brandService,
-                new LitemallGoodsProperties(), new PublicSiteProperties());
+                new LitemallGoodsProperties(), new PublicSiteProperties(), googleTaxonomy);
         when(goodsProductMapper.selectByExample(any())).thenReturn(Collections.emptyList());
         stubGoodsPages(Collections.emptyList());
     }
 
     @Test
-    void emitsExactHeaderAndOnSaleRowsWithThirteenFields() {
+    void emitsExactHeaderAndOnSaleRowsWithFourteenFields() {
         stubGoodsPages(List.of(
                 goods(1, "Wireless Earbuds", "Great sound", "https://cf.cjdropshipping.com/p/1.jpg", "19.90", "19.90", true),
                 goods(2, "Off Sale Thing", "hidden", "https://cf.cjdropshipping.com/p/2.jpg", "9.90", "9.90", false)));
@@ -52,17 +56,75 @@ public class MetaCatalogFeedServiceTest {
         assertThat(rows.get(0)).containsExactly(MetaCatalogFeedService.HEADER.split(",", -1));
         assertThat(rows).hasSize(2); // header + 1 on-sale row
         List<String> row = rows.get(1);
-        assertThat(row).hasSize(13);
+        assertThat(row).hasSize(14);
         assertThat(row.get(0)).isEqualTo("1");
         assertThat(row.get(3)).isEqualTo("in stock");
         assertThat(row.get(4)).isEqualTo("new");
         assertThat(row.get(5)).isEqualTo("19.90 USD");
         assertThat(row.get(6)).isEqualTo("https://trovemo.com/product/1-wireless-earbuds");
         assertThat(row.get(7)).isEqualTo("https://trovemo.com/_cdn/cf/p/1.jpg");
-        assertThat(row.get(8)).isEqualTo("Trovemo");
+        assertThat(row.get(8)).isEmpty(); // unattributed: no fake "Trovemo" brand claim
         assertThat(row.get(10)).isEqualTo("1");
         assertThat(row.get(11)).isEmpty();
         assertThat(row.get(12)).isEqualTo("7");
+        assertThat(row.get(13)).isEqualTo("false"); // identifier_exists honest for unbranded rows
+    }
+
+    @Test
+    void curatedConsumerBrandLandsInBrandColumnWithBlankIdentifierExists() {
+        LitemallGoods branded = goods(20, "Branded Bag", "Leather satchel",
+                "https://cf.cjdropshipping.com/p/20.jpg", "49.00", "49.00", true);
+        branded.setBrandId(7);
+        stubGoodsPages(List.of(branded));
+        when(brandService.findById(7)).thenReturn(brand(7, "Northwind", (byte) 0, true, false));
+
+        List<String> row = parse(service.feed()).get(1);
+        assertThat(row.get(8)).isEqualTo("Northwind");
+        assertThat(row.get(13)).isEmpty();
+    }
+
+    @Test
+    void supplierStoreAndUncuratedRowsExportBlankBrandAndFalseIdentifierExists() {
+        LitemallGoods store = goods(21, "Store Good", "b",
+                "https://cf.cjdropshipping.com/p/21.jpg", "10.00", "10.00", true);
+        store.setBrandId(8);
+        LitemallGoods uncurated = goods(22, "Uncurated Good", "b",
+                "https://cf.cjdropshipping.com/p/22.jpg", "11.00", "11.00", true);
+        uncurated.setBrandId(9);
+        stubGoodsPages(List.of(store, uncurated));
+        // kind=1 supplier store, even display-enabled, is NEVER a feed brand
+        when(brandService.findById(8)).thenReturn(brand(8, "Wenling Chengdong Jiuwei", (byte) 1, true, false));
+        // kind=0 but not display-enabled (uncurated) — hidden from the feed too
+        when(brandService.findById(9)).thenReturn(brand(9, "Raw Brand", (byte) 0, false, false));
+
+        List<List<String>> rows = parse(service.feed());
+        assertThat(rows.get(1).get(8)).isEmpty();
+        assertThat(rows.get(1).get(13)).isEqualTo("false");
+        assertThat(rows.get(2).get(8)).isEmpty();
+        assertThat(rows.get(2).get(13)).isEqualTo("false");
+    }
+
+    @Test
+    void googleProductCategoryComesFromTheTaxonomyMap() {
+        LitemallGoods g = goods(23, "Garden Hose", "b",
+                "https://cf.cjdropshipping.com/p/23.jpg", "14.00", "14.00", true);
+        g.setCategoryId(1036);
+        stubGoodsPages(List.of(g));
+        when(googleTaxonomy.resolve(1036)).thenReturn("Home & Garden");
+
+        List<String> row = parse(service.feed()).get(1);
+        assertThat(row.get(9)).isEqualTo("Home & Garden");
+    }
+
+    @Test
+    void titleDuplicateBriefFallsBackToDetailProse() {
+        LitemallGoods g = goods(24, "Copper Kettle", "Copper Kettle",
+                "https://cf.cjdropshipping.com/p/24.jpg", "25.00", "25.00", true);
+        g.setDetail("<p>Hand-hammered copper kettle with a walnut handle.</p>");
+        stubGoodsPages(List.of(g));
+
+        List<String> row = parse(service.feed()).get(1);
+        assertThat(row.get(2)).startsWith("Hand-hammered copper kettle");
     }
 
     @Test
@@ -76,7 +138,7 @@ public class MetaCatalogFeedServiceTest {
 
         List<List<String>> rows = parse(service.feed());
         assertThat(rows.get(1).get(1)).isEqualTo("Knit, \"Cozy\" Cape");
-        assertThat(rows.get(1)).hasSize(13);
+        assertThat(rows.get(1)).hasSize(14);
     }
 
     @Test
@@ -165,6 +227,16 @@ public class MetaCatalogFeedServiceTest {
         g.setRetailPrice(retail != null ? new BigDecimal(retail) : null);
         g.setIsOnSale(onSale);
         return g;
+    }
+
+    private static LitemallBrand brand(int id, String name, byte kind, boolean displayEnabled, boolean deleted) {
+        LitemallBrand b = new LitemallBrand();
+        b.setId(id);
+        b.setName(name);
+        b.setKind(kind);
+        b.setDisplayEnabled(displayEnabled);
+        b.setDeleted(deleted);
+        return b;
     }
 
     private static LitemallGoodsProduct product(int goodsId, int number) {

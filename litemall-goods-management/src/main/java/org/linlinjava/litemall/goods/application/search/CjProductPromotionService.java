@@ -17,8 +17,10 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
 import org.linlinjava.litemall.db.domain.LitemallGoodsSpecification;
 import org.linlinjava.litemall.db.domain.LitemallGoodsSpecificationExample;
+import org.linlinjava.litemall.goods.application.attribution.AttributionProvider;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativeAdapter;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.NativeGoodsAggregate;
+import org.springframework.dao.DuplicateKeyException;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +78,7 @@ public class CjProductPromotionService {
     private final CjCategoryTreeSyncService categoryTreeSync;
     private final CJDropshippingConfig config;
     private final CjPricing pricing;
+    private final List<AttributionProvider> attributionProviders;
     private final TransactionTemplate txTemplate;
 
     public CjProductPromotionService(LitemallCjLinkageMapper linkageMapper,
@@ -90,6 +93,7 @@ public class CjProductPromotionService {
                                      CjCategoryTreeSyncService categoryTreeSync,
                                      CJDropshippingConfig config,
                                      CjPricing pricing,
+                                     List<AttributionProvider> attributionProviders,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
         this.goodsMapper = goodsMapper;
@@ -103,6 +107,7 @@ public class CjProductPromotionService {
         this.categoryTreeSync = categoryTreeSync;
         this.config = config;
         this.pricing = pricing;
+        this.attributionProviders = attributionProviders;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -187,8 +192,11 @@ public class CjProductPromotionService {
         LitemallGoods goods = aggregate.getGoods();
 
         goods.setCategoryId(resolveCategoryId(aggregate.getCategory()));
-        Integer brandId = resolveBrandId(aggregate.getBrand());
-        goods.setBrandId(brandId != null ? brandId : 0);
+        // Wave 25: attribution providers first (keyed source+external_id, curation-gated), then the
+        // legacy name-keyed CJ brand-string path. A null result means "nothing to attribute" — on
+        // updates the selective write then leaves the current brand_id alone (never zeroes it out).
+        Integer brandId = resolveAttributedBrandId(row, aggregate.getBrand());
+        goods.setBrandId(brandId);
 
         // Wave 14: promote is a reprice site. Once the category is resolved, retail converges on
         // cost × the category's EFFECTIVE margin (L1 override else global) in one nightly cycle —
@@ -220,8 +228,17 @@ public class CjProductPromotionService {
             // not resurrect retired (off-sale) goods back to on-sale, so the flag is withheld on
             // updates (selective skips nulls). New inserts still land on-sale below.
             goods.setIsOnSale(null);
+            // Manual-wins: a source='manual' admin brand assignment is never overwritten by a
+            // provider (or the legacy CJ path); withholding the field keeps it via selective update.
+            if (goods.getBrandId() != null
+                    && AttributionProvider.SOURCE_MANUAL.equals(linkageMapper.findBrandSourceOfGoods(existingId))) {
+                goods.setBrandId(null);
+            }
             goodsMapper.updateByPrimaryKeySelective(goods);
         } else {
+            if (goods.getBrandId() == null) {
+                goods.setBrandId(0); // unattributed sentinel, matches the pre-V60 convention
+            }
             goodsMapper.insertSelective(goods); // selectKey stamps goods.id
         }
         Integer goodsId = goods.getId();
@@ -465,6 +482,66 @@ public class CjProductPromotionService {
         category.setDeleted(Boolean.FALSE);
         categoryMapper.insertSelective(category);
         return category.getId();
+    }
+
+    /**
+     * Wave 25: first provider with an attribution for this snapshot wins; each provider's rows are
+     * upserted keyed {@code (source, external_id)} with the curation gate down
+     * ({@code display_enabled=0}). No provider match falls back to the legacy name-keyed path
+     * (dead for CJ — list sync lands {@code brand=null} — but kept for non-provider sources).
+     */
+    Integer resolveAttributedBrandId(LitemallCjProduct row, NativeGoodsAggregate.BrandRef legacyBrand) {
+        for (AttributionProvider provider : attributionProviders) {
+            AttributionProvider.Attribution att = provider.resolve(row);
+            if (att != null && StringUtils.hasText(att.externalId())) {
+                Integer id = upsertProviderBrand(provider.source(), att);
+                if (id != null) {
+                    return id;
+                }
+            }
+        }
+        return resolveBrandId(legacyBrand);
+    }
+
+    /**
+     * Find-or-create a provider-owned brand/store row. An existing row is returned AS IS (name
+     * untouched — admin curation is permanent), resurrecting it if soft-deleted. Creation is
+     * race-safe: a concurrent insert loses on {@code uk_brand_source_external} and re-reads.
+     */
+    Integer upsertProviderBrand(String source, AttributionProvider.Attribution att) {
+        String externalId = trim(att.externalId().trim(), 63);
+        LitemallBrand existing = linkageMapper.findBrandBySourceAndExternalId(source, externalId);
+        if (existing != null) {
+            if (Boolean.TRUE.equals(existing.getDeleted())) {
+                LitemallBrand revive = new LitemallBrand();
+                revive.setId(existing.getId());
+                revive.setDeleted(Boolean.FALSE);
+                revive.setUpdateTime(LocalDateTime.now());
+                brandMapper.updateByPrimaryKeySelective(revive);
+            }
+            return existing.getId();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LitemallBrand b = new LitemallBrand();
+        b.setName(trim(att.name(), VARCHAR_MAX));
+        b.setDesc(""); // NOT NULL in schema
+        b.setPicUrl(att.logo() != null ? trim(att.logo(), VARCHAR_MAX) : "");
+        b.setSortOrder((byte) 50);
+        b.setFloorPrice(BigDecimal.ZERO);
+        b.setSource(source);
+        b.setExternalId(externalId);
+        b.setKind(att.kind());
+        b.setDisplayEnabled(Boolean.FALSE); // curation gate: raw provider names never render
+        b.setAddTime(now);
+        b.setUpdateTime(now);
+        b.setDeleted(Boolean.FALSE);
+        try {
+            brandMapper.insertSelective(b);
+            return b.getId();
+        } catch (DuplicateKeyException race) {
+            LitemallBrand winner = linkageMapper.findBrandBySourceAndExternalId(source, externalId);
+            return winner != null ? winner.getId() : null;
+        }
     }
 
     private Integer resolveBrandId(NativeGoodsAggregate.BrandRef brand) {

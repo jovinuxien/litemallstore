@@ -116,9 +116,13 @@ public class LitemallOrderRestController {
             List<CjLogisticsOption> options = cjFreightQuoteService.options(request.getCountryCode(), quoteItems);
             CjLogisticsOption option = cjFreightQuoteService.quote(request.getCountryCode(), quoteItems);
             if (option != null) {
+                // Wave 24.1: each line carries its upgrade delta over the default pick — the
+                // exact surcharge submit charges — so the chooser can label "+€x" / "Included"
+                // without ever surfacing CJ's raw costs.
                 cjInfo = new FreightQuoteDtoResponse.CjInfo(option.getLogisticName(), option.getLogisticAging(),
                         options.stream()
-                                .map(o -> new FreightQuoteDtoResponse.Option(o.getLogisticName(), o.getLogisticAging()))
+                                .map(o -> new FreightQuoteDtoResponse.Option(o.getLogisticName(), o.getLogisticAging(),
+                                        CjFreightQuoteService.delta(o, option)))
                                 .collect(Collectors.toList()));
             } else {
                 cjNote = "Logistics estimate unavailable right now";

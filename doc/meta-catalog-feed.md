@@ -24,8 +24,17 @@ No category or homepage rows.
 
 ## Columns (exact header, exact order)
 
+> **Wave-25 revision (2026-08-10):** `identifier_exists` is APPENDED as column 14 — the
+> 13-column base order is unchanged (extra columns are legal for both Meta and Google).
+> `brand` no longer defaults to `Trovemo` (misrepresentation risk): it is filled ONLY from a
+> curated consumer-brand row (`litemall_brand.kind=0` + `display_enabled=1`), else blank with
+> `identifier_exists=false`. `google_product_category` is now filled from the static CJ-L1 →
+> Google-taxonomy map (`GoogleTaxonomyMap`); unmapped roots stay empty. `description` applies
+> the shared SEO fallback (`GoodsMetaService.descriptionOf`): when the brief merely repeats the
+> name, the detail body's opening prose is used instead.
+
 ```
-id,title,description,availability,condition,price,link,image_link,brand,google_product_category,item_group_id,sale_price,inventory
+id,title,description,availability,condition,price,link,image_link,brand,google_product_category,item_group_id,sale_price,inventory,identifier_exists
 ```
 
 | column | source / rule |
@@ -38,11 +47,12 @@ id,title,description,availability,condition,price,link,image_link,brand,google_p
 | `price` | `"<amount> <CURRENCY>"` — amount with 2 decimals, space, ISO code. **Must match the store's real charging currency** (see Open question below — VERIFIED 2026-07-29: checkout charges `LITEMALL_ORDER_STRIPE_CURRENCY`, default `usd`, no prod override set ⇒ `USD` today; read the currency from the same config `GoodsMetaService` uses — one source of truth). |
 | `link` | full slugged PDP URL, same builder as the sitemap: `https://trovemo.com/product/10000553-summer-platform-wedge-sandals` |
 | `image_link` | absolute public image URL, ≥500×500px, no auth required. Verify it 200s — rows with a broken image are rejected by Meta. (Codebase note: meta endpoint picUrl is RELATIVE `/_cdn` — absolutize with the public base URL, the Wave-13 og:image gotcha.) |
-| `brand` | `Trovemo` unless the goods record has a real brand |
-| `google_product_category` | optional but improves distribution — map litemall category → Google taxonomy id where a mapping exists, else leave empty |
+| `brand` | ~~`Trovemo` unless the goods record has a real brand~~ **Wave 25:** the curated name when `goods.brand_id` points at a live `kind=0` + `display_enabled=1` brand row; otherwise **blank** — supplier stores (kind=1) and uncurated provider rows never export as a brand |
+| `google_product_category` | **Wave 25:** full-path Google taxonomy string from the static CJ-L1 map (goods category resolves to its L1 root via the margin-override walk); unmapped roots leave it empty |
 | `item_group_id` | goods id, for products with size/colour variants |
 | `sale_price` | discounted price in the same `"<amount> <CURRENCY>"` format, empty when not discounted. (Codebase note: a live flash-deal swap sets `retail_price` = deal price with `counter_price` = pre-deal anchor ⇒ when counter > retail: price = counter, sale_price = retail; otherwise price = retail, sale_price empty.) |
 | `inventory` | integer stock count (summed SKU stock, as the insight layer computes it) |
+| `identifier_exists` | **Wave 25 (column 14):** literal `false` when the `brand` column is blank (no GTIN/MPN/brand identifiers exist for the product), empty otherwise (platform default applies) |
 
 ## CSV correctness (this is where feeds usually fail)
 - UTF-8, **no BOM**, `\n` line endings, comma delimiter
