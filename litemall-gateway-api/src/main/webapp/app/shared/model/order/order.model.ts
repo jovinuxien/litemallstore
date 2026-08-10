@@ -90,8 +90,10 @@ export interface IFreightQuote {
   cj?: {
     logisticName?: string;
     logisticAging?: string;
-    /** V52: every line CJ offers for this shipment — the delivery-option chooser's data. */
-    options?: { logisticName?: string; logisticAging?: string }[];
+    /** V52: every line CJ offers for this shipment — the delivery-option chooser's data.
+     *  Wave-24.1: `price` (post-fx decimal) feeds the "+€x.xx / Included" upgrade
+     *  labels; absent (pre-24.1 order half) ⇒ the chooser renders priceless. */
+    options?: { logisticName?: string; logisticAging?: string; price?: number }[];
   } | null;
   cjNote?: string | null;
 }

@@ -128,12 +128,30 @@ export const userApi = {
   // via the gateway customer-promotion predicate. Live once fix/promotion
   // merges and the service runs. mylist/selectlist items carry
   // id = userCouponId (the redeem handle) and cid = couponId.
-  couponList: (params: PageParams = {}) => unwrap<{ list: ICoupon[] }>(baseAxios.get(`${SRV}/coupon/list`, { params })),
+  // Wave-24.1: optional `goodsId` scopes the list to coupons matching that
+  // goods (pre-24.1 promotion ignores it). Omitted = coupon-center behavior.
+  couponList: (params: PageParams & { goodsId?: number | string } = {}) =>
+    unwrap<{ list: ICoupon[] }>(baseAxios.get(`${SRV}/coupon/list`, { params })),
   couponMyList: (status = 0, params: PageParams = {}) =>
     unwrap<{ list: ICoupon[] }>(baseAxios.get(`${SRV}/coupon/mylist`, { params: { status, ...params } })),
   // Usable-for-this-checkout: the caller passes the cart facts directly —
   // promotion has no cart access, so amount + numeric goods/category id CSVs
   // replace the legacy cartId/grouponRulesId params.
+  // Wave-24.1: `verbose=true` switches the selectlist response to
+  // `{usable, unusable:[{...coupon, reason, minGap?}]}`; the pre-24.1
+  // promotion service ignores the param and answers the legacy bare array —
+  // callers normalize via parseSelectlist (shared/util/checkoutHonesty).
+  couponSelectListVerbose: (amount: number, goodsIds: number[] = [], categoryIds: number[] = []) =>
+    unwrap<unknown>(
+      baseAxios.get(`${SRV}/coupon/selectlist`, {
+        params: {
+          amount,
+          verbose: true,
+          goodsIds: goodsIds.length ? goodsIds.join(',') : undefined,
+          categoryIds: categoryIds.length ? categoryIds.join(',') : undefined,
+        },
+      })
+    ),
   couponSelectList: (amount: number, goodsIds: number[] = [], categoryIds: number[] = []) =>
     unwrap<ICoupon[]>(
       baseAxios.get(`${SRV}/coupon/selectlist`, {

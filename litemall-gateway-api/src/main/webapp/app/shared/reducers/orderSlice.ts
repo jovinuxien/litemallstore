@@ -209,7 +209,7 @@ export class TaxUnavailableError extends Error {}
  */
 export const previewCheckoutTotals = async (
   groups: IItemCart[][],
-  params: { addressId?: number; couponId?: number; countryCode?: string },
+  params: { addressId?: number; couponId?: number; countryCode?: string; cjLogisticName?: string },
 ): Promise<CheckoutTotals> => {
   const totals: CheckoutTotals = {
     goodsTotalPrice: 0,
@@ -231,6 +231,9 @@ export const previewCheckoutTotals = async (
         addressId: params.addressId,
         couponId: couponApplied ? undefined : params.couponId,
         countryCode: params.countryCode,
+        // Harmless on the local group — freight resolution only reads it for
+        // CJ carts (Wave-24.1 upgrade-delta contract).
+        cjLogisticName: params.cjLogisticName,
       });
     } catch (error) {
       const status = (error as { response?: { status?: number } })?.response?.status

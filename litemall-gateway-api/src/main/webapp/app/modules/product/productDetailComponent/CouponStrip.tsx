@@ -10,15 +10,22 @@ import { EURO } from 'app/shared/util/money';
  * row. Reads public coupons (`/srv/coupon/list`) and lets the customer claim
  * one (`/srv/coupon/receive`). Renders nothing when no coupons are on offer.
  * Wave 18: percent coupons render "−N%"; "see all" links the coupon center.
+ * Wave 24.1: `goodsId` rides the list call so the PDP shows ONLY coupons
+ * whose scope matches this product (server-side, Wave-18 ancestor semantics);
+ * the pre-24.1 promotion service ignores the param (today's global list).
  */
-const CouponStrip: React.FC = () => {
+interface Props {
+  goodsId?: number | string;
+}
+
+const CouponStrip: React.FC<Props> = ({ goodsId }) => {
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
   const [claimed, setClaimed] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
     userApi
-      .couponList({ page: 1, limit: 4 })
+      .couponList({ page: 1, limit: 4, ...(goodsId != null ? { goodsId } : {}) })
       .then(res => {
         if (!cancelled) setCoupons(res?.list ?? []);
       })
@@ -28,7 +35,7 @@ const CouponStrip: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [goodsId]);
 
   const claim = async (c: ICoupon) => {
     if (c.id == null || claimed[c.id]) return;
