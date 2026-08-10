@@ -1096,6 +1096,14 @@
 >   `cjLogisticName`; submit reads it from the existing command field.
 >   Unknown/absent name ⇒ delta 0 (today's charge — never an error).
 >   The order row's freight_price carries the full charged amount.
+>   **Contract raise 2026-08-10 (pinned):** the freight-quote response's
+>   `cj.options[]` entries additionally expose `price` (post-fx decimal
+>   — the internal `CjLogisticsOption.logisticPrice` the DTO currently
+>   drops); the default line stays identified by the existing
+>   `cj.logisticName`. The SPA's "+€x.xx"/"Included" labels are
+>   client-side display math over these (≤0 ⇒ Included); the CHARGED
+>   delta stays server-authoritative at preview/submit. SPA
+>   degrades-honest to priceless labels when the field is absent.
 > - **promotion — scoped list + reasons:** `GET /srv/coupon/list` gains
 >   optional `goodsId`: response keeps its exact shape but includes
 >   ONLY coupons matching that goods (whole-catalog coupons included;
