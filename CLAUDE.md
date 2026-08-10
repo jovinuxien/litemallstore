@@ -1180,6 +1180,18 @@
   5. **Catalog hygiene**: rename the 23 Chinese-named on-sale goods
      (translate; off-sale with reason if untranslatable) and normalize
      Chinese `litemall_goods.unit` glyphs ("件" → "pc"/blank).
+  6. **Per-variant image capture** (commissioned via the PDP session
+     2026-08-09; user confirms at plan approval): CJ's variant payload
+     carries an image the DTO never mapped — map it in
+     `CJProductVariantData`, persist per-variant image into
+     `variants_json` at enrichment, and at promote write it to
+     `litemall_goods_product.url` ONLY when non-blank (main-photo
+     fallback stays; today every SKU url == main photo). Backfill
+     rides the existing enrichment rotation + on-demand path — NO new
+     CJ call loops (points quota), NO new endpoint (detail already
+     serves `products[].url`). The SPA half is ALREADY DONE + MERGED
+     (`ba934d8e4`, inert) — it lights up product-by-product as this
+     backfill lands.
 - **Acceptance (dev, through :9000/:8090):** probe % logged; V60
   applied at boot; an enriched good gets a brand row (cj-supplier,
   kind=1, display_enabled=0) + brand_id linked with NO public render;
@@ -1262,6 +1274,14 @@
   `c5fdae86f`; live feed validated).
 
 ### Worktree: `gateway-api` — ACTIVE: Wave 25 (Sold-by storefront surfaces)
+- ⚠ **Worktree-sharing rule:** another session (PDP/variant work) may be
+  active in THIS worktree. NEVER stash, checkout, or reset files you did
+  not author — that already destroyed a peer's in-flight edit once
+  (2026-08-09). If the tree is dirty with foreign changes, leave them,
+  scope your `git add` to your own files, and raise conflicts through
+  the MAIN session. The variant-image SPA pre-wiring is DONE + MERGED
+  (`ba934d8e4`) — do NOT redo or touch `variantDisplay.ts` beyond your
+  own task's needs.
 - **Task — Wave 25 storefront: honest attribution render.** Code to
   the Wave-25 CONTRACT above. PDP gains an attribution row when the
   product's brand row is display-enabled: kind=1 → "Sold by <name>" +
