@@ -451,6 +451,22 @@ public class LitemallCouponServiceImpl {
         return couponRepository.findReceivable();
     }
 
+    /**
+     * Wave 24.1: receivable coupons whose scope covers ONE goods — the PDP
+     * coupon-strip feed. Whole-catalog coupons always match; goods-scoped
+     * coupons must contain the id; category-scoped coupons match at any
+     * ancestor level (the goods' leaf category is derived and expanded up the
+     * {@code litemall_category} chain, Wave-18 semantics).
+     */
+    @Transactional(readOnly = true)
+    public List<LitemallCouponAggregate> getReceivableCouponsForGoods(Integer goodsId) {
+        List<Integer> goodsIds = List.of(goodsId);
+        List<Integer> expandedCategoryIds = couponScopePort.expandCategoryIds(goodsIds, null);
+        return couponRepository.findReceivable().stream()
+                .filter(coupon -> coupon.matchesGoods(goodsIds, expandedCategoryIds))
+                .collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public Optional<LitemallCouponAggregate> getCoupon(LitemallCouponId couponId) {
         return couponRepository.findById(couponId);
@@ -537,6 +553,106 @@ public class LitemallCouponServiceImpl {
                 .filter(view -> view.getCoupon().meetsThreshold(subtotal))
                 .filter(view -> view.getCoupon().matchesGoods(goodsIds, expandedCategoryIds))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Wave 24.1: reason a held coupon cannot be used for the current checkout.
+     * {@code null} reason = usable.
+     */
+    public enum CheckoutCouponReason {
+        /** Holding past its end time, or the coupon definition is expired. */
+        EXPIRED("expired"),
+        /** The coupon definition is used up (status OUT). */
+        EXHAUSTED("exhausted"),
+        /** The coupon's goods/category scope does not cover this cart. */
+        SCOPE("scope"),
+        /** Cart subtotal below the spend threshold ({@code minGap} to go). */
+        THRESHOLD("threshold");
+
+        private final String code;
+
+        CheckoutCouponReason(String code) {
+            this.code = code;
+        }
+
+        public String getCode() {
+            return code;
+        }
+    }
+
+    /** A held coupon classified for checkout: usable, or unusable with a typed reason. */
+    public static class CheckoutCouponView {
+        private final LitemallUserCouponAggregate userCoupon;
+        private final LitemallCouponAggregate coupon;
+        /** Computed effective discount for the cart amount; usable views only. */
+        private final BigDecimal effectiveDiscount;
+        /** null = usable for this checkout. */
+        private final CheckoutCouponReason reason;
+        /** Amount still to spend to reach the threshold; THRESHOLD reason only. */
+        private final BigDecimal minGap;
+
+        public CheckoutCouponView(LitemallUserCouponAggregate userCoupon, LitemallCouponAggregate coupon,
+                                  BigDecimal effectiveDiscount, CheckoutCouponReason reason, BigDecimal minGap) {
+            this.userCoupon = userCoupon;
+            this.coupon = coupon;
+            this.effectiveDiscount = effectiveDiscount;
+            this.reason = reason;
+            this.minGap = minGap;
+        }
+
+        public LitemallUserCouponAggregate getUserCoupon() { return userCoupon; }
+        public LitemallCouponAggregate getCoupon() { return coupon; }
+        public BigDecimal getEffectiveDiscount() { return effectiveDiscount; }
+        public CheckoutCouponReason getReason() { return reason; }
+        public BigDecimal getMinGap() { return minGap; }
+        public boolean isUsable() { return reason == null; }
+    }
+
+    /**
+     * Wave 24.1 verbose checkout view: every unexpired-status holding
+     * classified as usable or unusable-with-reason, over the SAME facts as
+     * {@link #getUsableForCheckout} (which stays untouched — the legacy bare
+     * array must remain byte-identical). Reason precedence: expired &gt;
+     * exhausted &gt; scope &gt; threshold — permanent conditions win over
+     * fixable ones, and spending more can never fix a scope mismatch.
+     */
+    @Transactional(readOnly = true)
+    public List<CheckoutCouponView> getCheckoutCouponViews(LitemallUserId userId, BigDecimal amount,
+                                                           List<Integer> goodsIds, List<Integer> categoryIds) {
+        LocalDateTime now = LocalDateTime.now();
+        LitemallMoney subtotal = new LitemallMoney(amount != null ? amount : BigDecimal.ZERO);
+        List<Integer> expandedCategoryIds = couponScopePort.expandCategoryIds(goodsIds, categoryIds);
+        return userCouponRepository.findUsableByUser(userId).stream()
+                .map(held -> couponRepository.findById(held.getCouponId())
+                        .map(coupon -> classify(held, coupon, now, subtotal, goodsIds, expandedCategoryIds))
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    private CheckoutCouponView classify(LitemallUserCouponAggregate held, LitemallCouponAggregate coupon,
+                                        LocalDateTime now, LitemallMoney subtotal,
+                                        List<Integer> goodsIds, List<Integer> expandedCategoryIds) {
+        if (held.isExpired(now) || LitemallCouponStatus.EXPIRED.equals(coupon.getStatus())) {
+            return new CheckoutCouponView(held, coupon, null, CheckoutCouponReason.EXPIRED, null);
+        }
+        if (LitemallCouponStatus.OUT.equals(coupon.getStatus())) {
+            return new CheckoutCouponView(held, coupon, null, CheckoutCouponReason.EXHAUSTED, null);
+        }
+        if (!coupon.isAvailable()) {
+            // Future/unknown non-NORMAL status: not claimable at checkout;
+            // expired is the closest honest bucket.
+            return new CheckoutCouponView(held, coupon, null, CheckoutCouponReason.EXPIRED, null);
+        }
+        if (!coupon.matchesGoods(goodsIds, expandedCategoryIds)) {
+            return new CheckoutCouponView(held, coupon, null, CheckoutCouponReason.SCOPE, null);
+        }
+        if (!coupon.meetsThreshold(subtotal)) {
+            BigDecimal minGap = coupon.getMin().getAmount().subtract(subtotal.getAmount())
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            return new CheckoutCouponView(held, coupon, null, CheckoutCouponReason.THRESHOLD, minGap);
+        }
+        return new CheckoutCouponView(held, coupon, coupon.computeEffectiveDiscount(subtotal), null, null);
     }
 
     /**
