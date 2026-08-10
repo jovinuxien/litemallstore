@@ -27,7 +27,8 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * Cached Meta Commerce Manager product feed for {@code GET /srv/goods/meta-catalog.csv}
  * (Wave 14.1, contract: {@code doc/meta-catalog-feed.md}): one CSV row per on-sale
- * product, 13 exact columns, prices in the store's real charging currency (the same
+ * product, the 13 base columns plus the Wave-25 appended {@code identifier_exists},
+ * prices in the store's real charging currency (the same
  * {@code litemall.goods.currency} the meta endpoint serves), slugged PDP links from
  * {@link SeoSlugger}, and image links absolutized onto the {@code /_cdn} proxy paths —
  * the edge's JSON-only rewrite filter never touches CSV, so the feed must mint final
@@ -45,13 +46,15 @@ public class MetaCatalogFeedService {
 
     private static final Logger logger = LoggerFactory.getLogger(MetaCatalogFeedService.class);
 
+    // Wave 25: identifier_exists is APPENDED after the original 13 columns so the base header
+    // order stays backward-compatible (extra columns are legal for both Meta and Google).
     static final String HEADER = "id,title,description,availability,condition,price,link,"
-            + "image_link,brand,google_product_category,item_group_id,sale_price,inventory";
+            + "image_link,brand,google_product_category,item_group_id,sale_price,inventory,"
+            + "identifier_exists";
 
     private static final int PAGE_SIZE = 200;
     private static final int TITLE_MAX = 150;
     private static final int DESCRIPTION_MAX = 5000;
-    private static final String DEFAULT_BRAND = "Trovemo";
     /** Staleness fallback only — the nightly refresh hook is the intended regeneration path. */
     private static final long STALE_TTL_MS = 24 * 60 * 60 * 1000L;
 
@@ -60,6 +63,7 @@ public class MetaCatalogFeedService {
     private final LitemallBrandService brandService;
     private final LitemallGoodsProperties goodsProperties;
     private final PublicSiteProperties siteProperties;
+    private final GoogleTaxonomyMap googleTaxonomy;
 
     private record Snapshot(byte[] csv, long builtAt) {
     }
@@ -71,12 +75,14 @@ public class MetaCatalogFeedService {
                                   LitemallGoodsProductMapper goodsProductMapper,
                                   LitemallBrandService brandService,
                                   LitemallGoodsProperties goodsProperties,
-                                  PublicSiteProperties siteProperties) {
+                                  PublicSiteProperties siteProperties,
+                                  GoogleTaxonomyMap googleTaxonomy) {
         this.goodsService = goodsService;
         this.goodsProductMapper = goodsProductMapper;
         this.brandService = brandService;
         this.goodsProperties = goodsProperties;
         this.siteProperties = siteProperties;
+        this.googleTaxonomy = googleTaxonomy;
     }
 
     /** Cached feed bytes; always at least the header line, never throws. */
@@ -181,13 +187,20 @@ public class MetaCatalogFeedService {
                 BigDecimal salePrice = onDeal ? retail : null;
 
                 String title = HtmlText.truncateAtWord(HtmlText.uncapsIfShouty(cleanName), TITLE_MAX);
-                String description = HtmlText.clean(goods.getBrief());
+                // Wave 25: the shared SEO description policy (brief unless it repeats the name,
+                // else the detail body's prose) kills the description==title rows Meta flags.
+                String description = HtmlText.clean(GoodsMetaService.descriptionOf(goods, DESCRIPTION_MAX));
                 if (description.isEmpty()) {
                     description = title;
                 }
                 description = HtmlText.truncateAtWord(description, DESCRIPTION_MAX);
 
                 int stock = Math.max(0, stockByGoods.getOrDefault(id, 0));
+
+                // Wave 25 feed honesty: brand ONLY from a curated consumer-brand row (kind=0 +
+                // display-enabled); everything else exports blank + identifier_exists=false —
+                // the feed no longer claims "Trovemo" manufactures the catalog.
+                String brand = feedBrand(goods.getBrandId(), brandNames);
 
                 appendRow(csv,
                         String.valueOf(id),
@@ -198,11 +211,12 @@ public class MetaCatalogFeedService {
                         money(price, currency),
                         base + SeoSlugger.productPath(id, goods.getName()),
                         image,
-                        brandName(goods.getBrandId(), brandNames),
-                        "",
+                        brand,
+                        googleTaxonomy.resolve(goods.getCategoryId()),
                         String.valueOf(id),
                         salePrice != null ? money(salePrice, currency) : "",
-                        String.valueOf(stock));
+                        String.valueOf(stock),
+                        brand.isEmpty() ? "false" : "");
                 rows++;
             }
             if (batch.size() < PAGE_SIZE) {
@@ -238,14 +252,24 @@ public class MetaCatalogFeedService {
         return sums;
     }
 
-    private String brandName(Integer brandId, Map<Integer, String> cache) {
+    /**
+     * The feed's brand column value: the curated name when the goods links to a live,
+     * display-enabled CONSUMER brand (kind=0); otherwise "" — supplier stores (kind=1) and
+     * uncurated provider rows never masquerade as a brand in merchant review.
+     */
+    private String feedBrand(Integer brandId, Map<Integer, String> cache) {
         if (brandId == null || brandId <= 0) {
-            return DEFAULT_BRAND;
+            return "";
         }
         return cache.computeIfAbsent(brandId, id -> {
             LitemallBrand brand = brandService.findById(id);
-            String name = brand != null ? HtmlText.clean(brand.getName()) : "";
-            return name.isEmpty() ? DEFAULT_BRAND : name;
+            if (brand == null
+                    || Boolean.TRUE.equals(brand.getDeleted())
+                    || !Boolean.TRUE.equals(brand.getDisplayEnabled())
+                    || brand.getKind() == null || brand.getKind() != 0) {
+                return "";
+            }
+            return HtmlText.clean(brand.getName());
         });
     }
 

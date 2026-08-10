@@ -107,6 +107,7 @@ public class CjDetailEnrichmentService {
         }
         LOGGER.info("CJ detail+inventory enrichment: {} enriched, {} failed (batch requested {}, due {})",
                 enriched, failed, batchSize, rows.size());
+        logSupplierCoverage(rows);
         return new EnrichResult(enriched, failed);
     }
 
@@ -220,6 +221,13 @@ public class CjDetailEnrichmentService {
         row.setCjCreateTime(parseCjDateTime(d.getCreateTime()));
         applyReviewAggregate(row, pid);
 
+        // V60 supplier attribution: persist the raw CJ supplier identity (sparse — populated for
+        // roughly half of items in the 2026-08-09 live probe). Nulls preserve prior values via the
+        // enrich statement's COALESCE. The name is a raw legal-entity string; it only ever reaches
+        // customers after an admin curates the derived brand row (display_enabled gate).
+        row.setSupplierId(trimTo(readable(d.getSupplierId()), 63));
+        row.setSupplierName(trimTo(readable(d.getSupplierName()), 255));
+
         cjProductStore.enrich(row);                  // persist enriched snapshot + stamp enriched_time
         // Land the freshly-enriched row into the native litemall_goods family and index THAT (OCS
         // single-source, Phase 4) — no more parallel cj_<pid> document. promote() commits in its own
@@ -239,6 +247,38 @@ public class CjDetailEnrichmentService {
                     pid, flowEx.getMessage());
         }
         return goodsId;
+    }
+
+    /**
+     * Wave-25 coverage probe: how often CJ's detail response actually carries a supplier identity —
+     * per batch (from the rows just processed) and cumulatively over every enriched row (one cheap
+     * count query). Drives the go/no-go on leaning harder on supplier attribution; log-only.
+     */
+    private void logSupplierCoverage(List<LitemallCjProduct> batchRows) {
+        try {
+            int batchPopulated = 0;
+            for (LitemallCjProduct r : batchRows) {
+                if (r.getSupplierId() != null && !r.getSupplierId().isBlank()) {
+                    batchPopulated++;
+                }
+            }
+            Map<String, Object> cov = cjProductStore.supplierCoverage();
+            long total = ((Number) cov.getOrDefault("enrichedTotal", 0)).longValue();
+            long populated = ((Number) cov.getOrDefault("supplierPopulated", 0)).longValue();
+            String pct = total > 0 ? String.format("%.1f%%", populated * 100.0 / total) : "n/a";
+            LOGGER.info("CJ supplier attribution coverage: batch {}/{} populated; cumulative {}/{} enriched rows ({})",
+                    batchPopulated, batchRows.size(), populated, total, pct);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("CJ supplier coverage probe failed (enrichment unaffected): {}", ex.getMessage());
+        }
+    }
+
+    private String trimTo(String value, int max) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String t = value.trim();
+        return t.length() <= max ? t : t.substring(0, max);
     }
 
     /**

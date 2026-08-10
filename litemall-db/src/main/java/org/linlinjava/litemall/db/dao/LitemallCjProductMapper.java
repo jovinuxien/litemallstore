@@ -38,4 +38,10 @@ public interface LitemallCjProductMapper {
 
     /** Soft-delete the given raw pids (product removed upstream); returns rows affected. */
     int softDeleteByPids(@Param("pids") List<String> pids);
+
+    /**
+     * Supplier-attribution coverage over live enriched rows (V60 probe):
+     * {@code {enrichedTotal, supplierPopulated}} counts in one query.
+     */
+    java.util.Map<String, Object> selectSupplierCoverage();
 }

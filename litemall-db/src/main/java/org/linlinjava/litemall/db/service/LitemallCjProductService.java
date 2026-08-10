@@ -67,6 +67,11 @@ public class LitemallCjProductService {
         return cjProductMapper.selectForEnrichment(limit);
     }
 
+    /** Supplier-attribution coverage over enriched rows: {enrichedTotal, supplierPopulated}. */
+    public java.util.Map<String, Object> supplierCoverage() {
+        return cjProductMapper.selectSupplierCoverage();
+    }
+
     /** Soft-delete rows whose pids are no longer present upstream; returns rows affected. */
     public int softDelete(List<String> pids) {
         if (pids == null || pids.isEmpty()) {
