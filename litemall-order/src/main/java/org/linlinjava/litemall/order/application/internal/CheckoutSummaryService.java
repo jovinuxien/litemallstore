@@ -1,5 +1,6 @@
 package org.linlinjava.litemall.order.application.internal;
 
+import org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallAddressAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallCartAggregate;
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
@@ -68,9 +69,17 @@ public class CheckoutSummaryService {
     private LitemallOrderServiceImpl orderServiceImpl;
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.OrderSourceResolver orderSourceResolver;
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjFreightQuoteService cjFreightQuoteService;
 
     public CheckoutSummaryDto summarize(LitemallUserId userId, Integer addressId,
                                         Integer userCouponId, String countryCode) {
+        return summarize(userId, addressId, userCouponId, countryCode, null);
+    }
+
+    public CheckoutSummaryDto summarize(LitemallUserId userId, Integer addressId,
+                                        Integer userCouponId, String countryCode,
+                                        String cjLogisticName) {
         List<LitemallCartAggregate> checked = cartServiceLayer.listAllCartItems(userId).stream()
                 .filter(Objects::nonNull)
                 .filter(LitemallCartAggregate::isChecked)
@@ -90,7 +99,7 @@ public class CheckoutSummaryService {
                 : addressRepository.findAddress(userId, new LitemallAddressId(addressId));
 
         BigDecimal couponPrice = resolveCoupon(userId, userCouponId, checked, goodsTotal);
-        BigDecimal freight = resolveFreight(checked, goodsTotal, address, countryCode);
+        BigDecimal freight = resolveFreight(checked, goodsTotal, address, countryCode, cjLogisticName);
         BigDecimal tax = resolveTax(checked, goodsTotal, couponPrice, freight, countryCode, address);
 
         BigDecimal orderTotal = goodsTotal.add(freight).subtract(couponPrice).max(BigDecimal.ZERO).add(tax);
@@ -129,9 +138,12 @@ public class CheckoutSummaryService {
     /**
      * Freight via the single authority, so preview and charge agree. Mirrors the submit
      * path's CJ handling; a preview has no pickup flag, so this quotes the delivery leg.
+     * Wave 24.1: a CJ cart with a courier pick adds the same upgrade delta submit charges
+     * — {@code CjFreightQuoteService.upgradeDelta}, the one implementation for both.
      */
     private BigDecimal resolveFreight(List<LitemallCartAggregate> checked, BigDecimal goodsTotal,
-                                      LitemallAddressAggregate address, String countryCode) {
+                                      LitemallAddressAggregate address, String countryCode,
+                                      String cjLogisticName) {
         if (checked.isEmpty()) {
             return BigDecimal.ZERO.setScale(2);
         }
@@ -141,9 +153,22 @@ public class CheckoutSummaryService {
                         item.getNumber() == null ? 0 : item.getNumber(),
                         item.getPrice() == null ? null : item.getPrice().getAmount()))
                 .collect(Collectors.toList());
-        return freightCalculationService.quote(lines, countryCode,
-                address == null ? null : address.getProvince(), goodsTotal,
-                LitemallOrderAggregate.SOURCE_CJ.equals(safeSource(checked))).getFreight();
+        boolean cjFulfilled = LitemallOrderAggregate.SOURCE_CJ.equals(safeSource(checked));
+        BigDecimal freight = freightCalculationService.quote(lines, countryCode,
+                address == null ? null : address.getProvince(), goodsTotal, cjFulfilled).getFreight();
+        if (cjFulfilled) {
+            freight = freight.add(cjFreightQuoteService.upgradeDelta(
+                    countryCode, quoteItems(checked), cjLogisticName));
+        }
+        return freight;
+    }
+
+    private static List<CjFreightQuoteService.QuoteItem> quoteItems(List<LitemallCartAggregate> checked) {
+        return checked.stream()
+                .map(item -> new CjFreightQuoteService.QuoteItem(
+                        item.getProductId() == null ? null : item.getProductId().getId(),
+                        item.getNumber()))
+                .collect(Collectors.toList());
     }
 
     /**
