@@ -1065,6 +1065,59 @@
 > brand + identifier_exists=false; feed validates for both Meta and
 > Google column rules; admin brand CRUD regression-green.
 >
+> **Wave 24.1 (2026-08-10) — CHECKOUT MONEY HONESTY: courier upgrade-delta
+> pricing + scoped PDP coupons + coupon empty-state reasons.** USER
+> DECISIONS (2026-08-10): freight = **UPGRADE-DELTA** (standard shipping
+> keeps the flat-rule promise incl. free ≥ litemall_express_freight_min;
+> picking a faster courier charges exactly the CJ price difference);
+> PDP shows ONLY coupons whose scope matches that product/category; the
+> two junk prod test coupons are EXPIRED (status=1, 2026-08-10 — create
+> real coupons in admin, the margin guard protects profitability).
+> Audit facts (2026-08-10, code-verified): the V52 courier chooser is
+> INFORMATIONAL — `FreightCalculationService` short-circuits CJ carts to
+> the legacy flat rule and pricing calls `chooseLogistics(options, null)`
+> (CjFreightQuoteService:99 — the null is where the pick should flow);
+> the customer's `cjLogisticName` is persisted and used at CJ placement,
+> so the STORE pays the real courier price while charging flat €6.93 —
+> margin leak on every upgrade. The checkout preview endpoint takes NO
+> courier param; the SPA sends the pick at submit only. PDP
+> `CouponStrip.tsx` reads `/srv/coupon/list` UNFILTERED (goods-scoped
+> test coupon rendered on every PDP). Checkout's picker lists only
+> usable coupons — an inapplicable coupon vanishes silently, reading as
+> "coupons don't work". Coupon selectlist responses are BARE ARRAYS
+> (legacy shape — do not change it in place).
+> **Wave-24.1 CONTRACT (worktrees code to THIS):**
+> - **order — upgrade-delta freight:** charged CJ freight =
+>   `flatComponent + max(0, selectedOption.price − defaultOption.price)`
+>   where flatComponent = today's ladder result (incl. FREE_MIN) and
+>   defaultOption = the `chooseLogistics(options, null)` pick; all
+>   prices post-fx (Wave-24 seam). Applies IDENTICALLY at preview and
+>   submit: the checkout preview endpoint gains optional
+>   `cjLogisticName`; submit reads it from the existing command field.
+>   Unknown/absent name ⇒ delta 0 (today's charge — never an error).
+>   The order row's freight_price carries the full charged amount.
+> - **promotion — scoped list + reasons:** `GET /srv/coupon/list` gains
+>   optional `goodsId`: response keeps its exact shape but includes
+>   ONLY coupons matching that goods (whole-catalog coupons included;
+>   goods-scope must contain the id; category scope ancestor-expanded —
+>   Wave-18 semantics; promotion derives the goods' categories
+>   server-side). Omitted param = today's behavior (coupon center).
+>   Selectlist: NEW optional param `verbose=true` switches the response
+>   to `{usable:[...], unusable:[{...coupon, reason, minGap?}]}` with
+>   typed reasons `threshold|scope|expired|exhausted` (`minGap` = amount
+>   still to spend, threshold only); WITHOUT the param the legacy bare
+>   array is byte-identical (order-service facade and old SPA untouched).
+> - **gateway-api (worktree FREE — its Wave-25 attribution half shipped
+>   2026-08-10, deployed `f41c3bda8`):** CouponStrip passes `goodsId` (no
+>   client-side scope guessing); checkout coupon cell calls
+>   `verbose=true` and renders unusable coupons greyed with the reason
+>   verbatim ("Spend €X more…", "Not valid for these items", …);
+>   delivery-option chooser labels each courier with its upgrade delta
+>   ("+€3.20" / "Included") and sends `cjLogisticName` on the PREVIEW
+>   call (add to the effect deps) so the total updates live with the
+>   pick; € formatter everywhere.
+> - errno envelope; money plain decimals; NO migration anywhere.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -1104,7 +1157,22 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (Wave 24 order half MERGED)
+### Worktree: `order` — ACTIVE: Wave 24.1 (courier upgrade-delta freight)
+- **Task — Wave 24.1: price the customer's courier pick as an upgrade
+  delta.** Code to the Wave-24.1 CONTRACT above. Charged CJ freight =
+  flatComponent (today's ladder incl. FREE_MIN) + max(0,
+  selected − default) from the CJ options (post-fx). The preview
+  endpoint gains optional `cjLogisticName`; submit reads the existing
+  command field; `CheckoutSummaryService.resolveFreight` and the submit
+  pricing MUST share the one implementation (single-authority rule).
+  Absent/unknown courier name ⇒ delta 0, never an error. NO migration.
+- **Acceptance (dev, through :9000/:8090):** preview with no courier =
+  today's number; preview with a pricier courier = flat + exact delta;
+  FREE_MIN cart + upgraded courier charges ONLY the delta; submit
+  charges what the preview showed (DB-verified freight_price); unknown
+  name falls back silently; module tests green with real "Tests run:"
+  counts.
+- **History — idle (Wave 24 order half MERGED)**
 - **No active assignment.**
 - **History — Wave 24: CJ freight USD→EUR fx at the quote seam.**
   MERGED to master `116aee40e` + pushed (2026-08-09; branch commit
@@ -1182,7 +1250,12 @@
   5. **Catalog hygiene**: rename the 23 Chinese-named on-sale goods
      (translate; off-sale with reason if untranslatable) and normalize
      Chinese `litemall_goods.unit` glyphs ("件" → "pc"/blank).
-  6. **Per-variant image capture** (commissioned via the PDP session
+  6. **Public brand read must respect the curation gate** (RAISED by the
+     gateway-api half 2026-08-10): `/srv/brand/list|detail` EXCLUDE
+     rows with display_enabled=0 — otherwise raw CJ supplier legal
+     names leak through public JSON even though the SPA never renders
+     them.
+  7. **Per-variant image capture** (commissioned via the PDP session
      2026-08-09; user confirms at plan approval): CJ's variant payload
      carries an image the DTO never mapped — map it in
      `CJProductVariantData`, persist per-variant image into
@@ -1275,7 +1348,17 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: Wave 25 (Sold-by storefront surfaces)
+### Worktree: `gateway-api` — ACTIVE: Wave 24.1 (checkout money honesty SPA)
+- **Task — Wave 24.1 storefront half.** Code to the Wave-24.1 CONTRACT
+  above: CouponStrip passes `goodsId`; checkout coupon cell renders
+  verbose unusable coupons greyed with server reasons; courier chooser
+  shows "+€x.xx"/"Included" deltas and sends `cjLogisticName` on the
+  preview call (effect deps) so the total tracks the pick live.
+- **Status:** the Wave-25 attribution half is DONE + DEPLOYED
+  (`65ab8c75b`, deploy `f41c3bda8`, fail-closed live-verified 2026-08-10;
+  jest 118/118). RAISED for goods-management V60: public /srv/brand JSON
+  must EXCLUDE display_enabled=0 rows (raw supplier legal names leak).
+- **History — Wave 25 (Sold-by storefront surfaces)**
 - ⚠ **Worktree-sharing rule:** another session (PDP/variant work) may be
   active in THIS worktree. NEVER stash, checkout, or reset files you did
   not author — that already destroyed a peer's in-flight edit once
@@ -1597,11 +1680,26 @@
   comment). CI's gitleaks job was RED on master per
   `docs/handoff-secrets-wave7.md` — fix belongs here if picked up later.
 
-### Worktree: `promotion` — idle (Wave 22 SHIPPED)
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten. Do NOT touch
-  `SocialDealAutoPoster`, the Mautic listener, or the campaign
+### Worktree: `promotion` — ACTIVE: Wave 24.1 (scoped coupon list + reasons)
+- **Task — Wave 24.1: scope-filtered public coupon list + verbose
+  selectlist.** Code to the Wave-24.1 CONTRACT above. (1)
+  `GET /srv/coupon/list?goodsId=` returns ONLY coupons matching that
+  goods — whole-catalog included, goods-scope containment, category
+  scope ancestor-expanded per Wave-18 semantics, categories derived
+  server-side from the goodsId; response shape unchanged; omitted
+  param = today's list. (2) selectlist `verbose=true` → `{usable,
+  unusable:[{...coupon, reason: threshold|scope|expired|exhausted,
+  minGap?}]}`; WITHOUT the param the legacy bare array stays
+  byte-identical (order's facade + old SPA callers untouched). Do NOT
+  touch `SocialDealAutoPoster`, the Mautic listener, or the campaign
   endpoints.
+- **Acceptance (dev, through :9000/:8090):** goods-scoped coupon
+  appears ONLY on its goods' list call and an L1-scoped coupon appears
+  for a leaf-category goods under that L1 (ancestor proof); bare
+  selectlist byte-identical before/after (capture both); verbose
+  returns a threshold miss with the exact minGap; module tests green
+  with real "Tests run:" counts.
+- **History — idle (Wave 22 SHIPPED).**
 - **History — Wave 22 (backend): RFM-targeted coupon delivery.**
   SHIPPED + DEPLOYED 2026-08-08 (`7eb513d1d`, prod V58):
   `litemall_coupon_delivery`, deliver-to-segment w/ preview (audience
