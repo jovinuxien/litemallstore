@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { catalogApi, contentApi, IBrand } from 'app/shared/api';
+import { attributionOf } from 'app/shared/util/attribution';
 import 'app/shared/scss/content.scss';
 
 /**
@@ -46,7 +47,10 @@ const BrandList: React.FC = () => {
     contentApi
       .brandList({ page: 1, limit: 100 })
       .then(async res => {
-        const all = res?.list ?? [];
+        // Wave-25 curation gate: never list a row that isn't display-enabled
+        // (provider-captured supplier rows carry raw legal names until an
+        // admin renames + enables them).
+        const all = (res?.list ?? []).filter(b => attributionOf(b) !== null);
         const counts = await Promise.all(all.map(countFor));
         const populated = all
           .map((b, i) => ({ ...b, goodsCount: counts[i] }))
@@ -67,7 +71,7 @@ const BrandList: React.FC = () => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>Brands</h1>
+      <h1 className='h4 mb-3'>Brands &amp; stores</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
@@ -80,6 +84,9 @@ const BrandList: React.FC = () => {
             <Link key={b.id} to={`/brand/${b.id}`} className='lm-brand-tile'>
               <img src={b.picUrl} alt={b.name} />
               <div className='lm-brand-tile__name'>{b.name}</div>
+              <span className={`lm-brand-badge lm-brand-badge--${b.kind === 1 ? 'store' : 'brand'}`}>
+                {b.kind === 1 ? 'Store' : 'Brand'}
+              </span>
               <div className='lm-brand-tile__count'>
                 {b.goodsCount} {b.goodsCount === 1 ? 'product' : 'products'}
               </div>

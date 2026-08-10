@@ -139,6 +139,27 @@
     margin-bottom: 6px;
   }
 
+  // Wave-25 attribution line under the title: "Sold by <store>" / "Brand: <brand>".
+  &__soldby {
+    font-size: 14px;
+    color: var(--lm-muted, #78909c);
+    margin-bottom: 6px;
+
+    a {
+      color: var(--lm-primary, #0e7c86);
+      text-decoration: none;
+
+      &:hover {
+        color: var(--lm-primary-dark, #0a5d65);
+        text-decoration: underline;
+      }
+    }
+  }
+  &__soldby-more {
+    margin-left: 12px;
+    font-size: 13px;
+  }
+
   // ---- rating row under the title ----
   &__ratingrow {
     display: flex;
