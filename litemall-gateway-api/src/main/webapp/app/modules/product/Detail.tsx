@@ -27,6 +27,8 @@ import RatingSummary from './productDetailComponent/RatingSummary';
 import RecentlyViewed from './productDetailComponent/RecentlyViewed';
 import Reviews from './productDetailComponent/Reviews';
 import ShareButton from './productDetailComponent/ShareButton';
+import SoldByRow from './productDetailComponent/SoldByRow';
+import { brandIdOf } from 'app/shared/util/attribution';
 import './Detail.scss';
 
 const productId = (p: DetailProduct): number | undefined => {
@@ -304,6 +306,7 @@ const ProductDetailView: React.FC = () => {
         <section className='lm-pdp__info'>
           {goods.hot && <span className='lm-pdp__popular'>Popular</span>}
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
+          <SoldByRow brandId={brandIdOf(goods)} />
           <RatingSummary goodsId={gid} />
           {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
 
