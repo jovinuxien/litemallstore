@@ -1154,6 +1154,27 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
+- **Status 2026-08-10: Wave-25 backend COMPLETE on branch; dev acceptance
+  PASSED.** V60 applied at dev boot (source pre-existed from V23 — V60
+  re-baselines 'local'→'manual' instead of adding it; ALSO adds
+  litemall_cj_product supplier_id/supplier_name — required, the nightly list
+  upsert would erase in-memory-only capture — and flips goods.unit default
+  件→''; both deviations user-approved 2026-08-10). Live dev evidence: full
+  promote 9,644/0 created the seeded supplier row as (cj-supplier, kind 1,
+  display_enabled 0) + linked brand_id with NO public render; SQL-simulated
+  rename+enable flipped PDP brand {kind:1} + /srv/brand/list|detail (+kind,
+  +goodsCount) + store goods list; a manual kind-0 assignment SURVIVED the
+  full re-promote (manual-wins); all 9,638 "件" units normalized via promote;
+  feed 14 cols — 0 "Trovemo", supplier rows blank brand +
+  identifier_exists=false, manual brand exported, google_product_category
+  filled from the L1 map; reindex 9,642 + search smoke green. Tests: module
+  334 run / 2 pre-existing live-OCS failures (same two as Wave 24);
+  FlywayMigrationTest 4/4 at floor 60. Gotchas: admin machine-token secret is
+  env-only in this dev stack — admin endpoints verified 401-routed, the
+  rename+enable click-through stays USER-SIDE via gateway-admin; dev
+  description==title mostly remains (fallback needs detail_html — only 103
+  dev rows enriched; prod coverage is far higher); catalog-hygiene endpoint
+  (Chinese-name pass) is unit-tested, prod run = MAIN post-merge.
 - **Task — Wave 25 backend: supplier/brand attribution + Merchant-feed
   quality.** Code to the Wave-25 CONTRACT above (V60 spec, guard rails,
   probe-driven display gate). Deliverables in order:
