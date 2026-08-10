@@ -1156,8 +1156,13 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — ACTIVE: Wave 25 (attribution + feed quality)
-- **Status 2026-08-10: Wave-25 backend COMPLETE on branch; dev acceptance
-  PASSED.** V60 applied at dev boot (source pre-existed from V23 — V60
+- **Status 2026-08-10: Wave-25 backend MERGED to master `d9584114d` +
+  pushed; dev acceptance PASSED (incl. both peer halves' cross-half
+  acceptance against this V60 dev service — the gateway-api raise about
+  raw disabled names on /srv/brand is resolved by the display_enabled
+  gating in this merge). Deploy = MAIN session (V60 at boot + reindex;
+  run POST /srv/private/admin/search/catalog-hygiene on prod after —
+  the 23 Chinese-named goods + unit glyphs).** V60 applied at dev boot (source pre-existed from V23 — V60
   re-baselines 'local'→'manual' instead of adding it; ALSO adds
   litemall_cj_product supplier_id/supplier_name — required, the nightly list
   upsert would erase in-memory-only capture — and flips goods.unit default
