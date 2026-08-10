@@ -46,13 +46,21 @@ public class LitemallCouponLegacyController {
         this.orchestratorService = orchestratorService;
     }
 
-    /** Claimable coupons (legacy litemall {@code /wx/coupon/list}). */
+    /**
+     * Claimable coupons (legacy litemall {@code /wx/coupon/list}). Wave 24.1:
+     * optional {@code goodsId} narrows the list to coupons whose scope covers
+     * that goods (whole-catalog included; category scope ancestor-expanded) —
+     * the PDP coupon strip passes it so scoped coupons stop showing on every
+     * product. Omitted = the full coupon-center list, unchanged.
+     */
     @GetMapping("/list")
     public ApiResponse<Map<String, Object>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int limit) {
-        List<LitemallCouponAggregate> receivable =
-                orchestratorService.getCouponService().getReceivableCoupons();
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) Integer goodsId) {
+        List<LitemallCouponAggregate> receivable = goodsId != null
+                ? orchestratorService.getCouponService().getReceivableCouponsForGoods(goodsId)
+                : orchestratorService.getCouponService().getReceivableCoupons();
         int from = Math.min((page - 1) * limit, receivable.size());
         int to = Math.min(from + limit, receivable.size());
         List<Map<String, Object>> list = receivable.subList(from, to).stream()
@@ -99,13 +107,23 @@ public class LitemallCouponLegacyController {
      * Coupons usable for the current checkout. Unlike legacy litemall's
      * {@code cartId} parameter, the caller passes the cart facts directly
      * (amount + goods/category ids) — promotion has no cart access.
+     *
+     * <p>Wave 24.1: {@code verbose=true} switches the response to
+     * {@code {usable:[...], unusable:[{...coupon, reason, minGap?}]}} so the
+     * checkout can grey out inapplicable coupons with the reason instead of
+     * hiding them. Without the param the legacy bare array is byte-identical
+     * (order-service facade and old SPA callers untouched).
      */
     @GetMapping("/selectlist")
-    public ApiResponse<List<Map<String, Object>>> selectList(
+    public ApiResponse<?> selectList(
             @RequestHeader("X-User-Id") Integer userId,
             @RequestParam BigDecimal amount,
             @RequestParam(required = false) List<Integer> goodsIds,
-            @RequestParam(required = false) List<Integer> categoryIds) {
+            @RequestParam(required = false) List<Integer> categoryIds,
+            @RequestParam(required = false, defaultValue = "false") boolean verbose) {
+        if (verbose) {
+            return verboseSelectList(userId, amount, goodsIds, categoryIds);
+        }
         List<Map<String, Object>> list = orchestratorService.getCouponService()
                 .getUsableForCheckout(new LitemallUserId(userId), amount, goodsIds, categoryIds).stream()
                 .map(view -> {
@@ -127,6 +145,40 @@ public class LitemallCouponLegacyController {
                 })
                 .collect(Collectors.toList());
         return ApiResponse.ok(list);
+    }
+
+    private ApiResponse<Map<String, Object>> verboseSelectList(
+            Integer userId, BigDecimal amount, List<Integer> goodsIds, List<Integer> categoryIds) {
+        List<Map<String, Object>> usable = new java.util.ArrayList<>();
+        List<Map<String, Object>> unusable = new java.util.ArrayList<>();
+        for (LitemallCouponServiceImpl.CheckoutCouponView view : orchestratorService.getCouponService()
+                .getCheckoutCouponViews(new LitemallUserId(userId), amount, goodsIds, categoryIds)) {
+            Map<String, Object> item = toLegacyCoupon(view.getCoupon());
+            item.put("id", view.getUserCoupon().getUserCouponId().getId());
+            item.put("cid", view.getCoupon().getCouponId().getId());
+            item.put("startTime", view.getUserCoupon().getStartTime());
+            item.put("endTime", view.getUserCoupon().getEndTime());
+            if (view.getCoupon().isPercent()) {
+                item.put("discountRate", view.getCoupon().getDiscount() != null
+                        ? view.getCoupon().getDiscount().getAmount() : null);
+            }
+            if (view.isUsable()) {
+                item.put("discount", view.getEffectiveDiscount());
+                usable.add(item);
+            } else {
+                // Unusable rows keep the RAW configured discount — an effective
+                // amount for a coupon that can't apply would be misleading.
+                item.put("reason", view.getReason().getCode());
+                if (view.getMinGap() != null) {
+                    item.put("minGap", view.getMinGap());
+                }
+                unusable.add(item);
+            }
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("usable", usable);
+        data.put("unusable", unusable);
+        return ApiResponse.ok(data);
     }
 
     /** Claim a coupon (legacy body: {@code {couponId}}). */
