@@ -11,11 +11,12 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Active worktrees: NONE (2026-08-10 — Waves 24, 24.1 and 25 all SHIPPED +
-# DEPLOYED). Launch with FRESH=1 when a NEW wave is commissioned so the
-# assignment prompt is delivered instead of resuming a finished session.
+# Active worktrees (2026-08-10, Wave 25.1: per-variant image backfill).
+# Launch with FRESH=1 when a NEW wave is commissioned so the assignment
+# prompt is delivered instead of resuming a finished session.
 # Each name must have a matching '### Worktree: `<short>`' block in CLAUDE.md.
 MODULES=(
+  "goods-management"  # CJ variant image capture -> variants_json -> product url
 )
 
 mkdir -p "$WT_BASE"

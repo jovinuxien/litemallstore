@@ -1265,10 +1265,38 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (Wave 25 SHIPPED + DEPLOYED)
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten.
-- **History — Wave 25 (attribution + feed quality), original spec below.**
+### Worktree: `goods-management` — ACTIVE: Wave 25.1 (per-variant image backfill)
+- **Task — Wave 25.1: capture CJ per-variant images so the PDP photo
+  follows the selected variant.** The SPA half is ALREADY LIVE + DORMANT
+  in prod (`ba934d8e4`: photo follows selectedSku.url when it differs
+  from the main photo; distinct urls join gallery+lightbox; tiles get
+  thumbnails) — it lights up product-by-product as THIS backfill lands.
+  Verified facts (2026-08-10): `CJProductVariantData` maps NO image
+  field (CJ's variant payload carries one — verify CJ's exact JSON key
+  against a real response before naming the DTO field);
+  `CjDetailEnrichmentService` writes variants_json with
+  variant_sell_price/variant_price/stock only; every
+  `litemall_goods_product.url` equals the main photo today.
+  1. Map the CJ variant image in the DTO; persist it into
+     variants_json (`variant_image`, only when non-blank).
+  2. Promote writes `litemall_goods_product.url` from variant_image
+     when non-blank; main-photo fallback stays; NEVER blank an
+     existing url.
+  3. Backfill rides the EXISTING enrichment rotation + on-demand path —
+     NO new CJ call loops (⚠ shared daily API points quota). NO new
+     endpoint (detail already serves products[].url). NO migration
+     (variants_json is schema-free; url column exists).
+  4. Verify the image host is covered by the `/_cdn` edge rewrite
+     (cf/oss-cf hosts are; anything else must fall back to main photo,
+     not serve mixed-content).
+- **Acceptance (dev, through :9000/:8090):** unit tests prove DTO
+  mapping + variants_json write + promote url landing (mocked CJ
+  payload, real counts); if dev CJ creds are available, ONE on-demand
+  enrich shows a real product's SKUs with distinct urls and the PDP
+  photo switching per variant; degrade paths: blank/absent image ⇒
+  main-photo url unchanged. If dev stays credless, the live check
+  moves to prod smoke post-deploy (Wave-24.1 delta precedent).
+- **History — Wave 25 (attribution + feed quality) SHIPPED + DEPLOYED, spec below.**
 - **Status 2026-08-10: Wave-25 backend MERGED to master `d9584114d` +
   pushed; dev acceptance PASSED (incl. both peer halves' cross-half
   acceptance against this V60 dev service — the gateway-api raise about
