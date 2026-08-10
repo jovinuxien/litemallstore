@@ -1630,8 +1630,20 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — ACTIVE: Wave 25 (brand curation surface)
-- **Task — Wave 25 admin (SMALL half): brand/store curation.** Code to
+### Worktree: `gateway-admin` — done (Wave 25 half MERGED + ACCEPTED)
+- **Status 2026-08-10:** brand/store curation surface SHIPPED — MERGED
+  to master `3ee441669` + pushed (jest 110/110, headless UI 12/12).
+  Extended the surviving Brands panel: Kind badge (Store/Brand),
+  Source, Visible toggle (full-row /brand/update), goods count; form
+  provider block + visibility checkbox + name-only validation on
+  provider rows. All new fields render tolerantly pre-V60. CROSS-HALF
+  ACCEPTANCE PASSED 10/10 vs the V60 dev backend (admin Hide/Enable
+  flips the storefront Sold-by attribution live; rename persists
+  end-to-end; state restored). Gotchas: pre-V60 backend 402s unknown
+  JSON fields — the SPA sends V60 fields only when the row/user
+  carried them; dev row 1046003 is SHARED with the goods-management
+  session (state flips mid-test — scripts must be state-agnostic).
+- **Task (HISTORICAL) — Wave 25 admin (SMALL half): brand/store curation.** Code to
   the Wave-25 CONTRACT above. Find the existing admin brand surface
   (legacy litemall had brand CRUD — verify what survived the Wave-4
   decommission); ensure an admin can: list brand rows w/ source, kind,
