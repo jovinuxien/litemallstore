@@ -1,7 +1,8 @@
 import { IBrand } from 'app/shared/model/admin/catalog.model';
-import { useDeleteBrandMutation, useListBrandsQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
+import { useDeleteBrandMutation, useListBrandsQuery, useUpdateBrandMutation } from 'app/shared/reducers/private/services/adminCatalogApi';
 import { money } from 'app/shared/util/money';
-import { errnoMessage, PAGE_SIZES, Pagination, Spinner } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { isDisplayEnabled, kindLabel, sourceLabel, toggledUpdateBody } from 'app/views/adminViews/adminModule/Brand/brandFormat';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
 
@@ -25,6 +26,7 @@ const BrandList: React.FC = () => {
 
   const { data, isLoading, isFetching, isError, error } = useListBrandsQuery({ page, limit, sort, order, name });
   const [deleteBrand, { isLoading: deleting }] = useDeleteBrandMutation();
+  const [updateBrand, { isLoading: toggling }] = useUpdateBrandMutation();
   const [actionError, setActionError] = React.useState<string | null>(null);
 
   const list = data?.list ?? [];
@@ -42,6 +44,13 @@ const BrandList: React.FC = () => {
     if (!window.confirm(`Delete brand "${brand.name ?? brand.id}"?`)) return;
     setActionError(null);
     const res = await deleteBrand({ id: brand.id });
+    const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
+    if (msg) setActionError(msg);
+  };
+
+  const onToggle = async (brand: IBrand) => {
+    setActionError(null);
+    const res = await updateBrand(toggledUpdateBody(brand));
     const msg = 'data' in res ? errnoMessage(res.data) : 'Request failed.';
     if (msg) setActionError(msg);
   };
@@ -106,6 +115,10 @@ const BrandList: React.FC = () => {
           <tr>
             <th>Image</th>
             <th>Name</th>
+            <th>Kind</th>
+            <th>Source</th>
+            <th>Visible</th>
+            <th className='text-end'>Goods</th>
             <th>Description</th>
             <th className='text-end'>Floor price</th>
             <th className='text-end'>Sort</th>
@@ -115,13 +128,13 @@ const BrandList: React.FC = () => {
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={6} className='text-center p-5'>
+              <td colSpan={10} className='text-center p-5'>
                 <span className='spinner-border text-primary' role='status' />
               </td>
             </tr>
           ) : list.length === 0 ? (
             <tr>
-              <td colSpan={6} className='text-center text-muted py-5'>
+              <td colSpan={10} className='text-center text-muted py-5'>
                 No brands found.
               </td>
             </tr>
@@ -134,6 +147,22 @@ const BrandList: React.FC = () => {
                 <td>
                   <Link to={`/admin/mall/brand/${brand.id}`}>{brand.name || `#${brand.id}`}</Link>
                 </td>
+                <td>
+                  <Tag tag={kindLabel(brand.kind).tone}>{kindLabel(brand.kind).label}</Tag>
+                </td>
+                <td className='text-muted small'>{sourceLabel(brand.source)}</td>
+                <td>
+                  {isDisplayEnabled(brand.displayEnabled) ? <Tag tag='success'>Enabled</Tag> : <Tag tag='info'>Hidden</Tag>}
+                  <button
+                    className='btn btn-sm btn-outline-secondary ms-1'
+                    disabled={toggling}
+                    onClick={() => onToggle(brand)}
+                    title={isDisplayEnabled(brand.displayEnabled) ? 'Hide on storefront' : 'Show on storefront'}
+                  >
+                    {isDisplayEnabled(brand.displayEnabled) ? 'Hide' : 'Enable'}
+                  </button>
+                </td>
+                <td className='text-end'>{brand.goodsCount ?? '—'}</td>
                 <td className='text-muted small'>{brand.desc}</td>
                 <td className='text-end'>{money(brand.floorPrice ?? 0)}</td>
                 <td className='text-end'>{brand.sortOrder ?? '—'}</td>
