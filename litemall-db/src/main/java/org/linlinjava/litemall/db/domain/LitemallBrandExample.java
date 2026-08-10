@@ -1114,6 +1114,59 @@ public class LitemallBrandExample {
             addCriterion("deleted not between", value1, value2, "deleted");
             return (Criteria) this;
         }
+
+        // Hand-added criteria for the V23 `source` and V60 attribution columns (focused subset —
+        // the class predates these columns and was never regenerated; litemall-db is hand-maintained).
+
+        public Criteria andSourceEqualTo(String value) {
+            addCriterion("source =", value, "source");
+            return (Criteria) this;
+        }
+
+        public Criteria andSourceNotEqualTo(String value) {
+            addCriterion("source <>", value, "source");
+            return (Criteria) this;
+        }
+
+        public Criteria andSourceIn(List<String> values) {
+            addCriterion("source in", values, "source");
+            return (Criteria) this;
+        }
+
+        public Criteria andExternalIdIsNull() {
+            addCriterion("external_id is null");
+            return (Criteria) this;
+        }
+
+        public Criteria andExternalIdIsNotNull() {
+            addCriterion("external_id is not null");
+            return (Criteria) this;
+        }
+
+        public Criteria andExternalIdEqualTo(String value) {
+            addCriterion("external_id =", value, "externalId");
+            return (Criteria) this;
+        }
+
+        public Criteria andKindEqualTo(Byte value) {
+            addCriterion("kind =", value, "kind");
+            return (Criteria) this;
+        }
+
+        public Criteria andKindNotEqualTo(Byte value) {
+            addCriterion("kind <>", value, "kind");
+            return (Criteria) this;
+        }
+
+        public Criteria andDisplayEnabledEqualTo(Boolean value) {
+            addCriterion("display_enabled =", value, "displayEnabled");
+            return (Criteria) this;
+        }
+
+        public Criteria andDisplayEnabledNotEqualTo(Boolean value) {
+            addCriterion("display_enabled <>", value, "displayEnabled");
+            return (Criteria) this;
+        }
     }
 
     /**

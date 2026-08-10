@@ -32,13 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V59 (order CJ-placement approval stamp, Wave 23;
-    // previously V58 litemall_coupon_delivery, Wave 22) is the latest known
-    // migration ON THIS BRANCH; V57+V58 are merged, numbering contiguous again,
-    // so the SCRIPT COUNT equals the version: 59. Being a floor it still passes
-    // when it drifts, so it only asserts what it is raised to — bump it when
-    // you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 59;
+    // Hand-maintained floor: V60 (brand attribution + supplier capture, Wave 25;
+    // previously V59 order CJ-placement approval stamp, Wave 23) is the latest
+    // known migration ON THIS BRANCH; numbering contiguous, so the SCRIPT COUNT
+    // equals the version: 60. Being a floor it still passes when it drifts, so
+    // it only asserts what it is raised to — bump it when you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 60;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -144,6 +143,12 @@ public class FlywayMigrationTest {
             {"litemall_coupon_delivery", "matched"},
             {"litemall_coupon_delivery", "granted"},
             {"litemall_coupon_delivery", "skipped"},
+            // V60: brand attribution + curation gate, supplier capture (Wave 25)
+            {"litemall_brand",        "external_id"},
+            {"litemall_brand",        "kind"},
+            {"litemall_brand",        "display_enabled"},
+            {"litemall_cj_product",   "supplier_id"},
+            {"litemall_cj_product",   "supplier_name"},
         };
 
         try (var conn = MYSQL.createConnection("")) {

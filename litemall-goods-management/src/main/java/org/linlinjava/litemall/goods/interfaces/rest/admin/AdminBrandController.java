@@ -8,6 +8,7 @@ import org.linlinjava.litemall.core.validator.Order;
 import org.linlinjava.litemall.core.validator.Sort;
 import org.linlinjava.litemall.db.domain.LitemallBrand;
 import org.linlinjava.litemall.db.service.LitemallBrandService;
+import org.linlinjava.litemall.goods.application.attribution.AttributionProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
@@ -36,22 +37,17 @@ public class AdminBrandController {
                        @Sort @RequestParam(defaultValue = "add_time") String sort,
                        @Order @RequestParam(defaultValue = "desc") String order) {
         List<LitemallBrand> brandList = brandService.querySelective(id, name, page, limit, sort, order);
+        brandService.attachGoodsCounts(brandList);
         return ResponseUtil.okList(brandList);
     }
 
+    /**
+     * Wave 25: {@code desc} is no longer required — provider-captured store rows carry an empty
+     * desc, and the curation flow (rename + display toggle) must not be blocked on it.
+     */
     private Object validate(LitemallBrand brand) {
         String name = brand.getName();
         if (StringUtils.isEmpty(name)) {
-            return ResponseUtil.badArgument();
-        }
-
-        String desc = brand.getDesc();
-        if (StringUtils.isEmpty(desc)) {
-            return ResponseUtil.badArgument();
-        }
-
-        BigDecimal price = brand.getFloorPrice();
-        if (price == null) {
             return ResponseUtil.badArgument();
         }
         return null;
@@ -63,6 +59,21 @@ public class AdminBrandController {
         if (error != null) {
             return error;
         }
+        BigDecimal price = brand.getFloorPrice();
+        if (price == null) {
+            return ResponseUtil.badArgument();
+        }
+        // Manual create: admins own only source='manual' rows; provider rows arrive exclusively
+        // via enrichment. Manual rows default display-enabled (V60 contract).
+        brand.setId(null);
+        brand.setSource(AttributionProvider.SOURCE_MANUAL);
+        brand.setExternalId(null);
+        if (brand.getKind() == null) {
+            brand.setKind((byte) 0);
+        }
+        if (brand.getDisplayEnabled() == null) {
+            brand.setDisplayEnabled(Boolean.TRUE);
+        }
         brandService.add(brand);
         return ResponseUtil.ok(brand);
     }
@@ -73,12 +84,22 @@ public class AdminBrandController {
         return ResponseUtil.ok(brand);
     }
 
+    /**
+     * The Wave-25 curation vehicle: rename (raw supplier legal names → customer-worthy store
+     * names) and toggle {@code displayEnabled}. Provider identity keys are never admin-editable —
+     * stripped so a stale form echo can't clobber how a row is matched at the next enrichment.
+     */
     @PostMapping("/update")
     public Object update(@RequestBody LitemallBrand brand) {
+        if (brand.getId() == null) {
+            return ResponseUtil.badArgument();
+        }
         Object error = validate(brand);
         if (error != null) {
             return error;
         }
+        brand.setSource(null);
+        brand.setExternalId(null);
         if (brandService.updateById(brand) == 0) {
             return ResponseUtil.updatedDataFailed();
         }

@@ -6,7 +6,8 @@
   <sql id="Base_Column_List">
     pid, source, title, price, sell_price, discount_price, description, image_url, brand,
     category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
-    add_time, update_time, deleted, listed_num, review_count, rating, cj_create_time, reviews_synced_time
+    add_time, update_time, deleted, listed_num, review_count, rating, cj_create_time, reviews_synced_time,
+    supplier_id, supplier_name
   </sql>
 
   <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
@@ -87,6 +88,8 @@
         rating = coalesce(#{rating}, rating),
         cj_create_time = coalesce(#{cjCreateTime}, cj_create_time),
         reviews_synced_time = coalesce(#{reviewsSyncedTime}, reviews_synced_time),
+        supplier_id = coalesce(#{supplierId}, supplier_id),
+        supplier_name = coalesce(#{supplierName}, supplier_name),
         enriched_time = now(),
         update_time = now()
     where pid = #{pid} and deleted = 0
@@ -113,6 +116,13 @@
              coalesce(cp.listed_num, 0) desc,
              cp.enriched_time asc, cp.add_time desc
     limit #{limit}
+  </select>
+
+  <select id="selectSupplierCoverage" resultType="map">
+    select count(*) as enrichedTotal,
+           coalesce(sum(supplier_id is not null and supplier_id != ''), 0) as supplierPopulated
+    from litemall_cj_product
+    where deleted = 0 and enriched_time is not null
   </select>
 
   <update id="softDeleteByPids">
