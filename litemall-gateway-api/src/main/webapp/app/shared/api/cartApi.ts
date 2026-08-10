@@ -124,6 +124,9 @@ export const cartApi = {
    * be swallowed into a client-side sum: the total we would guess is one the server will
    * refuse to charge. Render it as retryable.
    */
-  checkout: (params: { addressId?: number; couponId?: number; countryCode?: string }) =>
+  // Wave-24.1: optional `cjLogisticName` — the customer's courier pick — so
+  // the preview prices the upgrade delta exactly as submit will (pre-24.1
+  // order service ignores it; unknown name ⇒ delta 0 server-side).
+  checkout: (params: { addressId?: number; couponId?: number; countryCode?: string; cjLogisticName?: string }) =>
     unwrap<CheckoutSummary>(baseAxios.get(`${SRV}/cart/checkout`, { params })),
 };

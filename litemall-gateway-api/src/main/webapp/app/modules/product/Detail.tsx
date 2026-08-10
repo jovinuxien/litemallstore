@@ -325,7 +325,7 @@ const ProductDetailView: React.FC = () => {
 
           {/* Claimable coupons, Amazon coupon-row style, tight under the price.
               Store-wide offers — the public list carries no scope fields. */}
-          <CouponStrip />
+          <CouponStrip goodsId={gid} />
 
           <DealBanner goodsId={gid} isCj={isCj} />
 

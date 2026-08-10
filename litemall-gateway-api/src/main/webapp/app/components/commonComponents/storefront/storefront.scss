@@ -201,6 +201,22 @@
   &__name { font-weight: 600; font-size: .9rem; }
   &__meta { color: var(--lm-muted, #6b7b82); font-size: .8rem; }
   &__check { color: var(--lm-primary, #0e7c86); margin-left: auto; }
+  // Wave-24.1 upgrade-delta label: "+€x.xx" (accent) / "Included" (muted).
+  &__delta {
+    margin-left: auto;
+    font-weight: 700;
+    font-size: .85rem;
+    color: var(--lm-accent-dark, #e8484d);
+    white-space: nowrap;
+
+    &--included {
+      color: var(--lm-muted, #6b7b82);
+      font-weight: 600;
+    }
+
+    // When the check icon follows, it takes the auto margin.
+    + .lm-delivery__check { margin-left: 8px; }
+  }
 }
 
 // ---- sticky submit bar ----------------------------------------------------

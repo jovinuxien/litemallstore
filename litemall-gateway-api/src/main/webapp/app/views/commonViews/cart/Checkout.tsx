@@ -37,6 +37,7 @@ import {
 } from 'app/shared/reducers/orderSlice';
 import { authApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
 import { couponPickerLabel } from 'app/shared/util/couponFormat';
+import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
@@ -246,6 +247,10 @@ const CheckoutView: React.FC = () => {
   // service; graceful empty while it isn't live). Item id = userCouponId (the
   // redeem handle), cid = the coupon definition id — submit sends both.
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
+  // Wave-24.1: coupons the customer holds that DON'T apply here, with the
+  // server's typed reason — rendered greyed so "coupons don't work" never
+  // reads as silence. Empty against the pre-24.1 promotion service.
+  const [unusableCoupons, setUnusableCoupons] = useState<UnusableCoupon[]>([]);
   const [selectedCouponId, setSelectedCouponId] = useState<number | null>(null);
   // Server-side coupon rejection at submit (e.g. redeemed elsewhere meanwhile),
   // surfaced inline at the picker rather than only as the page-level alert.
@@ -465,6 +470,9 @@ const CheckoutView: React.FC = () => {
           addressId: typeof selectedAddressId === 'number' ? selectedAddressId : undefined,
           couponId: selectedCouponId ?? undefined,
           countryCode: country.code || undefined,
+          // Wave-24.1: the courier pick prices its upgrade delta in the
+          // preview exactly as submit will — the total tracks the pick live.
+          cjLogisticName: effectiveCjLogistic ?? undefined,
         });
         if (cancelled) return;
         setTotals(next);
@@ -486,7 +494,7 @@ const CheckoutView: React.FC = () => {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartSignature, country.code, selectedAddressId, selectedCouponId, isPickup]);
+  }, [cartSignature, country.code, selectedAddressId, selectedCouponId, isPickup, effectiveCjLogistic]);
 
   useEffect(() => {
     loadSiteConfig().then(cfg => {
@@ -529,12 +537,20 @@ const CheckoutView: React.FC = () => {
   // changes so threshold coupons appear/disappear with the total. Also called
   // by the promo-code Apply handler, which needs the refreshed list in hand.
   const queryUsableCoupons = async (): Promise<ICoupon[]> => {
-    if (cartList.length === 0) return [];
+    if (cartList.length === 0) {
+      setUnusableCoupons([]);
+      return [];
+    }
     const amount = cartList.reduce((sum, it) => sum + priceNum(it.price) * (it.number ?? 0), 0);
     const goodsIds = cartList.map(it => Number(it.goodsId)).filter(id => Number.isFinite(id));
     try {
-      return (await userApi.couponSelectList(Number(amount.toFixed(2)), goodsIds)) ?? [];
+      // Wave-24.1 verbose split; parseSelectlist tolerates the legacy bare
+      // array (pre-24.1 promotion), which lands everything in `usable`.
+      const buckets = parseSelectlist(await userApi.couponSelectListVerbose(Number(amount.toFixed(2)), goodsIds));
+      setUnusableCoupons(buckets.unusable);
+      return buckets.usable;
     } catch {
+      setUnusableCoupons([]);
       return [];
     }
   };
@@ -1455,6 +1471,13 @@ const CheckoutView: React.FC = () => {
                     {couponPickerLabel(c)}
                   </option>
                 ))}
+                {/* Wave-24.1: held-but-unusable coupons stay VISIBLE, greyed,
+                    with the server's typed reason — never a silent vanish. */}
+                {unusableCoupons.map(c => (
+                  <option key={`u-${c.id}`} value='' disabled>
+                    {couponPickerLabel(c)} — {unusableReasonLabel(c.reason, c.minGap)}
+                  </option>
+                ))}
               </Form.Select>
             </Cell>
             )}
@@ -1634,6 +1657,13 @@ const CheckoutView: React.FC = () => {
                     (cjOptions.length > 0 ? (
                       cjOptions.map(o => {
                         const isSelected = o.logisticName === effectiveCjLogistic;
+                        // Wave-24.1: upgrade delta vs the server's default line
+                        // ("Included" / "+€x.xx"); null while the quote carries
+                        // no option prices (pre-24.1 order half) — no label.
+                        const deltaLabel = courierDeltaLabel(
+                          o.price,
+                          cjOptions.find(d => d.logisticName === quotes.cj?.cj?.logisticName)?.price
+                        );
                         return (
                           <button
                             type='button'
@@ -1648,6 +1678,11 @@ const CheckoutView: React.FC = () => {
                               <div className='lm-delivery__name'>{o.logisticName}</div>
                               {o.logisticAging && <div className='lm-delivery__meta'>Estimated delivery {o.logisticAging} days</div>}
                             </div>
+                            {deltaLabel && (
+                              <span className={`lm-delivery__delta${deltaLabel === 'Included' ? ' lm-delivery__delta--included' : ''}`}>
+                                {deltaLabel}
+                              </span>
+                            )}
                             {isSelected && <i className='bi bi-check-circle-fill lm-delivery__check' />}
                           </button>
                         );
