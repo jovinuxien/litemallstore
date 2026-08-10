@@ -1126,6 +1126,18 @@
 >   pick; € formatter everywhere.
 > - errno envelope; money plain decimals; NO migration anywhere.
 >
+> **Wave 24.1 STATUS: SHIPPED + DEPLOYED to trovemo.com (2026-08-10,
+> master `caeadd828`).** order `39db2bbbb` (278/0) + promotion
+> `12f928ce9` (155/0) + gateway-api `caeadd828` (jest 125/125, dev e2e
+> 7/7 incl. scoped-strip both-directions + greyed reasons + byte-shape
+> checks). Deploy: 3 containers recreated healthy, smoke 200s, scoped
+> list live. ⚠ The order image carried Wave-25's V60 — applied at boot
+> (success=1, prod schema NOW AT 60, additive) — the Wave-25 goods/
+> admin container deploy rides on top with NO migration left to run.
+> Dev had no CJ creds ⇒ first nonzero "+€x.xx" delta check = prod
+> storefront smoke (gateway-api session running it). USER-SIDE: create
+> real coupons in admin (the junk test pair was expired 2026-08-10).
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
