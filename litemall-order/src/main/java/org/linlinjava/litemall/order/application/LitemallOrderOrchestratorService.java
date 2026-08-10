@@ -881,8 +881,8 @@ public class LitemallOrderOrchestratorService {
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public org.linlinjava.litemall.order.interfaces.dtos.cart.CheckoutSummaryDto checkoutSummary(
             org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId userId,
-            Integer addressId, Integer userCouponId, String countryCode) {
-        return checkoutSummaryService.summarize(userId, addressId, userCouponId, countryCode);
+            Integer addressId, Integer userCouponId, String countryCode, String cjLogisticName) {
+        return checkoutSummaryService.summarize(userId, addressId, userCouponId, countryCode, cjLogisticName);
     }
 
     /**

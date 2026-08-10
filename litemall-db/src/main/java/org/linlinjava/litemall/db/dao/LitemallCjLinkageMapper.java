@@ -61,6 +61,28 @@ public interface LitemallCjLinkageMapper {
     Integer findCjBrandIdByName(@Param("name") String name);
 
     /**
+     * Full brand/store row by provider identity (V60 attribution), INCLUDING soft-deleted rows —
+     * the provider upsert must resurrect a deleted row rather than collide with
+     * {@code uk_brand_source_external} on a blind insert.
+     */
+    org.linlinjava.litemall.db.domain.LitemallBrand findBrandBySourceAndExternalId(
+            @Param("source") String source, @Param("externalId") String externalId);
+
+    /**
+     * {@code source} of the live brand row this goods currently points at, or null when the goods
+     * is unattributed (brand_id 0) or the brand row is gone. Drives the manual-wins rule: an
+     * AttributionProvider may only (re)link goods whose current attribution is absent or
+     * provider-owned — never a manual admin assignment.
+     */
+    String findBrandSourceOfGoods(@Param("goodsId") Integer goodsId);
+
+    /**
+     * On-sale, non-deleted goods count per brand id (one grouped query). Rows are
+     * {@code {brandId, goodsCount}} maps; brands with zero goods are simply absent.
+     */
+    List<java.util.Map<String, Object>> countOnSaleGoodsByBrand(@Param("brandIds") List<Integer> brandIds);
+
+    /**
      * Write the V31 ranking signals onto a native goods row without touching the generated
      * insert/update (which don't carry these columns). Each argument is COALESCEd against the
      * existing column, so a null leaves that signal unchanged — the CJ promote path passes all

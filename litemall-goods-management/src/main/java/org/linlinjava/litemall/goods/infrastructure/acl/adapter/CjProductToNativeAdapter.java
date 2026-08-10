@@ -45,7 +45,9 @@ public class CjProductToNativeAdapter {
     public static final String SOURCE_CJ = "cj";
 
     private static final String GOODS_SN_PREFIX = "cj_";
-    private static final String DEFAULT_UNIT = "件";
+    // Wave 25 hygiene: no fake unit. The old default stamped the Chinese glyph "件" on every
+    // promoted CJ good lacking a Unit attribute, and it rendered beside the € price on the PDP.
+    private static final String DEFAULT_UNIT = "";
     private static final String SPEC_AXIS = "Specification";
     private static final String DEFAULT_SPEC_VALUE = "Standard";
     private static final String UNIT_ATTRIBUTE = "Unit";
@@ -97,8 +99,7 @@ public class CjProductToNativeAdapter {
 
         // ---- attributes: flat {name -> value} -> litemall_goods_attribute rows ----
         Map<String, String> attrs = parseFlatMap(row.getAttributesJson());
-        goods.setUnit(StringUtils.hasText(attrs.get(UNIT_ATTRIBUTE))
-                ? trim(attrs.get(UNIT_ATTRIBUTE), UNIT_MAX) : DEFAULT_UNIT);
+        goods.setUnit(normalizeUnit(attrs.get(UNIT_ATTRIBUTE)));
         for (Map.Entry<String, String> e : attrs.entrySet()) {
             if (!StringUtils.hasText(e.getKey()) || !StringUtils.hasText(e.getValue())) {
                 continue;
@@ -323,6 +324,21 @@ public class CjProductToNativeAdapter {
             }
         }
         return null;
+    }
+
+    /**
+     * Wave 25 hygiene: a usable unit passes through (trimmed to the column width); an absent one —
+     * or a CJK glyph unit ({@code 件}/{@code 盒}/…, which must never render beside a € price) —
+     * normalizes to blank.
+     */
+    static String normalizeUnit(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return DEFAULT_UNIT;
+        }
+        String t = raw.trim();
+        boolean hasHan = t.codePoints()
+                .anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN);
+        return hasHan ? DEFAULT_UNIT : trim(t, UNIT_MAX);
     }
 
     private static String trim(String value, int max) {

@@ -69,4 +69,14 @@ public class CjProductToNativeAdapterPricingTest {
         assertEquals(0, sku.getPrice().compareTo(new BigDecimal("170.64")));
         assertNull(sku.getCost());
     }
+
+    @Test
+    public void unitNormalizationNeverEmitsCjkGlyphs() {
+        // Wave-25 hygiene: no fake default unit, CJK glyph units blank out, real units pass.
+        assertEquals("", CjProductToNativeAdapter.normalizeUnit(null));
+        assertEquals("", CjProductToNativeAdapter.normalizeUnit("  "));
+        assertEquals("", CjProductToNativeAdapter.normalizeUnit("件"));
+        assertEquals("", CjProductToNativeAdapter.normalizeUnit("盒装"));
+        assertEquals("pc", CjProductToNativeAdapter.normalizeUnit(" pc "));
+    }
 }
