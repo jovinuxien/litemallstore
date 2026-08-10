@@ -21,6 +21,13 @@ export interface IBrand {
   sortOrder?: number;
   floorPrice?: number;
   source?: string;
+  externalId?: string;
+  /** 0 = consumer brand, 1 = supplier store (V60). */
+  kind?: number;
+  /** Server may serialize the tinyint as boolean or 0/1; absent on pre-V60 rows. */
+  displayEnabled?: boolean | number;
+  /** List rows only; absent until the backend serves it. */
+  goodsCount?: number;
   addTime?: string;
   updateTime?: string;
   deleted?: boolean;
