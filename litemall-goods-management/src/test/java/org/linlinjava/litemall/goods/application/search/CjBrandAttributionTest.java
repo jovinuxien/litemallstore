@@ -23,7 +23,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -142,5 +144,56 @@ public class CjBrandAttributionTest {
         assertEquals(AttributionProvider.KIND_STORE, att.kind());
         assertEquals("SUP-1", att.externalId());
         assertEquals("SUP-1", att.name()); // name falls back to the id when CJ omits it
+    }
+
+    // ---- Wave 25.1 supplier-junk gate (prod finding 2026-08-10: CJ delivers the literal string
+    // "{}" in supplier fields; UNIQUE(source, external_id) funneled every such product onto one
+    // garbage row — prod 1046002). Junk must read as ABSENT: no row, no link. -------------------
+
+    @Test
+    public void junkSupplierIdYieldsNoAttributionNoRowNoLink() {
+        for (String junk : new String[]{"{}", "[]", "null", "NULL", "undefined", "", "   ", "-", "..."}) {
+            assertNull(service.resolveAttributedBrandId(snapshot(junk, "Some Real Looking Name"), null),
+                    "junk supplierId must resolve nothing: \"" + junk + "\"");
+        }
+        verify(brandMapper, never()).insertSelective(any());
+        verify(linkageMapper, never()).findBrandBySourceAndExternalId(any(), any());
+    }
+
+    @Test
+    public void junkSupplierNameWithRealIdFallsBackToTheIdAsPlaceholderName() {
+        when(linkageMapper.findBrandBySourceAndExternalId("cj-supplier", "SUP-9")).thenReturn(null);
+
+        service.resolveAttributedBrandId(snapshot("SUP-9", "{}"), null);
+
+        ArgumentCaptor<LitemallBrand> captor = ArgumentCaptor.forClass(LitemallBrand.class);
+        verify(brandMapper).insertSelective(captor.capture());
+        assertEquals("SUP-9", captor.getValue().getName(), "junk name -> id placeholder, never \"{}\"");
+        assertEquals("SUP-9", captor.getValue().getExternalId());
+        assertEquals(Boolean.FALSE, captor.getValue().getDisplayEnabled());
+    }
+
+    @Test
+    public void junkStillFallsBackToTheLegacyPathWhenPresent() {
+        NativeGoodsAggregate.BrandRef legacy = new NativeGoodsAggregate.BrandRef("SomeBrand");
+        when(linkageMapper.findCjBrandIdByName("SomeBrand")).thenReturn(7);
+
+        assertEquals(7, service.resolveAttributedBrandId(snapshot("{}", "{}"), legacy));
+        verify(brandMapper, never()).insertSelective(any());
+    }
+
+    @Test
+    public void usableIdentityFieldPredicateRules() {
+        assertFalse(AttributionProvider.usableIdentityField(null));
+        assertFalse(AttributionProvider.usableIdentityField(""));
+        assertFalse(AttributionProvider.usableIdentityField("  "));
+        assertFalse(AttributionProvider.usableIdentityField("{}"));
+        assertFalse(AttributionProvider.usableIdentityField("[]"));
+        assertFalse(AttributionProvider.usableIdentityField("null"));
+        assertFalse(AttributionProvider.usableIdentityField("Undefined"));
+        assertFalse(AttributionProvider.usableIdentityField("--/--"));
+        assertTrue(AttributionProvider.usableIdentityField("SUP-9"));
+        assertTrue(AttributionProvider.usableIdentityField("XIN BO EDUCATIONAL CONSULTATION PTE. LTD."));
+        assertTrue(AttributionProvider.usableIdentityField("株式会社")); // non-Latin letters are letters
     }
 }
