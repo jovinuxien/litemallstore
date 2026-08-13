@@ -1,0 +1,85 @@
+l1,leaf_id,leaf_name,total_all,DE,US,note
+Jewelry & Watches,04B879BE-79E7-4CB9-B493-B03F628B5130,Bridal Jewelry Sets,265,0,3,
+Jewelry & Watches,1363024200339689472,Brooches,3225,0,2,
+Jewelry & Watches,56B4F8B6-8600-4A18-913E-53F2F693EC2C,Rings,38298,0,99,
+Jewelry & Watches,D28405AE-66C6-42E6-BFF0-D6FDCB5C083C,Earrings,50034,0,141,
+Jewelry & Watches,D7CE9827-F50A-4B07-84BF-1BFE44188A1C,Fine Earrings,1814,5,7,
+Jewelry & Watches,3D882765-B20E-4EFD-BFCC-136942A83C4C,Digital Watches,463,0,4,
+Bags & Shoes,9F5FDE97-3BE8-4EBE-A8EA-48723A307E37,Briefcases,478,0,2,
+Bags & Shoes,EA292A58-E696-428B-8BEB-DE105690DDB3,Crossbody Bags,2088,0,6,
+Bags & Shoes,638284D0-3651-4FC9-9F25-B0A0BA323D83,Pumps,7882,0,1,
+Bags & Shoes,2410301013451614000,Women's Crossbody Bags,2483,0,10,
+Bags & Shoes,8F3ADC01-68FE-4CBE-BB1D-0DE42A730749,Totes,9774,2,48,
+Bags & Shoes,2502190401401619600,Men's Insoles,89,2,1,
+Phones & Accessories,00134C46-B7DF-4500-A3D9-ABB7B779EFD0,Cables,1195,0,15,
+Phones & Accessories,B200FABB-A76B-4750-9957-FEA3DCB21F1F,Chargers,1408,1,15,
+Phones & Accessories,496A6FD1-4D2C-4E96-93B3-1BEBF5D7DA34,Cases For iPhone 7 & 7 Plus,247,0,0,
+Phones & Accessories,948E69C1-D825-4797-B7F9-8D4FC69A20DA,Xiaomi Cases,58,0,0,
+Phones & Accessories,14CC2DBB-21D3-4D3B-A263-75BF069ED074,SIM Card & Tools,45,0,0,
+Phones & Accessories,FF1E0375-F5BF-40D9-8B18-708F79D52E44,Touch Panel,43,0,0,
+Consumer Electronics,40CC2ED1-8998-4515-9139-787CC25D42A7,Digital Cables,343,0,6,
+Consumer Electronics,AD2B299F-EC10-4209-998A-8916AE4D4900,Digital Gear Bags,398,0,3,
+Consumer Electronics,A9B643D0-7AA9-4703-A59B-D01C4526CDF9,Projectors & Acessories,193,0,16,
+Consumer Electronics,4336FAFE-B9C9-4673-8706-BCFAE1448DA2,Smart Wearable Accessories,603,0,5,
+Consumer Electronics,907BBB40-C131-4D3C-BA05-794D47EEBC90,Camera Drones,259,1,39,
+Consumer Electronics,1F23F16D-0A39-4D38-AB9C-1F21EEDEBEDD,Gamepads,432,0,3,
+Pet Supplies,2410110339311602900,Pet Chase Toys,859,0,61,
+Pet Supplies,2410110342161616300,Trainers,146,0,34,
+Pet Supplies,2410110344421608600,Bird Travel Bags,5,0,0,
+Pet Supplies,2410110349341618600,Pet Pajamas,62,0,1,
+Pet Supplies,2410110352051607900,Pet Headwears,205,0,2,
+Pet Supplies,2410110355321622400,Pet Towels,84,0,7,
+Sports & Outdoors,24A29AC9-8B9B-4552-AF5E-431E6CF47C67,Running Shoes,654,0,4,
+Sports & Outdoors,02FB2558-F014-4E0A-A2FE-30BE514A2B01,Musical Instruments,360,17,42,
+Sports & Outdoors,0653C2F4-A393-4BD1-B903-7B0569960868,One-Piece Suits,3285,0,45,
+Sports & Outdoors,9CFD57D3-3BEB-498F-85F1-C752C4937D75,Children's Swimwear,180,0,7,
+Sports & Outdoors,A0A24BC7-F4F4-4090-9D83-6ECA1F4A78FD,Bicycle Frames,634,0,0,
+Sports & Outdoors,937A06CE-ECCC-4C7D-A270-B216DE612AC0,Sports Bags,563,4,4,
+"Home, Garden & Furniture",1A9A9965-A914-46D7-B8E2-49AD256F2B6B,Curtains,733,51,16,
+"Home, Garden & Furniture",6939DA08-F7F8-48FB-A7E8-169AEAC92404,Pillows,2784,2,43,
+"Home, Garden & Furniture",EEC881A3-0A55-4BBF-9ADB-EB290116A67A,Diamond Painting Cross Stitch,3117,20,0,
+"Home, Garden & Furniture",768DE38B-3FCB-4DD1-B14C-687F03F78D0A,Invitation Cards,134,0,,Too Many Requests  QPS limit is 1 time/1second
+"Home, Garden & Furniture",23ADD7CB-065A-4A02-B8E8-43D3F041B90B,Kitchen Knives & Accessories,2842,18,190,Too Many Requests  QPS limit is 1 time/1second
+"Home, Garden & Furniture",1711658677159079936,Seasonal products,366,,332,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,DFFFDEDF-42F8-4D1F-B0A3-6B6744F7C1D3,LED Spotlights,1168,2,61,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,EDB5F43E-EAC0-489A-8355-5188EAB72D08,String Lights,155,,22,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,4E013A02-FB26-4CA4-998C-85CC07623984,Welding & Soldering Supplies,70,1,1,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,924090C3-8179-437F-8219-37582113FB08,Tools Storage,845,26,124,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,CDB10A90-3D34-4396-99B2-919E7CAD4B53,Garden Tools,5529,365,4147,Too Many Requests  QPS limit is 1 time/1second
+Home Improvement,4D91D172-D6D0-429E-AABC-6F3325A273A6,Home Appliance Parts,1326,,111,Too Many Requests  QPS limit is 1 time/1second
+Computer & Office,2252588B-72E3-4397-8C92-7D9967161084,Office & School Supplies,2254,60,169,
+Computer & Office,E33443F7-144C-4CBE-8D34-C1B6256A6325,Printers,99,0,3,Too Many Requests  QPS limit is 1 time/1second
+Computer & Office,28F0E5A1-0A9A-43C5-8197-F1420A9BD10B,Door Intercom,30,1,2,
+Computer & Office,7E65A403-CF6E-4B55-96FF-B7C3C376A47A,Memory Cards,65,0,3,
+Computer & Office,87A618B5-7CB0-4AF7-BCF8-9E9455F06B7E,Tablet Cases,147,0,1,
+Computer & Office,D190FBF9-A352-48BD-9F4B-B6AB432988E5,Tablets,75,4,2,Too Many Requests  QPS limit is 1 time/1second
+Automobiles & Motorcycles,255A489E-8518-4E31-AC84-A2E8EB645C78,Car Stickers,425,0,15,
+Automobiles & Motorcycles,309854A6-BDC2-4F52-80D8-93E5109B3A53,Key Case for Car,150,0,1,Too Many Requests  QPS limit is 1 time/1second
+Automobiles & Motorcycles,77A90826-779B-47DD-AB79-8FEE91AE0A3E,Paint Care,718,0,9,
+Automobiles & Motorcycles,5F6BBD36-AFDE-4433-81D1-8684781E04DE,Car Mirror Video,180,0,,Too Many Requests  QPS limit is 1 time/1second
+Automobiles & Motorcycles,11B12208-A434-467B-8AD3-DC65E32EC2E5,Lighting,162,0,4,Too Many Requests  QPS limit is 1 time/1second
+Automobiles & Motorcycles,9EB55782-830D-41A5-B29C-B5A13520923E,Body & Frame,93,4,2,Too Many Requests  QPS limit is 1 time/1second
+"Health, Beauty & Hair",1B1A9B82-1833-4721-88CA-86F5F542D7A5,Nail Glitters,,0,21,Too Many Requests  QPS limit is 1 time/1second
+"Health, Beauty & Hair",2409190611101616600,Health Care Products,3107,1,256,
+"Health, Beauty & Hair",B6A8B971-793B-4F9E-AA56-3A5D12F63827,Sun Care,115,0,,Too Many Requests  QPS limit is 1 time/1second
+"Health, Beauty & Hair",9A3105F2-AFFD-42FC-8A52-D0FB4ACDCB63,Hair Styling,57,0,2,Too Many Requests  QPS limit is 1 time/1second
+"Health, Beauty & Hair",A30E8F55-DC2C-4842-9372-91B96DEFDCC2,Makeup Brushes,997,1,18,Too Many Requests  QPS limit is 1 time/1second
+"Health, Beauty & Hair",93B5702F-DEF0-443D-847B-9287DEDF5BD9,Human Hair Lace Wigs,52,3,,Too Many Requests  QPS limit is 1 time/1second
+"Toys, Kids & Babies",6614840A-DB50-4FBB-80FD-705F4FD59BFA,Electronic Pets,284,0,3,Too Many Requests  QPS limit is 1 time/1second
+"Toys, Kids & Babies",5AF1783E-547C-44E5-AD8A-82B354860BCB,Boys Shoes,616,0,1,Too Many Requests  QPS limit is 1 time/1second
+"Toys, Kids & Babies",8DA1BB63-9FC2-4817-9271-3474CDBDDB30,Boy T-Shirts,577,0,0,
+"Toys, Kids & Babies",80304DEB-99FB-4E29-9065-A99F732702C4,Baby Rompers,2106,0,9,
+"Toys, Kids & Babies",4065FFF7-4AAA-4CFA-B04B-639C93624469,Activity & Gear,342,2,12,Too Many Requests  QPS limit is 1 time/1second
+"Toys, Kids & Babies",5795C34B-0DF0-4838-A78C-C125AA3BED18,Family Matching Outfits,183,0,0,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,0222F963-84BC-4ED8-87A0-2EE6B7890B53,Men's Sleep & Lounge,195,,1,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,007F26BA-B50A-4ADA-BD36-2CD341411230,Suits & Blazer,11782,0,31,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,976399B4-534B-46F0-B18A-62075824A717,Man Hoodies & Sweatshirts,13482,0,,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,44A3ADE0-A8EC-4101-A8DE-DF42F56EF3F1,Man Gloves & Mittens,1173,0,4,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,911754C0-443D-4ECF-9083-DF04C907BD81,Man Jeans,,0,148,Too Many Requests  QPS limit is 1 time/1second
+Men's Clothing,655B8008-6BB9-4AA1-8025-6206ACFF018A,Solid,8014,0,51,
+Women's Clothing,0DC4DF6F-4EC5-47DF-B20D-863ADF69319F,Scarves & Wraps,4907,1,214,Too Many Requests  QPS limit is 1 time/1second
+Women's Clothing,F72DD534-E394-4958-B591-149C488648D7,Woman Hats & Caps,,2,245,Too Many Requests  QPS limit is 1 time/1second
+Women's Clothing,1357251872037146624,Ladies Short Sleeve,16,0,0,Too Many Requests  QPS limit is 1 time/1second
+Women's Clothing,7B69E34F-43A3-4143-A22D-30786EE97998,Jumpsuits,2484,,52,Too Many Requests  QPS limit is 1 time/1second
+Women's Clothing,63584B9B-5275-4268-8BEA-7D3C7A7BB925,Woman Jeans,,0,230,Too Many Requests  QPS limit is 1 time/1second
+Women's Clothing,441DA450-5E5F-41DF-8911-3BAE883C30E8,Woman Trench,2505,0,72,Too Many Requests  QPS limit is 1 time/1second
