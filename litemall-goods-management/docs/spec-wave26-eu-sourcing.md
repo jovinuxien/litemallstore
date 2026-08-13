@@ -50,13 +50,17 @@ schema can answer the survival question today.
 
 ---
 
-## Phase 1a — CJ supply survival (built, awaiting a run)
+## Phase 1a — CJ supply survival (RUN 2026-08-13 — see RESULTS below)
 
-`cj-eu-warehouse-probe.sh` at repo root. Read-only; auth + getCategory + two
-paced `/product/list` calls per sampled leaf. Samples `LEAVES_PER_L1` (default 8)
-evenly-spread leaves per L1 and reports, per L1, `CJ TOTAL` vs `EU STOCK`
-(`countryCode=DE,FR,ES,CZ,PL,IT` + `verifiedWarehouse=1`) with the sampled-leaf
-denominator visible. Creds are prod-only ⇒ **user-fired**.
+`cj-eu-warehouse-probe.sh` at repo root. Read-only; auth + getCategory +
+`1 + N` paced `/product/list` calls per sampled leaf (default `COUNTRIES=DE,US`,
+`LEAVES_PER_L1=6`). Reports per L1: `CJ TOTAL` and one independent column per
+country, with the sampled-leaf denominator visible. Creds are prod-only.
+
+⚠ The design in the first draft of this spec was WRONG and the script has been
+corrected: `countryCode` takes ONE code (no comma lists, 4-char max), country
+columns cannot be summed, and `verifiedWarehouse=1` is far too strict to use as
+the default filter. See "Probe gotchas" at the end.
 
 This measures **CJ's supply**, not our catalogue. Both numbers are needed and
 they answer different questions:
