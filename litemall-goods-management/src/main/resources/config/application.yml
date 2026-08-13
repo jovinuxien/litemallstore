@@ -92,6 +92,9 @@ spring:
     # allows 1 req/s; 3s is a conservative cruise pace that still sweeps all ~540 mirrored leaves
     # in under 30 min (Redis-staged pages are reused without any live call).
     fetch-pace-seconds: 3
+    # Wave 26: attempts per list page. CJ QPS-rejects ~17% of calls even at a 3s pace and the
+    # old break-on-first-failure silently truncated a leaf to zero products.
+    fetch-retries: ${LITEMALL_CJ_FETCH_RETRIES:3}
     # CJ /product/list page size (CJ caps at ~200).
     page-size: 200
     # Run a one-shot CJ refresh shortly after startup (besides the nightly cron) so a fresh

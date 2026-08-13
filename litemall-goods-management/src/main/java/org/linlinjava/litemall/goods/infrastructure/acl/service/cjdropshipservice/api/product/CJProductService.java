@@ -33,11 +33,15 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class CJProductService {
 
     private static final Logger logger = LoggerFactory.getLogger(CJProductService.class);
+
+    /** Upstream list rejections since the last run report (Wave 26 deliverable 5). */
+    private final AtomicLong rejections = new AtomicLong();
 
     @Autowired
     private CJProductClient productClient;
@@ -121,8 +125,18 @@ public class CJProductService {
      * Each page is read THROUGH the Redis staging buffer: a cached page is reused directly (no
      * pacing, no API call); a miss triggers a paced upstream call (blocking {@code fetch-pace-seconds})
      * whose raw response is then cached, so a re-index within the raw TTL never re-hits the CJ quota.
-     * Stops at {@code targetCount}, on category exhaustion, on an empty page, or on the first failed
-     * page (returning whatever was gathered so far).
+     * Stops at {@code targetCount}, on category exhaustion, on an empty page, or when a page is
+     * STILL failing after {@code fetch-retries} paced attempts (returning whatever was gathered).
+     *
+     * <p><b>Wave 26 Phase 2 deliverable 5 — measured, not assumed.</b> This loop used to
+     * {@code break} on the FIRST failed page. CJ rejects a substantial share of {@code /product/list}
+     * calls with "QPS limit is 1 time/1second" EVEN at the 3s {@code fetch-pace-seconds} cruise
+     * (~17% of 252 calls in the Phase-1a probe, 2026-08-13), so a rejection on page 1 silently
+     * yielded ZERO products for that leaf — one WARN and nothing else. Across ~540 leaves that made
+     * every nightly catalog run quietly lossy, and it (not {@code CatalogTarget.limit} alone) is a
+     * real inflow ceiling. Retries go through the SAME paced limiter, so they can never become a
+     * QPS burst of their own; {@link #getAndResetRejections()} exposes the count so a run can report
+     * its rejection rate instead of hiding it.
      */
     public List<CJProduct> fetchByCategory(String categoryId, int targetCount, int pageSize) {
         List<CJProduct> acc = new ArrayList<>();
@@ -134,16 +148,11 @@ public class CJProductService {
             String key = CjRawCacheRepository.listKey(categoryId, page);
             CJProductDataResponse resp = rawCache.get(key, CJProductDataResponse.class).orElse(null);
             if (resp == null) {
-                pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between live CJ calls
-                try {
-                    resp = productClient.getProductList(categoryId, page, pageSize);
-                } catch (RuntimeException ex) {
-                    logger.warn("CJ category {} page {} fetch failed: {}", categoryId, page, ex.getMessage());
-                    break;
+                resp = fetchPageWithRetry(categoryId, page, pageSize);
+                if (resp == null) {
+                    break;      // still failing after every configured attempt
                 }
-                if (resp != null) {
-                    rawCache.put(key, resp);
-                }
+                rawCache.put(key, resp);
             }
             if (resp == null || resp.getData() == null || resp.getData().getList() == null
                     || resp.getData().getList().isEmpty()) {
@@ -157,6 +166,50 @@ public class CJProductService {
             page++;
         }
         return acc.size() > targetCount ? new ArrayList<>(acc.subList(0, targetCount)) : acc;
+    }
+
+    /**
+     * One list page, retried through the paced limiter. Returns {@code null} only when every attempt
+     * failed — the caller then stops that category, exactly as before, but only after really trying.
+     * A rejection is counted whether or not the retry later succeeds, so the reported rate reflects
+     * what CJ actually did rather than what we managed to recover from.
+     */
+    private CJProductDataResponse fetchPageWithRetry(String categoryId, int page, int pageSize) {
+        int attempts = Math.max(1, config.getFetchRetries());
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between live CJ calls
+            try {
+                CJProductDataResponse resp = productClient.getProductList(categoryId, page, pageSize);
+                if (resp != null) {
+                    if (attempt > 1) {
+                        logger.info("CJ category {} page {} recovered on attempt {}/{}",
+                                categoryId, page, attempt, attempts);
+                    }
+                    return resp;
+                }
+                last = null;    // a null body is not an exception; treat as exhausted, not retryable
+                break;
+            } catch (RuntimeException ex) {
+                last = ex;
+                rejections.incrementAndGet();
+                logger.warn("CJ category {} page {} fetch failed (attempt {}/{}): {}",
+                        categoryId, page, attempt, attempts, ex.getMessage());
+            }
+        }
+        if (last != null) {
+            logger.warn("CJ category {} page {} GIVING UP after {} attempts — this leaf is short",
+                    categoryId, page, attempts);
+        }
+        return null;
+    }
+
+    /**
+     * Upstream rejections seen since the last call, and resets the counter. A catalog run reads this
+     * at the end so a lossy run reports itself instead of looking complete (Wave 26 deliverable 5).
+     */
+    public long getAndResetRejections() {
+        return rejections.getAndSet(0);
     }
 
     /**
