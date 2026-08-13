@@ -40,6 +40,13 @@ public class CJDropshippingConfig {
      * stays within the rate limit.
      */
     private int fetchPaceSeconds = 300;
+    /**
+     * Attempts per /product/list page before a category is abandoned short. CJ QPS-rejects a
+     * substantial share of calls even at the configured pace (~17% measured 2026-08-13), and the
+     * old break-on-first-failure made every nightly run silently lossy. Retries ride the same
+     * paced limiter, so raising this costs wall-clock, never a QPS burst.
+     */
+    private int fetchRetries = 3;
 
     /** CJ {@code /product/list} page size (CJ caps this at ~200). */
     private int pageSize = 200;
