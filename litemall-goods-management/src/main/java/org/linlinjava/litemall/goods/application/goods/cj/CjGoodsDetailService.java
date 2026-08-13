@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
+import org.linlinjava.litemall.goods.application.attribution.AttributionProvider;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productvariant.CJProductVariantData;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product.CJProductService;
@@ -401,7 +402,9 @@ public class CjGoodsDetailService {
         addAttr(attrs, "Material", d.getMaterialNameEn() != null ? d.getMaterialNameEn() : d.getMaterialName());
         addAttr(attrs, "Weight", d.getProductWeight());
         addAttr(attrs, "Unit", d.getProductUnit());
-        addAttr(attrs, "Supplier", d.getSupplierName());
+        // Wave 25.1: a junk supplier value ("{}") must not render as a PDP attribute.
+        addAttr(attrs, "Supplier",
+                AttributionProvider.usableIdentityField(d.getSupplierName()) ? d.getSupplierName() : null);
         return attrs;
     }
 

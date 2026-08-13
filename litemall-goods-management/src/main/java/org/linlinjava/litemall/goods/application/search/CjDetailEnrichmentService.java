@@ -3,8 +3,10 @@ package org.linlinjava.litemall.goods.application.search;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.linlinjava.litemall.db.service.LitemallCjProductService;
+import org.linlinjava.litemall.goods.application.attribution.AttributionProvider;
 import org.linlinjava.litemall.goods.application.inventoryflow.InventoryFlowGateway;
 import org.springframework.beans.factory.ObjectProvider;
+import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativeAdapter;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.inventory.CJInventoryData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productreview.CJProductComment;
@@ -179,6 +181,13 @@ public class CjDetailEnrichmentService {
                 vm.put("variant_sell_price", vCost);
                 vm.put("variant_price", pricing.retail(vCost, effMargin));
             }
+            // Wave 25.1: capture the per-variant image (key present only when usable — plain URL
+            // on a /_cdn-covered host, column-width safe) so promote can land it on the SKU url
+            // and the already-live SPA half starts switching the PDP photo per variant.
+            String variantImage = variantImageOf(v.getVariantImage());
+            if (variantImage != null) {
+                vm.put("variant_image", variantImage);
+            }
             vm.put("stock", stockOf(v.getVid()));
             variantMaps.add(vm);
         }
@@ -225,8 +234,10 @@ public class CjDetailEnrichmentService {
         // roughly half of items in the 2026-08-09 live probe). Nulls preserve prior values via the
         // enrich statement's COALESCE. The name is a raw legal-entity string; it only ever reaches
         // customers after an admin curates the derived brand row (display_enabled gate).
-        row.setSupplierId(trimTo(readable(d.getSupplierId()), 63));
-        row.setSupplierName(trimTo(readable(d.getSupplierName()), 255));
+        // Wave 25.1: CJ sometimes delivers literal junk ("{}") in these fields — junk reads as
+        // ABSENT so it never lands on the row (and never inflates the coverage probe).
+        row.setSupplierId(usableOrNull(trimTo(readable(d.getSupplierId()), 63)));
+        row.setSupplierName(usableOrNull(trimTo(readable(d.getSupplierName()), 255)));
 
         cjProductStore.enrich(row);                  // persist enriched snapshot + stamp enriched_time
         // Land the freshly-enriched row into the native litemall_goods family and index THAT (OCS
@@ -279,6 +290,21 @@ public class CjDetailEnrichmentService {
         }
         String t = value.trim();
         return t.length() <= max ? t : t.substring(0, max);
+    }
+
+    /** Wave 25.1: junk-tolerant identity pass-through — see {@link AttributionProvider#usableIdentityField}. */
+    private String usableOrNull(String value) {
+        return AttributionProvider.usableIdentityField(value) ? value : null;
+    }
+
+    /**
+     * Wave 25.1: normalize CJ's {@code variantImage} (tolerating a JSON-array-string shape, like
+     * {@code productImage}) and keep it only when the promote path can actually use it — same
+     * host/width rules as {@link CjProductToNativeAdapter#usableVariantImage}.
+     */
+    private String variantImageOf(String raw) {
+        List<String> urls = imagesOf(raw);
+        return urls.isEmpty() ? null : CjProductToNativeAdapter.usableVariantImage(urls.get(0));
     }
 
     /**
@@ -407,7 +433,8 @@ public class CjDetailEnrichmentService {
         putAttr(attrs, "Material", d.getMaterialNameEn() != null ? d.getMaterialNameEn() : d.getMaterialName());
         putAttr(attrs, "Weight", d.getProductWeight());
         putAttr(attrs, "Unit", d.getProductUnit());
-        putAttr(attrs, "Supplier", d.getSupplierName());
+        // Wave 25.1: a junk supplier value ("{}") must not render as a PDP attribute.
+        putAttr(attrs, "Supplier", usableOrNull(readable(d.getSupplierName())));
         return attrs;
     }
 
