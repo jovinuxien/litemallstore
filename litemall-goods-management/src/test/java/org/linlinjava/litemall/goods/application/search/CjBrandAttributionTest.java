@@ -19,6 +19,7 @@ import org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativeAdapter;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.NativeGoodsAggregate;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -56,6 +57,7 @@ public class CjBrandAttributionTest {
                 brandMapper, mock(LitemallSeckillMapper.class),
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
                 config, new CjPricing(config, mock(CategoryMarginResolver.class)),
+                new LitemallGoodsProperties(),
                 List.of(new CjSupplierAttributionProvider()),
                 mock(PlatformTransactionManager.class));
     }

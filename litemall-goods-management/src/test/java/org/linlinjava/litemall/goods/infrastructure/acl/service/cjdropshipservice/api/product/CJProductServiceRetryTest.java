@@ -78,7 +78,7 @@ public class CJProductServiceRetryTest {
 
     @Test
     public void recoversAfterTransientRejections() {
-        when(client.getProductList(anyString(), anyInt(), anyInt()))
+        when(client.getProductList(anyString(), anyInt(), anyInt(), any()))
                 .thenThrow(new RuntimeException("Too Many Requests  QPS limit is 1 time/1second"))
                 .thenThrow(new RuntimeException("Too Many Requests  QPS limit is 1 time/1second"))
                 .thenReturn(page(1, "PID-1"));
@@ -87,7 +87,7 @@ public class CJProductServiceRetryTest {
 
         assertEquals(1, out.size(), "the page must survive two transient rejections");
         assertEquals("PID-1", out.get(0).getPid());
-        verify(client, times(3)).getProductList(anyString(), anyInt(), anyInt());
+        verify(client, times(3)).getProductList(anyString(), anyInt(), anyInt(), any());
         assertEquals(2, service.getAndResetRejections(),
                 "both rejections are counted even though the retry recovered — the reported rate "
                         + "must reflect what CJ did, not what we salvaged");
@@ -95,30 +95,30 @@ public class CJProductServiceRetryTest {
 
     @Test
     public void givesUpAfterConfiguredAttemptsWithoutThrowing() {
-        when(client.getProductList(anyString(), anyInt(), anyInt()))
+        when(client.getProductList(anyString(), anyInt(), anyInt(), any()))
                 .thenThrow(new RuntimeException("QPS limit is 1 time/1second"));
 
         List<CJProduct> out = service.fetchByCategory("LEAF", 10, 20);
 
         assertTrue(out.isEmpty(), "an unrecoverable page degrades to empty, never an exception");
-        verify(client, times(3)).getProductList(anyString(), anyInt(), anyInt());
+        verify(client, times(3)).getProductList(anyString(), anyInt(), anyInt(), any());
         assertEquals(3, service.getAndResetRejections());
     }
 
     @Test
     public void happyPathIsUnchangedAndCostsOneCall() {
-        when(client.getProductList(anyString(), anyInt(), anyInt())).thenReturn(page(1, "PID-1"));
+        when(client.getProductList(anyString(), anyInt(), anyInt(), any())).thenReturn(page(1, "PID-1"));
 
         List<CJProduct> out = service.fetchByCategory("LEAF", 10, 20);
 
         assertEquals(1, out.size());
-        verify(client, times(1)).getProductList(anyString(), anyInt(), anyInt());
+        verify(client, times(1)).getProductList(anyString(), anyInt(), anyInt(), any());
         assertEquals(0, service.getAndResetRejections(), "a clean run reports no rejections");
     }
 
     @Test
     public void rejectionCounterResetsSoRunsDoNotAccumulate() {
-        when(client.getProductList(anyString(), anyInt(), anyInt()))
+        when(client.getProductList(anyString(), anyInt(), anyInt(), any()))
                 .thenThrow(new RuntimeException("QPS limit is 1 time/1second"));
 
         service.fetchByCategory("LEAF", 10, 20);

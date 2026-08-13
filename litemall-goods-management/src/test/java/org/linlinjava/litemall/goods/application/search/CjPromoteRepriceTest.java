@@ -17,6 +17,7 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver;
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativeAdapter;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,7 +44,7 @@ public class CjPromoteRepriceTest {
                 mock(LitemallGoodsSpecificationMapper.class), mock(LitemallCategoryMapper.class),
                 mock(LitemallBrandMapper.class), mock(LitemallSeckillMapper.class),
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
-                config, new CjPricing(config, resolver), List.of(),
+                config, new CjPricing(config, resolver), new LitemallGoodsProperties(), List.of(),
                 mock(PlatformTransactionManager.class));
     }
 

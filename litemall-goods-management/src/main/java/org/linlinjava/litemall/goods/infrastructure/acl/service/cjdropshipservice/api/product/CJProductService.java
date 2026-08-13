@@ -25,6 +25,7 @@ import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.pr
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailData;
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.productdetail.CJProductDetailResponse;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CjListFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -139,16 +140,28 @@ public class CJProductService {
      * its rejection rate instead of hiding it.
      */
     public List<CJProduct> fetchByCategory(String categoryId, int targetCount, int pageSize) {
+        return fetchByCategory(categoryId, targetCount, pageSize, CjListFilter.NONE);
+    }
+
+    /**
+     * Wave 26 Phase 2 deliverable 4: the same fetch with optional sourcing filters (see
+     * {@link CjListFilter}). The filter is part of the cache key, so a filtered run can never reuse
+     * pages staged by an unfiltered one. An empty filter takes the legacy key and emits an identical
+     * request, so this is inert until a catalog target configures it.
+     */
+    public List<CJProduct> fetchByCategory(String categoryId, int targetCount, int pageSize,
+                                           CjListFilter filter) {
+        CjListFilter f = filter == null ? CjListFilter.NONE : filter;
         List<CJProduct> acc = new ArrayList<>();
         if (targetCount <= 0) {
             return acc;
         }
         int page = 1;
         while (acc.size() < targetCount) {
-            String key = CjRawCacheRepository.listKey(categoryId, page);
+            String key = CjRawCacheRepository.listKey(categoryId, page, f.cacheSuffix());
             CJProductDataResponse resp = rawCache.get(key, CJProductDataResponse.class).orElse(null);
             if (resp == null) {
-                resp = fetchPageWithRetry(categoryId, page, pageSize);
+                resp = fetchPageWithRetry(categoryId, page, pageSize, f);
                 if (resp == null) {
                     break;      // still failing after every configured attempt
                 }
@@ -174,13 +187,15 @@ public class CJProductService {
      * A rejection is counted whether or not the retry later succeeds, so the reported rate reflects
      * what CJ actually did rather than what we managed to recover from.
      */
-    private CJProductDataResponse fetchPageWithRetry(String categoryId, int page, int pageSize) {
+    private CJProductDataResponse fetchPageWithRetry(String categoryId, int page, int pageSize,
+                                                     CjListFilter filter) {
         int attempts = Math.max(1, config.getFetchRetries());
         RuntimeException last = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
             pacedLimiter().acquire(); // blocks ~fetch-pace-seconds between live CJ calls
             try {
-                CJProductDataResponse resp = productClient.getProductList(categoryId, page, pageSize);
+                CJProductDataResponse resp =
+                        productClient.getProductList(categoryId, page, pageSize, filter);
                 if (resp != null) {
                     if (attempt > 1) {
                         logger.info("CJ category {} page {} recovered on attempt {}/{}",

@@ -22,6 +22,7 @@ import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativ
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.NativeGoodsAggregate;
 import org.springframework.dao.DuplicateKeyException;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -78,6 +79,7 @@ public class CjProductPromotionService {
     private final CjCategoryTreeSyncService categoryTreeSync;
     private final CJDropshippingConfig config;
     private final CjPricing pricing;
+    private final LitemallGoodsProperties goodsProperties;
     private final List<AttributionProvider> attributionProviders;
     private final TransactionTemplate txTemplate;
 
@@ -93,6 +95,7 @@ public class CjProductPromotionService {
                                      CjCategoryTreeSyncService categoryTreeSync,
                                      CJDropshippingConfig config,
                                      CjPricing pricing,
+                                     LitemallGoodsProperties goodsProperties,
                                      List<AttributionProvider> attributionProviders,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
@@ -107,6 +110,7 @@ public class CjProductPromotionService {
         this.categoryTreeSync = categoryTreeSync;
         this.config = config;
         this.pricing = pricing;
+        this.goodsProperties = goodsProperties;
         this.attributionProviders = attributionProviders;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
@@ -207,6 +211,16 @@ public class CjProductPromotionService {
         // Match INCLUDING soft-deleted rows: a full sync's stale-prune (or an off-sale edit) may
         // have soft-deleted this pid, and uk_goods_source_cjpid makes a blind re-insert collide —
         // the row must be resurrected in place instead.
+        // Wave 26 Phase 2 deliverable 2: evaluate the floor AFTER repricing, against the retail the
+        // customer would actually see. Withheld (price-locked) retail is read from the aggregate, so
+        // a live flash deal is judged on its landed price rather than a null.
+        boolean belowFloor = goodsProperties != null
+                && goodsProperties.isBelowPriceFloor(goods.getRetailPrice());
+        if (belowFloor) {
+            log.info("CJ promote pid={}: retail {} below price floor {} — off sale (reversible)",
+                    row.getPid(), goods.getRetailPrice(), goodsProperties.getPriceFloor());
+        }
+
         Integer existingId = linkageMapper.findAnyGoodsIdByCjPid(goods.getCjPid());
         // Wave 12 (unparked a82a19e0e): while a flash deal is LIVE (price_swapped=1) the deal
         // engine owns the price fields — the promote path withholds retail/counter/matched-SKU
@@ -228,6 +242,14 @@ public class CjProductPromotionService {
             // not resurrect retired (off-sale) goods back to on-sale, so the flag is withheld on
             // updates (selective skips nulls). New inserts still land on-sale below.
             goods.setIsOnSale(null);
+            // Wave 26 Phase 2 price floor: policy OVERRIDES that withhold. A sub-floor good is
+            // taken off sale every cycle for as long as it stays sub-floor — deliberately, so the
+            // floor is a standing rule and not a one-shot sweep an admin can silently undo into a
+            // loss-making listing. Reversible: raise the margin or lower the floor and the next
+            // cycle puts it back.
+            if (belowFloor) {
+                goods.setIsOnSale(false);
+            }
             // Manual-wins: a source='manual' admin brand assignment is never overwritten by a
             // provider (or the legacy CJ path); withholding the field keeps it via selective update.
             if (goods.getBrandId() != null
@@ -238,6 +260,9 @@ public class CjProductPromotionService {
         } else {
             if (goods.getBrandId() == null) {
                 goods.setBrandId(0); // unattributed sentinel, matches the pre-V60 convention
+            }
+            if (belowFloor) {
+                goods.setIsOnSale(false);   // a new sub-floor good never goes on sale at all
             }
             goodsMapper.insertSelective(goods); // selectKey stamps goods.id
         }

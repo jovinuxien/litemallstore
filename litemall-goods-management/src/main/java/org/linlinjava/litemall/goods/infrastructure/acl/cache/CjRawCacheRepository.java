@@ -47,6 +47,15 @@ public class CjRawCacheRepository {
         return PREFIX + "list:" + categoryId + ":" + page;
     }
 
+    /**
+     * Wave 26: cache key for a FILTERED list page. The filter must be part of the key — otherwise a
+     * sourcing run would reuse pages cached by an unfiltered run of the same category and silently
+     * return the wrong product set, looking exactly as if the filter had done nothing.
+     */
+    public static String listKey(String categoryId, int page, String filterSuffix) {
+        return listKey(categoryId, page) + (filterSuffix == null ? "" : filterSuffix);
+    }
+
     /** Key for the legacy single-page (no-category) product list. */
     public static String defaultListKey() {
         return PREFIX + "list:default";

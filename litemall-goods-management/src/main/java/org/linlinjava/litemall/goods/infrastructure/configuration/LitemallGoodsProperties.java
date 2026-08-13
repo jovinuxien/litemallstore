@@ -24,6 +24,34 @@ public class LitemallGoodsProperties {
     private short stockLowThreshold = 5;
 
     /**
+     * Wave 26 Phase 2: minimum retail price a good may carry and stay on sale. 0 = OFF (default,
+     * dev-safe and byte-identical to pre-Wave-26 behaviour); prod sets LITEMALL_GOODS_PRICE_FLOOR.
+     *
+     * <p>A sub-floor good is taken OFF SALE, never silently repriced: retail is cost × the
+     * category's effective margin, and quietly bending that would break the invariant the margin
+     * guard, deal floors and coupon guard all compute against. Off-sale is reversible (the row and
+     * its data survive; raising the margin or lowering the floor brings it back on the next cycle).
+     *
+     * <p>Context: 1,056 live SKUs priced under EUR 1 as of 2026-08-12 — at EUR 6.93 flat freight
+     * those are loss-makers and a Merchant Center review risk.
+     */
+    private BigDecimal priceFloor = BigDecimal.ZERO;
+
+    public BigDecimal getPriceFloor() {
+        return priceFloor;
+    }
+
+    public void setPriceFloor(BigDecimal priceFloor) {
+        this.priceFloor = priceFloor;
+    }
+
+    /** True when a floor is configured AND this retail falls below it. Null retail never trips it. */
+    public boolean isBelowPriceFloor(BigDecimal retail) {
+        return priceFloor != null && priceFloor.signum() > 0
+                && retail != null && retail.compareTo(priceFloor) < 0;
+    }
+
+    /**
      * Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO for
      * schema.org offers. Mirrors what the storefront actually charges: the order service's
      * LITEMALL_ORDER_STRIPE_CURRENCY (default "usd", prod unoverridden).
