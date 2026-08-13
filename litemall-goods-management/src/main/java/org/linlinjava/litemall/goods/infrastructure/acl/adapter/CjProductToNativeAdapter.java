@@ -60,6 +60,19 @@ public class CjProductToNativeAdapter {
     // the ~64KB TEXT ceiling as a guard, while preserving the full CJ gallery in practice.
     private static final int GALLERY_JSON_BUDGET = 60000;
 
+    // litemall_goods_product.url is varchar(125); a variant image that doesn't fit falls back to
+    // the main photo — truncating a URL yields a broken image, not a shorter one.
+    private static final int PRODUCT_URL_MAX = 125;
+    // Hosts the /_cdn edge rewrite covers (CjImageUrlRewriteFilter + Caddyfile /_cdn/cf|oss/*).
+    // A variant image on any other host would serve mixed-content/unproxied on the storefront,
+    // so it is treated as absent (main-photo fallback).
+    private static final String[] CDN_COVERED_IMAGE_PREFIXES = {
+            "https://cf.cjdropshipping.com/",
+            "http://cf.cjdropshipping.com/",
+            "https://oss-cf.cjdropshipping.com/",
+            "http://oss-cf.cjdropshipping.com/",
+    };
+
     private final ObjectMapper objectMapper;
 
     public CjProductToNativeAdapter(ObjectMapper objectMapper) {
@@ -174,7 +187,11 @@ public class CjProductToNativeAdapter {
             product.setPrice(v.variantPrice() != null && !staleBasis ? v.variantPrice() : fallbackPrice);
             product.setCost(v.variantSellPrice() != null ? v.variantSellPrice() : fallbackCost);
             product.setNumber(v.stock() != null ? v.stock() : 0);
-            product.setUrl(trim(imageUrl, 125));
+            // Wave 25.1: SKU photo = the captured per-variant image when usable, else the main
+            // photo. Both fallbacks stay null (never "") when the main photo is absent, so the
+            // selective update can never blank a previously landed url.
+            String variantImage = usableVariantImage(v.variantImage());
+            product.setUrl(variantImage != null ? variantImage : trim(imageUrl, PRODUCT_URL_MAX));
             product.setSpecifications(specTuple(v));
             stampChild(product::setAddTime, product::setUpdateTime, product::setDeleted, now);
             aggregate.getProducts().add(product);
@@ -186,7 +203,7 @@ public class CjProductToNativeAdapter {
             product.setPrice(fallbackPrice);
             product.setCost(fallbackCost);
             product.setNumber(0);
-            product.setUrl(trim(imageUrl, 125));
+            product.setUrl(trim(imageUrl, PRODUCT_URL_MAX));
             product.setSpecifications(new String[]{DEFAULT_SPEC_VALUE});
             stampChild(product::setAddTime, product::setUpdateTime, product::setDeleted, now);
             aggregate.getProducts().add(product);
@@ -238,7 +255,7 @@ public class CjProductToNativeAdapter {
             BigDecimal price = decimal(node, "variant_price");
             BigDecimal sellPrice = decimal(node, "variant_sell_price");
             Integer stock = node.hasNonNull("stock") ? node.get("stock").asInt() : null;
-            out.add(new CjVariant(vid, sku, options, price, sellPrice, stock));
+            out.add(new CjVariant(vid, sku, options, price, sellPrice, stock, text(node, "variant_image")));
         }
         return out;
     }
@@ -357,8 +374,31 @@ public class CjProductToNativeAdapter {
         deleted.accept(Boolean.FALSE);
     }
 
+    /**
+     * Wave 25.1: a per-variant image is usable as the SKU {@code url} only when it is a plain
+     * http(s) URL on a {@code /_cdn}-covered CJ host AND fits the varchar(125) column. Anything
+     * else (blank, foreign host, oversized) ⇒ null — callers fall back to the main photo; the
+     * image is never truncated and an existing url is never blanked.
+     */
+    public static String usableVariantImage(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String t = raw.trim();
+        if (t.length() > PRODUCT_URL_MAX) {
+            return null;
+        }
+        for (String prefix : CDN_COVERED_IMAGE_PREFIXES) {
+            if (t.startsWith(prefix)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
     /** Parsed view of one entry in {@code variants_json}. */
     private record CjVariant(String vid, String variantSku, List<String> options,
-                             BigDecimal variantPrice, BigDecimal variantSellPrice, Integer stock) {
+                             BigDecimal variantPrice, BigDecimal variantSellPrice, Integer stock,
+                             String variantImage) {
     }
 }

@@ -38,6 +38,9 @@ public class CJProductVariantData {
     @JsonProperty("variantKey")
     private String variantKey; // Variant key (e.g., "[\"XS\"]")
 
+    @JsonProperty("variantImage")
+    private String variantImage; // Variant image URL (CJ docs: string, max 200; often absent)
+
     @JsonProperty("variantLength")
     private Double variantLength; // Variant length
 

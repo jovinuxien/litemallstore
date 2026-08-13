@@ -40,4 +40,23 @@ public interface AttributionProvider {
     /** What a provider knows about a brand/store. {@code logo} is optional (may be null). */
     record Attribution(byte kind, String name, String externalId, String logo) {
     }
+
+    /**
+     * Wave 25.1: is a provider identity field a real value? CJ sometimes delivers literal junk
+     * ({@code "{}"}, {@code "null"}, blanks) in {@code supplierName}/{@code supplierId}; because
+     * rows are keyed {@code UNIQUE(source, external_id)}, ONE junk external id would funnel every
+     * such product onto a single garbage row (prod row 1046002) — cross-supplier mis-attribution.
+     * Junk must read as ABSENT: no row, no link. A usable field carries at least one letter or
+     * digit and is not a null-ish literal.
+     */
+    static boolean usableIdentityField(String raw) {
+        if (raw == null) {
+            return false;
+        }
+        String t = raw.trim();
+        if (t.equalsIgnoreCase("null") || t.equalsIgnoreCase("undefined")) {
+            return false;
+        }
+        return t.codePoints().anyMatch(Character::isLetterOrDigit);
+    }
 }
