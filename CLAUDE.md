@@ -970,8 +970,12 @@
 > Known follow-ups: /meta-catalog.csv + sitemap money regenerate with
 > the 03:30 nightly (stale-USD until then, nothing consumes them yet);
 > deal/promo candidates re-propose in EUR at 04:30/04:45.
-> USER-SIDE after deploy: Matomo ecommerce currency SITE SETTING → EUR
-> (admin UI, SPA cannot set it); enable EU payment methods in the
+> USER-SIDE after deploy: ~~Matomo ecommerce currency SITE SETTING →
+> EUR~~ (MOOT, verified 2026-08-10: Matomo was NEVER ACTIVATED in prod —
+> live site-config serves matomoUrl/matomoSiteId null; the open item is
+> whether to activate analytics at all: deploy the marketing-stack
+> Matomo container + envs, or rely on the live first-party event log +
+> Meta Pixel for now); enable EU payment methods in the
 > Stripe Dashboard (Klarna/SEPA/iDEAL/Bancontact/MobilePay — appear in
 > checkout with no rebuild); Stripe Tax registrations + activation;
 > ONE real-card live EUR purchase end-to-end.
@@ -1158,6 +1162,163 @@
 > supplier store → PDP "Sold by" + store page appear) and Merchant
 > Center registration with the live feed.
 >
+> **Wave 26 (2026-08-12, COMMISSIONED — assignment lands when Wave 25.1
+> finishes) — COMMERCIAL VIABILITY: anchor-category focus, price floor +
+> margin reset, EU-warehouse sourcing truth, content de-duplication.**
+> Origin: two external strategy conversations reviewed 2026-08-12. Their
+> STRATEGIC frame is accepted (narrow to one category; seasonality INSIDE
+> a category, never rotation across categories; keep the CJ pipeline broad
+> and the storefront narrow; unpublish, never delete; treat own analytics
+> as directional below ~100 conversions; external signal — Trends, keyword
+> volume, CJ `listedNum` — until then). Their TECHNICAL phases are
+> DISCARDED: they describe a Vue SPA behind nginx needing a prerender
+> layer, JSON-LD, a sitemap and funnel instrumentation — all of which are
+> React-based and ALREADY LIVE here (Waves 13/22/24/25). **Do NOT rebuild
+> head injection, JSON-LD, sitemap, robots.txt, event instrumentation, or
+> EU payment plumbing.** Re-verified live 2026-08-12: PDP head injection
+> serves `<title>` + og:* + one JSON-LD Product (`"price":"5.31"`,
+> `"priceCurrency":"EUR"`, InStock); sitemap 15,274 URLs; robots.txt live
+> with /user,/checkout,/cart disallowed.
+> **Audit facts (2026-08-12, measured on the LIVE prod feed
+> https://trovemo.com/meta-catalog.csv, 15,258 rows — NOT dev; dev prices
+> are stale pre-flip and uncosted, do not reason from them):**
+> - Median price **€6.83**; mean €16.14; p25 €2.94; p75 €13.13. **79.5%
+>   (12,135) under €15**; only **8.9% (1,357) in the €25–80 band**.
+> - **1,056 SKUs priced under €1** (e.g. a €0.25 RGB cable, a €0.54 USB-C
+>   cable). With flat freight €6.93 and CJ cost these are guaranteed
+>   losses, a Merchant-Center review risk, and the most likely source of
+>   the "$0 checkout" impression in the external conversation. **No
+>   evidence of a genuine zero-amount bug exists** — live catalog prices
+>   are non-zero EUR and orders 106/107/111/113/114 all charged and
+>   refunded correct amounts. Treat a real €0 report as Phase-0 blocking
+>   ONLY if the user supplies page + product + total + Stripe intent.
+> - Pricing is `retail = cost × 1.25` (Wave 12) ⇒ gross margin is 20% of
+>   sale price ⇒ **≈€1.37 gross profit per order at the median**, against
+>   DE/DK Shopping CAC of €15–40. **Paid acquisition is arithmetically
+>   impossible at current pricing, in any category.** Category count is
+>   NOT the binding constraint — price is.
+> - **48% of feed rows (7,369) have description == title** — the Wave-25
+>   brief fallback only fires where CJ detail enrichment landed.
+> - Live per-category reality (Google taxonomy, in-band = €25–80):
+>   Apparel & Accessories 6,586 / median €7.79 / 5.0%; Home & Garden
+>   1,627 / €6.95 / **15.1% (245)**; Hardware 659 / €15.70 / **23.7%
+>   (156)**; Electronics 1,655 / €5.91 / 13.0%; Health & Beauty 1,214 /
+>   €2.53 / 3.2%.
+> - **CJ EU-warehouse filtering (`countryCode` + `verifiedWarehouse=1`) is
+>   NOT implemented anywhere.** Everything ships from China today ⇒ 10–20
+>   day delivery into a next-week-delivery market. This is the single
+>   largest un-built lever and it GATES the anchor choice.
+> **USER DECISIONS (2026-08-12):** reduce 14 L1 categories to **ONE
+> anchor — Home, Garden & Furniture** (already the recorded lead category
+> since 2026-08-09; lightest regulatory load — non-electric home goods
+> dodge EN71/WEEE/RoHS/battery rules; 245 in-band SKUs ≫ the ~30 needed),
+> **hard ceiling of TWO**: the optional second is Hardware / Home
+> Improvement (highest in-band share, same "home" audience, reinforces
+> rather than resets topical authority). Apparel is REJECTED as anchor
+> despite being the largest bucket (5% in band, sizing returns, textile
+> labelling). Switching rule fixed NOW while unbiased: **category two goes
+> live only after the anchor holds profitable CAC for 60 consecutive
+> days.** Non-anchor categories are OFF-SALED, never deleted — data stays
+> in MySQL, CJ jobs keep running.
+> **PHASE 1a RESULT (measured 2026-08-13, prod CJ account; full report +
+> raw rows: `litemall-goods-management/docs/spec-wave26-eu-sourcing.md`
+> + `data-wave26-cj-warehouse-survival.csv`):** **Germany is CJ's ONLY EU
+> warehouse** — ES/CZ/IT/NL/BE/PL/SE/DK/AT and "EU" all return 0; GB has
+> stock but is post-Brexit. Storewide DE share of CJ supply = **0.30%**
+> (594 of 201,089 across 84 sampled leaves); 25 of 84 leaves hold any DE
+> stock, mostly single digits; catalogue-wide extrapolation ≈ **3,800
+> DE-stocked products** (order of magnitude, not a count). **EU stock is
+> a property of individual SKUs, not of categories.** Consequence that
+> rewrites Phase 2: the existing 15k catalogue CANNOT be filtered into an
+> EU-stocked store (0.30% would leave ~40 products) — EU sourcing must
+> **ACQUIRE** DE-stocked SKUs via `/product/list` with `countryCode=DE`
+> (ONE code, 4-char max — no lists) + `minPrice`/`maxPrice`, not filter
+> what we already mirror. Densest: Home Improvement 5.18% (though 365 of
+> its 394 sit in Garden Tools alone), Computer & Office 2.43%, Home &
+> Garden 0.95%; everything else ≤0.37%.
+> **USER DECISIONS (2026-08-13, after Phase 1a):**
+> - **Anchor = the home/garden/tools CLUSTER** — Home, Garden & Furniture
+>   **+ Home Improvement** treated as ONE merchandising anchor. Home
+>   Improvement is promoted from "optional second" to equal billing: it
+>   holds both the densest DE stock and the best €25–80 price band
+>   (Hardware 23.7% in-band, median €15.70 — the highest of any category).
+>   Same audience, so authority compounds instead of resetting. The
+>   60-day-profitable-CAC rule now governs adding a THIRD category.
+> - **Margin 1.25 → 2.5** on the anchor, via the EXISTING Wave-14
+>   per-category override (bounds 1.05–3.0, so 2.5 is in range) —
+>   SIMULATE first, then apply. Global default stays 1.25 for anything
+>   still on sale outside the anchor (moot once Phase 2 off-sales them).
+>   Modelled against the live feed: anchor median €9.13 → €18.26; gross
+>   profit per order at the median **€1.83 → €10.96**; in-band €25–80
+>   share 17.5% → **24.0% (549 SKUs)**, whose gross is €15.10–47.64 —
+>   the first point in this wave where the numbers clear a €15–40 CAC.
+>   ⚠ Ads should target the ~549 in-band anchor SKUs, NOT the median
+>   product: 35.3% of the anchor still sits under €10 even after 2.5×.
+> **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
+> the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
+> (3) any real €0 checkout evidence, (4) GSC coverage numbers
+> (indexed vs discovered), (5) VAT number + GPSR responsible person +
+> jurisdiction, (6) PayPal Business application started (slow clock the
+> user does not control — start it in parallel with everything).
+> **Wave-26 CONTRACT (worktrees code to THIS):**
+> - **Flyway:** prod applied through **V60**. Wave 26 claims **V61**
+>   (goods-management scope) ONLY if EU-warehouse capture needs a column
+>   on `litemall_cj_product`; check `flyway_schema_history` immediately
+>   before first boot. Every other worktree expects NONE.
+> - **goods-management — EU sourcing truth (Phase 1, the GATE):** extend
+>   the CJ sync/enrichment intake with `countryCode` + `verifiedWarehouse`
+>   filtering, config-driven (`litemall.cj.eu-warehouse.*`, env-backed,
+>   DEFAULT OFF = today's behavior). FIRST deliverable is a REPORT, not a
+>   catalog change: per-L1 EU-warehouse survival counts logged from the
+>   existing rotation. ⚠ Rides the EXISTING sync rotation — NO new CJ call
+>   loops (shared daily API-points quota, errno 16900500 on exhaustion).
+>   If Home & Garden survival is thin, the anchor changes and Phases 2–5
+>   must NOT have started.
+> - **goods-management — price floor + margin (Phase 2):** config price
+>   floor (`litemall.goods.price-floor`, env-backed, decimal, default 0 =
+>   off) applied at promote/reprice — sub-floor goods are OFF-SALED with a
+>   reason (reversible), never silently repriced. The anchor margin change
+>   uses the EXISTING Wave-14 per-category override (`GET /insight/
+>   categories/{id}/simulate` → `PUT /categories/{id}/margin`, bounds
+>   1.05–3.0) — SIMULATE FIRST and record the numbers; no new machinery.
+> - **goods-management — narrowing (Phase 2):** off-sale the non-anchor L1
+>   subtrees through the EXISTING retirement/off-sale path so sitemap,
+>   meta-catalog.csv and the OCS index follow via the nightly cycle.
+>   Reversible; `is_on_sale` is preserved by the nightly promote since
+>   Wave 14. Expect a large one-off off-sale batch — admin-gated, staged.
+> - **goods-management — content (Phase 3):** kill the description ==
+>   title duplication on the SURVIVING catalog (extend the Wave-13 brief
+>   sanitizer fallback chain); ~30 in-band anchor SKUs get genuinely
+>   rewritten copy (CJ supplier text ranks nowhere).
+> - **gateway-api (Phase 2/4):** nav/category surfaces must degrade
+>   honestly when 13 L1s go off-sale (no empty category tiles, no dead
+>   links); footer legal gains VAT + GPSR responsible person + honest
+>   delivery windows once (5) lands; returns/shipping copy matched to what
+>   CJ can actually do from EU warehouses (needs Phase 1's answer).
+> - **No gateway-admin half is required** — margin overrides, retirement
+>   approval and brand curation panels all exist.
+> - errno envelope; money plain decimals; € formatter everywhere;
+>   nothing customer-visible flips without an admin-gated, reversible step.
+> **Phase gates (nothing downstream starts until the gate above passes):**
+> P0 user decisions → P1 EU-warehouse survival report (GATE: anchor
+> confirmed against real EU stock) → P2 price floor + margin + narrowing
+> (GATE: catalog reprices and off-sales cleanly, feed + sitemap + index
+> regenerate) → P3 content (fills the 2–6 week indexing wait that cannot
+> be compressed) → P4 trust/legal → P5 Merchant Center registration (the
+> valid feed has been live and unused since 2026-08-10), then free
+> listings, then paid Shopping on 5–10 best-margin in-band anchor SKUs.
+> Meta/TikTok only once conversion data exists.
+> **Acceptance (dev, through :9000/:8090 unless noted):** EU-warehouse
+> survival logged per L1 with real counts and the filter OFF by default;
+> price floor off-sales exactly the sub-floor set and NOTHING else, with
+> the flip reversible; simulate → apply on the anchor margin moves stored
+> retail with marginPct coherent and deal/coupon floors still honored
+> (they are cost-based — verify, don't edit); non-anchor off-sale shrinks
+> sitemap + feed + index on the next cycle while the rows survive in
+> MySQL; zero description == title rows among surviving anchor goods;
+> storefront shows no empty/dead category surfaces; module tests green
+> with real "Tests run:" counts.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
@@ -1265,8 +1426,74 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 25.1 (per-variant image backfill)
-- **Task — Wave 25.1: capture CJ per-variant images so the PDP photo
+### Worktree: `goods-management` — ACTIVE: Wave 26 Phase 2 (anchor the catalogue)
+- **Task 0 (BLOCKING, do before any Phase-2 code): LAND WAVE 25.1.**
+  Verified by MAIN 2026-08-13: 25.1 is WRITTEN BUT NOT SHIPPED. The
+  worktree holds **8 modified files + 2 untracked test files, all
+  uncommitted**, last touched 2026-08-10 04:48 (abandoned, no live
+  session); `fix/goods-management` is **7 commits behind master and 0
+  ahead** — nothing merged. The code looks complete at both seams
+  (`CjDetailEnrichmentService` writes `variant_image` into
+  variants_json incl. a JSON-array-string tolerant normalizer;
+  `CjProductToNativeAdapter` lands it on `product.url` with main-photo
+  fallback) plus further uncommitted refinement of the supplier-junk
+  gate beyond committed `4ee7154fb`. MAIN deliberately did NOT commit
+  it: unauthored, tests never run. **You:** review the diff, RUN the
+  tests (real "Tests run:" counts — incl. the 2 untracked
+  variant-image tests), commit, `git merge master`, then merge to
+  master as usual. If any of it is wrong, fix it — do not discard it.
+  Only then start Phase 2.
+- **Task — Wave 26 Phase 2: anchor the catalogue.** Code to the FROZEN
+  spec `litemall-goods-management/docs/spec-wave26-phase2-anchor.md`
+  (read it in full; it is the contract, this is only the index) and to
+  the Wave-26 block above. Read `docs/spec-wave26-eu-sourcing.md`
+  FIRST — its Phase-1a measurements rewrote deliverable 4.
+  **NO Flyway migration** (V61 belongs to Phase 1b; prod applied
+  through V60 — check `flyway_schema_history` before first boot
+  anyway). Anchor = `Home, Garden & Furniture` **+** `Home
+  Improvement` as ONE cluster. Deliverables:
+  1. Margin **1.25 → 2.5** on BOTH anchor L1 roots via the EXISTING
+     Wave-14 override (`/insight/categories/{id}/simulate` then
+     `PUT .../margin`) — SIMULATE FIRST, record before/after in the
+     PR. Guards are ratio/cost-based: VERIFY they need no change,
+     do not edit them.
+  2. Price floor `litemall.goods.price-floor` (env
+     `LITEMALL_GOODS_PRICE_FLOOR`, EXPLICIT yml placeholder, decimal,
+     **default 0 = OFF**). Sub-floor goods **OFF-SALE with a reason**,
+     NEVER a silent reprice (that would break the cost×margin
+     invariant every guard relies on). Report dry-run counts for
+     floors 1/2/5/10 — the floor VALUE is a user decision, not yours.
+  3. Off-sale the non-anchor L1 subtrees through the EXISTING
+     retirement path — staged, logged, admin-gated, reversible.
+  4. **Acquisition replaces filtering** (Phase 1a killed the filter
+     plan: 0.30% storewide DE share would leave ~40 products). Thread
+     `countryCode` (**ONE code, 4-char max** — reject comma lists in
+     OUR validation before they reach CJ) + `minPrice`/`maxPrice`
+     through `CJProductClient` per `CatalogTarget`. ⚠ Those bounds are
+     on CJ **cost**, not our retail: at margin 2.5 a €25–80 retail
+     band is €10–32 of cost. Absent config ⇒ byte-identical requests
+     to today (test it).
+  5. **Investigate before fixing:** Phase 1a measured CJ rejecting
+     **~17% of `/product/list` calls on QPS even at a 3s pace**, and
+     `CjSnapshotSyncService` paces at 3s. If those rejections are
+     swallowed, every nightly catalog run is silently dropping pages
+     (and it, not `CatalogTarget.limit` alone, may be the real inflow
+     ceiling). Measure the rejection rate per run and report it;
+     "no loss found" is a valid, valuable result. Fix with bounded
+     retry + backoff only if confirmed.
+- **Governing rule — REVERSIBILITY (user intent 2026-08-13: run one
+  anchor now, take the other categories back later):** narrowing is an
+  `is_on_sale` FLIP, never a delete; rows stay in MySQL; the CJ sync
+  keeps mirroring ALL 14 L1s (pipeline broad, storefront narrow — do
+  NOT prune `catalog-targets`); Wave-14's is_on_sale-preserving promote
+  is load-bearing — verify it, don't assume it. Acceptance must PROVE a
+  spot-check category flips back ON and reappears in the index.
+- **Acceptance:** as written in the Phase-2 spec (all five deliverables
+  + module tests green with real "Tests run:" counts — ⚠ the root pom
+  skips `mvn test` and surefire misses `@Nested`).
+- **History — Wave 25.1 (per-variant image backfill + supplier-junk
+  validation), original task spec below — see Task 0 for its real state.**
+- **Task (HISTORICAL) — Wave 25.1: capture CJ per-variant images so the PDP photo
   follows the selected variant.** The SPA half is ALREADY LIVE + DORMANT
   in prod (`ba934d8e4`: photo follows selectedSku.url when it differs
   from the main photo; distinct urls join gallery+lightbox; tiles get
