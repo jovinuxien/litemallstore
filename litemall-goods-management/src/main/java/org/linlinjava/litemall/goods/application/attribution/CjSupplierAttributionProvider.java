@@ -2,7 +2,6 @@ package org.linlinjava.litemall.goods.application.attribution;
 
 import org.linlinjava.litemall.db.domain.LitemallCjProduct;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 /**
  * Attribution impl #1: the CJ supplier behind a snapshot row, from the {@code supplier_id} /
@@ -26,10 +25,15 @@ public class CjSupplierAttributionProvider implements AttributionProvider {
 
     @Override
     public Attribution resolve(LitemallCjProduct snapshot) {
-        if (snapshot == null || !StringUtils.hasText(snapshot.getSupplierId())) {
+        // Wave 25.1 junk gate: CJ delivers literal "{}" in these fields on some products, and this
+        // is the authoritative choke point — it also neutralizes junk ALREADY persisted on
+        // litemall_cj_product rows (the enrich statement's COALESCE never clears them). A junk
+        // supplierId means no attribution at all; a junk supplierName with a real id falls back to
+        // the id as the (display_enabled=0, admin-renamed) placeholder name.
+        if (snapshot == null || !AttributionProvider.usableIdentityField(snapshot.getSupplierId())) {
             return null;
         }
-        String name = StringUtils.hasText(snapshot.getSupplierName())
+        String name = AttributionProvider.usableIdentityField(snapshot.getSupplierName())
                 ? snapshot.getSupplierName().trim()
                 : snapshot.getSupplierId().trim();
         return new Attribution(KIND_STORE, name, snapshot.getSupplierId().trim(), null);

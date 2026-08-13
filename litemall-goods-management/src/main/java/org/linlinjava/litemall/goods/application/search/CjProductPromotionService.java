@@ -493,7 +493,9 @@ public class CjProductPromotionService {
     Integer resolveAttributedBrandId(LitemallCjProduct row, NativeGoodsAggregate.BrandRef legacyBrand) {
         for (AttributionProvider provider : attributionProviders) {
             AttributionProvider.Attribution att = provider.resolve(row);
-            if (att != null && StringUtils.hasText(att.externalId())) {
+            // usableIdentityField (not just hasText): defence in depth for future providers — a
+            // junk external id ("{}") must never key a shared brand row.
+            if (att != null && AttributionProvider.usableIdentityField(att.externalId())) {
                 Integer id = upsertProviderBrand(provider.source(), att);
                 if (id != null) {
                     return id;
