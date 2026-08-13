@@ -1426,8 +1426,74 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 25.1 (per-variant image backfill)
-- **Task — Wave 25.1: capture CJ per-variant images so the PDP photo
+### Worktree: `goods-management` — ACTIVE: Wave 26 Phase 2 (anchor the catalogue)
+- **Task 0 (BLOCKING, do before any Phase-2 code): LAND WAVE 25.1.**
+  Verified by MAIN 2026-08-13: 25.1 is WRITTEN BUT NOT SHIPPED. The
+  worktree holds **8 modified files + 2 untracked test files, all
+  uncommitted**, last touched 2026-08-10 04:48 (abandoned, no live
+  session); `fix/goods-management` is **7 commits behind master and 0
+  ahead** — nothing merged. The code looks complete at both seams
+  (`CjDetailEnrichmentService` writes `variant_image` into
+  variants_json incl. a JSON-array-string tolerant normalizer;
+  `CjProductToNativeAdapter` lands it on `product.url` with main-photo
+  fallback) plus further uncommitted refinement of the supplier-junk
+  gate beyond committed `4ee7154fb`. MAIN deliberately did NOT commit
+  it: unauthored, tests never run. **You:** review the diff, RUN the
+  tests (real "Tests run:" counts — incl. the 2 untracked
+  variant-image tests), commit, `git merge master`, then merge to
+  master as usual. If any of it is wrong, fix it — do not discard it.
+  Only then start Phase 2.
+- **Task — Wave 26 Phase 2: anchor the catalogue.** Code to the FROZEN
+  spec `litemall-goods-management/docs/spec-wave26-phase2-anchor.md`
+  (read it in full; it is the contract, this is only the index) and to
+  the Wave-26 block above. Read `docs/spec-wave26-eu-sourcing.md`
+  FIRST — its Phase-1a measurements rewrote deliverable 4.
+  **NO Flyway migration** (V61 belongs to Phase 1b; prod applied
+  through V60 — check `flyway_schema_history` before first boot
+  anyway). Anchor = `Home, Garden & Furniture` **+** `Home
+  Improvement` as ONE cluster. Deliverables:
+  1. Margin **1.25 → 2.5** on BOTH anchor L1 roots via the EXISTING
+     Wave-14 override (`/insight/categories/{id}/simulate` then
+     `PUT .../margin`) — SIMULATE FIRST, record before/after in the
+     PR. Guards are ratio/cost-based: VERIFY they need no change,
+     do not edit them.
+  2. Price floor `litemall.goods.price-floor` (env
+     `LITEMALL_GOODS_PRICE_FLOOR`, EXPLICIT yml placeholder, decimal,
+     **default 0 = OFF**). Sub-floor goods **OFF-SALE with a reason**,
+     NEVER a silent reprice (that would break the cost×margin
+     invariant every guard relies on). Report dry-run counts for
+     floors 1/2/5/10 — the floor VALUE is a user decision, not yours.
+  3. Off-sale the non-anchor L1 subtrees through the EXISTING
+     retirement path — staged, logged, admin-gated, reversible.
+  4. **Acquisition replaces filtering** (Phase 1a killed the filter
+     plan: 0.30% storewide DE share would leave ~40 products). Thread
+     `countryCode` (**ONE code, 4-char max** — reject comma lists in
+     OUR validation before they reach CJ) + `minPrice`/`maxPrice`
+     through `CJProductClient` per `CatalogTarget`. ⚠ Those bounds are
+     on CJ **cost**, not our retail: at margin 2.5 a €25–80 retail
+     band is €10–32 of cost. Absent config ⇒ byte-identical requests
+     to today (test it).
+  5. **Investigate before fixing:** Phase 1a measured CJ rejecting
+     **~17% of `/product/list` calls on QPS even at a 3s pace**, and
+     `CjSnapshotSyncService` paces at 3s. If those rejections are
+     swallowed, every nightly catalog run is silently dropping pages
+     (and it, not `CatalogTarget.limit` alone, may be the real inflow
+     ceiling). Measure the rejection rate per run and report it;
+     "no loss found" is a valid, valuable result. Fix with bounded
+     retry + backoff only if confirmed.
+- **Governing rule — REVERSIBILITY (user intent 2026-08-13: run one
+  anchor now, take the other categories back later):** narrowing is an
+  `is_on_sale` FLIP, never a delete; rows stay in MySQL; the CJ sync
+  keeps mirroring ALL 14 L1s (pipeline broad, storefront narrow — do
+  NOT prune `catalog-targets`); Wave-14's is_on_sale-preserving promote
+  is load-bearing — verify it, don't assume it. Acceptance must PROVE a
+  spot-check category flips back ON and reappears in the index.
+- **Acceptance:** as written in the Phase-2 spec (all five deliverables
+  + module tests green with real "Tests run:" counts — ⚠ the root pom
+  skips `mvn test` and surefire misses `@Nested`).
+- **History — Wave 25.1 (per-variant image backfill + supplier-junk
+  validation), original task spec below — see Task 0 for its real state.**
+- **Task (HISTORICAL) — Wave 25.1: capture CJ per-variant images so the PDP photo
   follows the selected variant.** The SPA half is ALREADY LIVE + DORMANT
   in prod (`ba934d8e4`: photo follows selectedSku.url when it differs
   from the main photo; distinct urls join gallery+lightbox; tiles get
