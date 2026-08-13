@@ -1264,6 +1264,18 @@
 > 0 costed) and `repriceForCategory` returns early without a cost, so an
 > override there reprices nothing and would fake a green acceptance.
 > Runbook: `litemall-goods-management/docs/runbook-wave26-phase2-anchor.md`.
+> **STEP 1 EXECUTED ON PROD 2026-08-13 12:12 UTC — margin 2.5 APPLIED** to both
+> anchor L1s (ids `1036143` Home, Garden & Furniture + `1036495` Home
+> Improvement — prod ids happen to match dev). Prod cost coverage is REAL,
+> unlike dev: 16,395 of 16,431 on-sale goods costed. Simulate baseline
+> (record it — this is the before): 1036143 goodsCount **1,753**, avgPrice
+> €32.81 → €65.62; 1036495 goodsCount **745**, avgPrice €42.56 → €85.12;
+> 2,498 anchor goods total. `margin-overrides` confirms both at 2.50, global
+> still 1.25. ⚠ **The reprice lands at the NEXT nightly promote (03:00 sync →
+> 03:30 enrich)** — prices had NOT moved at time of writing. Reversible:
+> `DELETE /srv/private/admin/insight/categories/{id}/margin`.
+> Script: `docker-compose/wave26-anchor.sh` (simulate|status|floor-check|
+> apply-margin; read-only by default).
 > **PRICE FLOOR DECIDED (user 2026-08-13): `LITEMALL_GOODS_PRICE_FLOOR=5.00`**
 > — 429 of 2,286 anchor SKUs off-saled (19%), leaving 1,857; clears the
 > sub-€1 tail. ⚠ **NOT set in prod yet and MUST NOT be until the 2.5×
