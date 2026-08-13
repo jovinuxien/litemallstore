@@ -80,12 +80,17 @@ Read the **"anchor after 2.5×"** column — it is the only one that matters onc
 narrowing has run, and the floor must be evaluated against post-reprice prices.
 Anchor after 2.5×: min €0.06, p10 €3.18, median €18.26.
 
-**Recommendation: €5.00** — removes 429 of 2,286 anchor SKUs (19%), leaving
-1,857, which is far more than a curated storefront needs, and clears the
-sub-€1 tail (a €0.25 item against €6.93 flat freight is a guaranteed loss and a
-Merchant Center review risk). €10 removes a third of the anchor; defensible if
-you only ever intend to sell ad-eligible SKUs, but it also deletes the organic
-basket-builders. **The value is the user's call.**
+**DECIDED (user, 2026-08-13): `LITEMALL_GOODS_PRICE_FLOOR=5.00`** — removes 429
+of 2,286 anchor SKUs (19%), leaving 1,857, and clears the sub-€1 tail (a €0.25
+item against €6.93 flat freight is a guaranteed loss and a Merchant Center review
+risk).
+
+⚠ **NOT YET SET IN PROD, and it must not be set before the margin lands.** As of
+2026-08-13 the 2.5× override has not been applied, so a floor of €5 today would
+judge anchor goods at their OLD 1.25× prices and off-sale **808 anchor SKUs
+instead of 429** (5,877 storewide instead of 5,498) — nearly double, while
+looking exactly like a correct run. Apply the margin, let ONE nightly cycle land
+the reprice, verify the new prices, THEN set the floor.
 
 Set `LITEMALL_GOODS_PRICE_FLOOR` (default 0 = OFF) and recreate the container.
 **Order matters: apply the margin FIRST and let one nightly cycle land**, or the
