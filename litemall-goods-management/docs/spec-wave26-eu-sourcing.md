@@ -118,3 +118,80 @@ they answer different questions:
   it on adds exactly `countryCode` + `verifiedWarehouse` and nothing else.
 - Module tests green with real "Tests run:" counts (⚠ root pom skips `mvn test`
   and surefire misses `@Nested` — read the count, don't trust "BUILD SUCCESS").
+
+---
+
+# Phase 1a RESULTS (measured 2026-08-13, prod CJ account)
+
+Raw rows: `data-wave26-cj-warehouse-survival.csv` (84 leaves sampled of 540,
+6 per L1; 14 rows still carry an incomplete cell after one gap-fill pass and are
+excluded from their category's totals — the LVS column shows the real denominator).
+
+## Where CJ's stock sits
+
+| L1 | leaves | CJ total | DE | DE% | US% |
+|---|---:|---:|---:|---:|---:|
+| Home Improvement | 4 | 7,612 | 394 | **5.18%** | 56.92% |
+| Computer & Office | 6 | 2,670 | 65 | 2.43% | 6.74% |
+| Home, Garden & Furniture | 5 | 9,610 | 91 | 0.95% | 2.59% |
+| Sports & Outdoors | 6 | 5,676 | 21 | 0.37% | 1.80% |
+| Health, Beauty & Hair | 5 | 4,328 | 5 | 0.12% | 6.38% |
+| Toys / Electronics / Phones / Bags / Jewelry / Clothing / Pets / Autos | — | — | ≤5 | ≤0.05% | — |
+| **ALL SAMPLED** | | **201,089** | **594** | **0.30%** | 3.03% |
+
+Verified DE pockets (each checked against its own leaf total):
+Garden Tools 365/5,529 · Office & School Supplies 60/2,254 · Curtains 51/733 ·
+Tools Storage 26/845 · Diamond Painting 20/3,117 · Kitchen Knives 18/2,842 ·
+Musical Instruments 17/360.
+
+## Findings
+
+1. **Germany is CJ's only EU warehouse.** ES/CZ/IT/NL/BE/PL/SE/DK/AT and "EU"
+   all return 0 on a leaf holding 13,056 products. GB (34 there) is post-Brexit
+   and does not serve EU customers without customs.
+2. **EU stock is not a property of a category — it is a property of a few
+   hundred individual SKUs.** 25 of 84 sampled leaves have any DE stock; most
+   are single digits. Catalogue-wide, the crude extrapolation is **~3,800
+   DE-stocked products** across all 540 leaves (84/540 sample, leaf sizes vary
+   widely — treat as an order of magnitude, not a count).
+3. **You cannot filter the existing 15k catalogue into an EU-stocked version of
+   itself.** At a 0.30% storewide DE share it would leave roughly 40 products.
+   EU sourcing has to be a deliberate *acquisition* of DE-stocked SKUs, not a
+   filter over what we already mirror.
+4. **Home Improvement leads on DE density but is concentrated in ONE leaf**
+   (Garden Tools = 365 of its 394). Home & Garden's 91 is spread across more
+   leaves. Treated as one merchandising cluster, home/garden/tools holds most of
+   the DE stock that exists.
+5. This **converges with the price analysis**: Hardware (≈ Home Improvement) had
+   both the highest €25–80 in-band share (23.7%) and the highest median price
+   (€15.70) of any category in the live feed. Best price band and best EU stock
+   are the same cluster.
+
+## Consequences for the wave
+
+- The gate does NOT invalidate the anchor — it narrows it. The anchor cluster
+  should be **home / garden / tools**, and Home Improvement deserves equal
+  billing with Home & Garden rather than being the "optional second".
+- Phase 2's narrowing stands, but its sourcing step changes: use
+  `/product/list` with `countryCode=DE` + `minPrice`/`maxPrice` to ACQUIRE
+  in-band DE-stocked SKUs, rather than filtering the existing catalogue.
+- Phase 1b (our own catalogue's DE survival) is now a *smaller* question — the
+  expected answer is "almost none" — but still worth building, because it is the
+  only way to know which existing SKUs can carry a fast-delivery promise.
+- An honest delivery promise cannot be storewide. It is per-SKU, and only ~3,800
+  candidates exist account-wide.
+
+## Probe gotchas (encoded in the script)
+
+- `countryCode` takes ONE code, max 4 chars; comma lists are rejected. Country
+  columns are independent queries and MUST NOT be summed.
+- `verifiedWarehouse=1` is drastically stricter than it reads (DE 92 -> 3); off
+  by default.
+- CJ rejects ~17% of calls with "QPS limit is 1 time/1second" even at a 3s pace.
+  An empty cell drops its whole leaf from the aggregate and BIASES the shares —
+  Home Improvement read 0.00% before gap-fill and 5.18% after. The script now
+  retries (RETRIES/RETRY_PAUSE); any run must report its incomplete-row count.
+- ⚠ `IFS=$'\t' read` COLLAPSES consecutive tabs (tab is IFS whitespace), so an
+  empty field shifts every later value left. This corrupted the first gap-fill
+  pass and produced plausible-but-wrong DE figures. Use a non-whitespace
+  delimiter when fields may be empty.

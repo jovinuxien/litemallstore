@@ -1,23 +1,34 @@
 #!/bin/bash
 #
-# Wave 26 Phase 1 — CJ EU-warehouse survival probe (READ-ONLY).
+# Wave 26 Phase 1 — CJ warehouse-location survival probe (READ-ONLY).
 #
-# Answers the Wave-26 gate: for each CJ L1 category, how much of CJ's supply is
-# actually held in EU warehouses (verified stock) versus the whole catalogue?
-# A thin EU tail under "Home, Garden & Furniture" invalidates the anchor choice,
-# so this must run BEFORE any catalogue change.
+# Answers the Wave-26 gate: for each CJ L1 category, where is the stock actually
+# held? A category whose supply sits in CN cannot serve a DE/FR/DK/SE storefront
+# on a next-week delivery promise, no matter how many SKUs it lists.
 #
-# WHY A SAMPLE: CJ's /product/getCategory exposes ids only at the THIRD (leaf)
-# level — categoryFirstName/categorySecondName carry no id — so /product/list
-# can only be filtered by leaf. ~540 leaves exist; this probe samples LEAVES_PER_L1
-# evenly-spread leaves per L1 and reports the ratio with its denominators visible.
-# It never claims a census.
+# ---------------------------------------------------------------------------
+# MEASURED API FACTS (2026-08-13, live against the prod CJ account — do not
+# re-derive; the first version of this script got two of them wrong):
 #
-# COST: 2 paced /product/list calls per sampled leaf (pageSize=1 — we read
-# data.total, never the rows). Default 8 leaves x 14 L1s x 2 = ~224 calls at
-# PACE seconds each (~11 min). CJ's daily API POINTS budget is shared with the
-# nightly prod syncs — run this well away from 03:00 UTC and watch the
-# pointsInfo line printed at the end.
+#  * countryCode accepts ONE code, max 4 characters. A comma list is rejected
+#    outright: "countryCode only within 4 characters". There is therefore NO
+#    way to ask "any EU warehouse" in a single call — each country costs a call
+#    and the results CANNOT be summed (a product stocked in two countries would
+#    be double-counted). Per-country columns are reported side by side instead.
+#  * CJ's EU warehouse footprint is Germany. On a 13,056-product Home & Garden
+#    leaf: DE 92, GB 34, US 818, CN 12,122; ES/CZ/IT/NL/BE/PL/SE/DK/AT/"EU" all
+#    return 0. GB is post-Brexit — a GB warehouse does not serve EU customers
+#    without customs.
+#  * verifiedWarehouse=1 is far stricter than it looks: it cut that DE 92 to 3.
+#    It is OFF by default here; set VERIFIED=1 to add verified-only columns.
+#  * data.total on a pageSize=1 query is the full match count — never page.
+#  * Category ids exist ONLY at leaf level (categoryFirstName/categorySecondName
+#    carry no id), so per-L1 figures aggregate sampled leaves, never one call.
+# ---------------------------------------------------------------------------
+#
+# COST: (1 + N countries) paced calls per sampled leaf. Defaults: 6 leaves x 14
+# L1s x 3 calls = 252 calls at PACE seconds (~13 min). The daily API POINTS
+# budget is shared with the prod nightly syncs — the meter is printed at the end.
 #
 # READ-ONLY: only /authentication/getAccessToken, /product/getCategory and
 # /product/list are called. Nothing is written to CJ or to any database.
@@ -25,29 +36,46 @@
 # USAGE
 #   CJ_EMAIL=... CJ_API_KEY=... ./cj-eu-warehouse-probe.sh
 #   ./cj-eu-warehouse-probe.sh /path/to/.env.prod      # sources creds from a file
-#   LEAVES_PER_L1=4 ./cj-eu-warehouse-probe.sh --dry-run
+#   LEAVES_PER_L1=3 ./cj-eu-warehouse-probe.sh --dry-run   # plan only (2 calls)
 #
 # ENV
 #   CJ_EMAIL, CJ_API_KEY   required (prod values live in the VPS .env.prod)
-#   EU_COUNTRIES           default "DE,FR,ES,CZ,PL,IT" — CJ's EU warehouse set.
-#                          DK/SE have no CJ warehouse; they are served from these.
-#   LEAVES_PER_L1          default 8
+#   COUNTRIES              default "DE,US" — queried ONE AT A TIME, never OR-ed
+#   VERIFIED               default 0; 1 adds a verifiedWarehouse=1 column per
+#                          country (doubles the call count)
+#   LEAVES_PER_L1          default 6
 #   PACE                   default 3 (seconds between list calls; CJ allows 1/s)
-#   OUT                    default ./cj-eu-survival-<date>.csv
+#   RETRIES / RETRY_PAUSE  default 3 attempts, 8s backoff. CJ rejects ~17% of calls
+#                          with "QPS limit is 1 time/1second" even at a 3s pace, and an
+#                          empty cell drops the whole leaf from the aggregate — which
+#                          BIASES per-L1 shares, not merely thins them.
+#   OUT                    default ./cj-warehouse-survival-<date>.csv
 #
 set -uo pipefail
 
 API="https://developers.cjdropshipping.com/api2.0/v1"
-EU_COUNTRIES="${EU_COUNTRIES:-DE,FR,ES,CZ,PL,IT}"
-LEAVES_PER_L1="${LEAVES_PER_L1:-8}"
+COUNTRIES="${COUNTRIES:-DE,US}"
+VERIFIED="${VERIFIED:-0}"
+LEAVES_PER_L1="${LEAVES_PER_L1:-6}"
 PACE="${PACE:-3}"
-OUT="${OUT:-./cj-eu-survival-$(date +%Y%m%d-%H%M).csv}"
+RETRIES="${RETRIES:-3}"          # attempts per call before a cell is recorded empty
+RETRY_PAUSE="${RETRY_PAUSE:-8}"  # seconds to back off after a QPS rejection
+OUT="${OUT:-./cj-warehouse-survival-$(date +%Y%m%d-%H%M).csv}"
 DRY_RUN=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
-    *) [ -f "$arg" ] && { set -a; . "$arg"; set +a; echo "sourced creds from $arg"; } ;;
+    -*)
+      # An unrecognised flag must never fall through to the full paced run —
+      # a typo like "--dry run" would otherwise silently spend the daily quota.
+      echo "ERROR: unknown option '$arg' (did you mean --dry-run?)" >&2; exit 2 ;;
+    *)
+      if [ -f "$arg" ]; then
+        set -a; . "$arg"; set +a; echo "sourced creds from $arg"
+      else
+        echo "ERROR: '$arg' is not a readable env file." >&2; exit 2
+      fi ;;
   esac
 done
 
@@ -56,6 +84,11 @@ if [ -z "${CJ_EMAIL:-}" ] || [ -z "${CJ_API_KEY:-}" ]; then
   exit 1
 fi
 command -v jq >/dev/null || { echo "ERROR: jq is required." >&2; exit 1; }
+
+IFS=',' read -r -a CC <<< "$COUNTRIES"
+for c in "${CC[@]}"; do
+  [ "${#c}" -le 4 ] || { echo "ERROR: countryCode '$c' exceeds CJ's 4-char limit." >&2; exit 1; }
+done
 
 # ---------------------------------------------------------------- auth
 echo "==> authenticating as ${CJ_EMAIL%%@*}@..."
@@ -89,8 +122,8 @@ LEAVES=$(echo "$TREE" | jq -r '
 TOTAL_LEAVES=$(echo "$LEAVES" | grep -c . || true)
 echo "    $TOTAL_LEAVES leaves across $(echo "$LEAVES" | cut -f1 | sort -u | grep -c .) L1 categories."
 
-# evenly-spread sample of LEAVES_PER_L1 leaves per L1 (deterministic, not random:
-# reruns are comparable and the sample is reproducible in the report)
+# evenly-spread sample per L1 (deterministic, not random: reruns are comparable
+# and the sample is reproducible in the report)
 SAMPLE=$(echo "$LEAVES" | awk -F'\t' -v k="$LEAVES_PER_L1" '
   { rows[$1] = rows[$1] $0 "\n"; n[$1]++ }
   END {
@@ -103,9 +136,16 @@ SAMPLE=$(echo "$LEAVES" | awk -F'\t' -v k="$LEAVES_PER_L1" '
   }')
 SAMPLED=$(echo "$SAMPLE" | grep -c . || true)
 
-echo "==> plan: $SAMPLED leaves sampled (<= $LEAVES_PER_L1 per L1) x 2 calls, ${PACE}s pace"
-echo "    EU warehouse set: $EU_COUNTRIES (verifiedWarehouse=1)"
-echo "    est. wall time: ~$(( SAMPLED * 2 * PACE / 60 )) min   output: $OUT"
+COLS=()
+for c in "${CC[@]}"; do
+  COLS+=("$c")
+  [ "$VERIFIED" = "1" ] && COLS+=("${c}_verified")
+done
+CALLS_PER_LEAF=$(( 1 + ${#COLS[@]} ))
+
+echo "==> plan: $SAMPLED leaves (<= $LEAVES_PER_L1 per L1) x $CALLS_PER_LEAF calls, ${PACE}s pace"
+echo "    columns: all ${COLS[*]}   (each country is a SEPARATE call — CJ cannot OR them)"
+echo "    est. wall time: ~$(( SAMPLED * CALLS_PER_LEAF * PACE / 60 )) min   output: $OUT"
 if [ "$DRY_RUN" = "1" ]; then
   echo "--dry-run: no CJ /product/list calls made."
   echo "$SAMPLE" | awk -F'\t' '{print "    " $1 "  <- " $3}' | sort | head -40
@@ -113,65 +153,90 @@ if [ "$DRY_RUN" = "1" ]; then
 fi
 
 # ------------------------------------------------------------- probe
-# data.total for a pageSize=1 query is the whole matching count — we never page.
-list_total() {
+# CJ enforces a 1 req/s QPS ceiling that bites even at a 3s pace (observed: 14 of
+# 84 leaves rejected on a clean run). An un-retried rejection leaves an empty cell,
+# and empty cells drop a whole leaf from the aggregate — which silently BIASES the
+# per-L1 shares rather than just thinning them. So: retry with a slow backoff.
+list_total() {  # $1 leafId, $2 countryCode (optional), $3 verified flag
   local url="$API/product/list?pageNum=1&pageSize=1&categoryId=$1"
-  [ -n "${2:-}" ] && url="$url&countryCode=$2&verifiedWarehouse=1"
-  local body; body=$(get "$url")
-  if [ "$(echo "$body" | jq -r '.result // false')" != "true" ]; then
-    echo "ERR|$(echo "$body" | jq -r '.message // "unknown"' | tr '|,' '  ')"
-    return
-  fi
-  echo "$(echo "$body" | jq -r '.data.total // 0')|"
-  LAST_POINTS=$(echo "$body" | jq -r '.pointsInfo // empty' | head -c 200)
+  [ -n "${2:-}" ] && url="$url&countryCode=$2"
+  [ "${3:-0}" = "1" ] && url="$url&verifiedWarehouse=1"
+  local body attempt=0
+  while :; do
+    body=$(get "$url")
+    if [ "$(echo "$body" | jq -r '.result // false')" = "true" ]; then
+      POINTS=$(echo "$body" | jq -rc '.pointsInfo // empty')
+      echo "$(echo "$body" | jq -r '.data.total // 0')|"
+      return
+    fi
+    attempt=$((attempt + 1))
+    [ "$attempt" -ge "$RETRIES" ] && break
+    sleep "$RETRY_PAUSE"
+  done
+  echo "ERR|$(echo "$body" | jq -r '.message // "unknown"' | tr '|,' '  ')"
 }
 
-echo "l1,leaf_id,leaf_name,total_all,total_eu_verified,note" > "$OUT"
+{ printf 'l1,leaf_id,leaf_name,total_all'; for c in "${COLS[@]}"; do printf ',%s' "$c"; done; printf ',note\n'; } > "$OUT"
 # L1 names contain commas ("Home, Garden & Furniture"), so the CSV is for the
 # human and a tab-delimited twin drives the aggregation — no CSV parsing in awk.
 TSV=$(mktemp); trap 'rm -f "$TSV"' EXIT
-LAST_POINTS=""
+POINTS=""
 i=0
 while IFS=$'\t' read -r L1 LEAF_ID LEAF_NAME; do
   [ -z "$LEAF_ID" ] && continue
   i=$((i + 1))
-  sleep "$PACE"; ALL=$(list_total "$LEAF_ID")
-  sleep "$PACE"; EU=$(list_total "$LEAF_ID" "$EU_COUNTRIES")
-  a="${ALL%%|*}"; e="${EU%%|*}"; note=""
-  [ "$a" = "ERR" ] && { note="${ALL#*|}"; a=""; }
-  [ "$e" = "ERR" ] && { note="${EU#*|}"; e=""; }
-  printf '%s\n' "$(jq -rn --arg a "$L1" --arg b "$LEAF_ID" --arg c "$LEAF_NAME" \
-      --arg d "$a" --arg e "$e" --arg f "$note" '[$a,$b,$c,$d,$e,$f]|@csv')" >> "$OUT"
-  printf '%s\t%s\t%s\t%s\n' "$L1" "$a" "$e" "$note" >> "$TSV"
-  printf '  [%3d/%3d] %-28.28s %-24.24s all=%-7s eu=%-6s %s\n' \
-      "$i" "$SAMPLED" "$L1" "$LEAF_NAME" "${a:-?}" "${e:-?}" "$note"
+  note=""
+  sleep "$PACE"; r=$(list_total "$LEAF_ID"); all="${r%%|*}"
+  [ "$all" = "ERR" ] && { note="${r#*|}"; all=""; }
+  vals=(); line="  [%3d/%3d] %-26.26s %-22.22s all=%-7s"
+  for c in "${COLS[@]}"; do
+    cc="${c%_verified}"; v=0; [ "$c" != "$cc" ] && v=1
+    sleep "$PACE"; r=$(list_total "$LEAF_ID" "$cc" "$v"); t="${r%%|*}"
+    [ "$t" = "ERR" ] && { note="${r#*|}"; t=""; }
+    vals+=("$t")
+  done
+  # CSV (quoted) + TSV twin (aggregation)
+  jq -rn --arg a "$L1" --arg b "$LEAF_ID" --arg c "$LEAF_NAME" --arg d "$all" \
+         --arg n "$note" --args '[$a,$b,$c,$d] + $ARGS.positional + [$n] | @csv' "${vals[@]}" >> "$OUT"
+  printf '%s\t%s' "$L1" "$all" >> "$TSV"
+  for t in "${vals[@]}"; do printf '\t%s' "$t" >> "$TSV"; done
+  printf '\n' >> "$TSV"
+  printf "  [%3d/%3d] %-26.26s %-22.22s all=%-7s" "$i" "$SAMPLED" "$L1" "$LEAF_NAME" "${all:-?}"
+  for j in "${!COLS[@]}"; do printf ' %s=%-6s' "${COLS[$j]}" "${vals[$j]:-?}"; done
+  printf ' %s\n' "$note"
 done <<< "$SAMPLE"
 
 # ------------------------------------------------------------ report
 echo
-echo "===================== EU-WAREHOUSE SURVIVAL BY L1 ====================="
-echo "EU set: $EU_COUNTRIES | verifiedWarehouse=1 | sample: <= $LEAVES_PER_L1 leaves/L1"
+echo "============== WAREHOUSE LOCATION OF CJ SUPPLY, BY L1 =============="
+echo "sample: <= $LEAVES_PER_L1 leaves/L1 | verifiedWarehouse=$VERIFIED"
+echo "shares are of CJ TOTAL; countries are separate queries and DO NOT sum"
 echo
-printf "%-30s %7s %10s %10s %8s\n" "L1 CATEGORY" "LEAVES" "CJ TOTAL" "EU STOCK" "SURVIVE"
-awk -F'\t' '{
-    if ($2 == "" || $3 == "") { err[$1]++; next }
-    all[$1] += $2; eu[$1] += $3; leaves[$1]++
+printf "%-28s %6s %10s" "L1 CATEGORY" "LEAVES" "CJ TOTAL"
+for c in "${COLS[@]}"; do printf " %10s %7s" "$c" "share"; done; printf "\n"
+awk -F'\t' -v ncols="${#COLS[@]}" '
+  { if ($2 == "") { next }
+    all[$1] += $2; leaves[$1]++
+    for (j = 1; j <= ncols; j++) if ($(2+j) != "") sum[$1, j] += $(2+j)
   }
   END {
     for (k in all) {
-      pct = (all[k] > 0) ? (eu[k] * 100.0 / all[k]) : 0
-      # leading sort key, stripped after sorting — highest survival first
-      printf "%09.4f\t%-30.30s %7d %10d %10d %7.1f%%%s\n", pct, k, leaves[k], all[k], eu[k], pct,
-             (err[k] ? "  (" err[k] " errors)" : "")
+      line = sprintf("%-28.28s %6d %10d", k, leaves[k], all[k])
+      for (j = 1; j <= ncols; j++) {
+        pct = (all[k] > 0) ? (sum[k, j] * 100.0 / all[k]) : 0
+        line = line sprintf(" %10d %6.2f%%", sum[k, j], pct)
+      }
+      # leading sort key (share of the FIRST country column), stripped after sort
+      printf "%09.4f\t%s\n", (all[k] > 0 ? sum[k, 1] * 100.0 / all[k] : 0), line
     }
   }' "$TSV" | sort -rn | cut -f2-
 echo
 echo "rows: $OUT"
-[ -n "$LAST_POINTS" ] && echo "CJ points after run: $LAST_POINTS"
+[ -n "$POINTS" ] && echo "CJ points: $POINTS"
 echo
 echo "READ THIS BEFORE DECIDING:"
-echo " * These are CJ SUPPLY counts, not our catalogue. Our own 15k rows' EU"
-echo "   survival needs the enrichment-seam capture (Wave 26 Phase 1b)."
+echo " * These are CJ SUPPLY counts, not our catalogue. Our own rows' survival"
+echo "   needs the enrichment-seam capture (Wave 26 Phase 1b)."
 echo " * Sampled leaves, not a census — denominators are in the LEAVES column."
-echo " * A category with high CJ total but ~0% EU survival cannot anchor a"
-echo "   DE/FR/DK/SE storefront no matter how many SKUs it shows."
+echo " * Per-country columns are independent queries and must NOT be added"
+echo "   together: a product stocked in two countries appears in both."
