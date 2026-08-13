@@ -1220,9 +1220,43 @@
 > live only after the anchor holds profitable CAC for 60 consecutive
 > days.** Non-anchor categories are OFF-SALED, never deleted — data stays
 > in MySQL, CJ jobs keep running.
-> **BLOCKED-ON-USER (do not guess; Phase 2 cannot start without 1–2):**
-> (1) anchor confirmation, (2) the anchor margin decision (1.25 cannot
-> fund ads), (3) any real €0 checkout evidence, (4) GSC coverage numbers
+> **PHASE 1a RESULT (measured 2026-08-13, prod CJ account; full report +
+> raw rows: `litemall-goods-management/docs/spec-wave26-eu-sourcing.md`
+> + `data-wave26-cj-warehouse-survival.csv`):** **Germany is CJ's ONLY EU
+> warehouse** — ES/CZ/IT/NL/BE/PL/SE/DK/AT and "EU" all return 0; GB has
+> stock but is post-Brexit. Storewide DE share of CJ supply = **0.30%**
+> (594 of 201,089 across 84 sampled leaves); 25 of 84 leaves hold any DE
+> stock, mostly single digits; catalogue-wide extrapolation ≈ **3,800
+> DE-stocked products** (order of magnitude, not a count). **EU stock is
+> a property of individual SKUs, not of categories.** Consequence that
+> rewrites Phase 2: the existing 15k catalogue CANNOT be filtered into an
+> EU-stocked store (0.30% would leave ~40 products) — EU sourcing must
+> **ACQUIRE** DE-stocked SKUs via `/product/list` with `countryCode=DE`
+> (ONE code, 4-char max — no lists) + `minPrice`/`maxPrice`, not filter
+> what we already mirror. Densest: Home Improvement 5.18% (though 365 of
+> its 394 sit in Garden Tools alone), Computer & Office 2.43%, Home &
+> Garden 0.95%; everything else ≤0.37%.
+> **USER DECISIONS (2026-08-13, after Phase 1a):**
+> - **Anchor = the home/garden/tools CLUSTER** — Home, Garden & Furniture
+>   **+ Home Improvement** treated as ONE merchandising anchor. Home
+>   Improvement is promoted from "optional second" to equal billing: it
+>   holds both the densest DE stock and the best €25–80 price band
+>   (Hardware 23.7% in-band, median €15.70 — the highest of any category).
+>   Same audience, so authority compounds instead of resetting. The
+>   60-day-profitable-CAC rule now governs adding a THIRD category.
+> - **Margin 1.25 → 2.5** on the anchor, via the EXISTING Wave-14
+>   per-category override (bounds 1.05–3.0, so 2.5 is in range) —
+>   SIMULATE first, then apply. Global default stays 1.25 for anything
+>   still on sale outside the anchor (moot once Phase 2 off-sales them).
+>   Modelled against the live feed: anchor median €9.13 → €18.26; gross
+>   profit per order at the median **€1.83 → €10.96**; in-band €25–80
+>   share 17.5% → **24.0% (549 SKUs)**, whose gross is €15.10–47.64 —
+>   the first point in this wave where the numbers clear a €15–40 CAC.
+>   ⚠ Ads should target the ~549 in-band anchor SKUs, NOT the median
+>   product: 35.3% of the anchor still sits under €10 even after 2.5×.
+> **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
+> the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
+> (3) any real €0 checkout evidence, (4) GSC coverage numbers
 > (indexed vs discovered), (5) VAT number + GPSR responsible person +
 > jurisdiction, (6) PayPal Business application started (slow clock the
 > user does not control — start it in parallel with everything).
