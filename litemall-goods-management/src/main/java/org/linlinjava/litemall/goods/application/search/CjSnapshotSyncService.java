@@ -10,6 +10,7 @@ import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.pr
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.api.product.CJProductDataResponse;
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.api.product.CJProductService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CjListFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -333,6 +334,9 @@ public class CjSnapshotSyncService {
                 continue;
             }
             int before = all.size();
+            // Wave 26 Phase 2: per-target CJ-side sourcing filters (DE stock, cost band). Absent
+            // config yields CjListFilter.NONE and a request identical to the legacy path.
+            CjListFilter targetFilter = target.toFilter();
             int perLeaf = target.getPerLeafLimit();
             if (perLeaf > 0) {
                 // Per-leaf budgets: every resolved leaf gets its own quota, so a broad target fills
@@ -344,7 +348,7 @@ public class CjSnapshotSyncService {
                         break;
                     }
                     List<CJProduct> got = cjProductService.fetchByCategory(
-                            categoryId, Math.min(perLeaf, cap - taken), pageSize);
+                            categoryId, Math.min(perLeaf, cap - taken), pageSize, targetFilter);
                     all.addAll(got);
                 }
                 if (all.size() - before == 0) {
@@ -359,7 +363,8 @@ public class CjSnapshotSyncService {
                     if (remaining <= 0) {
                         break;
                     }
-                    List<CJProduct> got = cjProductService.fetchByCategory(categoryId, remaining, pageSize);
+                    List<CJProduct> got =
+                            cjProductService.fetchByCategory(categoryId, remaining, pageSize, targetFilter);
                     all.addAll(got);
                     remaining -= got.size();
                 }

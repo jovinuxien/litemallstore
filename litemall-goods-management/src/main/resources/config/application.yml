@@ -194,6 +194,10 @@ litemall:
     # Stock threshold used by the goods-availability check before placing an
     # order. Overridable via the litemall-config repo per environment.
     stock-low-threshold: 5
+    # Wave 26 Phase 2: minimum retail to stay on sale. 0 = OFF (default). A sub-floor good is
+    # OFF-SALED (reversible), never silently repriced — retail must stay cost x margin or the
+    # margin guard, deal floors and coupon guard all compute against a lie.
+    price-floor: ${LITEMALL_GOODS_PRICE_FLOOR:0}
     # Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO,
     # mirroring the order service's LITEMALL_ORDER_STRIPE_CURRENCY (usd).
     currency: ${LITEMALL_GOODS_CURRENCY:USD}

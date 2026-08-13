@@ -157,6 +157,20 @@ public class CJDropshippingConfig {
          * 0 keeps the legacy shared-budget behavior.
          */
         private int perLeafLimit = 0;
+        /**
+         * Wave 26 Phase 2: optional CJ-side sourcing filters for this target. Absent ⇒ requests are
+         * byte-identical to today. {@code countryCode} is ONE code (max 4 chars — CJ rejects lists);
+         * DE is the only EU warehouse CJ stocks. ⚠ The price bounds are on CJ COST, not our retail:
+         * at margin 2.5 a €25–80 retail band is roughly €10–32 of cost.
+         */
+        private String countryCode;
+        private BigDecimal minPrice;
+        private BigDecimal maxPrice;
+
+        /** Validated filter for this target; {@link CjListFilter#NONE} when nothing is configured. */
+        public CjListFilter toFilter() {
+            return new CjListFilter(countryCode, minPrice, maxPrice);
+        }
     }
 
     /**

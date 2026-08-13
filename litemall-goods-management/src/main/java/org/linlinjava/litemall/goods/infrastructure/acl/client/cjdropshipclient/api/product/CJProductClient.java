@@ -15,6 +15,7 @@ import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservic
 import org.linlinjava.litemall.goods.infrastructure.acl.service.cjdropshipservice.CJTokenService;
 import org.linlinjava.litemall.goods.infrastructure.acl.utils.CJRequestUtils;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.infrastructure.configuration.CjListFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -78,6 +79,16 @@ public class CJProductClient extends CJRequestUtils {
      * Pacing/quota is the caller's responsibility (see {@code CJProductService}).
      */
     public CJProductDataResponse getProductList(String categoryId, int pageNum, int pageSize) {
+        return getProductList(categoryId, pageNum, pageSize, CjListFilter.NONE);
+    }
+
+    /**
+     * Wave 26 Phase 2 deliverable 4: the same list call with optional sourcing filters. A
+     * {@link CjListFilter#NONE} (or null) filter appends NOTHING, so the request is byte-identical
+     * to the legacy path — enabling sourcing is opt-in per catalog target.
+     */
+    public CJProductDataResponse getProductList(String categoryId, int pageNum, int pageSize,
+                                                CjListFilter filter) {
         try {
             String accessToken = cjTokenService.getValidToken();
             String productUrl = config.getProductListUrl();
@@ -91,6 +102,16 @@ public class CJProductClient extends CJRequestUtils {
                     .queryParam("pageSize", pageSize);
             if (categoryId != null && !categoryId.isBlank()) {
                 builder.queryParam("categoryId", categoryId.trim());
+            }
+            CjListFilter f = filter == null ? CjListFilter.NONE : filter;
+            if (f.countryCode() != null) {
+                builder.queryParam("countryCode", f.countryCode());
+            }
+            if (f.minPrice() != null) {
+                builder.queryParam("minPrice", f.minPrice().toPlainString());
+            }
+            if (f.maxPrice() != null) {
+                builder.queryParam("maxPrice", f.maxPrice().toPlainString());
             }
             String url = builder.build().toUriString();
             return makeGetRequest(url, CJProductDataResponse.class, accessToken, "Failed to fetch product list");
