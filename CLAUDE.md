@@ -1387,6 +1387,37 @@
 >   approval and brand curation panels all exist.
 > - errno envelope; money plain decimals; € formatter everywhere;
 >   nothing customer-visible flips without an admin-gated, reversible step.
+> **PHASE 3 EXECUTED 2026-08-14 (content de-duplication).** Measured on the
+> narrowed catalogue, NOT the pre-narrowing feed: 737 of 2,202 rows (33.5%) had
+> description == title, incl. 215 of the 636 in-band SKUs. ⚠ **The spec's
+> prescription — "extend the Wave-13 brief sanitizer fallback chain" — reaches
+> only 45 of them.** The real split: 659 rows have NO detail body at all, 29 have
+> image-only markup, 7 have detail that just repeats the name. It is a CONTENT
+> gap, not a fallback gap.
+> Two real fixes shipped (`96d7f9964`, suite 400/0/8 skipped):
+> 1. **The guard was defeating itself.** `GoodsMetaService.descriptionOf` compared
+>    a CLEANED brief against a RAW name while the feed titles from `clean(name)`,
+>    so a name with doubled spaces or entity soup ("13A W  2 Charger USB  Outlets")
+>    was ≠ its own cleaned brief; the brief was returned and the feed emitted both
+>    as identical strings. Feed dups 737 → **708** on the next rebuild.
+> 2. **The enrichment queue had no idea what is on sale.** `selectForEnrichment`
+>    filtered only `cp.deleted = 0`, so with the mirror broad (all 14 L1s) and the
+>    storefront narrow, ~93% of every batch — and of the shared daily CJ points
+>    budget — went to products we no longer sell, and the 659 could never be
+>    reached. Now on-sale ranks first (PRIORITISES, never filters, so a restored
+>    category is not stale; `coalesce` because the goods join is a LEFT join).
+>    Live proof: a batch of 10 enriched 11 on-sale rows vs 2 off-sale (pre-change a
+>    random batch would hit ~1); on-sale-with-empty-detail 1,038 → 1,027.
+> ⚠ **Convergence is ~11 nights**, not immediate: the nightly enrich batch is 100
+> (`spring.cjdropship.enrich-batch-size`, no prod override) against ~1,027 goods.
+> Raising it would drain the descriptions faster but risks CJ points exhaustion
+> (errno 16900500), which would also break order placement — a deliberate
+> non-decision, left to the user. Trade-off accepted: off-sale mirror rows now
+> rarely enrich until the storefront is current.
+> The residual 708 are all provably content gaps (verified row by row) — they
+> resolve as enrichment reaches them. The spec's "~30 in-band SKUs get genuinely
+> rewritten copy" is NOT done: that is human/editorial work, not a code change.
+>
 > **Phase gates (nothing downstream starts until the gate above passes):**
 > P0 user decisions → P1 EU-warehouse survival report (GATE: anchor
 > confirmed against real EU stock) → P2 price floor + margin + narrowing
