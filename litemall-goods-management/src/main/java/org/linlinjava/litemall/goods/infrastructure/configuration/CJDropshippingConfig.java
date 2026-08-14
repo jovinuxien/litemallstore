@@ -79,11 +79,21 @@ public class CJDropshippingConfig {
     private String enrichCron = "0 30 3 * * *";
 
     /**
-     * Number of CJ products enriched per run. Keep small: enrichment fetches detail (1 call) + per-variant
-     * inventory (N calls) per product, against CJ's daily request quota — a batch of N products is roughly
-     * N×(1+avgVariants) CJ calls. The job converges over successive runs via the {@code enriched_time} cursor.
+     * Number of CJ products enriched per run. Enrichment fetches detail (1 call) + per-variant
+     * inventory (N calls) per product against CJ's daily request quota — a batch of N products is
+     * roughly N×(1+avgVariants) CJ calls. The job converges over successive runs via the
+     * {@code enriched_time} cursor.
+     *
+     * <p>Wave 26 raised this from 100. The storefront narrowed to ~2.2k goods with ~1k lacking a
+     * detail body; at 100/night that gap drained in ~11 nights, and the description==title rows
+     * Merchant Center flags persisted through every one of them.
+     *
+     * <p>⚠ CJ daily points are shared ACCOUNT-WIDE with ORDER PLACEMENT. What makes a raised value
+     * safe is that {@code CjDetailEnrichmentService.enrichBatch} abandons the batch on quota
+     * exhaustion or repeated failure instead of grinding on. Env: {@code
+     * LITEMALL_CJ_ENRICH_BATCH_SIZE} (0 disables enrichment).
      */
-    private int enrichBatchSize = 100;
+    private int enrichBatchSize = 400;
 
     /**
      * Demand-Driven CJ Enrichment: viewing a shallow CJ goods (customer detail page, or the

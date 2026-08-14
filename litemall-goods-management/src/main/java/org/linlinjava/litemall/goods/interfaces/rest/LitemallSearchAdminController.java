@@ -115,9 +115,14 @@ public class LitemallSearchAdminController {
     @PostMapping("/cj-enrich")
     public Object cjEnrich(@RequestParam(name = "batch", defaultValue = "20") int batch) {
         CjDetailEnrichmentService.EnrichResult result = cjDetailEnrichmentService.enrichBatch(batch);
-        return ResponseUtil.ok(Map.of(
-                "enriched", result.enriched(),
-                "failed", result.failed()));
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("enriched", result.enriched());
+        body.put("failed", result.failed());
+        // Never let a batch that gave up read as a drained queue.
+        if (result.stoppedEarly() != null) {
+            body.put("stoppedEarly", result.stoppedEarly());
+        }
+        return ResponseUtil.ok(body);
     }
 
     /**

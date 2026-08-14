@@ -79,17 +79,44 @@ public class CjDetailEnrichmentService {
         this.flowGateway = flowGateway;
     }
 
-    /** Outcome of one enrichment run. */
-    public record EnrichResult(int enriched, int failed) {
+    /**
+     * Outcome of one enrichment run.
+     *
+     * @param stoppedEarly null when the whole batch was attempted, else why it was abandoned.
+     *                     Surfaced verbatim by the admin endpoint — a batch that quietly stops
+     *                     short reads as "the queue is drained" when it is actually blocked.
+     */
+    public record EnrichResult(int enriched, int failed, String stoppedEarly) {
         public static EnrichResult empty() {
-            return new EnrichResult(0, 0);
+            return new EnrichResult(0, 0, null);
         }
+    }
+
+    /**
+     * Consecutive failures that abandon a batch. CJ's daily API points are shared ACCOUNT-WIDE
+     * with ORDER PLACEMENT (catalog and order use different key pairs on the SAME CJ account —
+     * verified on prod 2026-08-14), so grinding a large batch through an exhausted or broken
+     * quota keeps burning the budget paid orders need, and buys nothing: every remaining row
+     * fails too. This is what makes a raised batch size safe to run unattended.
+     */
+    static final int CONSECUTIVE_FAILURE_ABORT = 5;
+
+    /** CJ's quota-exhaustion signal, which arrives as free text inside a generic RuntimeException. */
+    static boolean looksLikeQuotaExhaustion(String message) {
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase(java.util.Locale.ROOT);
+        return m.contains("16900500") || m.contains("api points") || m.contains("quota");
     }
 
     /**
      * Enrich up to {@code batchSize} of the least-recently-enriched live CJ rows: fetch detail +
      * per-variant inventory (paced, via Redis), persist real variants/attributes/images, then reindex.
      * A per-row failure is logged and skipped (that row is retried next run); CJ-disabled is a no-op.
+     *
+     * <p>Aborts early on CJ quota exhaustion, or after {@link #CONSECUTIVE_FAILURE_ABORT}
+     * consecutive failures — see that constant for why continuing is actively harmful.
      */
     public EnrichResult enrichBatch(int batchSize) {
         if (!config.isEnabled() || batchSize <= 0) {
@@ -98,19 +125,36 @@ public class CjDetailEnrichmentService {
         List<LitemallCjProduct> rows = cjProductStore.queryForEnrichment(batchSize);
         int enriched = 0;
         int failed = 0;
+        int consecutiveFailures = 0;
+        String stoppedEarly = null;
         for (LitemallCjProduct row : rows) {
             try {
                 enrichOne(row);
                 enriched++;
+                consecutiveFailures = 0;
             } catch (RuntimeException ex) {
                 LOGGER.warn("CJ enrichment skipped pid={}: {}", row.getPid(), ex.getMessage());
                 failed++;
+                consecutiveFailures++;
+                if (looksLikeQuotaExhaustion(ex.getMessage())) {
+                    stoppedEarly = "CJ daily API points exhausted — batch abandoned to leave "
+                            + "quota for order placement (shared account)";
+                } else if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT) {
+                    stoppedEarly = consecutiveFailures + " consecutive failures — batch abandoned "
+                            + "(last: " + ex.getMessage() + ")";
+                }
+                if (stoppedEarly != null) {
+                    LOGGER.warn("CJ enrichment STOPPED EARLY after {} enriched / {} failed: {}",
+                            enriched, failed, stoppedEarly);
+                    break;
+                }
             }
         }
-        LOGGER.info("CJ detail+inventory enrichment: {} enriched, {} failed (batch requested {}, due {})",
-                enriched, failed, batchSize, rows.size());
+        LOGGER.info("CJ detail+inventory enrichment: {} enriched, {} failed (batch requested {}, due {}){}",
+                enriched, failed, batchSize, rows.size(),
+                stoppedEarly == null ? "" : " — STOPPED EARLY: " + stoppedEarly);
         logSupplierCoverage(rows);
-        return new EnrichResult(enriched, failed);
+        return new EnrichResult(enriched, failed, stoppedEarly);
     }
 
     /** Outcome of a single-pid enrichment run: the native goods id the row promoted to, or null when skipped. */
