@@ -273,4 +273,40 @@ public class CatalogNarrowingServiceTest {
         row.put("categoryId", categoryId);
         return row;
     }
+
+    /**
+     * Restoring a category then narrowing it again on the SAME DAY must work: the unique key is
+     * goods_id + day, so the same row is reused, and treating 'restored' as a decision would make
+     * the second narrow a silent no-op until midnight.
+     */
+    @Test
+    public void aRestoredGoodsCanBeNarrowedAgainTheSameDay() {
+        pages(List.of(onSale(70, 502, OTHER)));
+        LitemallRetireCandidate restoredToday = new LitemallRetireCandidate();
+        restoredToday.setGoodsId(70);
+        restoredToday.setDay(LocalDate.now());
+        restoredToday.setStatus(LitemallRetireCandidate.STATUS_RESTORED);
+        when(retireMapper.selectLatestByGoods(70)).thenReturn(restoredToday);
+
+        Map<String, Object> out = service.narrow(List.of(ANCHOR_A), null, false);
+
+        assertEquals(1, out.get("staged"));
+        assertEquals(0, out.get("alreadyDecided"));
+        verify(retireMapper).insertApprovedBatch(any());
+    }
+
+    @Test
+    public void anExecutedRowFromAnEarlierDayDoesNotBlockStaging() {
+        pages(List.of(onSale(71, 502, OTHER)));
+        LitemallRetireCandidate old = new LitemallRetireCandidate();
+        old.setGoodsId(71);
+        old.setDay(LocalDate.now().minusDays(3));
+        old.setStatus(LitemallRetireCandidate.STATUS_EXECUTED);
+        when(retireMapper.selectLatestByGoods(71)).thenReturn(old);
+
+        Map<String, Object> out = service.narrow(List.of(ANCHOR_A), null, false);
+
+        assertEquals(1, out.get("staged"));
+        assertEquals(0, out.get("alreadyDecided"));
+    }
 }
