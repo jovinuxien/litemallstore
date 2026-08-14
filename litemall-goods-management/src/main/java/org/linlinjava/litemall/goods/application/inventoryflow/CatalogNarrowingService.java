@@ -182,8 +182,7 @@ public class CatalogNarrowingService {
                     continue; // survives: this is the storefront we are keeping
                 }
                 LitemallRetireCandidate existing = retireMapper.selectLatestByGoods(goodsId);
-                if (existing != null && !LitemallRetireCandidate.STATUS_PROPOSED.equals(existing.getStatus())
-                        && day.equals(existing.getDay())) {
+                if (existing != null && day.equals(existing.getDay()) && isDecided(existing.getStatus())) {
                     // Same-day row already carrying a decision: the batch upsert would leave it
                     // untouched anyway. Counted so the response never overstates what it staged.
                     alreadyDecided++;
@@ -285,6 +284,21 @@ public class CatalogNarrowingService {
         log.info("catalogue narrowing restore: {} of {} narrowed rows put back on sale for roots {}",
                 restored, rows.size(), roots);
         return summary;
+    }
+
+    /**
+     * Does this status represent a standing decision that narrowing must not take over?
+     *
+     * <p>{@code restored} deliberately does NOT: it records a policy REVERSAL, not an admin
+     * decision to keep the goods on sale. Counting it as decided would make re-narrowing a
+     * category you just restored a no-op for the rest of the day (the unique key is goods_id +
+     * day, so the same row is reused) — the reversibility would only work in one direction.
+     * Must stay in step with the ON DUPLICATE KEY UPDATE guard in insertApprovedBatch.
+     */
+    private static boolean isDecided(String status) {
+        return status != null
+                && !LitemallRetireCandidate.STATUS_PROPOSED.equals(status)
+                && !LitemallRetireCandidate.STATUS_RESTORED.equals(status);
     }
 
     private int flush(List<LitemallRetireCandidate> pending, boolean dryRun) {

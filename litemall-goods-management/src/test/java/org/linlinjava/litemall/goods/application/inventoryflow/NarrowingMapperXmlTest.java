@@ -81,7 +81,9 @@ public class NarrowingMapperXmlTest {
         String tail = sql.substring(sql.indexOf("on duplicate key update"));
         assertTrue(tail.indexOf("execute_on") < tail.indexOf("status      = if"), tail);
         assertTrue(tail.indexOf("reasons") < tail.indexOf("status      = if"), tail);
-        assertTrue(tail.contains("if(status = 'proposed', 'approved', status)"), tail);
+        assertTrue(tail.contains("if(status in ('proposed','restored'), 'approved', status)"), tail);
+        // 'restored' must be takeable-over or a same-day re-narrow silently stages nothing.
+        assertTrue(tail.contains("'restored'"), tail);
         // Inserted rows land approved outright; only duplicates go through the guard.
         assertTrue(sql.contains("'approved'"), sql);
     }
