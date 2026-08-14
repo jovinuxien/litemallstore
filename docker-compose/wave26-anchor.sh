@@ -11,6 +11,12 @@
 #   ./wave26-anchor.sh floor-check 5 # READ-ONLY. What a EUR 5 floor would off-sale RIGHT NOW
 #   ./wave26-anchor.sh apply-margin  # MUTATES. PUT margin 2.5 on both anchor L1s
 #
+#   ./wave26-anchor.sh narrow-preview   # READ-ONLY. Per-L1 split: what stays, what goes
+#   ./wave26-anchor.sh narrow-dry       # READ-ONLY. Real walk, real counts, stages nothing
+#   ./wave26-anchor.sh narrow-apply     # MUTATES. Queue every non-anchor good for off-sale
+#   ./wave26-anchor.sh narrow-execute   # MUTATES. Flip them now (else the 02:00 pass does)
+#   ./wave26-anchor.sh narrow-restore 1036012   # MUTATES. Put one L1 back on sale
+#
 # ORDER MATTERS (the trap this script exists to prevent): apply the margin, let ONE
 # nightly cycle land the reprice, verify, and only THEN set LITEMALL_GOODS_PRICE_FLOOR.
 # At today's 1.25x prices a EUR 5 floor off-sales ~808 anchor SKUs instead of ~429 —
@@ -32,7 +38,9 @@ RED=$'\e[31m'; GRN=$'\e[32m'; YEL=$'\e[33m'; BLD=$'\e[1m'; RST=$'\e[0m'
 step() { printf '\n%s==> %s%s\n' "$BLD" "$*" "$RST"; }
 info() { printf '    %s\n' "$*"; }
 ok()   { printf '    %s%s%s\n' "$GRN" "$*" "$RST"; }
-warn() { printf '    %s%s%s\n' "$YEL" "$*" "$RST"; }
+# warn goes to STDERR on purpose: require_anchor's output is captured by command
+# substitution, so a warning printed on stdout would be parsed as a category id.
+warn() { printf '    %s%s%s\n' "$YEL" "$*" "$RST" >&2; }
 die()  { printf '%sERROR: %s%s\n' "$RED" "$*" "$RST" >&2; exit 1; }
 
 cn() { echo "${PROJECT}-$1-1"; }
@@ -168,10 +176,90 @@ cmd_apply_margin() {
 NOTE
 }
 
+
+# ---- Wave 26 deliverable 3: narrowing the storefront to the anchor -------------------------
+
+# The anchor ids, comma-joined, as the narrowing endpoints want them.
+anchor_csv() { require_anchor | paste -sd, - ; }
+
+cmd_narrow_preview() {
+  step "Per-L1 on-sale split (READ-ONLY — nothing is staged)"
+  local ids out code body
+  ids="$(anchor_csv)"
+  info "anchors: $ids"
+  out="$(api GET "/srv/private/admin/insight/narrow/preview?anchorCategoryIds=$ids")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  [[ "$code" == 200 ]] && info "$body" || { warn "HTTP $code — $body"; return 1; }
+  cat <<'NOTE'
+
+    totals.keep          = what stays on sale (the anchor storefront)
+    totals.wouldOffSale  = what a narrow run would take off sale
+    orphanedCategoryGoods= goods whose category does not resolve to any L1. These are
+                           narrowed, NOT kept — "cannot place it" must not silently mean
+                           "leave it on sale". If this is large, investigate first.
+NOTE
+}
+
+cmd_narrow_dry() {
+  step "DRY RUN — walks and counts exactly like the real thing, stages nothing"
+  local ids out code body
+  ids="$(anchor_csv | tr ',' ' ')"
+  local json; json="{\"anchorCategoryIds\": [$(echo "$ids" | tr ' ' ',')], \"dryRun\": true}"
+  out="$(api POST "/srv/private/admin/insight/narrow" "$json")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  [[ "$code" == 200 ]] && ok "$body" || warn "HTTP $code — $body"
+}
+
+cmd_narrow_apply() {
+  local ids; ids="$(anchor_csv | tr ',' ' ')"
+  step "STAGING the narrowing — every on-sale good OUTSIDE the anchor is queued for off-sale"
+  warn "This does NOT flip anything yet: it writes approved retire-candidate rows."
+  warn "The flip happens at the 02:00 executor, or immediately via: $0 narrow-execute"
+  warn "Reversible: $0 narrow-restore <L1 id>   (rows are kept, never deleted)"
+  read -r -p "    Type NARROW to continue: " confirm
+  [[ "$confirm" == "NARROW" ]] || die "aborted (nothing was staged)."
+
+  local json out code body
+  json="{\"anchorCategoryIds\": [$(echo "$ids" | tr ' ' ',')]}"
+  out="$(api POST "/srv/private/admin/insight/narrow" "$json")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  [[ "$code" == 200 ]] && ok "$body" || { warn "HTTP $code — $body"; return 1; }
+  info "Next: $0 narrow-execute   (or wait for the 02:00 pass)"
+}
+
+cmd_narrow_execute() {
+  step "Running the retirement executor now (off-sale + per-goods reindex)"
+  warn "This is the step customers see. Expect it to take a while — one reindex per goods."
+  read -r -p "    Type EXECUTE to continue: " confirm
+  [[ "$confirm" == "EXECUTE" ]] || die "aborted (nothing was flipped)."
+  local out code body
+  out="$(api POST "/srv/private/admin/insight/retire/run")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  [[ "$code" == 200 ]] && ok "$body" || warn "HTTP $code — $body"
+}
+
+cmd_narrow_restore() {
+  local id="${1:-}"
+  [[ -n "$id" ]] || die "usage: $0 narrow-restore <L1 category id>"
+  step "RESTORING L1 $id — putting back ONLY goods a narrowing run took off sale"
+  info "Goods off-saled by the price floor, hygiene or scored retirement are NOT touched."
+  read -r -p "    Type RESTORE to continue: " confirm
+  [[ "$confirm" == "RESTORE" ]] || die "aborted (nothing was restored)."
+  local out code body
+  out="$(api POST "/srv/private/admin/insight/narrow/restore" "{\"categoryIds\": [$id]}")"
+  code="${out##*$'\n'}"; body="${out%$'\n'*}"
+  [[ "$code" == 200 ]] && ok "$body" || warn "HTTP $code — $body"
+}
+
 case "${1:-simulate}" in
   simulate)     cmd_simulate ;;
   status)       cmd_status ;;
   floor-check)  cmd_floor_check "${2:-5}" ;;
   apply-margin) cmd_apply_margin ;;
-  *) die "usage: $0 {simulate|status|floor-check [EUR]|apply-margin}" ;;
+  narrow-preview) cmd_narrow_preview ;;
+  narrow-dry)     cmd_narrow_dry ;;
+  narrow-apply)   cmd_narrow_apply ;;
+  narrow-execute) cmd_narrow_execute ;;
+  narrow-restore) cmd_narrow_restore "${2:-}" ;;
+  *) die "usage: $0 {simulate|status|floor-check [EUR]|apply-margin|narrow-preview|narrow-dry|narrow-apply|narrow-execute|narrow-restore <id>}" ;;
 esac
