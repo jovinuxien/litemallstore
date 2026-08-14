@@ -111,7 +111,15 @@
         group by goods_id
     ) f on f.goods_id = g.id
     where cp.deleted = 0
-    order by (cp.enriched_time is null) desc,
+    <!-- Wave 26: ON-SALE FIRST. The CJ mirror stays broad (all 14 L1s) while the storefront is
+         narrowed to the anchor, so without this an enrichment batch spends ~93% of its calls —
+         and the shared daily CJ points budget — on products we no longer sell, and on-sale goods
+         missing a detail body never get one. This PRIORITISES rather than filters: off-sale rows
+         still enrich once the storefront is served, so a category taken back later is not stale.
+         coalesce() is deliberate: the goods join is a LEFT join, and an un-promoted mirror row
+         would otherwise sort on a NULL and rank by MySQL's NULL rules rather than by intent. -->
+    order by coalesce(g.is_on_sale, 0) desc,
+             (cp.enriched_time is null) desc,
              coalesce(f.views, 0) desc,
              coalesce(cp.listed_num, 0) desc,
              cp.enriched_time asc, cp.add_time desc
