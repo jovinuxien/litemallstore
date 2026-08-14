@@ -1276,12 +1276,35 @@
 > `DELETE /srv/private/admin/insight/categories/{id}/margin`.
 > Script: `docker-compose/wave26-anchor.sh` (simulate|status|floor-check|
 > apply-margin; read-only by default).
+> **STEP 1 VERIFIED LANDED 2026-08-14** (record:
+> `litemall-goods-management/docs/wave26-reprice-verification-2026-08-14.md`).
+> Measured on the live feed: ANCHOR 2,701 rows, median €9.13 → **€16.90**
+> (1.85×), €25–80 band 17.5% → **23.5%** vs a modelled 24.0%; CONTROL median
+> **6.63 → 6.63 exactly**, band 7.4% → 7.3% — the unchanged control is what
+> proves the move is confined to the two overridden categories and is neither
+> a site-wide change nor a cached feed. Within the anchor, **Hardware is the
+> strong half**: median €28.90, 34.5% in band (Home & Garden €13.18, 18.8%) —
+> ads should target Hardware first.
+> **PHASE 2 CODE MERGED + DEPLOYED 2026-08-14** (master `4d1bdf289`; module
+> suite 371 run / 0 failures / 8 skipped; container healthy, schema still V60,
+> no migration, smoke 200s). The deploy also carried **Wave 25.1** (CJ
+> per-variant images + supplier-junk gate), which had been merged but never
+> shipped. ⚠ Prod junk-brand cleanup from Wave 25.1 is still OUTSTANDING:
+> delete brand row `1046002` (name and external_id both the literal "{}") and
+> reset its goods' brand_id — the gate stops NEW junk, it does not clean the
+> existing row.
 > **PRICE FLOOR DECIDED (user 2026-08-13): `LITEMALL_GOODS_PRICE_FLOOR=5.00`**
 > — 429 of 2,286 anchor SKUs off-saled (19%), leaving 1,857; clears the
-> sub-€1 tail. ⚠ **NOT set in prod yet and MUST NOT be until the 2.5×
-> margin has landed a nightly cycle** — at today's 1.25× prices a €5 floor
-> off-sales **808** anchor SKUs instead of 429, while looking correct.
-> Sequence: margin → one nightly cycle → verify → floor → cycle → narrow →
+> sub-€1 tail. Post-reprice the live feed shows **502 of 2,701** anchor SKUs
+> under €5 (18.6%) — the projection holds. **NOW UNBLOCKED** (margin has
+> landed; floor code is deployed) — still NOT set. ⚠ Two traps, both hit:
+> (a) the floor must not precede the margin — at 1.25× prices €5 off-sales
+> **808** anchor SKUs instead of 429 while looking correct; (b) the prod
+> compose block had **no passthrough** for `LITEMALL_GOODS_PRICE_FLOOR`, so
+> setting it in `.env.prod` would have left the floor at 0 while every surface
+> said it was configured (the Wave-18 `LITEMALL_GOODS_AUTH_*` failure mode).
+> Passthrough added in `4d1bdf289` and verified inside the container.
+> Sequence: margin ✔ → cycle ✔ → verify ✔ → floor → cycle → narrow →
 > prove a category flips back.
 > **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
 > the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
@@ -1455,8 +1478,16 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — ACTIVE: Wave 26 Phase 2 (anchor the catalogue)
-- **Task 0 (BLOCKING, do before any Phase-2 code): LAND WAVE 25.1.**
+### Worktree: `goods-management` — idle (Wave 26 Phase 2 code SHIPPED + DEPLOYED)
+- **No active assignment.** Phase 2's code half (deliverables 2, 4, 5) merged
+  to master and deployed to prod 2026-08-14 (`4d1bdf289`), together with the
+  Wave 25.1 work Task 0 asked for. What remains of Wave 26 is OPERATIONAL and
+  belongs to the MAIN session against prod data, in this order: set the €5.00
+  floor → one nightly cycle → verify the off-sale count → narrow to the anchor
+  (deliverable 3) → prove a category flips back on. Then Phase 3 (content
+  de-duplication) is the next worktree-sized task.
+- **History — Task 0 (Wave 25.1) and Phase 2 code, original spec below.**
+- **Task 0 (HISTORICAL, DONE): LAND WAVE 25.1.**
   Verified by MAIN 2026-08-13: 25.1 is WRITTEN BUT NOT SHIPPED. The
   worktree holds **8 modified files + 2 untracked test files, all
   uncommitted**, last touched 2026-08-10 04:48 (abandoned, no live
