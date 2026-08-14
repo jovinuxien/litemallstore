@@ -71,7 +71,10 @@
 
   <!-- Wave 26 narrowing: stage a whole batch as APPROVED with an execute_on, for the existing
        daily executor to flip. Decisions are still never clobbered — only a row that is still
-       'proposed' is taken over.
+       'proposed' (or 'restored') is taken over. 'restored' belongs in that set: it records a
+       policy REVERSAL, not an admin decision to keep the goods on sale, so re-narrowing the same
+       category on the same day must work. Without it the second narrow silently stages nothing
+       (unique key is goods_id + day, so the row is only reused within a day).
 
        MySQL evaluates ON DUPLICATE KEY UPDATE assignments LEFT TO RIGHT, and a column read after
        its own assignment sees the NEW value. `status` is therefore assigned LAST, so every guard
@@ -86,10 +89,10 @@
        'approved', #{r.executeOn}, now(), now(), 0)
     </foreach>
     on duplicate key update
-      execute_on  = if(status = 'proposed', values(execute_on), execute_on),
-      reasons     = if(status = 'proposed', values(reasons), reasons),
-      update_time = if(status = 'proposed', now(), update_time),
-      status      = if(status = 'proposed', 'approved', status)
+      execute_on  = if(status in ('proposed','restored'), values(execute_on), execute_on),
+      reasons     = if(status in ('proposed','restored'), values(reasons), reasons),
+      update_time = if(status in ('proposed','restored'), now(), update_time),
+      status      = if(status in ('proposed','restored'), 'approved', status)
   </insert>
 
 </mapper>
