@@ -1337,8 +1337,11 @@
 > narrow-execute|narrow-restore <L1 id>` (read-only by default, typed confirms).
 > ⚠ The category nav is memoized 5 min (`CatalogGoodsCountService.TTL_MS`) — right
 > after a narrowing it still lists the old categories; that is the cache, not a
-> failure. ⚠ Phones & Accessories (1036575) is currently RESTORED (on sale) from
-> the spot-check — re-narrow it or leave it deliberately.
+> failure. The spot-check category was re-narrowed after the fix deployed (dry run
+> `staged 132, alreadyDecided 0` — the exact case that failed before — then
+> `due 132, executed 132`), so the store is anchor-only: **2,200 on sale, 2,200
+> indexed**, and the full restore→re-narrow round trip is proven in both
+> directions on production.
 > **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
 > the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
 > (3) any real €0 checkout evidence, (4) GSC coverage numbers
