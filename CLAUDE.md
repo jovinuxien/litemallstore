@@ -1304,8 +1304,41 @@
 > setting it in `.env.prod` would have left the floor at 0 while every surface
 > said it was configured (the Wave-18 `LITEMALL_GOODS_AUTH_*` failure mode).
 > Passthrough added in `4d1bdf289` and verified inside the container.
-> Sequence: margin ✔ → cycle ✔ → verify ✔ → floor → cycle → narrow →
-> prove a category flips back.
+> Sequence: margin ✔ → cycle ✔ → verify ✔ → floor ✔ → narrow ✔ → flip-back
+> proven ✔ — **PHASE 2 COMPLETE ON PROD 2026-08-14.**
+> **FLOOR EXECUTED 2026-08-14 07:07 UTC** (`LITEMALL_GOODS_PRICE_FLOOR=5.00`,
+> backup `.env.prod.bak-wave26-floor`). It did NOT wait for the nightly:
+> `CjCatalogRefreshTask` schedules a startup refresh 10 min after ready, and the
+> promote inside it is where the floor acts. Result: on-sale **17,398 → 11,278**
+> (6,120 off-saled vs 6,206 predicted — the gap is goods that repriced across €5
+> during the run); sub-€5 on sale 6,206 → 945; refresh summary `105 new / 5367
+> updated / 0 removed; promoted 31509 (failed 0); reindexed 11278 docs`.
+> ⚠ `docker logs` showed only 325 floor lines because the json-file driver
+> rotates at 10m×3 — the container's own logback file had 10,313. Never measure a
+> long prod run from `docker logs`; use the DB or /app/logs.
+> **NARROWING EXECUTED 2026-08-14** — on-sale **11,278 → 2,200** (9,078 off-saled;
+> executor `due 9078, executed 9078, skippedLiveDeal 0, goodsMissing 0,
+> lostRace 0`); search index 2,200 docs; nav down to the two anchor categories.
+> ⚠ **The narrowing path the spec assumed DID NOT EXIST** and had to be built
+> (`da6dbafb2` `CatalogNarrowingService` + restore; `9db298ccf` empty-category nav
+> filter; `4560b5d4d` restored-rows-are-re-narrowable). Retirement candidates are
+> only ever created by the scorer (unavailability streak) or the governor
+> (weakest-first vs the catalogue target) — neither takes a category, approve needs
+> a pre-existing `proposed` row, and no bulk off-sale endpoint existed anywhere.
+> The FLIP still rides the existing `RetirementExecutor`, so narrowed goods are
+> indistinguishable downstream. Module suite 390 run / 0 failures / 8 skipped.
+> **REVERSIBILITY PROVEN** on prod: restoring Phones & Accessories put back exactly
+> its 132 goods (2,200 → 2,332, index 2,332) touching none of the other 8,946 —
+> restore is driven by the narrowing AUDIT ROWS, never by category, so
+> floor/hygiene/retirement off-sales are never resurrected. That spot-check also
+> CAUGHT a real bug (fixed `4560b5d4d`): `restored` counted as a standing decision,
+> so a same-day re-narrow staged nothing — reversibility worked one way only.
+> Ops: `docker-compose/wave26-anchor.sh narrow-preview|narrow-dry|narrow-apply|
+> narrow-execute|narrow-restore <L1 id>` (read-only by default, typed confirms).
+> ⚠ The category nav is memoized 5 min (`CatalogGoodsCountService.TTL_MS`) — right
+> after a narrowing it still lists the old categories; that is the cache, not a
+> failure. ⚠ Phones & Accessories (1036575) is currently RESTORED (on sale) from
+> the spot-check — re-narrow it or leave it deliberately.
 > **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
 > the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
 > (3) any real €0 checkout evidence, (4) GSC coverage numbers

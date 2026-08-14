@@ -101,8 +101,35 @@ data were never deleted).
 
 ## Step 3 — narrowing to the anchor
 
-Off-sale the non-anchor L1 subtrees via the existing retirement/off-sale path —
-staged and logged, never a bulk UPDATE. Expect ~12k of ~15k rows.
+**EXECUTED ON PROD 2026-08-14.** 9,078 goods off-saled, 2,200 kept
+(Home, Garden & Furniture 1,444 + Home Improvement 756). Executor summary:
+`due 9078, executed 9078, skippedLiveDeal 0, goodsMissing 0, lostRace 0`.
+
+⚠ **The path this step assumed did not exist.** "Off-sale the non-anchor L1
+subtrees via the existing retirement path" was not runnable: retirement
+candidates are only ever created by `RetireCandidateScorer` (CJ-unavailability
+streak) or `RetirementGovernor` (weakest-first against the catalogue target),
+both catalogue-wide and neither taking a category; the approve endpoint needs a
+pre-existing `proposed` row per goods id; and no bulk off-sale endpoint existed
+anywhere. The missing SELECTION step was built as `CatalogNarrowingService`
+(commit `da6dbafb2`) — the flip itself still rides the existing
+`RetirementExecutor`, so a narrowed good is indistinguishable downstream.
+
+Commands (all via `docker-compose/wave26-anchor.sh`, on the VPS):
+
+```
+./wave26-anchor.sh narrow-preview   # READ-ONLY per-L1 split
+./wave26-anchor.sh narrow-dry       # READ-ONLY real walk + counts
+./wave26-anchor.sh narrow-apply     # stages approved rows (nothing customer-visible yet)
+./wave26-anchor.sh narrow-execute   # the flip: off-sale + per-goods reindex
+./wave26-anchor.sh narrow-restore <L1 id>   # put one category back
+```
+
+`narrow-apply` and `narrow-execute` are deliberately separate: staging is
+inspectable and reversible before anything reaches the storefront.
+
+Expect ~9k of ~11k rows (not the ~12k of ~15k this runbook first estimated —
+the €5 floor had already removed 6,120 by the time narrowing ran).
 
 **Reversibility is the governing rule** (user intent 2026-08-13: run one anchor
 now, take the other categories back later):
@@ -115,12 +142,26 @@ now, take the other categories back later):
   cycle does not resurrect off-saled goods.
 - Sitemap, `meta-catalog.csv` and the OCS index shrink on the next nightly cycle.
 
-**Verify:** spot-check one category flips back ON and reappears in the index on
-the following cycle. That check is the whole reversibility guarantee — do not
-skip it.
+**Verify:** spot-check one category flips back ON and reappears in the index.
+That check is the whole reversibility guarantee — do not skip it.
+
+**DONE 2026-08-14, and it found a real bug.** Restoring Phones & Accessories
+(1036575) put back exactly its 132 goods — on-sale 2,200 → 2,332, index 2,332
+docs, other 8,946 narrowed rows correctly untouched. But an immediate re-narrow
+reported `staged 0, alreadyDecided 132`: the unique key is goods_id + day, and
+`restored` was being read as a standing decision, so reversibility worked in only
+ONE direction until midnight. Fixed in `4560b5d4d` — `restored` is a policy
+reversal, not a decision to keep goods on sale. The honest counts are what
+surfaced it; a silent success would have left a category stuck on sale.
 
 **Watch for:** the storefront must not render empty category tiles or dead links
-once 13 L1s go quiet (gateway-api half, raise separately). And the feed/sitemap
+once the other L1s go quiet. This was assigned to a gateway-api half that was
+never built, so it was fixed server-side instead (`9db298ccf`):
+`/srv/catalog/all` and `/first-categories` now drop roots with no on-sale goods,
+using counts they already computed for ordering. ⚠ Those counts are memoized for
+5 minutes (`CatalogGoodsCountService.TTL_MS`) — right after a narrowing the nav
+still shows the old categories. That is the cache, not a failure; re-check after
+five minutes before investigating. And the feed/sitemap
 shrinking by ~80% is expected, not an incident — tell whoever watches Search
 Console before it happens.
 
