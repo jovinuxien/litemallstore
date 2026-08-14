@@ -63,11 +63,35 @@ public class LitemallCatalogController {
 
     @GetMapping("/first-categories")
     public Object getFirstCategory() {
-        // All first-level categories
-        List<LitemallCategoryAggregate> l1CatList = goodsManagementServiceApi.getFirstLevelCategories();
+        List<LitemallCategoryAggregate> l1CatList =
+                withOnSaleGoods(goodsManagementServiceApi.getFirstLevelCategories());
         Map<String, Object> data = new HashMap<>();
         data.put("l1CatList", l1CatList);
         return ResponseUtil.ok(data);
+    }
+
+    /**
+     * Wave 26: drop L1 roots whose subtree holds NO on-sale goods. Narrowing the storefront to an
+     * anchor leaves the other roots standing with zero sellable products, and this is the
+     * CUSTOMER-facing category nav — unfiltered, it renders tiles that lead to empty pages.
+     * The counts are already computed for ordering, so this costs nothing extra.
+     *
+     * <p>Degrades honestly: if EVERY root came back empty (a cold count cache, or a genuinely
+     * empty catalogue) the unfiltered list is served rather than an empty nav — a storefront with
+     * no categories at all is a worse lie than one with a thin category.
+     */
+    private List<LitemallCategoryAggregate> withOnSaleGoods(List<LitemallCategoryAggregate> roots) {
+        if (roots == null || roots.isEmpty()) {
+            return roots;
+        }
+        Map<Integer, Long> counts = catalogGoodsCountService.countsByRoot();
+        List<LitemallCategoryAggregate> stocked = new java.util.ArrayList<>();
+        for (LitemallCategoryAggregate category : roots) {
+            if (counts.getOrDefault(Integer.valueOf(category.getCategoryId().getId()), 0L) > 0L) {
+                stocked.add(category);
+            }
+        }
+        return stocked.isEmpty() ? roots : stocked;
     }
 
 
@@ -88,7 +112,7 @@ public class LitemallCatalogController {
         // each root's whole subtree, so SPA sidebars can just take the first N.
         Map<Integer, Long> goodsCounts = catalogGoodsCountService.countsByRoot();
         List<LitemallCategoryAggregate> l1CatList =
-                new java.util.ArrayList<>(goodsManagementServiceApi.getFirstLevelCategories());
+                new java.util.ArrayList<>(withOnSaleGoods(goodsManagementServiceApi.getFirstLevelCategories()));
         l1CatList.sort(java.util.Comparator.comparingLong(
                 (LitemallCategoryAggregate c) -> goodsCounts.getOrDefault(
                         Integer.valueOf(c.getCategoryId().getId()), 0L)).reversed());
