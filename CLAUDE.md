@@ -1408,12 +1408,20 @@
 >    category is not stale; `coalesce` because the goods join is a LEFT join).
 >    Live proof: a batch of 10 enriched 11 on-sale rows vs 2 off-sale (pre-change a
 >    random batch would hit ~1); on-sale-with-empty-detail 1,038 → 1,027.
-> ⚠ **Convergence is ~11 nights**, not immediate: the nightly enrich batch is 100
-> (`spring.cjdropship.enrich-batch-size`, no prod override) against ~1,027 goods.
-> Raising it would drain the descriptions faster but risks CJ points exhaustion
-> (errno 16900500), which would also break order placement — a deliberate
-> non-decision, left to the user. Trade-off accepted: off-sale mirror rows now
-> rarely enrich until the storefront is current.
+> **ENRICH BATCH RAISED 100 → 400 (user decision 2026-08-14)** — convergence
+> ~11 nights → **~3 nights**. ⚠ CJ daily points are shared ACCOUNT-WIDE with ORDER
+> PLACEMENT (catalog + order use different key pairs on the SAME account — verified
+> on prod). The raise ships WITH the guard that makes it safe: `enrichBatch` now
+> abandons the batch on quota exhaustion (errno 16900500 / "api points" / "quota"
+> in the message) or after 5 consecutive failures, instead of firing hundreds of
+> futile calls against a dead quota; a QPS rejection deliberately does NOT count
+> (transient). The result carries `stoppedEarly` and the endpoint returns it, so a
+> batch that gave up can never read as a drained queue.
+> **`LITEMALL_CJ_ENRICH_BATCH_SIZE`** (yml placeholder + compose passthrough, default
+> 400, **0 disables enrichment**) is the FIRST knob to turn down if paid orders start
+> parking on CJ errors — container recreate, no rebuild.
+> Trade-off accepted: off-sale mirror rows now rarely enrich until the storefront is
+> current.
 > The residual 708 are all provably content gaps (verified row by row) — they
 > resolve as enrichment reaches them. The spec's "~30 in-band SKUs get genuinely
 > rewritten copy" is NOT done: that is human/editorial work, not a code change.
