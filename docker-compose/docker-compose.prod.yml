@@ -612,6 +612,12 @@ services:
       # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
       # zero products silently. Exposed so the pace can be tuned without a rebuild.
       LITEMALL_CJ_FETCH_RETRIES: ${LITEMALL_CJ_FETCH_RETRIES:-3}
+      # Products enriched per nightly run. ⚠ CJ daily API points are shared
+      # ACCOUNT-WIDE with ORDER PLACEMENT (same CJ account, different key pair),
+      # so this is the FIRST knob to turn down if paid orders start parking on CJ
+      # errors — a container recreate, no rebuild. 0 disables enrichment.
+      # Enrichment aborts itself on quota exhaustion or 5 consecutive failures.
+      LITEMALL_CJ_ENRICH_BATCH_SIZE: ${LITEMALL_CJ_ENRICH_BATCH_SIZE:-400}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 
