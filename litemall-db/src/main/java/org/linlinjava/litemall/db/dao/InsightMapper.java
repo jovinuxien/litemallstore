@@ -85,6 +85,32 @@ public interface InsightMapper {
     long countOnSaleCj();
 
     /**
+     * Wave-26 narrowing: on-sale CJ goods as (goodsId, categoryId) pairs, id-ordered and keyset
+     * paged ({@code id > afterId}). The caller resolves each LEAF category to its L1 root
+     * app-side (CategoryMarginResolver's cached tree) — deliberately NOT a recursive SQL walk,
+     * so this stays a plain indexed range scan.
+     */
+    List<Map<String, Object>> selectOnSaleCjPage(@Param("afterId") int afterId,
+                                                 @Param("limit") int limit);
+
+    /**
+     * Wave-26 narrowing preview: on-sale CJ goods counted per LEAF category id
+     * (categoryId, cnt). Roots are resolved app-side, same reason as above.
+     */
+    List<Map<String, Object>> selectOnSaleCjCountsByCategory();
+
+    /**
+     * Wave-26 restore: goods that a narrowing run actually took off sale — candidate rows whose
+     * reasons carry the narrowing marker, in {@code status}, joined to goods that are STILL
+     * off-sale. Returns (candidateId, goodsId, categoryId). Restoring is driven by these audit
+     * rows and never by category alone, so goods off-saled for OTHER reasons (price floor,
+     * hygiene, weakness retirement) are never resurrected by a restore.
+     */
+    List<Map<String, Object>> selectNarrowedOffSale(@Param("marker") String marker,
+                                                    @Param("status") String status,
+                                                    @Param("limit") int limit);
+
+    /**
      * One aggregate row over the ON-SALE CJ goods of a category subtree that ARRIVED since
      * {@code since} (Wave 14 arrivals insight): arrivals, avgMarginPct (costed only, else NULL),
      * avgRetailPrice, dealScore (avg best deal-candidate score of those arrivals since

@@ -349,4 +349,36 @@
     order by pc.score desc, pc.id asc
   </select>
 
+  <!-- ===== Wave 26 narrowing (anchor the storefront) ===================================== -->
+
+  <!-- Keyset-paged (goodsId, categoryId) over on-sale CJ goods. L1 roots are resolved app-side
+       from the cached category tree; a recursive CTE here would re-walk the tree per row. -->
+  <select id="selectOnSaleCjPage" resultType="java.util.HashMap">
+    select g.id as goodsId, g.category_id as categoryId
+    from litemall_goods g
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj' and g.id &gt; #{afterId}
+    order by g.id asc
+    limit #{limit}
+  </select>
+
+  <select id="selectOnSaleCjCountsByCategory" resultType="java.util.HashMap">
+    select g.category_id as categoryId, count(*) as cnt
+    from litemall_goods g
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+    group by g.category_id
+  </select>
+
+  <!-- Restore candidates: rows a narrowing run created (reasons carry the marker) whose goods is
+       still off-sale. Driven by the audit row, never by category alone — goods off-saled by the
+       price floor, hygiene or weakness retirement must not be resurrected by a restore. -->
+  <select id="selectNarrowedOffSale" resultType="java.util.HashMap">
+    select rc.id as candidateId, rc.goods_id as goodsId, g.category_id as categoryId
+    from litemall_retire_candidate rc
+    join litemall_goods g on g.id = rc.goods_id and g.deleted = 0 and g.is_on_sale = 0
+    where rc.deleted = 0 and rc.status = #{status}
+      and rc.reasons like concat('%', #{marker}, '%')
+    order by rc.id asc
+    limit #{limit}
+  </select>
+
 </mapper>
