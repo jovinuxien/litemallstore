@@ -63,7 +63,10 @@ api() {  # api GET|PUT <path> [json-body]
   local method="$1" path="$2" body="${3:-}" tok
   tok="$(machine_token)"
   [[ -n "$tok" ]] || die "could not mint a machine token (check the auth chain: litemall-prod.sh doctor)"
-  local args="-s -X $method --max-time 120 -H 'Authorization: Bearer $tok' -H 'X-User-Id: 1' -H 'X-User-Roles: ROLE_ADMIN'"
+  # API_TIMEOUT is overridable because narrow-execute flips thousands of goods with a reindex
+  # each — at the default 120s the client would give up while the server kept working, which
+  # reads as a failure and tempts a re-run of something that is already half done.
+  local args="-s -X $method --max-time ${API_TIMEOUT:-120} -H 'Authorization: Bearer $tok' -H 'X-User-Id: 1' -H 'X-User-Roles: ROLE_ADMIN'"
   [[ -n "$body" ]] && args="$args -H 'Content-Type: application/json' -d '$body'"
   docker exec "$(cn goods-management)" sh -c \
     "curl $args -w '\n%{http_code}' 'http://localhost:8082$path' 2>/dev/null" 2>/dev/null
@@ -233,7 +236,7 @@ cmd_narrow_execute() {
   read -r -p "    Type EXECUTE to continue: " confirm
   [[ "$confirm" == "EXECUTE" ]] || die "aborted (nothing was flipped)."
   local out code body
-  out="$(api POST "/srv/private/admin/insight/retire/run")"
+  out="$(API_TIMEOUT=3600 api POST "/srv/private/admin/insight/retire/run")"
   code="${out##*$'\n'}"; body="${out%$'\n'*}"
   [[ "$code" == 200 ]] && ok "$body" || warn "HTTP $code — $body"
 }
