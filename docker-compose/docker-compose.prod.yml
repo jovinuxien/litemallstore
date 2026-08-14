@@ -599,6 +599,19 @@ services:
       # Both dormant at their defaults until the deploy-day .env flip.
       LITEMALL_GOODS_CURRENCY: ${LITEMALL_GOODS_CURRENCY:-USD}
       LITEMALL_FX_USD_EUR: ${LITEMALL_FX_USD_EUR:-1.0}
+      # Wave 26 Phase 2 — minimum retail (EUR) to stay on sale; 0 = OFF (default).
+      # A sub-floor good is OFF-SALED, never repriced, every cycle it stays
+      # sub-floor; reversible by setting the value back to 0. WITHOUT this line
+      # the var in .env.prod never reaches the container and the floor silently
+      # does nothing while looking set — the LITEMALL_GOODS_AUTH_* lesson.
+      # ORDER MATTERS: the anchor margin must have landed a nightly cycle first,
+      # or the floor judges anchor goods at their old 1.25x prices and off-sales
+      # roughly twice as many. See runbook-wave26-phase2-anchor.md.
+      LITEMALL_GOODS_PRICE_FLOOR: ${LITEMALL_GOODS_PRICE_FLOOR:-0}
+      # Attempts per CJ /product/list page. CJ QPS-rejects ~17% of calls even at
+      # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
+      # zero products silently. Exposed so the pace can be tuned without a rebuild.
+      LITEMALL_CJ_FETCH_RETRIES: ${LITEMALL_CJ_FETCH_RETRIES:-3}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 
