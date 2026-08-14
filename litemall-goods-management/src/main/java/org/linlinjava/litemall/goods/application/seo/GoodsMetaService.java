@@ -105,8 +105,14 @@ public class GoodsMetaService {
      * Package-visible so {@link MetaCatalogFeedService} applies the identical fallback.
      */
     static String descriptionOf(LitemallGoods goods, int max) {
+        // Compare LIKE WITH LIKE. The name must be cleaned exactly as the brief and the emitted
+        // title are, or the guard defeats itself: a raw name carrying double spaces or entity
+        // soup ("13A W  2 Charger USB  Outlets") is not equal to its own cleaned brief, so the
+        // brief is returned as the description — and the feed, which titles from clean(name),
+        // then emits the two as identical strings. That shipped 45 description==title rows to
+        // Merchant Center while this method believed it had prevented them.
+        String name = HtmlText.clean(goods.getName());
         String brief = HtmlText.clean(goods.getBrief());
-        String name = goods.getName() == null ? "" : goods.getName().trim();
         if (!brief.isEmpty() && !brief.equalsIgnoreCase(name)) {
             return brief;
         }
