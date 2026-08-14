@@ -1254,6 +1254,35 @@
 >   the first point in this wave where the numbers clear a €15–40 CAC.
 >   ⚠ Ads should target the ~549 in-band anchor SKUs, NOT the median
 >   product: 35.3% of the anchor still sits under €10 even after 2.5×.
+> **PHASE 2 STATUS (2026-08-13):** code deliverables DONE on
+> `fix/goods-management` — 5/5 QPS retry (`fa593f8fc`), 4/5 sourcing
+> filters + 2/5 price floor (`556abad5f`), runbook (`8eae073d7`); module
+> suite 371 run / 0 failures / 8 skipped. Deliverables **1 (margin 2.5)
+> and 3 (narrowing) are DEPLOY-TIME operations, NOT worktree code** —
+> both ride existing machinery. They were deliberately NOT run on dev:
+> the anchor cluster has **ZERO costed goods on dev** (546+520 on sale,
+> 0 costed) and `repriceForCategory` returns early without a cost, so an
+> override there reprices nothing and would fake a green acceptance.
+> Runbook: `litemall-goods-management/docs/runbook-wave26-phase2-anchor.md`.
+> **STEP 1 EXECUTED ON PROD 2026-08-13 12:12 UTC — margin 2.5 APPLIED** to both
+> anchor L1s (ids `1036143` Home, Garden & Furniture + `1036495` Home
+> Improvement — prod ids happen to match dev). Prod cost coverage is REAL,
+> unlike dev: 16,395 of 16,431 on-sale goods costed. Simulate baseline
+> (record it — this is the before): 1036143 goodsCount **1,753**, avgPrice
+> €32.81 → €65.62; 1036495 goodsCount **745**, avgPrice €42.56 → €85.12;
+> 2,498 anchor goods total. `margin-overrides` confirms both at 2.50, global
+> still 1.25. ⚠ **The reprice lands at the NEXT nightly promote (03:00 sync →
+> 03:30 enrich)** — prices had NOT moved at time of writing. Reversible:
+> `DELETE /srv/private/admin/insight/categories/{id}/margin`.
+> Script: `docker-compose/wave26-anchor.sh` (simulate|status|floor-check|
+> apply-margin; read-only by default).
+> **PRICE FLOOR DECIDED (user 2026-08-13): `LITEMALL_GOODS_PRICE_FLOOR=5.00`**
+> — 429 of 2,286 anchor SKUs off-saled (19%), leaving 1,857; clears the
+> sub-€1 tail. ⚠ **NOT set in prod yet and MUST NOT be until the 2.5×
+> margin has landed a nightly cycle** — at today's 1.25× prices a €5 floor
+> off-sales **808** anchor SKUs instead of 429, while looking correct.
+> Sequence: margin → one nightly cycle → verify → floor → cycle → narrow →
+> prove a category flips back.
 > **BLOCKED-ON-USER (1–2 ANSWERED above; Phase 2 sourcing needs none of
 > the rest, Phase 3/4 do):** ~~(1) anchor~~ ✔ ~~(2) margin~~ ✔,
 > (3) any real €0 checkout evidence, (4) GSC coverage numbers
