@@ -21,6 +21,12 @@ public class LitemallRetireCandidate {
     public static final String STATUS_APPROVED = "approved";
     public static final String STATUS_DISMISSED = "dismissed";
     public static final String STATUS_EXECUTED = "executed";
+    /**
+     * Wave 26: an executed NARROWING row whose goods was put back ON SALE by a restore. Terminal
+     * like {@code executed}; the row is kept rather than deleted so the audit trail still shows
+     * that the goods left the storefront and came back. Never produced by the scorer/governor.
+     */
+    public static final String STATUS_RESTORED = "restored";
 
     private Integer id;
     private Integer goodsId;

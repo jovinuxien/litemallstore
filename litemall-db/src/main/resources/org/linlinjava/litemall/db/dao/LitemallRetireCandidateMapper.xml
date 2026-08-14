@@ -69,4 +69,27 @@
     where id = #{id} and status = #{expect} and deleted = 0
   </update>
 
+  <!-- Wave 26 narrowing: stage a whole batch as APPROVED with an execute_on, for the existing
+       daily executor to flip. Decisions are still never clobbered — only a row that is still
+       'proposed' is taken over.
+
+       MySQL evaluates ON DUPLICATE KEY UPDATE assignments LEFT TO RIGHT, and a column read after
+       its own assignment sees the NEW value. `status` is therefore assigned LAST, so every guard
+       above it tests the row's PRE-EXISTING status. Reordering these lines silently changes the
+       semantics to "always overwrite". -->
+  <insert id="insertApprovedBatch">
+    insert into litemall_retire_candidate
+      (goods_id, `day`, score, reasons, status, execute_on, add_time, update_time, deleted)
+    values
+    <foreach collection="rows" item="r" separator=",">
+      (#{r.goodsId}, #{r.day}, coalesce(#{r.score}, 0.00), #{r.reasons},
+       'approved', #{r.executeOn}, now(), now(), 0)
+    </foreach>
+    on duplicate key update
+      execute_on  = if(status = 'proposed', values(execute_on), execute_on),
+      reasons     = if(status = 'proposed', values(reasons), reasons),
+      update_time = if(status = 'proposed', now(), update_time),
+      status      = if(status = 'proposed', 'approved', status)
+  </insert>
+
 </mapper>

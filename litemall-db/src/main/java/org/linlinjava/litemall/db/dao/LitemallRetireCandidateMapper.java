@@ -41,4 +41,13 @@ public interface LitemallRetireCandidateMapper {
      */
     int updateStatus(@Param("id") int id, @Param("expect") String expect, @Param("status") String status,
                      @Param("executeOn") LocalDate executeOn);
+
+    /**
+     * Wave-26 narrowing: stage a batch of rows as {@code approved} with an {@code execute_on}, to
+     * be flipped by the existing daily executor. A row that already carries a decision
+     * (approved/dismissed/executed) is left untouched — the same never-clobber rule as
+     * {@link #upsertProposal}. Returns rows affected as MySQL counts them (1 per insert, 2 per
+     * updated duplicate), so it is NOT a staged-row count — count what you passed in instead.
+     */
+    int insertApprovedBatch(@Param("rows") List<LitemallRetireCandidate> rows);
 }

@@ -11,6 +11,7 @@ import org.linlinjava.litemall.goods.application.insight.GovernanceResult;
 import org.linlinjava.litemall.goods.application.insight.InsightService;
 import org.linlinjava.litemall.goods.application.insight.MarginBasisService;
 import org.linlinjava.litemall.goods.application.insight.RetirementAdminService;
+import org.linlinjava.litemall.goods.application.inventoryflow.CatalogNarrowingService;
 import org.linlinjava.litemall.goods.application.inventoryflow.RetirementExecutor;
 import org.linlinjava.litemall.goods.application.search.SearchStatAdminService;
 import org.linlinjava.litemall.goods.application.search.SearchStatRollupTask;
@@ -65,6 +66,18 @@ public class AdminInsightController {
         public BigDecimal margin;
     }
 
+    /** Wave 26 narrowing. {@code executeOn} defaults to today; {@code dryRun} stages nothing. */
+    public static class NarrowRequest {
+        public List<Integer> anchorCategoryIds;
+        public LocalDate executeOn;
+        public Boolean dryRun;
+    }
+
+    /** Wave 26 restore — L1 roots to bring back on sale. */
+    public static class NarrowRestoreRequest {
+        public List<Integer> categoryIds;
+    }
+
     public static class MarginBasisRequest {
         public List<Integer> goodsIds;
         public List<Integer> categoryIds;
@@ -88,6 +101,7 @@ public class AdminInsightController {
     private final SearchStatAdminService searchStatAdminService;
     private final SearchStatRollupTask searchStatRollupTask;
     private final SearchTrendingService searchTrendingService;
+    private final CatalogNarrowingService catalogNarrowingService;
 
     public AdminInsightController(InsightService insightService,
                                   RetirementAdminService retirementAdminService,
@@ -99,7 +113,8 @@ public class AdminInsightController {
                                   PromoCandidateAdminService promoCandidateAdminService,
                                   SearchStatAdminService searchStatAdminService,
                                   SearchStatRollupTask searchStatRollupTask,
-                                  SearchTrendingService searchTrendingService) {
+                                  SearchTrendingService searchTrendingService,
+                                  CatalogNarrowingService catalogNarrowingService) {
         this.insightService = insightService;
         this.retirementAdminService = retirementAdminService;
         this.arrivalInsightService = arrivalInsightService;
@@ -111,6 +126,7 @@ public class AdminInsightController {
         this.searchStatAdminService = searchStatAdminService;
         this.searchStatRollupTask = searchStatRollupTask;
         this.searchTrendingService = searchTrendingService;
+        this.catalogNarrowingService = catalogNarrowingService;
     }
 
     /**
@@ -195,6 +211,42 @@ public class AdminInsightController {
     @PostMapping("/retire/run")
     public Object retireRun() {
         return ResponseUtil.ok(retirementExecutor.execute(LocalDate.now()));
+    }
+
+    // ---- Wave 26: narrowing the storefront to an anchor ------------------------------------------
+
+    /** Per-L1 on-sale counts split anchor / non-anchor. Read-only — no rows are staged. */
+    @GetMapping("/narrow/preview")
+    public Object narrowPreview(@RequestParam List<Integer> anchorCategoryIds) {
+        try {
+            return ResponseUtil.ok(catalogNarrowingService.preview(anchorCategoryIds));
+        } catch (IllegalArgumentException ex) {
+            return ResponseUtil.fail(402, ex.getMessage());
+        }
+    }
+
+    /**
+     * Stage every on-sale CJ good OUTSIDE the anchors for off-sale, executed by the existing
+     * retirement executor. Reversible via {@code /narrow/restore}; nothing is deleted.
+     */
+    @PostMapping("/narrow")
+    public Object narrow(@RequestBody NarrowRequest request) {
+        try {
+            return ResponseUtil.ok(catalogNarrowingService.narrow(
+                    request.anchorCategoryIds, request.executeOn, Boolean.TRUE.equals(request.dryRun)));
+        } catch (IllegalArgumentException ex) {
+            return ResponseUtil.fail(402, ex.getMessage());
+        }
+    }
+
+    /** Put the goods a narrowing run took off sale back ON SALE, for the given L1 roots. */
+    @PostMapping("/narrow/restore")
+    public Object narrowRestore(@RequestBody NarrowRestoreRequest request) {
+        try {
+            return ResponseUtil.ok(catalogNarrowingService.restore(request.categoryIds));
+        } catch (IllegalArgumentException ex) {
+            return ResponseUtil.fail(402, ex.getMessage());
+        }
     }
 
     // ---- Wave 14: arrivals ----------------------------------------------------------------------
