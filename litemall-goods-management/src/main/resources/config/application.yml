@@ -156,6 +156,36 @@ spring:
       - { category: "Computer & Office",          per-leaf-limit: 25, limit: 0, nightly: false }
       - { category: "Bags & Shoes",               per-leaf-limit: 25, limit: 0, nightly: false }
       - { category: "Home Improvement",           per-leaf-limit: 25, limit: 0 }
+      # ---- Wave 26: DE-WAREHOUSE SOURCING (measured 2026-08-15) -------------------------
+      # These acquire German-warehoused stock in our price band. They are NOT a filter on the
+      # existing catalogue: Phase 1a measured DE at 0.30% of CJ supply storewide, so filtering
+      # what we already mirror would leave ~40 products. Acquisition is the only route.
+      #
+      # ⚠ minPrice/maxPrice bound CJ COST IN USD. Our €25–80 RETAIL band at margin 2.5 is
+      # €10–32 of cost, and at fx 0.866 that is $11.55–$36.95. Do not "fix" these to euros.
+      #
+      # Leaves, not L1s, and only ones with measured DE stock: DE is a property of a few hundred
+      # individual SKUs, and 12 leaves hold 308 of the 315 found. Sweeping a whole L1 for DE
+      # spends points on leaves that have none. Counts below are CJ SUPPLY at probe time
+      # (docs/wave26-de-sourcing-probe-2026-08-15.md) — what we could acquire, not what we hold.
+      # ~1 paced call per leaf per night, ~600 points total.
+      #
+      # ⚠ SEASONAL: Christmas Decoration and Event & Party are two of the top three, measured in
+      # August. Expect their DE stock to move with the season, not to be a permanent supply.
+      - { category-id: "7B975B46-46DF-4C3A-BC58-1F4F2DDB9413", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Decorative Flowers & Wreaths (78 DE)
+      - { category-id: "C329460A-9074-4E42-B1FD-D9E91568A64B", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Event & Party Supplies (49)
+      - { category-id: "B62EE40F-7650-4715-A7A5-BA227540593C", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Bathroom Storage (48)
+      - { category-id: "56845C3D-4D9E-4729-B5D4-6D7DE310C031", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Kitchen Storage (38)
+      - { category-id: "621F9C38-814C-40C2-9F9D-7CE12DB8FB4C", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Christmas Decoration Supplies (25, seasonal)
+      - { category-id: "9FC79C6B-AE70-472C-B8F8-D62479F0D03E", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Power Tools (17)
+      - { category-id: "1A9A9965-A914-46D7-B8E2-49AD256F2B6B", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Curtains (15)
+      - { category-id: "FD2629CD-9379-4EC4-BCF3-5998AEA3E642", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Fabric (13)
+      - { category-id: "93671B1A-DE8F-4398-B139-8B2214206648", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Apparel Sewing & Fabric (8)
+      - { category-id: "7E431502-1275-4FF3-A236-B97C107C3AFA", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Flashlights & Torches (7)
+      - { category-id: "300CC260-CF9D-4AEA-9FC2-6C8DB8A35B51", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Cushion Covers (5)
+      - { category-id: "36C55794-4437-4782-B8CF-D265C12CA4E5", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Downlights (5)
+      # TODO: most Home Improvement leaves are still unmeasured — the probe ran out of CJ points
+      # after 24 of 68 leaves. Add its dense leaves once that sweep finishes.
     # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
     # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
     # the CJ category path — and checked BEFORE the mirrored-tree resolution, so a matching entry
