@@ -32,6 +32,15 @@ logging:
     # into container logs, which are plain text on the host and go to anyone with
     # `docker logs`. INFO here.
     org.springframework.web: INFO
+    # ⚠ THE line that OOM-killed this service on 2026-08-15. Both application.yml and
+    # litemall-db's application.yml set org.linlinjava.litemall.db: DEBUG, which logs
+    # EVERY SQL statement — 14k lines a minute, 611 MB in under two hours, into a tmpfs
+    # whose pages count against the container's 1.5 GiB memory limit. Spring's
+    # logging.level.* overrides logback-spring.xml, and the more specific `.db` key beats
+    # a package-level override, so neither the XML nor a LOGGING_LEVEL_ORG_LINLINJAVA_
+    # LITEMALL env can hold it down — it has to be set here, at the same specificity.
+    # Dev keeps its SQL logging; only prod is quiet.
+    org.linlinjava.litemall.db: INFO
 
 management:
   endpoints:
