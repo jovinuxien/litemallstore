@@ -608,6 +608,12 @@ services:
       # or the floor judges anchor goods at their old 1.25x prices and off-sales
       # roughly twice as many. See runbook-wave26-phase2-anchor.md.
       LITEMALL_GOODS_PRICE_FLOOR: ${LITEMALL_GOODS_PRICE_FLOOR:-0}
+      # L1 root ids the storefront is narrowed to (comma-separated; empty = OFF). Narrowing
+      # off-sales today's goods, but the CJ pipeline keeps mirroring all 14 L1s and the nightly
+      # promote lands every NEW product on sale — one night after narrowing, 328 new non-anchor
+      # goods went live and the homepage started advertising emptied categories again. Applies to
+      # NEW goods only, so /insight/narrow/restore still works. Clear it to un-narrow.
+      LITEMALL_GOODS_ANCHOR_CATEGORY_IDS: ${LITEMALL_GOODS_ANCHOR_CATEGORY_IDS:-}
       # Attempts per CJ /product/list page. CJ QPS-rejects ~17% of calls even at
       # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
       # zero products silently. Exposed so the pace can be tuned without a rebuild.
