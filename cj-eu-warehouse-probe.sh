@@ -57,6 +57,17 @@ API="https://developers.cjdropshipping.com/api2.0/v1"
 COUNTRIES="${COUNTRIES:-DE,US}"
 VERIFIED="${VERIFIED:-0}"
 LEAVES_PER_L1="${LEAVES_PER_L1:-6}"
+# Wave 26 Phase 2 (sourcing): optional CJ-side price band, applied to EVERY /product/list
+# call. ⚠ These bound CJ's COST in USD, not our retail in EUR. Our €25–80 retail band at
+# margin 2.5 is €10–32 of cost, and at fx 0.866 that is $11.55–$36.95 — passing the EUR
+# numbers straight through would silently source a different band.
+MIN_PRICE="${MIN_PRICE:-}"
+MAX_PRICE="${MAX_PRICE:-}"
+# Restrict the sweep to specific L1s (exact names, PIPE-separated). Empty = all 14.
+# ⚠ Pipe, not comma: "Home, Garden & Furniture" CONTAINS a comma, so a comma-separated
+# list silently splits it into "Home" and "Garden & Furniture" — neither matches, and the
+# sweep quietly probes only the other anchor. Same trap the CSV writer below documents.
+ONLY_L1="${ONLY_L1:-}"
 PACE="${PACE:-3}"
 RETRIES="${RETRIES:-3}"          # attempts per call before a cell is recorded empty
 RETRY_PAUSE="${RETRY_PAUSE:-8}"  # seconds to back off after a QPS rejection
@@ -119,6 +130,19 @@ LEAVES=$(echo "$TREE" | jq -r '
   | select(.categoryId != null and .categoryId != "")
   | [$l1, .categoryId, .categoryName] | @tsv')
 
+# Wave 26: optional L1 restriction, applied BEFORE sampling so LEAVES_PER_L1 budgets
+# the chosen categories rather than being spent across all 14.
+if [ -n "$ONLY_L1" ]; then
+  LEAVES=$(echo "$LEAVES" | awk -F'\t' -v want="$ONLY_L1" '
+    BEGIN { n = split(want, a, "|"); for (i = 1; i <= n; i++) { gsub(/^ +| +$/, "", a[i]); keep[a[i]] = 1 } }
+    ($1 in keep)')
+  [ -n "$LEAVES" ] || { echo "ERROR: ONLY_L1='$ONLY_L1' matched no L1 category (exact names, pipe-separated)." >&2; exit 1; }
+  want_n=$(echo "$ONLY_L1" | awk -F'|' '{print NF}')
+  got_n=$(echo "$LEAVES" | cut -f1 | sort -u | grep -c .)
+  [ "$want_n" = "$got_n" ] || echo "    ⚠ ONLY_L1 asked for $want_n L1s but matched $got_n — check exact names."
+  echo "    restricted to L1: $ONLY_L1"
+fi
+
 TOTAL_LEAVES=$(echo "$LEAVES" | grep -c . || true)
 echo "    $TOTAL_LEAVES leaves across $(echo "$LEAVES" | cut -f1 | sort -u | grep -c .) L1 categories."
 
@@ -161,6 +185,8 @@ list_total() {  # $1 leafId, $2 countryCode (optional), $3 verified flag
   local url="$API/product/list?pageNum=1&pageSize=1&categoryId=$1"
   [ -n "${2:-}" ] && url="$url&countryCode=$2"
   [ "${3:-0}" = "1" ] && url="$url&verifiedWarehouse=1"
+  [ -n "$MIN_PRICE" ] && url="$url&minPrice=$MIN_PRICE"
+  [ -n "$MAX_PRICE" ] && url="$url&maxPrice=$MAX_PRICE"
   local body attempt=0
   while :; do
     body=$(get "$url")
