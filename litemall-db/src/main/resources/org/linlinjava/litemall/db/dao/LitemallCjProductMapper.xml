@@ -90,6 +90,11 @@
         reviews_synced_time = coalesce(#{reviewsSyncedTime}, reviews_synced_time),
         supplier_id = coalesce(#{supplierId}, supplier_id),
         supplier_name = coalesce(#{supplierName}, supplier_name),
+        <!-- Wave 26 Phase 1b: coalesce, so a probe that could not read inventory (empty response ⇒
+             default-stock fallback) leaves the previous reading intact instead of overwriting a
+             real measurement with "unprobed". Absent is not zero. -->
+        eu_stock_num = coalesce(#{euStockNum}, eu_stock_num),
+        warehouse_countries = coalesce(#{warehouseCountries}, warehouse_countries),
         enriched_time = now(),
         update_time = now()
     where pid = #{pid} and deleted = 0
@@ -141,5 +146,40 @@
       #{pid}
     </foreach>
   </update>
+
+  <!-- Wave 26 Phase 1b: EU-capture coverage. probedTotal counts rows with a REAL inventory reading
+       (eu_stock_num NOT NULL); enrichedTotal is the denominator that shows how far the rotation has
+       reached. Reporting euStocked without probedTotal would let an unprobed catalogue read as a
+       catalogue with no EU stock. -->
+  <select id="selectEuCoverage" resultType="map">
+    select count(*) as enrichedTotal,
+           coalesce(sum(eu_stock_num is not null), 0) as probedTotal,
+           coalesce(sum(eu_stock_num > 0), 0) as euStocked
+    from litemall_cj_product
+    where deleted = 0 and enriched_time is not null
+  </select>
+
+  <!-- Per-L1 EU survival over OUR catalogue (not CJ supply): on-sale CJ goods joined to their
+       snapshot row, rolled up to the L1 root. probedCount is the honest denominator — euSurvivalPct
+       is computed over it, never over onSaleCount. -->
+  <select id="selectEuSurvivalByRoot" resultType="map">
+    with recursive tree as (
+      select id, id as root from litemall_category where pid = 0 and deleted = 0
+      union all
+      select c.id, t.root from litemall_category c join tree t on c.pid = t.id where c.deleted = 0
+    )
+    select t.root as categoryId,
+           cat.name as name,
+           count(*) as onSaleCount,
+           coalesce(sum(cp.eu_stock_num is not null), 0) as probedCount,
+           coalesce(sum(cp.eu_stock_num > 0), 0) as euStockedCount,
+           round(avg(case when cp.eu_stock_num > 0 then cp.eu_stock_num end), 1) as avgEuStock
+    from litemall_goods g
+    join tree t on t.id = g.category_id
+    join litemall_category cat on cat.id = t.root
+    left join litemall_cj_product cp on cp.pid = g.cj_pid and cp.deleted = 0
+    where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
+    group by t.root, cat.name
+  </select>
 
 </mapper>

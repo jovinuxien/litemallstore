@@ -7,6 +7,7 @@ import org.linlinjava.litemall.goods.application.deals.AutoDailyDealTask;
 import org.linlinjava.litemall.goods.application.promo.PromoCandidateAdminService;
 import org.linlinjava.litemall.goods.application.insight.ArrivalInsightService;
 import org.linlinjava.litemall.goods.application.insight.CategoryMarginService;
+import org.linlinjava.litemall.goods.application.insight.EuSourcingService;
 import org.linlinjava.litemall.goods.application.insight.GovernanceResult;
 import org.linlinjava.litemall.goods.application.insight.InsightService;
 import org.linlinjava.litemall.goods.application.insight.MarginBasisService;
@@ -102,6 +103,7 @@ public class AdminInsightController {
     private final SearchStatRollupTask searchStatRollupTask;
     private final SearchTrendingService searchTrendingService;
     private final CatalogNarrowingService catalogNarrowingService;
+    private final EuSourcingService euSourcingService;
 
     public AdminInsightController(InsightService insightService,
                                   RetirementAdminService retirementAdminService,
@@ -114,7 +116,8 @@ public class AdminInsightController {
                                   SearchStatAdminService searchStatAdminService,
                                   SearchStatRollupTask searchStatRollupTask,
                                   SearchTrendingService searchTrendingService,
-                                  CatalogNarrowingService catalogNarrowingService) {
+                                  CatalogNarrowingService catalogNarrowingService,
+                                  EuSourcingService euSourcingService) {
         this.insightService = insightService;
         this.retirementAdminService = retirementAdminService;
         this.arrivalInsightService = arrivalInsightService;
@@ -127,6 +130,7 @@ public class AdminInsightController {
         this.searchStatRollupTask = searchStatRollupTask;
         this.searchTrendingService = searchTrendingService;
         this.catalogNarrowingService = catalogNarrowingService;
+        this.euSourcingService = euSourcingService;
     }
 
     /**
@@ -211,6 +215,19 @@ public class AdminInsightController {
     @PostMapping("/retire/run")
     public Object retireRun() {
         return ResponseUtil.ok(retirementExecutor.execute(LocalDate.now()));
+    }
+
+    /**
+     * Wave 26 Phase 1b: per-L1 EU-warehouse survival across the ON-SALE catalogue.
+     *
+     * <p>Read the {@code probedCount} on every row. Coverage grows with the enrichment rotation, so
+     * {@code euSurvivalPct} is computed over what has actually been probed and is {@code null} —
+     * never 0 — where nothing has been. This reports what we HOLD; the Phase-1a probe script
+     * reports what CJ could SUPPLY.
+     */
+    @GetMapping("/eu-sourcing")
+    public Object euSourcing() {
+        return ResponseUtil.ok(euSourcingService.report());
     }
 
     // ---- Wave 26: narrowing the storefront to an anchor ------------------------------------------

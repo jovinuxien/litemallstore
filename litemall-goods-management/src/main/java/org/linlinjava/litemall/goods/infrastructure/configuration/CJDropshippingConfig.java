@@ -128,6 +128,25 @@ public class CJDropshippingConfig {
      */
     private String fullSyncDay = "SUNDAY";
 
+    /**
+     * Wave 26 Phase 1b: which warehouse country codes count as "EU stock" when the enrichment seam
+     * records the per-country inventory split. Phase 1a measured DE as CJ's ONLY EU warehouse
+     * (ES/CZ/IT/NL/BE/PL/SE/DK/AT and "EU" all returned zero on a 13k-product leaf), so this is a
+     * list of one today — kept configurable because the day CJ opens a second EU warehouse, this
+     * is the only line that should need changing. GB is deliberately absent: post-Brexit it does
+     * not serve EU customers without customs.
+     */
+    private java.util.Set<String> euWarehouseCountries = new java.util.LinkedHashSet<>(java.util.List.of("DE"));
+
+    public java.util.Set<String> getEuWarehouseCountries() {
+        return euWarehouseCountries;
+    }
+
+    public void setEuWarehouseCountries(java.util.Set<String> euWarehouseCountries) {
+        this.euWarehouseCountries = euWarehouseCountries == null
+                ? new java.util.LinkedHashSet<>() : euWarehouseCountries;
+    }
+
     public String getFullSyncDay() {
         return fullSyncDay;
     }
