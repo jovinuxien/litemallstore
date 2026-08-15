@@ -1,14 +1,48 @@
-# DE in-band sourcing probe — 2026-08-15 (PARTIAL)
+# DE in-band sourcing probe — 2026-08-15 (COMPLETE)
 
 Run: `COUNTRIES=DE LEAVES_PER_L1=99 ONLY_L1="Home, Garden & Furniture|Home Improvement"
 MIN_PRICE=11.55 MAX_PRICE=36.95 ./cj-eu-warehouse-probe.sh`
 
-## ⚠ Incomplete — CJ daily API points ran out mid-run
+## Run in two halves — the first ran out of CJ points
 
-24 of 68 leaves completed. The remaining 44 returned
-`Insufficient API points. Used today: 68340  Remaining: 0`. **Home Improvement — the
-denser half (5.18% DE storewide, and home to the Garden Tools pocket of 365 DE SKUs) —
-is essentially unmeasured.** Re-run after the daily reset to finish it.
+The morning run covered 24 of 68 leaves before hitting
+`Insufficient API points. Used today: 68340  Remaining: 0`. Home Improvement was swept
+after the daily reset at 16:00 UTC. **Both anchor L1s are now fully measured, 68 of 68
+leaves.**
+
+⚠ The morning aggregate under-reported: rows whose DE cell succeeded but whose
+denominator call failed were dropped entirely, hiding four leaves — including Bathroom
+Storage (48), Kitchen Storage (38) and Power Tools (17). Never let an ERR in one column
+silently discard a row's other columns.
+
+## Totals
+
+| L1 | leaves | in-band | DE | DE% |
+|---|---:|---:|---:|---:|
+| Home, Garden & Furniture | 24 (partial denominators) | 3,879+ | 315 | ~5.05% |
+| Home Improvement | 28 | 6,354 | **423** | **6.66%** |
+| **anchor cluster** | **68** | — | **~738** | — |
+
+Home Improvement is the denser half, as Phase 1a predicted (5.18% storewide).
+**Hand Tools alone is 277 DE of 632 in-band — 44%, the largest pocket found anywhere.**
+
+### Home Improvement leaves with DE stock
+
+| leaf | DE | in-band |
+|---|---:|---:|
+| Hand Tools | 277 | 632 |
+| Garden Tools | 51 | 861 |
+| Tool Sets | 26 | 260 |
+| Power Tools | 17 | 303 |
+| Wall Lamps | 12 | 617 |
+| Kitchen Appliances | 9 | 220 |
+| Flashlights & Torches | 7 | 121 |
+| Tools Storage | 6 | 86 |
+| Downlights | 5 | 49 |
+| Home Appliance Parts · String Lights · Home Improvement Materials · Woodworking Machinery · Chandeliers · Welding · Air Conditioning | 1–3 each | — |
+
+18 leaves are configured as sourcing targets (DE ≥ 5), covering ~689 of the ~738 found.
+Leaves below 5 are left out: a target costs a paced CJ call every night.
 
 ## The band, and why it is in dollars
 

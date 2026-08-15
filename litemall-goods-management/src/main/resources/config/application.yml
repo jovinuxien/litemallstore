@@ -184,8 +184,17 @@ spring:
       - { category-id: "7E431502-1275-4FF3-A236-B97C107C3AFA", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Flashlights & Torches (7)
       - { category-id: "300CC260-CF9D-4AEA-9FC2-6C8DB8A35B51", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Cushion Covers (5)
       - { category-id: "36C55794-4437-4782-B8CF-D265C12CA4E5", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Downlights (5)
-      # TODO: most Home Improvement leaves are still unmeasured — the probe ran out of CJ points
-      # after 24 of 68 leaves. Add its dense leaves once that sweep finishes.
+      # Home Improvement, measured 2026-08-15 16:00 UTC (28 leaves, 423 DE of 6,354 in-band =
+      # 6.66% — denser than Home, Garden & Furniture's 5.05%, as Phase 1a predicted at 5.18%).
+      # Hand Tools alone is 277 DE of 632 in-band (44%), the largest pocket found anywhere.
+      - { category-id: "55795653-09E8-4EE6-B477-1E30E7A601B2", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Hand Tools (277 DE)
+      - { category-id: "CDB10A90-3D34-4396-99B2-919E7CAD4B53", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Garden Tools (51)
+      - { category-id: "7B18EF9A-B48E-4917-84AF-624919C32CA6", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Tool Sets (26)
+      - { category-id: "AC4A8F93-27FF-4531-8394-53E97F02159D", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Wall Lamps (12)
+      - { category-id: "A028998B-C8CF-4533-BBE4-E04FA244CDC6", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Kitchen Appliances (9)
+      - { category-id: "924090C3-8179-437F-8219-37582113FB08", limit: 200, country-code: DE, min-price: 11.55, max-price: 36.95 }  # Tools Storage (6)
+      # Both anchor L1s are now fully swept (68 of 68 leaves). Leaves with <5 DE products are
+      # deliberately left out: a target costs a paced call every night for a handful of SKUs.
     # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
     # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of
     # the CJ category path — and checked BEFORE the mirrored-tree resolution, so a matching entry
