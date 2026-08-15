@@ -78,6 +78,12 @@ export interface ProductDetailData {
   specifications: DetailSpecification[];
   attributes: DetailAttribute[];
   categoryIds: number[];
+  /**
+   * Wave 26 Phase 1b: present ONLY when the backend holds a measured, non-zero EU warehouse
+   * reading for this product. Absent means "never probed" OR "probed, no EU stock" — the
+   * storefront treats both as "show nothing", so absence is never a claim.
+   */
+  euStock?: { units?: number; countries?: string[] } | null;
 }
 
 export const getProductDetail = createAsyncThunk<ProductDetailData, string, { rejectValue: ApiResult<null> }>(
