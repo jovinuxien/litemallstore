@@ -1426,6 +1426,41 @@
 > resolve as enrichment reaches them. The spec's "~30 in-band SKUs get genuinely
 > rewritten copy" is NOT done: that is human/editorial work, not a code change.
 >
+> **MORNING-AFTER (2026-08-15) — three findings, all from looking at prod:**
+> 1. **NARROWING LEAKS.** On-sale climbed 2,200 → 2,668 overnight. NOT narrowed goods
+>    returning (all still off sale) — **428 new goods from the 03:00 sync, 328 outside
+>    the anchor**, landing on sale because the promote INSERT branch always does. The
+>    homepage was advertising Women's Clothing / Jewelry / Bags again. Fixed
+>    `18583700c`: `litemall.goods.anchor-category-ids` (env
+>    `LITEMALL_GOODS_ANCHOR_CATEGORY_IDS`, compose passthrough, empty = off) off-sales
+>    NEW non-anchor goods at promote — **NEW GOODS ONLY**, because a standing rule
+>    would undo `/insight/narrow/restore`. Prod set to `1036143,1036495`; the 362 that
+>    had leaked were off-saled; catalogue back to anchor-only (1,518 + 788 = 2,306,
+>    index 2,306, banners back to 2 after their 10-min TTL).
+>    ⚠ **Acceptance lesson: proving a category flips BACK is not proving narrowing
+>    HOLDS across a nightly cycle.** Test the cycle, not the toggle.
+> 2. **The enrich abort ate its own batch.** First 400-run: `119 enriched, 5 failed
+>    (batch requested 400, due 400) — STOPPED EARLY: 5 consecutive failures (last: no
+>    CJ detail for pid ...)`. The raise WORKED; the guard then discarded ~276 because
+>    five consecutive rows were products CJ has no detail for — a DATA GAP, not a
+>    fault. `isDataGap()` now excludes those (neither increments nor resets, so a real
+>    fault streak interrupted by one still trips). Quota exhaustion never occurred;
+>    order placement unaffected.
+> 3. **⚠ PROD INCIDENT: goods-management was OOM-KILLED 03:30:02** (restarts=1),
+>    mid-enrichment. `/app/logs` is a **tmpfs and its pages are charged to the
+>    container's memory cgroup**; logback ships `org.linlinjava.litemall` at DEBUG and
+>    rotates DAILY with no size cap, so it wrote **611 MB in under 2 h** against a
+>    1.5 GiB limit — JVM at 90.7% before the heavier batch tipped it. Truncating the
+>    file dropped the container to 51.4%, proving the log WAS the memory. Guards
+>    (`15aebe4f6`, container-recreate only): **tmpfs `size=256m`** +
+>    **`LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL=INFO`** (Spring overrides the XML; INFO
+>    still carries every line the runbooks read). **STILL OWED: a real
+>    SizeAndTimeBasedRollingPolicy + totalSizeCap in logback-spring.xml (needs a
+>    rebuild).** Evidence preserved at `/root/wave26-enrich-evidence-2026-08-15.log`.
+> ⚠ **Cloud routines CANNOT verify trovemo.com** — beyond having no SSH, the cloud
+> egress proxy BLOCKS the domain (`EGRESS_BLOCKED`, confirmed via curl and WebFetch).
+> The routine returned INCONCLUSIVE with zero data. Verify prod from the MAIN session.
+>
 > **Phase gates (nothing downstream starts until the gate above passes):**
 > P0 user decisions → P1 EU-warehouse survival report (GATE: anchor
 > confirmed against real EU stock) → P2 price floor + margin + narrowing
