@@ -28,7 +28,9 @@ import RecentlyViewed from './productDetailComponent/RecentlyViewed';
 import Reviews from './productDetailComponent/Reviews';
 import ShareButton from './productDetailComponent/ShareButton';
 import SoldByRow from './productDetailComponent/SoldByRow';
+import EuStockBadge from './productDetailComponent/EuStockBadge';
 import { brandIdOf } from 'app/shared/util/attribution';
+import { euStockOf } from 'app/shared/util/euStock';
 import './Detail.scss';
 
 const productId = (p: DetailProduct): number | undefined => {
@@ -307,6 +309,7 @@ const ProductDetailView: React.FC = () => {
           {goods.hot && <span className='lm-pdp__popular'>Popular</span>}
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
           <SoldByRow brandId={brandIdOf(goods)} />
+          <EuStockBadge stock={euStockOf(data)} />
           <RatingSummary goodsId={gid} />
           {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
 
