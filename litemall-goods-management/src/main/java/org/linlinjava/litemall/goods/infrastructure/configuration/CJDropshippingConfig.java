@@ -84,16 +84,20 @@ public class CJDropshippingConfig {
      * roughly N×(1+avgVariants) CJ calls. The job converges over successive runs via the
      * {@code enriched_time} cursor.
      *
-     * <p>Wave 26 raised this from 100. The storefront narrowed to ~2.2k goods with ~1k lacking a
-     * detail body; at 100/night that gap drained in ~11 nights, and the description==title rows
-     * Merchant Center flags persisted through every one of them.
+     * <p>Wave 26 raised this from 100 (the storefront narrowed to ~2.2k goods with ~1k lacking a
+     * detail body, and at 100/night that gap drained in ~11 nights), then settled at 200. Sized against the MEASURED CJ points budget (2026-08-15), not a guess:
+     * ~280 points per product (1 detail + 4.6 variant-inventory calls on average), a ~69k daily
+     * budget that CJ scales with ORDER volume rather than catalogue size, and ~3.4k/night for the
+     * anchor-only sync. 200 x 280 = ~56k, leaving headroom for order placement, which draws on the
+     * SAME budget. 400 would need ~112k — 1.6x the whole day, and the day it was tried the budget
+     * ran out mid-afternoon.
      *
      * <p>⚠ CJ daily points are shared ACCOUNT-WIDE with ORDER PLACEMENT. What makes a raised value
      * safe is that {@code CjDetailEnrichmentService.enrichBatch} abandons the batch on quota
      * exhaustion or repeated failure instead of grinding on. Env: {@code
      * LITEMALL_CJ_ENRICH_BATCH_SIZE} (0 disables enrichment).
      */
-    private int enrichBatchSize = 400;
+    private int enrichBatchSize = 200;
 
     /**
      * Demand-Driven CJ Enrichment: viewing a shallow CJ goods (customer detail page, or the
