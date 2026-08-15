@@ -141,4 +141,23 @@ public class LogbackConfigTest {
         assertTrue(errors.isEmpty(), "logback rejected the configuration: " + errors);
         context.stop();
     }
+
+    /**
+     * The XML is only half the story: Spring's logging.level.* OVERRIDES logback-spring.xml, and
+     * Spring resolves the MOST SPECIFIC logger key. application.yml sets
+     * org.linlinjava.litemall.db: DEBUG — every SQL statement, ~14k lines a minute — which no
+     * package-level override can hold down. It has to be countered at the same specificity, in
+     * the prod profile. That single line is what OOM-killed this service.
+     */
+    @Test
+    public void prodSilencesTheSqlDebugFirehose() throws Exception {
+        String prodYml;
+        try (InputStream in = getClass().getClassLoader().getResourceAsStream("config/application-prod.yml")) {
+            assertNotNull(in, "application-prod.yml missing from the classpath");
+            prodYml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertTrue(prodYml.matches("(?s).*org\\.linlinjava\\.litemall\\.db:\\s*(INFO|WARN|ERROR).*"),
+                "application-prod.yml must pin org.linlinjava.litemall.db above DEBUG — "
+                        + "application.yml sets it to DEBUG and the more specific key wins");
+    }
 }
