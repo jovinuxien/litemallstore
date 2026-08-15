@@ -628,6 +628,13 @@ services:
       # and OOM-killed this container; the rolling caps now bound it, but do not leave it
       # on. INFO carries every line the Wave-26 runbooks read.
       LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL: ${LITEMALL_GOODS_LOG_LEVEL:-INFO}
+      # ⚠ SEPARATE KEY ON PURPOSE. application.yml (and litemall-db's) set
+      # org.linlinjava.litemall.db: DEBUG = every SQL statement, ~14k lines/minute. Spring
+      # resolves the MOST SPECIFIC logger key, so the package-level override above cannot
+      # hold it down — this is the one that actually silences the SQL firehose that filled
+      # 611 MB and OOM-killed the container. application-prod.yml now sets it too; this env
+      # is what makes it effective without waiting for a rebuild.
+      LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB: ${LITEMALL_GOODS_DB_LOG_LEVEL:-INFO}
       # Attempts per CJ /product/list page. CJ QPS-rejects ~17% of calls even at
       # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
       # zero products silently. Exposed so the pace can be tuned without a rebuild.
