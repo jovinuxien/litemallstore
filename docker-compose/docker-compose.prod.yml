@@ -644,7 +644,7 @@ services:
       # so this is the FIRST knob to turn down if paid orders start parking on CJ
       # errors — a container recreate, no rebuild. 0 disables enrichment.
       # Enrichment aborts itself on quota exhaustion or 5 consecutive failures.
-      LITEMALL_CJ_ENRICH_BATCH_SIZE: ${LITEMALL_CJ_ENRICH_BATCH_SIZE:-400}
+      LITEMALL_CJ_ENRICH_BATCH_SIZE: ${LITEMALL_CJ_ENRICH_BATCH_SIZE:-200}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]}
     mem_limit: 1536m
 
