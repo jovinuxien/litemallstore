@@ -119,30 +119,41 @@ spring:
     # paced call per leaf; legacy mode ~ceil(limit/page-size) calls per target.
     # NIGHTLY-PRUNE INVARIANT: the nightly cron runs THIS plan with stale-prune — every category
     # the storefront should keep must stay covered here, or its products age out at 03:00.
+    # Wave 26: which day runs the FULL plan (every target, WITH stale-prune + native reconcile).
+    # On the other six days only `nightly: true` targets are swept, additively.
+    # Blank/typo ⇒ every day is a full run, i.e. the pre-Wave-26 behaviour.
+    full-sync-day: ${LITEMALL_CJ_FULL_SYNC_DAY:SUNDAY}
     catalog-targets:
+      # ⚠ Wave 26 — `nightly: false` on the NON-ANCHOR targets. CJ's daily API points are a hard
+      # shared budget (~69k, and CJ scales it with ORDER volume, not catalogue size). Measured
+      # 2026-08-15: sweeping all ~540 leaves costs ~27k of it — 40% of the day — to mirror
+      # categories the storefront no longer sells, while enrichment AND order placement draw on
+      # the same budget and the day ran out mid-afternoon. These still refresh every SUNDAY, so
+      # the mirror stays current enough to take a category back (pipeline broad, storefront
+      # narrow); only the daily cost goes away.
       # legacy deep targets — keep their flagship leaves richer than the light fill
-      - { category: "Toys, Kids & Babies", limit: 200 }   # baby
-      - { category: "Women's Clothing",    limit: 300 }   # women
-      - { category: "Consumer Electronics", limit: 200 }  # electronics
+      - { category: "Toys, Kids & Babies", limit: 200, nightly: false }   # baby
+      - { category: "Women's Clothing",    limit: 300, nightly: false }   # women
+      - { category: "Consumer Electronics", limit: 200, nightly: false }  # electronics
       # Wave 14 light fill sized for the ~12k catalog target: every leaf of every CJ L1
       # tree gets its own ~25-product budget. `limit: 0` is EXPLICIT and means uncapped
       # in per-leaf mode (the Java default of 200 silently capped each target — the
       # Wave-14 inflow-ceiling gotcha); per-leaf-limit is the real control. ~540 leaves
       # x 25 ≈ 13.5k raw minus duplicate-category overlap → sustains ~12,000 on-sale.
       # 25 < page-size, so this is still exactly 1 paced call per leaf.
-      - { category: "Women's Clothing",           per-leaf-limit: 25, limit: 0 }
-      - { category: "Toys, Kids & Babies",        per-leaf-limit: 25, limit: 0 }
-      - { category: "Consumer Electronics",       per-leaf-limit: 25, limit: 0 }
-      - { category: "Pet Supplies",               per-leaf-limit: 25, limit: 0 }
-      - { category: "Men's Clothing",             per-leaf-limit: 25, limit: 0 }
+      - { category: "Women's Clothing",           per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Toys, Kids & Babies",        per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Consumer Electronics",       per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Pet Supplies",               per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Men's Clothing",             per-leaf-limit: 25, limit: 0, nightly: false }
       - { category: "Home, Garden & Furniture",   per-leaf-limit: 25, limit: 0 }
-      - { category: "Health, Beauty & Hair",      per-leaf-limit: 25, limit: 0 }
-      - { category: "Sports & Outdoors",          per-leaf-limit: 25, limit: 0 }
-      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 25, limit: 0 }
-      - { category: "Jewelry & Watches",          per-leaf-limit: 25, limit: 0 }
-      - { category: "Phones & Accessories",       per-leaf-limit: 25, limit: 0 }
-      - { category: "Computer & Office",          per-leaf-limit: 25, limit: 0 }
-      - { category: "Bags & Shoes",               per-leaf-limit: 25, limit: 0 }
+      - { category: "Health, Beauty & Hair",      per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Sports & Outdoors",          per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Automobiles & Motorcycles",  per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Jewelry & Watches",          per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Phones & Accessories",       per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Computer & Office",          per-leaf-limit: 25, limit: 0, nightly: false }
+      - { category: "Bags & Shoes",               per-leaf-limit: 25, limit: 0, nightly: false }
       - { category: "Home Improvement",           per-leaf-limit: 25, limit: 0 }
     # CJ category → local litemall category id, as "Name=<localId>" entries (a LIST, not a map:
     # Spring mangles map keys containing spaces). Matched case-insensitively against ANY segment of

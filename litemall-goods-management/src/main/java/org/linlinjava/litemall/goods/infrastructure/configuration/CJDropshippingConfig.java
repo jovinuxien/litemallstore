@@ -118,6 +118,21 @@ public class CJDropshippingConfig {
     private List<CatalogTarget> catalogTargets = new ArrayList<>();
 
     /**
+     * Wave 26: day of week on which the FULL catalog plan runs (every target, with stale-prune and
+     * native reconcile). On the other six days only {@link CatalogTarget#isNightly()} targets are
+     * swept, additively. Blank/invalid ⇒ every day is a full run (pre-Wave-26 behaviour).
+     */
+    private String fullSyncDay = "SUNDAY";
+
+    public String getFullSyncDay() {
+        return fullSyncDay;
+    }
+
+    public void setFullSyncDay(String fullSyncDay) {
+        this.fullSyncDay = fullSyncDay;
+    }
+
+    /**
      * CJ-category → local litemall category id, as {@code "Category Name=<localId>"} entries (a List,
      * NOT a Map — Spring's relaxed binding mangles map KEYS containing spaces, e.g. "Shoulder Bags").
      * Matched case-insensitively against any segment of the CJ category path, so a CJ product folds
@@ -176,6 +191,30 @@ public class CJDropshippingConfig {
         private String countryCode;
         private BigDecimal minPrice;
         private BigDecimal maxPrice;
+        /**
+         * Wave 26: does this target run on the nightly sweep, or only on the weekly full sync?
+         * Default TRUE = every night, which is the pre-Wave-26 behaviour.
+         *
+         * <p>Why it exists: CJ's daily API points are a hard, shared budget (~69k, and CJ scales it
+         * with ORDER volume, not catalogue size). Measured 2026-08-15: the nightly sweep over all
+         * ~540 leaves costs ~27k of it — 40% of the day — to mirror 12 categories the storefront no
+         * longer sells, starving both enrichment and ORDER PLACEMENT, which share the same budget.
+         *
+         * <p>Setting this false on the non-anchor targets keeps them mirrored (weekly, so the
+         * catalogue stays reversible — "pipeline broad, storefront narrow" still holds) while the
+         * anchor refreshes nightly. ⚠ A nightly subset runs as a TARGETED sync: additive only, no
+         * stale-prune and no native reconcile, because both would judge the whole catalogue against
+         * a slice. Pruning happens on the weekly full run.
+         */
+        private boolean nightly = true;
+
+        public boolean isNightly() {
+            return nightly;
+        }
+
+        public void setNightly(boolean nightly) {
+            this.nightly = nightly;
+        }
 
         /** Validated filter for this target; {@link CjListFilter#NONE} when nothing is configured. */
         public CjListFilter toFilter() {
