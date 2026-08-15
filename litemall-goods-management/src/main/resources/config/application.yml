@@ -208,6 +208,13 @@ litemall:
     # OFF-SALED (reversible), never silently repriced — retail must stay cost x margin or the
     # margin guard, deal floors and coupon guard all compute against a lie.
     price-floor: ${LITEMALL_GOODS_PRICE_FLOOR:0}
+    # Wave 26 Phase 2: L1 root category ids the storefront is narrowed to. EMPTY = OFF (default).
+    # Narrowing off-sales the goods that exist today, but the CJ pipeline keeps mirroring all 14
+    # L1s and the nightly promote lands every NEW product on sale — measured on prod one night
+    # after narrowing: 428 new on-sale goods, 328 outside the anchor. Without this the storefront
+    # drifts back to broad within weeks. Applies to NEW goods only, so /insight/narrow/restore
+    # still works. Comma-separated, e.g. "1036143,1036495".
+    anchor-category-ids: ${LITEMALL_GOODS_ANCHOR_CATEGORY_IDS:}
     # Display/JSON-LD currency served by /srv/goods/meta (Wave 13) — uppercase ISO,
     # mirroring the order service's LITEMALL_ORDER_STRIPE_CURRENCY (usd).
     currency: ${LITEMALL_GOODS_CURRENCY:USD}

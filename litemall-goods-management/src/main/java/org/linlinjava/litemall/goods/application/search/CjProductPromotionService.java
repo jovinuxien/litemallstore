@@ -22,6 +22,7 @@ import org.linlinjava.litemall.goods.infrastructure.acl.adapter.CjProductToNativ
 import org.linlinjava.litemall.goods.infrastructure.acl.adapter.NativeGoodsAggregate;
 import org.springframework.dao.DuplicateKeyException;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.linlinjava.litemall.goods.application.pricing.CategoryMarginResolver;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +81,7 @@ public class CjProductPromotionService {
     private final CJDropshippingConfig config;
     private final CjPricing pricing;
     private final LitemallGoodsProperties goodsProperties;
+    private final CategoryMarginResolver categoryResolver;
     private final List<AttributionProvider> attributionProviders;
     private final TransactionTemplate txTemplate;
 
@@ -96,6 +98,7 @@ public class CjProductPromotionService {
                                      CJDropshippingConfig config,
                                      CjPricing pricing,
                                      LitemallGoodsProperties goodsProperties,
+                                     CategoryMarginResolver categoryResolver,
                                      List<AttributionProvider> attributionProviders,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
@@ -111,6 +114,7 @@ public class CjProductPromotionService {
         this.config = config;
         this.pricing = pricing;
         this.goodsProperties = goodsProperties;
+        this.categoryResolver = categoryResolver;
         this.attributionProviders = attributionProviders;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
@@ -263,6 +267,18 @@ public class CjProductPromotionService {
             }
             if (belowFloor) {
                 goods.setIsOnSale(false);   // a new sub-floor good never goes on sale at all
+            }
+            // Wave 26 Phase 2: while the storefront is narrowed to an anchor, a NEW good outside
+            // it must not land on sale. Without this the narrowing erodes nightly — the CJ
+            // pipeline deliberately keeps mirroring all 14 L1s, and THIS branch is where every
+            // new product goes on sale (measured on prod one night after narrowing: 428 new
+            // on-sale goods, 328 of them outside the anchor). The row and its data still land, so
+            // taking a category back later still surfaces them.
+            if (goodsProperties != null
+                    && goodsProperties.isOutsideAnchor(categoryResolver.rootOfCategory(goods.getCategoryId()))) {
+                goods.setIsOnSale(false);
+                log.info("CJ promote pid={}: category {} outside the anchor — new good stays off sale",
+                        row.getPid(), goods.getCategoryId());
             }
             goodsMapper.insertSelective(goods); // selectKey stamps goods.id
         }

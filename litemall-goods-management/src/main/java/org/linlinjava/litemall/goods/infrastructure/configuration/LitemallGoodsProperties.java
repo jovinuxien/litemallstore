@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.goods.infrastructure.configuration;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -49,6 +51,42 @@ public class LitemallGoodsProperties {
     public boolean isBelowPriceFloor(BigDecimal retail) {
         return priceFloor != null && priceFloor.signum() > 0
                 && retail != null && retail.compareTo(priceFloor) < 0;
+    }
+
+    /**
+     * Wave 26 Phase 2: L1 root category ids the storefront is narrowed to. EMPTY = OFF (default,
+     * byte-identical to pre-Wave-26 behaviour); prod sets LITEMALL_GOODS_ANCHOR_CATEGORY_IDS.
+     *
+     * <p>Why this exists: narrowing off-sales the goods that exist TODAY, but the CJ pipeline
+     * deliberately keeps mirroring all 14 L1s and the nightly promote lands every NEW product on
+     * sale. Measured on prod one night after narrowing: 428 new goods went on sale, 328 of them
+     * outside the anchor — the storefront drifts back to broad within weeks and the narrowing
+     * silently undoes itself.
+     *
+     * <p>Applies to NEW goods only, deliberately. A standing rule (like the price floor) would
+     * re-off-sale whatever {@code /insight/narrow/restore} had just put back, turning the
+     * reversibility guarantee into a lie; on existing goods, on-sale stays an admin decision.
+     */
+    private List<Integer> anchorCategoryIds = new ArrayList<>();
+
+    public List<Integer> getAnchorCategoryIds() {
+        return anchorCategoryIds;
+    }
+
+    public void setAnchorCategoryIds(List<Integer> anchorCategoryIds) {
+        this.anchorCategoryIds = anchorCategoryIds == null ? new ArrayList<>() : anchorCategoryIds;
+    }
+
+    /**
+     * True when narrowing is configured AND this L1 root sits outside it — i.e. a NEW good here
+     * must not land on sale. An unresolvable root counts as OUTSIDE: "we cannot place it" must
+     * not silently mean "put it in the storefront", the same call the narrowing sweep makes.
+     */
+    public boolean isOutsideAnchor(Integer l1RootId) {
+        if (anchorCategoryIds == null || anchorCategoryIds.isEmpty()) {
+            return false;
+        }
+        return l1RootId == null || !anchorCategoryIds.contains(l1RootId);
     }
 
     /**

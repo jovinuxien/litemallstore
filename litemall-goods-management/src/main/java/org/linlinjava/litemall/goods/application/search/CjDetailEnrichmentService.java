@@ -101,6 +101,18 @@ public class CjDetailEnrichmentService {
      */
     static final int CONSECUTIVE_FAILURE_ABORT = 5;
 
+    /**
+     * A product CJ simply has no detail for. This is a DATA GAP, not a failure of the run, and it
+     * must never count toward {@link #CONSECUTIVE_FAILURE_ABORT}: the enrichment queue naturally
+     * hits clusters of detail-less products, and treating five of them in a row as "CJ is broken"
+     * abandons a healthy batch. Observed on prod 2026-08-15: a 400-product batch stopped after
+     * 119 enriched because five consecutive rows were plain data gaps, so the raise from 100
+     * bought only ~19 extra products instead of ~300.
+     */
+    static boolean isDataGap(String message) {
+        return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("no cj detail for pid");
+    }
+
     /** CJ's quota-exhaustion signal, which arrives as free text inside a generic RuntimeException. */
     static boolean looksLikeQuotaExhaustion(String message) {
         if (message == null) {
@@ -135,6 +147,11 @@ public class CjDetailEnrichmentService {
             } catch (RuntimeException ex) {
                 LOGGER.warn("CJ enrichment skipped pid={}: {}", row.getPid(), ex.getMessage());
                 failed++;
+                if (isDataGap(ex.getMessage())) {
+                    // Neither increment nor reset: a data gap is neutral, so a real fault streak
+                    // interrupted by one still trips the abort.
+                    continue;
+                }
                 consecutiveFailures++;
                 if (looksLikeQuotaExhaustion(ex.getMessage())) {
                     stoppedEarly = "CJ daily API points exhausted — batch abandoned to leave "
