@@ -67,6 +67,16 @@ public class LitemallCjProductService {
         return cjProductMapper.selectForEnrichment(limit);
     }
 
+    /** Wave 26 Phase 1b: EU-capture coverage {enrichedTotal, probedTotal, euStocked}. */
+    public java.util.Map<String, Object> euCoverage() {
+        return cjProductMapper.selectEuCoverage();
+    }
+
+    /** Wave 26 Phase 1b: per-L1 EU survival over on-sale CJ goods, with probed denominators. */
+    public java.util.List<java.util.Map<String, Object>> euSurvivalByRoot() {
+        return cjProductMapper.selectEuSurvivalByRoot();
+    }
+
     /** Supplier-attribution coverage over enriched rows: {enrichedTotal, supplierPopulated}. */
     public java.util.Map<String, Object> supplierCoverage() {
         return cjProductMapper.selectSupplierCoverage();

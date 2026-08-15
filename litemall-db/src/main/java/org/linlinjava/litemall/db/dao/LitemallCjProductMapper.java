@@ -44,4 +44,10 @@ public interface LitemallCjProductMapper {
      * {@code {enrichedTotal, supplierPopulated}} counts in one query.
      */
     java.util.Map<String, Object> selectSupplierCoverage();
+
+    /** Wave 26 Phase 1b: {enrichedTotal, probedTotal, euStocked} over enriched snapshot rows. */
+    java.util.Map<String, Object> selectEuCoverage();
+
+    /** Wave 26 Phase 1b: per-L1 EU survival over ON-SALE CJ goods, with an honest probed denominator. */
+    java.util.List<java.util.Map<String, Object>> selectEuSurvivalByRoot();
 }

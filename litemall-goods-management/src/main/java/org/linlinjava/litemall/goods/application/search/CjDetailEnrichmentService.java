@@ -171,6 +171,7 @@ public class CjDetailEnrichmentService {
                 enriched, failed, batchSize, rows.size(),
                 stoppedEarly == null ? "" : " — STOPPED EARLY: " + stoppedEarly);
         logSupplierCoverage(rows);
+        logEuCoverage(rows);
         return new EnrichResult(enriched, failed, stoppedEarly);
     }
 
@@ -231,6 +232,9 @@ public class CjDetailEnrichmentService {
 
         // Real per-SKU variants: variant_sell_price (raw USD cost, Wave 12) + variant_price
         // (its marked-up retail) + real stock.
+        // Wave 26 Phase 1b: the same inventory calls also carry the warehouse-country split, so the
+        // sink rides along and costs nothing extra.
+        EuStockSink euSink = new EuStockSink(config.getEuWarehouseCountries());
         List<Map<String, Object>> variantMaps = new ArrayList<>();
         for (CJProductVariantData v : variants) {
             Map<String, Object> vm = new LinkedHashMap<>();
@@ -249,7 +253,7 @@ public class CjDetailEnrichmentService {
             if (variantImage != null) {
                 vm.put("variant_image", variantImage);
             }
-            vm.put("stock", stockOf(v.getVid()));
+            vm.put("stock", stockOf(v.getVid(), euSink));
             variantMaps.add(vm);
         }
         if (variantMaps.isEmpty()) {
@@ -265,6 +269,11 @@ public class CjDetailEnrichmentService {
             }
             variantMaps.add(vm);
         }
+
+        // Wave 26 Phase 1b: only written when a real inventory reading happened. An empty/unreadable
+        // response leaves both NULL, so "never probed" stays distinguishable from "no EU stock".
+        row.setEuStockNum(euSink.euStockNum());
+        row.setWarehouseCountries(euSink.warehouseCountries());
 
         row.setVariantsJson(writeJson(variantMaps));
         row.setAttributesJson(writeJson(attributesOf(d)));
@@ -345,6 +354,40 @@ public class CjDetailEnrichmentService {
         }
     }
 
+    /**
+     * Wave 26 Phase 1b coverage probe, mirroring the Wave-25 supplier one. The EU survival report is
+     * only as good as how far the enrichment rotation has reached, so the numbers state their own
+     * denominator rather than implying a census.
+     */
+    private void logEuCoverage(List<LitemallCjProduct> batchRows) {
+        try {
+            int batchProbed = 0;
+            int batchEu = 0;
+            for (LitemallCjProduct r : batchRows) {
+                if (r.getEuStockNum() != null) {
+                    batchProbed++;
+                    if (r.getEuStockNum() > 0) {
+                        batchEu++;
+                    }
+                }
+            }
+            Map<String, Object> cov = cjProductStore.euCoverage();
+            long enrichedTotal = ((Number) cov.getOrDefault("enrichedTotal", 0)).longValue();
+            long probedTotal = ((Number) cov.getOrDefault("probedTotal", 0)).longValue();
+            long euStocked = ((Number) cov.getOrDefault("euStocked", 0)).longValue();
+            String covPct = enrichedTotal > 0
+                    ? String.format("%.1f%%", probedTotal * 100.0 / enrichedTotal) : "n/a";
+            String euPct = probedTotal > 0
+                    ? String.format("%.2f%%", euStocked * 100.0 / probedTotal) : "n/a";
+            LOGGER.info("CJ EU-warehouse capture: batch {}/{} probed ({} with EU stock); cumulative "
+                            + "{}/{} enriched rows probed ({}), {} EU-stocked ({} of probed)",
+                    batchProbed, batchRows.size(), batchEu,
+                    probedTotal, enrichedTotal, covPct, euStocked, euPct);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("CJ EU coverage probe failed (enrichment unaffected): {}", ex.getMessage());
+        }
+    }
+
     private String trimTo(String value, int max) {
         if (value == null || value.isBlank()) {
             return null;
@@ -375,6 +418,20 @@ public class CjDetailEnrichmentService {
      * configured default so a transient failure doesn't wrongly zero the product.
      */
     private int stockOf(String vid) {
+        return stockOf(vid, null);
+    }
+
+    /**
+     * Total stock for a variant — and, when {@code sink} is non-null, the per-country breakdown CJ
+     * already sent us (Wave 26 Phase 1b). Capturing it here costs ZERO extra CJ calls: this method
+     * is the one place the inventory response is read, and it used to collapse the lot to a sum.
+     *
+     * <p>Return semantics are UNCHANGED, deliberately including the fallback: an empty or
+     * unreadable response still yields {@code defaultStock} and records NOTHING in the sink. A
+     * fallback must never be written as "0 EU stock" — absent is not zero, and that distinction is
+     * the entire value of the survival report.
+     */
+    private int stockOf(String vid, EuStockSink sink) {
         List<CJInventoryData> inv = cjProductService.getInventory(vid);
         if (inv == null || inv.isEmpty()) {
             return config.getDefaultStock();
@@ -385,9 +442,59 @@ public class CjDetailEnrichmentService {
             if (area.getStorageNum() != null) {
                 sum += area.getStorageNum();
                 any = true;
+                if (sink != null) {
+                    sink.record(area.getCountryCode(), area.getStorageNum());
+                }
             }
         }
         return any ? sum : config.getDefaultStock();
+    }
+
+    /**
+     * Accumulates the warehouse-country split across a product's variants. Only ever fed from a
+     * REAL inventory reading (see {@link #stockOf(String, EuStockSink)}), so {@code probed()} being
+     * false is a truthful "we still do not know" rather than a zero.
+     */
+    static final class EuStockSink {
+
+        private final java.util.Set<String> euCountries;
+        private final java.util.TreeSet<String> seen = new java.util.TreeSet<>();
+        private int euStock;
+        private boolean probed;
+
+        EuStockSink(java.util.Set<String> euCountries) {
+            this.euCountries = euCountries;
+        }
+
+        void record(String countryCode, int storageNum) {
+            probed = true;
+            if (countryCode == null || countryCode.isBlank()) {
+                return;
+            }
+            String cc = countryCode.trim().toUpperCase(java.util.Locale.ROOT);
+            seen.add(cc);
+            if (euCountries.contains(cc)) {
+                euStock += storageNum;
+            }
+        }
+
+        boolean probed() {
+            return probed;
+        }
+
+        /** EU units, or null when nothing was probed — never 0 as a stand-in for unknown. */
+        Integer euStockNum() {
+            return probed ? euStock : null;
+        }
+
+        /** Comma-joined country codes, or null when nothing was probed. */
+        String warehouseCountries() {
+            if (!probed || seen.isEmpty()) {
+                return null;
+            }
+            String joined = String.join(",", seen);
+            return joined.length() > 255 ? joined.substring(0, 255) : joined;
+        }
     }
 
     /**
