@@ -562,8 +562,10 @@ services:
     # ⚠ SIZE CAP IS LOAD-BEARING: tmpfs pages are charged to this container's memory
     # cgroup, so an uncapped log directory eats the JVM's budget. On 2026-08-15 log.log
     # reached 611 MB against a 1.5 GiB limit (90.7% used) and the container was
-    # OOM-KILLED at 03:30:02, mid-enrichment. logback rotates this file DAILY with no
-    # size cap, so within one day it grows unbounded — the cap is the backstop.
+    # OOM-KILLED at 03:30:02, mid-enrichment. logback now caps itself too (~120 MB worst
+    # case: 100 MB log + 20 MB error), so this 256 MB is the SECOND guard, deliberately
+    # above logback's own ceiling — if they were equal, a logback regression would hit
+    # the tmpfs wall instead of being caught by its own cap.
     tmpfs:
       - /app/logs:size=256m
     image: litemall/goods-management:${LITEMALL_TAG:-latest}
@@ -619,11 +621,12 @@ services:
       # goods went live and the homepage started advertising emptied categories again. Applies to
       # NEW goods only, so /insight/narrow/restore still works. Clear it to un-narrow.
       LITEMALL_GOODS_ANCHOR_CATEGORY_IDS: ${LITEMALL_GOODS_ANCHOR_CATEGORY_IDS:-}
-      # logback-spring.xml ships org.linlinjava.litemall at DEBUG, which wrote 611 MB of
-      # per-request and per-SQL noise in under two hours and OOM-killed this container
-      # (see the tmpfs note above). Spring's logging.level.* overrides the XML at startup,
-      # so this dials it down WITHOUT a rebuild. INFO still carries every line the Wave-26
-      # runbooks read: enrichment summaries, price-floor off-sales, refresh totals.
+      # Now a KNOB, not the fix: logback-spring.xml is profile-scoped since Wave 26 and
+      # already runs prod at INFO. Spring's logging.level.* overrides the XML either way,
+      # so set this to DEBUG to get per-request and per-SQL detail back temporarily —
+      # container recreate, no rebuild. ⚠ DEBUG is what wrote 611 MB in under two hours
+      # and OOM-killed this container; the rolling caps now bound it, but do not leave it
+      # on. INFO carries every line the Wave-26 runbooks read.
       LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL: ${LITEMALL_GOODS_LOG_LEVEL:-INFO}
       # Attempts per CJ /product/list page. CJ QPS-rejects ~17% of calls even at
       # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
