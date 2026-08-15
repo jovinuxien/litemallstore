@@ -1453,10 +1453,25 @@
 >    1.5 GiB limit — JVM at 90.7% before the heavier batch tipped it. Truncating the
 >    file dropped the container to 51.4%, proving the log WAS the memory. Guards
 >    (`15aebe4f6`, container-recreate only): **tmpfs `size=256m`** +
->    **`LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL=INFO`** (Spring overrides the XML; INFO
->    still carries every line the runbooks read). **STILL OWED: a real
->    SizeAndTimeBasedRollingPolicy + totalSizeCap in logback-spring.xml (needs a
->    rebuild).** Evidence preserved at `/root/wave26-enrich-evidence-2026-08-15.log`.
+>    `LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL=INFO`. Evidence preserved at
+>    `/root/wave26-enrich-evidence-2026-08-15.log`.
+>    **FIXED PROPERLY (`64c3285b5` + `3053a6324`, deployed):** logback-spring.xml now
+>    uses `SizeAndTimeBasedRollingPolicy` (20 MB/file, 3 gzipped archives, totalSizeCap
+>    100 MB log + 20 MB error ⇒ ~120 MB worst case, deliberately BELOW the 256 MB tmpfs
+>    cap so a logback regression is caught by its own limit rather than the tmpfs wall),
+>    `cleanHistoryOnStart`, `debug="false"`, and **profile-scoped levels** (prod INFO,
+>    everything else keeps DEBUG).
+>    ⚠ **The XML alone was NOT enough, and this is the reusable lesson: Spring's
+>    `logging.level.*` OVERRIDES logback-spring.xml, and Spring resolves the MOST
+>    SPECIFIC logger key.** `application.yml` (and litemall-db's own) set
+>    `org.linlinjava.litemall.db: DEBUG` = every SQL statement, ~14k lines/minute —
+>    which beat both the XML and the package-level env. Proven live: after deploying the
+>    XML fix the log still had **14,091 DEBUG lines in 40 seconds**, all
+>    `o.l.l.d.d.L.*` mappers. Countered at the same specificity in
+>    `application-prod.yml` (+ `LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB` env knob) ⇒
+>    **0 DEBUG lines, log 12 KB vs 2.7 MB, memory 43.65% vs 90.7%.**
+>    `LogbackConfigTest` (5) pins all of it, including a real JoranConfigurator parse so
+>    a typo fails in the suite instead of at boot.
 > ⚠ **Cloud routines CANNOT verify trovemo.com** — beyond having no SSH, the cloud
 > egress proxy BLOCKS the domain (`EGRESS_BLOCKED`, confirmed via curl and WebFetch).
 > The routine returned INCONCLUSIVE with zero data. Verify prod from the MAIN session.
