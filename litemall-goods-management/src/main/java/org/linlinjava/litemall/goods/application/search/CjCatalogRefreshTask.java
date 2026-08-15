@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -123,6 +124,53 @@ public class CjCatalogRefreshTask {
         LOGGER.info("CJ catalog startup refresh scheduled {} ms after ready", delayMs);
     }
 
+
+    /**
+     * The subset to sweep tonight, or {@code null} meaning "run the full configured plan".
+     *
+     * <p>Returns null — a FULL run — whenever narrowing the sweep would change behaviour without
+     * being asked for: on the configured full-sync day, when the day is unset/unparseable, and
+     * crucially when every target is already {@code nightly} (an unconfigured deployment). That
+     * last case matters: passing the complete list as an "override" would silently disable
+     * stale-pruning and reconcile forever, because both are gated on the override being empty.
+     */
+    java.util.List<CJDropshippingConfig.CatalogTarget> nightlyTargets() {
+        java.util.List<CJDropshippingConfig.CatalogTarget> all = config.getCatalogTargets();
+        if (all == null || all.isEmpty()) {
+            return null;
+        }
+        String day = config.getFullSyncDay();
+        if (day != null && !day.isBlank()) {
+            try {
+                if (java.time.DayOfWeek.valueOf(day.trim().toUpperCase(java.util.Locale.ROOT))
+                        == java.time.LocalDate.now().getDayOfWeek()) {
+                    return null; // weekly full sync: prune + reconcile
+                }
+            } catch (IllegalArgumentException badDay) {
+                LOGGER.warn("CJ refresh: full-sync-day '{}' is not a day of week — running the FULL plan "
+                        + "(safe default: a typo must never quietly stop pruning)", day);
+                return null;
+            }
+        } else {
+            return null; // unset ⇒ every day is a full run, the pre-Wave-26 behaviour
+        }
+        java.util.List<CJDropshippingConfig.CatalogTarget> subset = new java.util.ArrayList<>();
+        for (CJDropshippingConfig.CatalogTarget t : all) {
+            if (t.isNightly()) {
+                subset.add(t);
+            }
+        }
+        if (subset.size() == all.size()) {
+            return null; // nothing excluded — keep the full-run semantics (prune + reconcile)
+        }
+        if (subset.isEmpty()) {
+            LOGGER.warn("CJ refresh: every target is nightly=false — running the FULL plan rather than "
+                    + "fetching nothing");
+            return null;
+        }
+        return subset;
+    }
+
     @Scheduled(cron = "${spring.cjdropship.refresh-cron:0 0 3 * * *}")
     public void refreshCjCatalog() {
         if (!config.isEnabled()) {
@@ -131,7 +179,19 @@ public class CjCatalogRefreshTask {
         Integer syncRunId = runRecorder.open("sync");
         try {
             // 1) Fetch (paced, via Redis) → normalize → persist the snapshot; learn live vs vanished pids.
-            CjSnapshotSyncService.SyncResult result = snapshotSyncService.syncAll();
+            //
+            // Wave 26: on ordinary nights only the `nightly` targets are swept. CJ's daily API points
+            // are a hard shared budget (~69k, scaled by ORDER volume rather than catalogue size), and
+            // sweeping all ~540 leaves costs ~27k of it to mirror categories the storefront no longer
+            // sells — starving enrichment AND order placement, which draw on the same budget.
+            List<CJDropshippingConfig.CatalogTarget> nightlyPlan = nightlyTargets();
+            boolean fullRun = nightlyPlan == null;
+            LOGGER.info("CJ catalog refresh: {} run ({} targets{})",
+                    fullRun ? "FULL" : "nightly-subset",
+                    fullRun ? config.getCatalogTargets().size() : nightlyPlan.size(),
+                    fullRun ? ", stale-prune + reconcile enabled" : ", additive only");
+            CjSnapshotSyncService.SyncResult result =
+                    fullRun ? snapshotSyncService.syncAll() : snapshotSyncService.syncAll(nightlyPlan);
             runRecorder.close(syncRunId, result.upserted(), result.inserted(), result.updated(),
                     result.removedPids().size(), result.complete(), null);
             syncRunId = null; // closed — a later promote/reindex failure must not rewrite this phase
@@ -144,7 +204,14 @@ public class CjCatalogRefreshTask {
             //    tripwire as defence in depth.
             CjProductPromotionService.PromoteResult promote = promotionService.promoteBatch(Integer.MAX_VALUE);
             int reconciled = 0;
-            if (result.complete()) {
+            if (!fullRun) {
+                // A subset run's livePids is a SLICE of the catalogue. Reconciling against it would
+                // treat every non-anchor good as vanished — the 2026-07-13 erosion incident, with a
+                // different cause. The fraction tripwire inside reconcile() would probably catch it,
+                // but "probably caught by a tripwire" is not a design. Prune + reconcile are the
+                // weekly full run's job.
+                LOGGER.info("CJ refresh: nightly subset — native-goods reconcile skipped (slice, not catalogue)");
+            } else if (result.complete()) {
                 reconciled = promotionService.reconcile(result.livePids());
             } else {
                 LOGGER.warn("CJ refresh: fetch plan incomplete — native-goods reconcile skipped this run");
