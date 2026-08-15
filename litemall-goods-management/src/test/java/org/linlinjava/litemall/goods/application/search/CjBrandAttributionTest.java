@@ -57,7 +57,7 @@ public class CjBrandAttributionTest {
                 brandMapper, mock(LitemallSeckillMapper.class),
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
                 config, new CjPricing(config, mock(CategoryMarginResolver.class)),
-                new LitemallGoodsProperties(),
+                new LitemallGoodsProperties(), mock(CategoryMarginResolver.class),
                 List.of(new CjSupplierAttributionProvider()),
                 mock(PlatformTransactionManager.class));
     }

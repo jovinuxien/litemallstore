@@ -47,4 +47,34 @@ public class EnrichBatchAbortTest {
         assertTrue(CjDetailEnrichmentService.CONSECUTIVE_FAILURE_ABORT <= 10,
                 "a backstop larger than a handful defeats the purpose at batch sizes in the hundreds");
     }
+
+    /**
+     * A product CJ has no detail for is a DATA GAP, not a fault, and must not count toward the
+     * abandon counter. Prod 2026-08-15 proved why: a 400-product batch stopped after 119 enriched
+     * because five consecutive rows were plain data gaps, so raising the batch from 100 bought
+     * ~19 extra products instead of ~300. The guard was protecting nothing and cost most of the run.
+     */
+    @Test
+    public void aMissingCjDetailIsADataGapNotAFault() {
+        assertTrue(CjDetailEnrichmentService.isDataGap(
+                "no CJ detail for pid 2608141057281625900"));
+        assertTrue(CjDetailEnrichmentService.isDataGap(
+                "No CJ Detail For Pid 123"));
+    }
+
+    @Test
+    public void realFailuresAreStillFaults() {
+        assertFalse(CjDetailEnrichmentService.isDataGap(
+                "Product detail fetch failed: QPS limit is 1 time/1second"));
+        assertFalse(CjDetailEnrichmentService.isDataGap("connection reset"));
+        assertFalse(CjDetailEnrichmentService.isDataGap(null));
+    }
+
+    /** A data gap must not be mistaken for exhaustion either — different signals, different action. */
+    @Test
+    public void aDataGapIsNotQuotaExhaustion() {
+        String msg = "no CJ detail for pid 2608141057281625900";
+        assertTrue(CjDetailEnrichmentService.isDataGap(msg));
+        assertFalse(CjDetailEnrichmentService.looksLikeQuotaExhaustion(msg));
+    }
 }
