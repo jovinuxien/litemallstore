@@ -48,6 +48,14 @@ public class LitemallCjProduct {
     private String supplierId;
     private String supplierName;
 
+    // Wave 26 Phase 1b (V61): EU warehouse capture, taken from the per-country inventory breakdown
+    // enrichment already fetches and used to discard. ⚠ NULL means NEVER PROBED, which is NOT the
+    // same as 0 ("probed, no EU stock") — every report over these must show its probed denominator,
+    // or an unprobed catalogue reads as a catalogue with no EU stock.
+    private Integer euStockNum;
+    /** Distinct warehouse country codes seen at the last probe, comma-separated (e.g. "CN,DE"). */
+    private String warehouseCountries;
+
     public String getPid() {
         return pid;
     }
@@ -254,5 +262,21 @@ public class LitemallCjProduct {
 
     public void setSupplierName(String supplierName) {
         this.supplierName = supplierName;
+    }
+
+    public Integer getEuStockNum() {
+        return euStockNum;
+    }
+
+    public void setEuStockNum(Integer euStockNum) {
+        this.euStockNum = euStockNum;
+    }
+
+    public String getWarehouseCountries() {
+        return warehouseCountries;
+    }
+
+    public void setWarehouseCountries(String warehouseCountries) {
+        this.warehouseCountries = warehouseCountries;
     }
 }
