@@ -559,8 +559,13 @@ services:
     # goods-management is the only service with a file-logging logback-spring.xml
     # (writes /app/logs). tmpfs gives it a writable, ephemeral dir without a
     # rebuild; the permanent fix (mkdir in docker/Dockerfile) applies next clean build.
+    # ⚠ SIZE CAP IS LOAD-BEARING: tmpfs pages are charged to this container's memory
+    # cgroup, so an uncapped log directory eats the JVM's budget. On 2026-08-15 log.log
+    # reached 611 MB against a 1.5 GiB limit (90.7% used) and the container was
+    # OOM-KILLED at 03:30:02, mid-enrichment. logback rotates this file DAILY with no
+    # size cap, so within one day it grows unbounded — the cap is the backstop.
     tmpfs:
-      - /app/logs
+      - /app/logs:size=256m
     image: litemall/goods-management:${LITEMALL_TAG:-latest}
     depends_on:
       mysql: {condition: service_healthy}
@@ -614,6 +619,12 @@ services:
       # goods went live and the homepage started advertising emptied categories again. Applies to
       # NEW goods only, so /insight/narrow/restore still works. Clear it to un-narrow.
       LITEMALL_GOODS_ANCHOR_CATEGORY_IDS: ${LITEMALL_GOODS_ANCHOR_CATEGORY_IDS:-}
+      # logback-spring.xml ships org.linlinjava.litemall at DEBUG, which wrote 611 MB of
+      # per-request and per-SQL noise in under two hours and OOM-killed this container
+      # (see the tmpfs note above). Spring's logging.level.* overrides the XML at startup,
+      # so this dials it down WITHOUT a rebuild. INFO still carries every line the Wave-26
+      # runbooks read: enrichment summaries, price-floor off-sales, refresh totals.
+      LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL: ${LITEMALL_GOODS_LOG_LEVEL:-INFO}
       # Attempts per CJ /product/list page. CJ QPS-rejects ~17% of calls even at
       # a 3s pace; the pre-Wave-26 break-on-first-failure truncated a leaf to
       # zero products silently. Exposed so the pace can be tuned without a rebuild.
