@@ -11,7 +11,7 @@
     <!-- V61 (Wave 26 Phase 1b). ⚠ Adding a column to the entity + the write path is only half
          the job: every read goes through THIS list, and omitting them here returns NULL from
          the DB regardless of what is stored — which reads exactly like "never probed". -->
-    eu_stock_num, warehouse_countries
+    eu_stock_num, warehouse_countries, delisted_strikes
   </sql>
 
   <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
@@ -184,6 +184,25 @@
     left join litemall_cj_product cp on cp.pid = g.cj_pid and cp.deleted = 0
     where g.deleted = 0 and g.is_on_sale = 1 and g.source = 'cj'
     group by t.root, cat.name
+  </select>
+
+  <!-- Wave 26: CJ said this pid has no detail — its own answer about this product, unlike absence
+       from a sampled sweep. Strikes accumulate across passes; any successful detail resets them. -->
+  <update id="recordDelistedStrike">
+    update litemall_cj_product
+    set delisted_strikes = delisted_strikes + 1, update_time = now()
+    where pid = #{pid} and deleted = 0
+  </update>
+
+  <update id="clearDelistedStrikes">
+    update litemall_cj_product
+    set delisted_strikes = 0, update_time = now()
+    where pid = #{pid} and deleted = 0 and delisted_strikes &gt; 0
+  </update>
+
+  <select id="selectDelistedPids" resultType="java.lang.String">
+    select pid from litemall_cj_product
+    where deleted = 0 and delisted_strikes &gt;= #{minStrikes}
   </select>
 
 </mapper>

@@ -209,8 +209,15 @@ public class CjDetailEnrichmentService {
         String pid = row.getPid();
         CJProductDetailData d = cjProductService.getProductDetail(pid);
         if (d == null) {
+            // Wave 26: CJ's own answer about THIS product — unlike absence from a sampled sweep,
+            // which says nothing. Counted, not acted on: a not-found can be a transient upstream
+            // miss, so delisting needs repeated confirmation across separate passes.
+            recordDelistedStrike(pid);
             throw new RuntimeException("no CJ detail for pid " + pid);
         }
+        // CJ answered for this product, so any earlier denial was transient. Clear the count —
+        // strikes must be CONSECUTIVE or a product denied once a year would eventually be deleted.
+        clearDelistedStrikes(pid);
         List<CJProductVariantData> variants = d.getVariants() != null ? d.getVariants() : List.of();
 
         // Wave 12: refresh the product-level raw cost from detail (exact, not the list range's
@@ -394,6 +401,24 @@ public class CjDetailEnrichmentService {
         }
         String t = value.trim();
         return t.length() <= max ? t : t.substring(0, max);
+    }
+
+    private void recordDelistedStrike(String pid) {
+        try {
+            cjProductStore.recordDelistedStrike(pid);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("could not record delisting strike for pid {} (enrichment unaffected): {}",
+                    pid, ex.getMessage());
+        }
+    }
+
+    private void clearDelistedStrikes(String pid) {
+        try {
+            cjProductStore.clearDelistedStrikes(pid);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("could not clear delisting strikes for pid {} (enrichment unaffected): {}",
+                    pid, ex.getMessage());
+        }
     }
 
     /** Wave 25.1: junk-tolerant identity pass-through — see {@link AttributionProvider#usableIdentityField}. */

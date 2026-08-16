@@ -82,6 +82,7 @@ public class CjProductPromotionService {
     private final CjPricing pricing;
     private final LitemallGoodsProperties goodsProperties;
     private final CategoryMarginResolver categoryResolver;
+    private final org.linlinjava.litemall.db.service.LitemallCjProductService cjProductStore;
     private final List<AttributionProvider> attributionProviders;
     private final TransactionTemplate txTemplate;
 
@@ -99,6 +100,7 @@ public class CjProductPromotionService {
                                      CjPricing pricing,
                                      LitemallGoodsProperties goodsProperties,
                                      CategoryMarginResolver categoryResolver,
+                                     org.linlinjava.litemall.db.service.LitemallCjProductService cjProductStore,
                                      List<AttributionProvider> attributionProviders,
                                      PlatformTransactionManager transactionManager) {
         this.linkageMapper = linkageMapper;
@@ -115,6 +117,7 @@ public class CjProductPromotionService {
         this.pricing = pricing;
         this.goodsProperties = goodsProperties;
         this.categoryResolver = categoryResolver;
+        this.cjProductStore = cjProductStore;
         this.attributionProviders = attributionProviders;
         this.txTemplate = new TransactionTemplate(transactionManager);
     }
@@ -157,12 +160,91 @@ public class CjProductPromotionService {
      * Soft-delete CJ-sourced goods (and their SKUs) whose {@code cj_pid} is no longer present in
      * the live snapshot. Only {@code source='cj'} rows are ever touched. Returns rows removed.
      */
+    /**
+     * Wave 26: minimum CJ denials before a product is treated as delisted. CJ's own not-found for a
+     * specific pid, twice across separate enrichment passes — evidence about THAT product, not an
+     * inference from a sampled sweep.
+     */
+    public static final int DELIST_MIN_STRIKES = 2;
+
+    /**
+     * Fraction of the catalogue a sweep must actually fetch before "absent" is evidence of
+     * anything. Below this, reconcile declines rather than leaning on the erosion tripwire.
+     */
+    static final double COVERAGE_FOR_ABSENCE_INFERENCE = 0.9;
+
+    /**
+     * Soft-delete goods CJ has explicitly denied at least {@link #DELIST_MIN_STRIKES} times.
+     *
+     * <p>This replaces what absence-based reconcile was meant to do. It is safe where reconcile is
+     * not, because the evidence is per-product: enrichment asked CJ about this exact pid and was
+     * told it does not exist. The fraction tripwire is kept as a backstop — if CJ ever denies a
+     * huge share of the catalogue at once, that is an upstream incident, not a mass delisting.
+     */
+    public int delistConfirmed() {
+        return txTemplate.execute(status -> {
+            List<String> pids = cjProductStore.delistedPids(DELIST_MIN_STRIKES);
+            if (pids.isEmpty()) {
+                return 0;
+            }
+            List<LitemallGoods> refs = linkageMapper.findCjGoodsRefs();
+            Set<String> doomed = new HashSet<>(pids);
+            List<LitemallGoods> candidates = new ArrayList<>();
+            for (LitemallGoods ref : refs) {
+                if (ref.getCjPid() != null && doomed.contains(ref.getCjPid())) {
+                    candidates.add(ref);
+                }
+            }
+            if (!refs.isEmpty() && !candidates.isEmpty()) {
+                double fraction = (double) candidates.size() / refs.size();
+                if (fraction > config.getPruneMaxFraction()) {
+                    log.error("CJ delisting tripwire: CJ denied {} of {} goods ({}% > {}%) — that is an "
+                                    + "upstream incident, not a mass delisting; skipped",
+                            candidates.size(), refs.size(),
+                            Math.round(fraction * 100), Math.round(config.getPruneMaxFraction() * 100));
+                    return 0;
+                }
+            }
+            int removed = 0;
+            for (LitemallGoods ref : candidates) {
+                goodsMapper.logicalDeleteByPrimaryKey(ref.getId());
+                LitemallGoodsProductExample ex = new LitemallGoodsProductExample();
+                ex.createCriteria().andGoodsIdEqualTo(ref.getId()).andDeletedEqualTo(false);
+                for (LitemallGoodsProduct p : productMapper.selectByExample(ex)) {
+                    productMapper.logicalDeleteByPrimaryKey(p.getId());
+                }
+                removed++;
+            }
+            if (removed > 0) {
+                log.info("CJ delisting: soft-deleted {} goods CJ denied {}+ times", removed, DELIST_MIN_STRIKES);
+            }
+            return removed;
+        });
+    }
+
     public int reconcile(Set<String> liveCjPids) {
         return txTemplate.execute(status -> {
             // Two-pass: collect candidates first so the erosion tripwire can veto the whole batch.
             // "Absent from liveCjPids" is weak evidence when the fetch behind the set was partial or
             // rotation-limited — the failure mode that eroded 7.7k goods before 2026-07-13.
             List<LitemallGoods> refs = linkageMapper.findCjGoodsRefs();
+            // Wave 26: absence from the sweep only means "delisted" if the sweep COVERS the
+            // catalogue. It does not: the plan fetches ~25 products per leaf — a sample — while the
+            // catalogue accumulated from earlier, larger plans (measured 2026-08-16: 14,426 pids
+            // fetched against 33,420 goods, so 57% looked vanished and the tripwire refused, as it
+            // does every week). Attempting the inference anyway just cries wolf, which would mask a
+            // genuine mass-delisting. Confirmed delisting is delistConfirmed()'s job, on CJ's own
+            // per-product answer.
+            if (!refs.isEmpty()) {
+                double coverage = (double) liveCjPids.size() / refs.size();
+                if (coverage < COVERAGE_FOR_ABSENCE_INFERENCE) {
+                    log.info("CJ reconcile: sweep covered {} of {} goods ({}%) — too little to read "
+                                    + "absence as delisting; skipped (delisting runs on CJ's own "
+                                    + "not-found answers instead)",
+                            liveCjPids.size(), refs.size(), Math.round(coverage * 100));
+                    return 0;
+                }
+            }
             List<LitemallGoods> candidates = new ArrayList<>();
             for (LitemallGoods ref : refs) {
                 if (ref.getCjPid() != null && !liveCjPids.contains(ref.getCjPid())) {

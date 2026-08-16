@@ -108,5 +108,7 @@ public class NarrowingMapperXmlTest {
                 "selectByPid must SELECT eu_stock_num or the entity always reads null: " + sql);
         assertTrue(sql.contains("warehouse_countries"),
                 "selectByPid must SELECT warehouse_countries: " + sql);
+        assertTrue(sql.contains("delisted_strikes"),
+                "selectByPid must SELECT delisted_strikes (V62) — same write-only trap: " + sql);
     }
 }

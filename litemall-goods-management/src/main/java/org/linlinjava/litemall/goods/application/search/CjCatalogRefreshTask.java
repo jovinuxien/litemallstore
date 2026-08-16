@@ -213,6 +213,16 @@ public class CjCatalogRefreshTask {
                 LOGGER.info("CJ refresh: nightly subset — native-goods reconcile skipped (slice, not catalogue)");
             } else if (result.complete()) {
                 reconciled = promotionService.reconcile(result.livePids());
+                // Wave 26: the reliable half. Absence from a sampled sweep proves nothing, but CJ
+                // denying a specific pid twice does — act on that regardless of what reconcile did.
+                try {
+                    int delisted = promotionService.delistConfirmed();
+                    if (delisted > 0) {
+                        LOGGER.info("CJ delisting: {} goods removed on CJ's own not-found answers", delisted);
+                    }
+                } catch (RuntimeException delistEx) {
+                    LOGGER.warn("CJ delisting pass failed (refresh continues): {}", delistEx.getMessage());
+                }
             } else {
                 LOGGER.warn("CJ refresh: fetch plan incomplete — native-goods reconcile skipped this run");
             }

@@ -50,4 +50,13 @@ public interface LitemallCjProductMapper {
 
     /** Wave 26 Phase 1b: per-L1 EU survival over ON-SALE CJ goods, with an honest probed denominator. */
     java.util.List<java.util.Map<String, Object>> selectEuSurvivalByRoot();
+
+    /** Wave 26: CJ explicitly reported no detail for this pid — count it. */
+    int recordDelistedStrike(@Param("pid") String pid);
+
+    /** Any successful detail fetch clears the count. */
+    int clearDelistedStrikes(@Param("pid") String pid);
+
+    /** Pids CJ has denied at least {@code minStrikes} times — the delisting candidates. */
+    java.util.List<String> selectDelistedPids(@Param("minStrikes") int minStrikes);
 }

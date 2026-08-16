@@ -67,6 +67,21 @@ public class LitemallCjProductService {
         return cjProductMapper.selectForEnrichment(limit);
     }
 
+    /** Wave 26: CJ explicitly denied this pid — count a delisting strike. */
+    public int recordDelistedStrike(String pid) {
+        return cjProductMapper.recordDelistedStrike(pid);
+    }
+
+    /** A successful detail fetch clears the strikes. */
+    public int clearDelistedStrikes(String pid) {
+        return cjProductMapper.clearDelistedStrikes(pid);
+    }
+
+    /** Pids CJ has denied at least {@code minStrikes} times. */
+    public java.util.List<String> delistedPids(int minStrikes) {
+        return cjProductMapper.selectDelistedPids(minStrikes);
+    }
+
     /** Wave 26 Phase 1b: EU-capture coverage {enrichedTotal, probedTotal, euStocked}. */
     public java.util.Map<String, Object> euCoverage() {
         return cjProductMapper.selectEuCoverage();

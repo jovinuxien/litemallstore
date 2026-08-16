@@ -32,12 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V61 (CJ EU-warehouse capture, Wave 26 Phase 1b;
+    // Hand-maintained floor: V62 (CJ delisting strikes, Wave 26;
     // previously V59 order CJ-placement approval stamp, Wave 23) is the latest
     // known migration ON THIS BRANCH; numbering contiguous, so the SCRIPT COUNT
     // equals the version: 60. Being a floor it still passes when it drifts, so
     // it only asserts what it is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 61;
+    private static final int MIN_EXPECTED_MIGRATIONS = 62;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -153,6 +153,8 @@ public class FlywayMigrationTest {
             // NULL is "never probed", which must stay distinct from 0 = "no EU stock".
             {"litemall_cj_product",   "eu_stock_num"},
             {"litemall_cj_product",   "warehouse_countries"},
+            // V62: authoritative delisting evidence (Wave 26)
+            {"litemall_cj_product",   "delisted_strikes"},
         };
 
         try (var conn = MYSQL.createConnection("")) {
