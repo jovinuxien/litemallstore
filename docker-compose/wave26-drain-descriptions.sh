@@ -92,10 +92,15 @@ SELECT '  ...drainable (never enriched)', COUNT(*) FROM litemall.litemall_goods 
   JOIN litemall.litemall_cj_product cp ON cp.pid=g.cj_pid AND cp.deleted=0
   WHERE g.deleted=0 AND g.is_on_sale=1 AND g.source='cj' AND cp.enriched_time IS NULL
 UNION ALL
-SELECT '  ...residual (enriched, CJ has no prose)', COUNT(*) FROM litemall.litemall_goods g
+-- The residual is NOT "enriched with an empty detail column" — that count is zero and
+-- reads as a solved problem. These rows HAVE a detail body; it is image-only markup that
+-- strips to nothing, so the description falls back to the title anyway. Measure the text
+-- that survives tag-stripping, which is what the feed actually sees.
+SELECT '  ...residual (enriched, detail is image-only)', COUNT(*) FROM litemall.litemall_goods g
   JOIN litemall.litemall_cj_product cp ON cp.pid=g.cj_pid AND cp.deleted=0
   WHERE g.deleted=0 AND g.is_on_sale=1 AND g.source='cj'
-    AND cp.enriched_time IS NOT NULL AND COALESCE(CHAR_LENGTH(g.detail),0)=0
+    AND cp.enriched_time IS NOT NULL
+    AND CHAR_LENGTH(TRIM(REGEXP_REPLACE(COALESCE(g.detail,''),'<[^>]*>',' '))) < 30
 UNION ALL
 SELECT 'confirmed delisted at CJ (>=2 strikes)', COUNT(*) FROM litemall.litemall_cj_product
   WHERE deleted=0 AND delisted_strikes >= 2;
