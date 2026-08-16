@@ -29,8 +29,21 @@ final class HtmlText {
         }
         String s = SCRIPT_STYLE.matcher(raw).replaceAll(" ");
         s = TAG.matcher(s).replaceAll(" ");
-        s = decodeEntities(s);
-        // Post-decode: entities may have re-materialised angle brackets — drop them.
+        // DOUBLE-ENCODED markup (&lt;img src="..."&gt;) is not a tag until it is decoded, so a
+        // single strip-then-decode leaves the attribute text behind as prose. That shipped
+        // `img src="https://oss-cf.cjdropshipping.com/..."` as the DESCRIPTION of 233 feed rows
+        // (8%), which is a Merchant Center data-quality rejection waiting to happen. Decode and
+        // re-strip until stable; bounded, because a hostile input could otherwise re-encode
+        // forever.
+        for (int pass = 0; pass < 3; pass++) {
+            String decoded = decodeEntities(s);
+            String stripped = TAG.matcher(SCRIPT_STYLE.matcher(decoded).replaceAll(" ")).replaceAll(" ");
+            if (stripped.equals(s)) {
+                break;
+            }
+            s = stripped;
+        }
+        // Whatever angle brackets survive are stray text, not markup.
         s = s.replace('<', ' ').replace('>', ' ');
         s = CONTROL.matcher(s).replaceAll(" ");
         return WHITESPACE.matcher(s).replaceAll(" ").trim();

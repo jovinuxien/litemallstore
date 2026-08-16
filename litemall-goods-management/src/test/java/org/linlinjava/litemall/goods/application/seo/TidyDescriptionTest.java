@@ -88,4 +88,25 @@ public class TidyDescriptionTest {
         assertFalse(out.matches("(?s).*[【】、。（）].*"), "CJK punctuation left: " + out);
         assertTrue(out.startsWith("Multifunctional Brush: Comes with 9"), out);
     }
+
+    /**
+     * Real feed row 10000832: the brief held DOUBLE-ENCODED markup, so stripping tags before
+     * decoding left the attribute text as the product's description. 233 rows (8% of the feed)
+     * shipped `img src="https://oss-cf.cjdropshipping.com/..."` as their description.
+     */
+    @Test
+    public void doubleEncodedMarkupDoesNotBecomeTheDescription() {
+        String raw = "&lt;img src=\"https://oss-cf.cjdropshipping.com/product/2026/06/x.jpg\"&gt;";
+        String cleaned = HtmlText.clean(raw);
+        assertFalse(cleaned.contains("img src"), "leaked markup: " + cleaned);
+        assertFalse(cleaned.contains("http"), "leaked URL: " + cleaned);
+    }
+
+    @Test
+    public void ordinaryProseSurvivesTheExtraStrippingPasses() {
+        String s = "Solar lamp for the garden. Waterproof to IP65 & rated 5 < 10 lux.";
+        String cleaned = HtmlText.clean(s);
+        assertTrue(cleaned.contains("Solar lamp for the garden."), cleaned);
+        assertTrue(cleaned.contains("IP65"), cleaned);
+    }
 }
