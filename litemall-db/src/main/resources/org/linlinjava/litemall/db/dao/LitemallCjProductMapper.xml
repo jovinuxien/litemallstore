@@ -7,7 +7,11 @@
     pid, source, title, price, sell_price, discount_price, description, image_url, brand,
     category_names, category_ids, variants_json, attributes_json, images_json, detail_html, enriched_time,
     add_time, update_time, deleted, listed_num, review_count, rating, cj_create_time, reviews_synced_time,
-    supplier_id, supplier_name
+    supplier_id, supplier_name,
+    <!-- V61 (Wave 26 Phase 1b). ⚠ Adding a column to the entity + the write path is only half
+         the job: every read goes through THIS list, and omitting them here returns NULL from
+         the DB regardless of what is stored — which reads exactly like "never probed". -->
+    eu_stock_num, warehouse_countries
   </sql>
 
   <select id="selectAllLive" resultType="org.linlinjava.litemall.db.domain.LitemallCjProduct">
