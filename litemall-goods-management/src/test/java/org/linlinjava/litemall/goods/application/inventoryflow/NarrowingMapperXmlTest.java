@@ -26,6 +26,8 @@ public class NarrowingMapperXmlTest {
             "org/linlinjava/litemall/db/dao/InsightMapper.xml";
     private static final String RETIRE =
             "org/linlinjava/litemall/db/dao/LitemallRetireCandidateMapper.xml";
+    private static final String CJ_PRODUCT =
+            "org/linlinjava/litemall/db/dao/LitemallCjProductMapper.xml";
 
     private Configuration parse(String... resources) throws Exception {
         Configuration configuration = new Configuration();
@@ -86,5 +88,25 @@ public class NarrowingMapperXmlTest {
         assertTrue(tail.contains("'restored'"), tail);
         // Inserted rows land approved outright; only duplicates go through the guard.
         assertTrue(sql.contains("'approved'"), sql);
+    }
+
+    /**
+     * A column added to the entity and the WRITE path but not to {@code Base_Column_List} returns
+     * NULL from every read, no matter what the database holds — and for the V61 EU columns, NULL
+     * means "never probed", so the storefront badge silently never renders while the data is
+     * sitting right there. That is exactly what shipped on 2026-08-16: 533 products with
+     * eu_stock_num > 0 and not one PDP able to see it.
+     */
+    @Test
+    public void v61ColumnsAreInTheReadPathNotJustTheWritePath() throws Exception {
+        Configuration configuration = parse(CJ_PRODUCT);
+        MappedStatement statement = configuration.getMappedStatement(
+                "org.linlinjava.litemall.db.dao.LitemallCjProductMapper.selectByPid");
+        String sql = statement.getBoundSql(java.util.Map.of("pid", "x")).getSql().toLowerCase();
+
+        assertTrue(sql.contains("eu_stock_num"),
+                "selectByPid must SELECT eu_stock_num or the entity always reads null: " + sql);
+        assertTrue(sql.contains("warehouse_countries"),
+                "selectByPid must SELECT warehouse_countries: " + sql);
     }
 }
