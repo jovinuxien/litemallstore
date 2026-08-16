@@ -58,6 +58,7 @@ public class CjBrandAttributionTest {
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
                 config, new CjPricing(config, mock(CategoryMarginResolver.class)),
                 new LitemallGoodsProperties(), mock(CategoryMarginResolver.class),
+                mock(org.linlinjava.litemall.db.service.LitemallCjProductService.class),
                 List.of(new CjSupplierAttributionProvider()),
                 mock(PlatformTransactionManager.class));
     }

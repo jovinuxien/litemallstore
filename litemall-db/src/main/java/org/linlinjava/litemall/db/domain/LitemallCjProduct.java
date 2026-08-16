@@ -56,6 +56,14 @@ public class LitemallCjProduct {
     /** Distinct warehouse country codes seen at the last probe, comma-separated (e.g. "CN,DE"). */
     private String warehouseCountries;
 
+    /**
+     * Wave 26 (V62): consecutive times CJ explicitly reported NO DETAIL for this pid — CJ's own
+     * answer about this product, not an inference from a sampled sweep. Reset to 0 by any
+     * successful detail fetch; delisting acts at >= 2 so a transient upstream miss cannot delete
+     * a live product.
+     */
+    private Integer delistedStrikes;
+
     public String getPid() {
         return pid;
     }
@@ -278,5 +286,13 @@ public class LitemallCjProduct {
 
     public void setWarehouseCountries(String warehouseCountries) {
         this.warehouseCountries = warehouseCountries;
+    }
+
+    public Integer getDelistedStrikes() {
+        return delistedStrikes;
+    }
+
+    public void setDelistedStrikes(Integer delistedStrikes) {
+        this.delistedStrikes = delistedStrikes;
     }
 }

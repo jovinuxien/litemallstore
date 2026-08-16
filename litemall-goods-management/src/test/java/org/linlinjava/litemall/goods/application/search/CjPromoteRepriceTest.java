@@ -44,7 +44,8 @@ public class CjPromoteRepriceTest {
                 mock(LitemallGoodsSpecificationMapper.class), mock(LitemallCategoryMapper.class),
                 mock(LitemallBrandMapper.class), mock(LitemallSeckillMapper.class),
                 mock(CjProductToNativeAdapter.class), mock(CjCategoryTreeSyncService.class),
-                config, new CjPricing(config, resolver), new LitemallGoodsProperties(), resolver, List.of(),
+                config, new CjPricing(config, resolver), new LitemallGoodsProperties(), resolver,
+                mock(org.linlinjava.litemall.db.service.LitemallCjProductService.class), List.of(),
                 mock(PlatformTransactionManager.class));
     }
 
