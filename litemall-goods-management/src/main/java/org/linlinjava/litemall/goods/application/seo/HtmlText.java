@@ -15,6 +15,16 @@ final class HtmlText {
 
     private static final Pattern SCRIPT_STYLE = Pattern.compile("(?is)<(script|style)[^>]*>.*?</\\1>");
     private static final Pattern TAG = Pattern.compile("<[^>]+>");
+    /**
+     * An opening bracket with no closing bracket before end-of-string: a tag cut in half. Fields
+     * are stored truncated ({@code goods.brief} is capped at 255 chars), and a half-tag is not a
+     * tag, so {@link #TAG} cannot match it and its attributes survive as prose.
+     *
+     * <p>The bracket must be followed by a LETTER (or a closing slash) — i.e. something that could
+     * be a tag name. Matching a bare "&lt;" would eat the rest of any sentence containing a
+     * less-than sign: "Rated 5 &lt; 10 lux for garden use" would truncate to "Rated 5".
+     */
+    private static final Pattern TRAILING_PARTIAL_TAG = Pattern.compile("</?[a-zA-Z][^>]*$");
     private static final Pattern NUMERIC_ENTITY = Pattern.compile("&#(x?)([0-9a-fA-F]{1,6});");
     private static final Pattern CONTROL = Pattern.compile("[\\u0000-\\u001F\\u007F]");
     private static final Pattern WHITESPACE = Pattern.compile("\\s+");
@@ -43,6 +53,10 @@ final class HtmlText {
             }
             s = stripped;
         }
+        // A field truncated mid-tag leaves an unclosed opener the TAG pattern cannot match. Drop
+        // the fragment rather than letting `img src="https://..."` become the product description
+        // — which is what 233 feed rows (8%) were shipping to Merchant Center.
+        s = TRAILING_PARTIAL_TAG.matcher(s).replaceAll(" ");
         // Whatever angle brackets survive are stray text, not markup.
         s = s.replace('<', ' ').replace('>', ' ');
         s = CONTROL.matcher(s).replaceAll(" ");

@@ -109,4 +109,28 @@ public class TidyDescriptionTest {
         assertTrue(cleaned.contains("Solar lamp for the garden."), cleaned);
         assertTrue(cleaned.contains("IP65"), cleaned);
     }
+
+    /**
+     * THE actual cause of the 233 leaked-markup feed rows. goods.brief is stored truncated at 255
+     * characters, which cuts the last tag in half — and a half-tag is not a tag, so the strip
+     * misses it and its attributes ship as the product description. Verbatim from goods 10000832.
+     */
+    @Test
+    public void aTagCutInHalfByFieldTruncationIsNotProse() {
+        String truncatedAt255 = "<p><img src=\"https://oss-cf.cjdropshipping.com/product/a80cc926.jpg\""
+                + " style=\"max-width:100%;\" contenteditable=\"false\"/>"
+                + "<img src=\"https://oss-cf.cjdropshipping.com/product/2026/06/22/09/7a153ded-7779-4745-8599-5e2e4";
+        String cleaned = HtmlText.clean(truncatedAt255);
+        assertFalse(cleaned.contains("img src"), "half-tag leaked as prose: " + cleaned);
+        assertFalse(cleaned.contains("oss-cf"), "URL leaked as prose: " + cleaned);
+        assertEquals("", cleaned, "an image-only brief must clean to nothing so the fallback runs");
+    }
+
+    /** A stray "<" in ordinary prose must not eat the rest of the sentence. */
+    @Test
+    public void aStrayLessThanDoesNotSwallowTheTail() {
+        String cleaned = HtmlText.clean("Rated 5 < 10 lux for garden use");
+        assertTrue(cleaned.startsWith("Rated 5"), cleaned);
+        assertTrue(cleaned.contains("garden use"), "tail was swallowed: " + cleaned);
+    }
 }
