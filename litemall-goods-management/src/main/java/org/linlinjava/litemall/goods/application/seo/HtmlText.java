@@ -36,6 +36,53 @@ final class HtmlText {
         return WHITESPACE.matcher(s).replaceAll(" ").trim();
     }
 
+    /**
+     * Wave 26: turn a raw CJ supplier listing into something that reads like store copy.
+     *
+     * <p>Measured on the live feed (2026-08-16): 47% of in-band descriptions carried at least one
+     * marketplace artefact — 30.5% opened with a bare "Description:"/"Features:" label, 4.4% used
+     * CJK punctuation (【】、！) in English text, and some still had markdown emphasis. To a Merchant
+     * Center reviewer, and to a shopper, that reads as scraped supplier text.
+     *
+     * <p>Deliberately NOT done here:
+     * <ul>
+     *   <li><b>Unit conversion.</b> Imperial-first copy ("66 lbs.") is wrong for a EUR store, but
+     *       most of it already carries metric in parentheses, and generating numbers risks getting
+     *       them wrong. A wrong measurement is worse than an American-sounding one.</li>
+     *   <li><b>De-shouting ALL-CAPS runs.</b> It mangles USB, LED, PSI, COVID-19 and brand names,
+     *       for 1.9% of rows.</li>
+     *   <li><b>Translating German listings.</b> DE-warehoused products carry CJ's German copy,
+     *       which is an asset in this market, not an artefact.</li>
+     * </ul>
+     *
+     * <p>Nothing here touches stored data — the supplier original stays the source of truth and
+     * this runs at render time, so a bad rule can be fixed by redeploying rather than by a
+     * migration.
+     */
+    static String tidyDescription(String s) {
+        if (s == null || s.isBlank()) {
+            return "";
+        }
+        String t = s;
+        // 1. CJK punctuation in otherwise-English copy. 【Label】Body -> "Label: Body".
+        t = t.replaceAll("【\\s*([^】]{1,60}?)\\s*】\\s*", "$1: ");
+        t = t.replace("、", ", ").replace("，", ", ").replace("。", ". ")
+             .replace("！", "! ").replace("？", "? ").replace("；", "; ")
+             .replace("：", ": ").replace("（", " (").replace("）", ") ");
+        // 2. Markdown emphasis that survived the supplier's own editor.
+        t = t.replaceAll("\\*\\*([^*]+)\\*\\*", "$1").replaceAll("__([^_]+)__", "$1");
+        // 3. Marketplace bullet labels: "[High-Precision] Engineered..." -> "High-Precision: Engineered..."
+        t = t.replaceAll("\\[\\s*([\\p{L}\\p{N}][^\\]]{2,48})\\s*\\]\\s*", "$1: ");
+        // 4. A bare section label at the very start is a form field, not a sentence. Only at the
+        //    start: "Features:" mid-text is legitimately introducing a list.
+        t = t.replaceFirst("(?i)^\\s*(product information|product details|description|features?|"
+                + "specifications?|produktbeschreibung|technische daten)\\s*:\\s*", "");
+        // Collapse the spacing the substitutions above introduce, and tidy space-before-punctuation.
+        t = t.replaceAll("\\s+([,.;:!?])", "$1");
+        t = WHITESPACE.matcher(t).replaceAll(" ").trim();
+        return t;
+    }
+
     /** SHOUTY ALL-CAPS names read as spam in feeds — re-case each word once. */
     static String uncapsIfShouty(String s) {
         if (s.isEmpty()) {
