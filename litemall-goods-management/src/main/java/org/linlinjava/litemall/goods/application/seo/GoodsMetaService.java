@@ -114,11 +114,13 @@ public class GoodsMetaService {
         String name = HtmlText.clean(goods.getName());
         String brief = HtmlText.clean(goods.getBrief());
         if (!brief.isEmpty() && !brief.equalsIgnoreCase(name)) {
-            return brief;
+            return HtmlText.tidyDescription(brief);
         }
         String detail = HtmlText.clean(goods.getDetail());
         if (!detail.isEmpty() && !detail.equalsIgnoreCase(name)) {
-            return HtmlText.truncateAtWord(detail, max);
+            // Tidy BEFORE truncating: stripping a leading "Description:" label first means the
+            // budget is spent on the product, not on the form field.
+            return HtmlText.truncateAtWord(HtmlText.tidyDescription(detail), max);
         }
         return goods.getBrief();
     }
