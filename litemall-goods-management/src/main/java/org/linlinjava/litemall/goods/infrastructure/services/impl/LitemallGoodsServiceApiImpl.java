@@ -44,6 +44,12 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
     @Autowired
     private org.linlinjava.litemall.db.service.LitemallBrandService brandRowService;
     @Autowired
+    private org.linlinjava.litemall.db.service.LitemallGoodsService goodsRowService;
+    @Autowired
+    private org.linlinjava.litemall.db.service.LitemallCjProductService cjProductRowService;
+    @Autowired
+    private org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig cjConfig;
+    @Autowired
     private LitemallCatalogService catalogService;
     @Autowired
     private QCodeService qCodeService;
@@ -159,6 +165,7 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
             data.put("attributes", goodsAttributeTask.get());
             data.put("categoryIds", categoryIds);
             attachBrand(data, goodsAggregate);
+            attachEuStock(data, goodsId);
 
         } catch (InterruptedException ie) {
             throw new RuntimeException(ie);
@@ -167,6 +174,56 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
         }
 
         return data;
+    }
+
+    /**
+     * Wave 26 Phase 1b: the payload carries an {@code euStock} key ONLY when this product has a
+     * MEASURED, non-zero EU warehouse reading. Three states, three behaviours:
+     *
+     * <ul>
+     *   <li>never probed (eu_stock_num NULL) → no key. We do not know, so we claim nothing.</li>
+     *   <li>probed, no EU stock (0) → no key.</li>
+     *   <li>probed, units > 0 → key, and the storefront may show the badge.</li>
+     * </ul>
+     *
+     * <p>Coverage grows slowly with the enrichment rotation, so for a long while MOST products
+     * will legitimately have no key. That is the honest outcome: a delivery claim is per-SKU and
+     * per-measurement, never a storewide promise (Wave 26 spec). Any failure degrades to no key.
+     */
+    private void attachEuStock(Map<String, Object> data, LitemallGoodsId goodsId) {
+        try {
+            org.linlinjava.litemall.db.domain.LitemallGoods goods =
+                    goodsRowService.findById(Integer.valueOf(goodsId.getId()));
+            if (goods == null || goods.getCjPid() == null || goods.getCjPid().isBlank()) {
+                return;
+            }
+            org.linlinjava.litemall.db.domain.LitemallCjProduct snapshot =
+                    cjProductRowService.findByPid(goods.getCjPid());
+            if (snapshot == null || snapshot.getEuStockNum() == null || snapshot.getEuStockNum() <= 0) {
+                return;
+            }
+            Map<String, Object> euStock = new HashMap<>();
+            euStock.put("units", snapshot.getEuStockNum());
+            euStock.put("countries", euCountriesOf(snapshot.getWarehouseCountries()));
+            data.put("euStock", euStock);
+        } catch (RuntimeException ex) {
+            // a delivery signal is decoration — never let it break the PDP
+        }
+    }
+
+    /** The configured EU countries actually seen for this product, so the badge names real ones. */
+    private java.util.List<String> euCountriesOf(String warehouseCountries) {
+        java.util.List<String> seen = new java.util.ArrayList<>();
+        if (warehouseCountries == null || warehouseCountries.isBlank()) {
+            return seen;
+        }
+        for (String cc : warehouseCountries.split(",")) {
+            String code = cc.trim().toUpperCase(java.util.Locale.ROOT);
+            if (!code.isEmpty() && cjConfig.getEuWarehouseCountries().contains(code)) {
+                seen.add(code);
+            }
+        }
+        return seen;
     }
 
     /**
