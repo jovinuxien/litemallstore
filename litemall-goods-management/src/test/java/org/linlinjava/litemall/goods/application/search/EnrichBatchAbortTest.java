@@ -77,4 +77,54 @@ public class EnrichBatchAbortTest {
         assertTrue(CjDetailEnrichmentService.isDataGap(msg));
         assertFalse(CjDetailEnrichmentService.looksLikeQuotaExhaustion(msg));
     }
+
+    /**
+     * VERBATIM from the prod drain log 2026-08-16, which is where this rule was earned: a run of
+     * 919 products stopped after 328 because five rows in a row hit CJ's QPS ceiling, leaving 590
+     * unenriched. The fault backstop exists to stop burning API points — and a REJECTED request
+     * spends none — so it must never fire on this.
+     */
+    private static final String PROD_QPS_REJECTION =
+            "Product detail fetch failed: 429 : \"{\"code\":1600200,\"result\":false,\"message\":"
+                    + "\"Too Many Requests, QPS limit is 1 time/1second\",\"data\":null,\"requestId\":"
+                    + "\"126cb278c01b47d3a8ffd19c348fa451\",\"pointsInfo\":null,\"success\":false}\"";
+
+    @Test
+    public void recognisesTheRateLimitRejectionThatStoppedTheProdDrain() {
+        assertTrue(CjDetailEnrichmentService.isTransientRateLimit(PROD_QPS_REJECTION));
+        assertTrue(CjDetailEnrichmentService.isTransientRateLimit("429 Too Many Requests"));
+        assertTrue(CjDetailEnrichmentService.isTransientRateLimit("QPS limit is 1 time/1second"));
+    }
+
+    /**
+     * The trap in that payload: it carries {@code "pointsInfo":null}. A quota check written against
+     * the substring "points" would classify every rate-limit rejection as exhaustion and abandon the
+     * batch for the opposite reason — so pin that it does not.
+     */
+    @Test
+    public void aRateLimitRejectionIsNotQuotaExhaustionDespiteMentioningPoints() {
+        assertTrue(PROD_QPS_REJECTION.contains("pointsInfo"));
+        assertFalse(CjDetailEnrichmentService.looksLikeQuotaExhaustion(PROD_QPS_REJECTION));
+        assertFalse(CjDetailEnrichmentService.isDataGap(PROD_QPS_REJECTION));
+    }
+
+    @Test
+    public void ordinaryFailuresAreNotRateLimits() {
+        assertFalse(CjDetailEnrichmentService.isTransientRateLimit("connection reset"));
+        assertFalse(CjDetailEnrichmentService.isTransientRateLimit("no CJ detail for pid 123"));
+        assertFalse(CjDetailEnrichmentService.isTransientRateLimit(null));
+        assertFalse(CjDetailEnrichmentService.isTransientRateLimit(""));
+    }
+
+    /**
+     * A sustained refusal must still end the run, but far later than a fault streak: rejections cost
+     * no points, so the only thing conserved by stopping is wall-clock — worth much less than
+     * finishing the queue.
+     */
+    @Test
+    public void theRateLimitBackstopIsFarLooserThanTheFaultBackstop() {
+        assertTrue(CjDetailEnrichmentService.CONSECUTIVE_RATE_LIMIT_ABORT
+                        > CjDetailEnrichmentService.CONSECUTIVE_FAILURE_ABORT * 3,
+                "a rate-limit backstop close to the fault backstop reintroduces the prod bug");
+    }
 }
