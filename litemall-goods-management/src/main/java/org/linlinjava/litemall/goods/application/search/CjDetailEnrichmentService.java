@@ -113,6 +113,34 @@ public class CjDetailEnrichmentService {
         return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("no cj detail for pid");
     }
 
+    /**
+     * CJ's hard 1-request/second global QPS rejection, surviving the single retry
+     * {@code CJProductService} already performs. Like a data gap this must NOT count toward
+     * {@link #CONSECUTIVE_FAILURE_ABORT}, and for a sharper reason: that guard exists to stop
+     * burning the API-points budget paid orders share, and a REJECTED request consumes no
+     * points at all. Aborting on it protects nothing and abandons a healthy batch.
+     *
+     * <p>Observed on prod 2026-08-16: a drain of 919 products stopped after 328 because five
+     * consecutive rows hit the QPS ceiling — live on-demand enrichment (customers viewing
+     * shallow products) competes for the same 1 req/s. 590 rows stayed unenriched behind a
+     * guard that was never meant to fire on this.
+     */
+    static boolean isTransientRateLimit(String message) {
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase(java.util.Locale.ROOT);
+        return m.contains("429") || m.contains("too many requests") || m.contains("qps limit");
+    }
+
+    /**
+     * A rate-limit streak this long is no longer a passing burst — CJ is refusing sustained
+     * traffic, and every further row costs a paced retry cycle for nothing. Deliberately far
+     * above {@link #CONSECUTIVE_FAILURE_ABORT}: rejections cost no points, so the only thing
+     * being conserved here is wall-clock, which is worth far less than a drained queue.
+     */
+    static final int CONSECUTIVE_RATE_LIMIT_ABORT = 25;
+
     /** CJ's quota-exhaustion signal, which arrives as free text inside a generic RuntimeException. */
     static boolean looksLikeQuotaExhaustion(String message) {
         if (message == null) {
@@ -138,27 +166,41 @@ public class CjDetailEnrichmentService {
         int enriched = 0;
         int failed = 0;
         int consecutiveFailures = 0;
+        int consecutiveRateLimited = 0;
         String stoppedEarly = null;
         for (LitemallCjProduct row : rows) {
             try {
                 enrichOne(row);
                 enriched++;
                 consecutiveFailures = 0;
+                consecutiveRateLimited = 0;
             } catch (RuntimeException ex) {
                 LOGGER.warn("CJ enrichment skipped pid={}: {}", row.getPid(), ex.getMessage());
                 failed++;
-                if (isDataGap(ex.getMessage())) {
-                    // Neither increment nor reset: a data gap is neutral, so a real fault streak
-                    // interrupted by one still trips the abort.
-                    continue;
-                }
-                consecutiveFailures++;
+                // Quota exhaustion is checked FIRST and unconditionally: it is the one signal that
+                // must stop the run no matter what else the message looks like.
                 if (looksLikeQuotaExhaustion(ex.getMessage())) {
                     stoppedEarly = "CJ daily API points exhausted — batch abandoned to leave "
                             + "quota for order placement (shared account)";
-                } else if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT) {
-                    stoppedEarly = consecutiveFailures + " consecutive failures — batch abandoned "
-                            + "(last: " + ex.getMessage() + ")";
+                } else if (isTransientRateLimit(ex.getMessage())) {
+                    // Neutral for the fault counter (see isTransientRateLimit), but tracked on its
+                    // own so a SUSTAINED refusal still ends the run instead of grinding the batch.
+                    if (++consecutiveRateLimited >= CONSECUTIVE_RATE_LIMIT_ABORT) {
+                        stoppedEarly = consecutiveRateLimited + " consecutive CJ rate-limit rejections "
+                                + "— batch abandoned (no API points were spent; the queue is intact "
+                                + "and retries next run)";
+                    }
+                } else if (isDataGap(ex.getMessage())) {
+                    // Neither increment nor reset: a data gap is neutral, so a real fault streak
+                    // interrupted by one still trips the abort.
+                    consecutiveRateLimited = 0;
+                } else {
+                    consecutiveRateLimited = 0;
+                    consecutiveFailures++;
+                    if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT) {
+                        stoppedEarly = consecutiveFailures + " consecutive failures — batch abandoned "
+                                + "(last: " + ex.getMessage() + ")";
+                    }
                 }
                 if (stoppedEarly != null) {
                     LOGGER.warn("CJ enrichment STOPPED EARLY after {} enriched / {} failed: {}",
