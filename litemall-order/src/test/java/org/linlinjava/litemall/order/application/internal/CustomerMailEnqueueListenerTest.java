@@ -111,22 +111,47 @@ class CustomerMailEnqueueListenerTest {
         assertThat(row.getSendAt()).isNotNull();
         assertThat(row.getSubject()).contains("20260726000042");
         assertThat(row.getBody())
-                .contains("Wireless Mouse (Black, USB-C) x 2 — $9.99")
-                .contains("Desk Mat x 1 — $19.98")
+                .contains("Wireless Mouse (Black, USB-C) x 2 — €9.99")
+                .contains("Desk Mat x 1 — €19.98")
                 .contains("Paid at: 2026-07-26 14:03")
                 .contains("Items subtotal:")
-                .contains("$39.96")
+                .contains("€39.96")
                 .contains("Shipping:")
-                .contains("$5.00")
+                .contains("€5.00")
                 .contains("Coupon discount:")
-                .contains("-$2.00")
+                .contains("-€2.00")
                 .contains("Tax:")
-                .contains("$1.20")
+                .contains("€1.20")
                 .contains("Order total:")
-                .contains("$44.16")
+                .contains("€44.16")
                 .contains("Consignee: Jane Buyer")
                 .contains("Phone: +1 555 0100")
                 .contains("Address: 1 Main St, Springfield, IL 62701, US");
+    }
+
+    /**
+     * The store charges EUR storewide since Wave 24 (2026-08-09), so no mail may render a
+     * dollar amount. The two SPAs were swept then; these bodies were not, and a customer
+     * charged EUR was reading "$" in the confirmation. Pins BOTH mails this event raises.
+     */
+    @Test
+    void paidMails_renderStoreCurrency_neverDollars() {
+        LitemallOrderAggregate order = order(42);
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        when(orderGoodsRepository.findByOId(any())).thenReturn(List.of(
+                line("Wireless Mouse", new String[]{"Black", "USB-C"}, 2, "9.99")));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true, "contact@trovemo.com")
+                .onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS).times(2)).insert(captor.capture());
+        for (LitemallMailOutbox row : captor.getAllValues()) {
+            assertThat(row.getSubject()).doesNotContain("$");
+            assertThat(row.getBody()).doesNotContain("$");
+            assertThat(row.getBody()).contains("\u20ac44.16");
+        }
     }
 
     @Test
@@ -172,7 +197,7 @@ class CustomerMailEnqueueListenerTest {
         LitemallMailOutbox row = captor.getValue();
         assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_ORDER_CONFIRMATION);
         assertThat(row.getBody())
-                .contains("Order total: $44.16")
+                .contains("Order total: €44.16")
                 .contains("20260726000042")
                 .doesNotContain("Your items");
     }
@@ -235,12 +260,12 @@ class CustomerMailEnqueueListenerTest {
                 .filter(r -> "admin_order_paid".equals(r.getTemplateKey()))
                 .findFirst().orElseThrow();
         assertThat(notice.getRecipient()).isEqualTo("contact@trovemo.com");
-        assertThat(notice.getSubject()).isEqualTo("New paid order 20260726000042 — $44.16");
+        assertThat(notice.getSubject()).isEqualTo("New paid order 20260726000042 — €44.16");
         assertThat(notice.getBody())
                 .contains("Wireless Mouse")
-                .contains("x2 @ $9.99")
+                .contains("x2 @ €9.99")
                 .contains("Buyer country: US")
-                .contains("Total: $44.16")
+                .contains("Total: €44.16")
                 .contains("Approve it for fulfilment in the admin panel");
     }
 
