@@ -88,6 +88,11 @@ public class LitemallCjProductService {
     }
 
     /** Wave 26 Phase 1b: per-L1 EU survival over on-sale CJ goods, with probed denominators. */
+    /** Wave 27: pids with a measured non-zero EU warehouse reading — the {@code eu_flag} basis. */
+    public java.util.List<String> euStockedPids() {
+        return cjProductMapper.selectEuStockedPids();
+    }
+
     public java.util.List<java.util.Map<String, Object>> euSurvivalByRoot() {
         return cjProductMapper.selectEuSurvivalByRoot();
     }

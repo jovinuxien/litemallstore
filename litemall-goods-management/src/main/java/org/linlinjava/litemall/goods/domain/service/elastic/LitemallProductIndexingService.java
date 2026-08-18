@@ -50,6 +50,7 @@ public class LitemallProductIndexingService {
     private final LitemallSeckillService seckillService;
     private final CouponSignalResolver couponSignalResolver;
     private final GrouponSignalResolver grouponSignalResolver;
+    private final EuStockSignalResolver euStockSignalResolver;
     private final LitemallSearchProperties properties;
 
     public LitemallProductIndexingService(LitemallBrandService brandService,
@@ -59,6 +60,7 @@ public class LitemallProductIndexingService {
                                           LitemallSeckillService seckillService,
                                           CouponSignalResolver couponSignalResolver,
                                           GrouponSignalResolver grouponSignalResolver,
+                                          EuStockSignalResolver euStockSignalResolver,
                                           LitemallSearchProperties properties) {
         this.brandService = brandService;
         this.categoryService = categoryService;
@@ -67,6 +69,7 @@ public class LitemallProductIndexingService {
         this.seckillService = seckillService;
         this.couponSignalResolver = couponSignalResolver;
         this.grouponSignalResolver = grouponSignalResolver;
+        this.euStockSignalResolver = euStockSignalResolver;
         this.properties = properties;
     }
 
@@ -156,6 +159,11 @@ public class LitemallProductIndexingService {
         // campaign targets this goods. Always 1/0 (never absent) — the deal-fields
         // always-emit rule.
         doc.setGrouponFlag(grouponSignalResolver.grouponFlag(goods.getId()));
+
+        // Wave-27 EU-warehouse visibility: 1 when this product's last inventory probe measured EU
+        // stock. Keyed on cj_pid, not goods id — the reading lives on the CJ snapshot row. Always
+        // 1/0 (never absent) — the deal-fields always-emit rule.
+        doc.setEuFlag(euStockSignalResolver.euFlag(goods.getCjPid()));
 
         // V31 ranking signals, read straight off the goods row (populated for CJ at promote, for
         // local by the review aggregator). Emitted as master-level numeric fields the searcher's
