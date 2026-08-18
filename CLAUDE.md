@@ -2201,7 +2201,34 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — done (Wave 25 half MERGED + ACCEPTED)
+### Worktree: `gateway-admin` — done (Wave 27 admin half BUILT)
+- **Status 2026-08-18 — Wave 27 season collection, admin half BUILT.**
+  Coded to the FROZEN spec `litemall-goods-management/docs/spec-season-
+  collection.md` §"gateway-admin". `'season'` now round-trips end to end:
+  `PageCategory` union, `PAGE_CATEGORIES` (feeds the PageEditor select),
+  `normalizeCategory`, `categoryTag` ('success'), and the category filters
+  on BOTH PageList and PostizPagePublish. jest 112/112 (10 suites, +2 new),
+  tsc clean in `app/` (the 6 `NoInfer` errors are pre-existing, all inside
+  node_modules/@reduxjs/toolkit). Branch fast-forwarded to master first.
+  ⚠ **The literal ask ("'season' in the page-list category filter") was
+  not the whole bug.** `normalizeCategory` folded every unrecognised value
+  into 'general', and `PageEditor` seeds its category select from that
+  helper — so opening ANY season page and saving it silently rewrote
+  category season→general and orphaned the row from `GET /srv/page/season`.
+  V63 already seeds a real season template, so the path was live, not
+  theoretical. Pinned by a regression test that asserts every declared
+  category round-trips. Unknown values still fall back to 'general'
+  (case-sensitively — the server value is lowercase).
+  Both filter option lists now render from `PAGE_CATEGORIES` instead of
+  four hardcoded `<option>` literals each; that duplication is why a
+  one-category change touched six sites. `postizSource.ts` is a courtesy
+  note, NOT a client-side block — season pages are never refused, so the
+  spec's step-5 Postiz promotion path works. No backend, no migration, no
+  litemall-db touch. NOT MERGED to master yet.
+  ⚠ Adjacent, NOT fixed (out of Wave-27 scope): `postizSource.ts:41`'s
+  groupon note still says group-buy publishing is "held back" — Wave 21
+  DELETED the backend errno-765 groupon gate, so that copy is stale.
+- **History — Wave 25 (brand/store curation, MERGED + ACCEPTED)**
 - **Status 2026-08-10:** brand/store curation surface SHIPPED — MERGED
   to master `3ee441669` + pushed (jest 110/110, headless UI 12/12).
   Extended the surviving Brands panel: Kind badge (Store/Brand),
@@ -2254,12 +2281,12 @@
   LIVE DEV ACCEPTANCE 21/21 headless through :18080 against order@master
   (badge 16→15→14; [NOT_PAID]/[NOT_CJ] 422s verbatim; idempotent
   ALREADY_APPROVED; dev orders 110-112 approved — harmless, dummy CJ
-  creds). ⚠ Known gap (committed third ask in
-  docs/handoff-order-admin-cj.md): admin /order/detail does NOT project
-  cj_placement_approved_time/_by — the stamp survives approve-time
-  render but not a reload (falls back to the approve button; harmless
-  via idempotency). One-line order-side toRow() projection fixes it;
-  the SPA already reads both fields tolerantly.
+  creds). The former "known gap" (admin /order/detail not projecting
+  cj_placement_approved_time/_by) is CLOSED — verified 2026-08-18 at
+  LitemallAdminOrderController.detail() :173-174, landed as `0dcd94892`
+  exactly as docs/handoff-order-admin-cj.md's third ask asked; the SPA
+  consumes it (OrderDetail.tsx:173-174, adminOrderCjApi.ts:282-283).
+  The approval stamp now survives a reload.
 - **History — Wave 22 (admin UI): search analytics + RFM delivery
   surfaces.** SHIPPED + DEPLOYED 2026-08-08 (`76e47cd13`): Search
   analytics panel (top/zero-result queries w/ CTR, totals, Refresh

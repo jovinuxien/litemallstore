@@ -1,4 +1,4 @@
-import { IPageSummary, useListPagesQuery } from 'app/shared/reducers/private/services/adminContentApi';
+import { IPageSummary, PageCategory, useListPagesQuery } from 'app/shared/reducers/private/services/adminContentApi';
 import {
   IPostizPreview,
   IPostizPublishResult,
@@ -8,7 +8,7 @@ import {
 } from 'app/shared/reducers/private/services/postizApi';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import { fmtDateTime } from 'app/views/adminViews/adminModule/Insight/insightFormat';
-import { categoryLabel, categoryTag } from 'app/views/adminViews/adminModule/Page/pageFormat';
+import { PAGE_CATEGORIES, categoryLabel, categoryTag } from 'app/views/adminViews/adminModule/Page/pageFormat';
 import ChannelPicker, { channelLabel } from './ChannelPicker';
 import { nextFullHourLocal, pageCommand, pageSignature, pageSourceNotes } from './postizSource';
 import * as React from 'react';
@@ -34,7 +34,7 @@ const PostizPagePublish: React.FC = () => {
   const { data: pagesData, isLoading: pagesLoading, isFetching: pagesFetching, isError: pagesError } = useListPagesQuery({
     page,
     limit,
-    category: category as '' | 'general' | 'coupon' | 'groupon',
+    category: category as PageCategory | '',
     status: status as '' | 'draft' | 'active',
   });
 
@@ -140,9 +140,11 @@ const PostizPagePublish: React.FC = () => {
           aria-label='Category'
         >
           <option value=''>All categories</option>
-          <option value='general'>General</option>
-          <option value='coupon'>Coupon</option>
-          <option value='groupon'>Groupon</option>
+          {PAGE_CATEGORIES.map(c => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
         </select>
         <select
           className='form-select filter-item'

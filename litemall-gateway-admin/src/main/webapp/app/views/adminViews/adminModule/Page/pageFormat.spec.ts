@@ -4,13 +4,25 @@ import { PAGE_CATEGORIES, categoryLabel, categoryTag, clonedPageId, normalizeCat
 
 // Wave 20: DIY-page category/template helpers behind the PageList filters,
 // the PageEditor category select and the clone ("Use template"/"Duplicate")
-// navigation.
+// navigation. Wave 27 adds 'season' (spec-season-collection.md) — the filter
+// option lists now render from PAGE_CATEGORIES, so this suite guards them all.
 
 describe('normalizeCategory', () => {
-  it('passes the three known categories through', () => {
+  it('passes the four known categories through', () => {
     expect(normalizeCategory('general')).toBe('general');
     expect(normalizeCategory('coupon')).toBe('coupon');
     expect(normalizeCategory('groupon')).toBe('groupon');
+    expect(normalizeCategory('season')).toBe('season');
+  });
+
+  // Wave 27 regression pin. PageEditor seeds its category select from this
+  // helper, so a 'season' row folded into 'general' would be silently rewritten
+  // by a plain open-and-save and orphaned from GET /srv/page/season. V63 seeds
+  // a real season template, so this path is reachable the moment it regresses.
+  it('round-trips season so opening and saving a season page cannot rewrite it', () => {
+    for (const c of PAGE_CATEGORIES) {
+      expect(normalizeCategory(c.value)).toBe(c.value);
+    }
   });
 
   it('maps absent/unknown values to general (pre-V54 rows carry no category)', () => {
@@ -18,6 +30,7 @@ describe('normalizeCategory', () => {
     expect(normalizeCategory(null)).toBe('general');
     expect(normalizeCategory('')).toBe('general');
     expect(normalizeCategory('seckill')).toBe('general');
+    expect(normalizeCategory('Season')).toBe('general'); // case-sensitive: the server value is lowercase
   });
 });
 
@@ -33,11 +46,17 @@ describe('categoryLabel / categoryTag', () => {
     expect(categoryLabel('bogus')).toBe('General');
   });
 
-  it('colors coupon/groupon distinctly and keeps general neutral', () => {
+  it('colors coupon/groupon/season distinctly and keeps general neutral', () => {
     expect(categoryTag('coupon')).toBe('danger');
     expect(categoryTag('groupon')).toBe('warning');
+    expect(categoryTag('season')).toBe('success');
     expect(categoryTag('general')).toBe('info');
     expect(categoryTag(undefined)).toBe('info');
+  });
+
+  it('declares season so the PageList/Postiz filters and the editor select offer it', () => {
+    expect(PAGE_CATEGORIES.map(c => c.value)).toContain('season');
+    expect(categoryLabel('season')).toBe('Season');
   });
 });
 

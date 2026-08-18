@@ -1,5 +1,6 @@
 import {
   IPageSummary,
+  PageCategory,
   useActivatePageMutation,
   useClonePageMutation,
   useDeactivatePageMutation,
@@ -8,7 +9,7 @@ import {
 } from 'app/shared/reducers/private/services/adminContentApi';
 import { fromServerDateTime } from 'app/shared/util/server-datetime';
 import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
-import { categoryLabel, categoryTag, clonedPageId } from './pageFormat';
+import { PAGE_CATEGORIES, categoryLabel, categoryTag, clonedPageId } from './pageFormat';
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -23,6 +24,9 @@ import { Link, useNavigate } from 'react-router-dom';
 // regular row) both POST /page/{id}/clone — the copy is always a DRAFT named
 // "Copy of …" with position custom and the source category inherited.
 // Contract: litemall-goods-management/docs/spec-page-palette-v1.md §5–§6.
+// Wave 27 adds the 'season' category; the filter options render from
+// PAGE_CATEGORIES so a new category is one edit, not four hardcoded options.
+// Contract: litemall-goods-management/docs/spec-season-collection.md.
 
 // Tolerates the raw array shape too — a data-shape surprise must never throw
 // in render (a crash here trips the app-level ErrorBoundary for the session).
@@ -50,7 +54,7 @@ const PageList: React.FC = () => {
     limit,
     position: position as '' | 'home' | 'custom',
     status: status as '' | 'draft' | 'active',
-    category: category as '' | 'general' | 'coupon' | 'groupon',
+    category: category as PageCategory | '',
     template: templatesOnly ? 1 : undefined,
   });
   const [activatePage, { isLoading: activating }] = useActivatePageMutation();
@@ -155,9 +159,11 @@ const PageList: React.FC = () => {
           aria-label='Category'
         >
           <option value=''>All categories</option>
-          <option value='general'>General</option>
-          <option value='coupon'>Coupon</option>
-          <option value='groupon'>Groupon</option>
+          {PAGE_CATEGORIES.map(c => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
         </select>
         <div className='form-check filter-item' style={{ paddingTop: 6 }}>
           <input
