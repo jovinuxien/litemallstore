@@ -2256,7 +2256,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — done (Wave 27 admin half BUILT; pending-approval dashboard SHIPPED)
+### Worktree: `gateway-admin` — idle (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**
   MERGED to master (branch commit `dd874e657`, fast-forwarded into
   `ec481fad8`'s first parent) + pushed; jest 125/125 (11 suites, +14 new),
@@ -2307,10 +2307,26 @@
   one-category change touched six sites. `postizSource.ts` is a courtesy
   note, NOT a client-side block — season pages are never refused, so the
   spec's step-5 Postiz promotion path works. No backend, no migration, no
-  litemall-db touch. NOT MERGED to master yet.
-  ⚠ Adjacent, NOT fixed (out of Wave-27 scope): `postizSource.ts:41`'s
-  groupon note still says group-buy publishing is "held back" — Wave 21
-  DELETED the backend errno-765 groupon gate, so that copy is stale.
+  litemall-db touch. **MERGED to master** (`a336203a5`; verified contained
+  in master 2026-08-18 — the earlier "NOT MERGED" note was stale).
+- **Status 2026-08-18 — stale groupon-refusal copy DELETED** (follow-up to
+  the adjacent item Wave 27 flagged; no wave, no backend, no migration).
+  The claim sat at FOUR sites, TWO of them admin-visible copy, all
+  repeating a refusal Wave 21 retired: `postizSource.ts` (the note + its
+  file header), `PostizPagePublish.tsx:128` ("groupon-category pages are
+  refused for now") and `PageEditor.tsx:817` ("groupon pages are held
+  back"). Backend truth re-verified BEFORE editing:
+  `PostizPublishServiceImpl.java:62-63` marks errno 765 RETIRED and `:337`
+  composes bespoke groupon post copy ("Team up, unlock the group price") —
+  groupon pages publish like any other. The panel was talking admins out of
+  a path that works. `pageSourceNotes` now judges status ONLY (draft ⇒ the
+  errno-764 warning, which is still real); category is never judged, pinned
+  by a test looping `PAGE_CATEGORIES` so a new category cannot reintroduce
+  a gate. Deploy = admin container rebuild only.
+  ⚠ Lesson: the defect was one `if`, but the same claim had been copied
+  into file headers, JSX copy and comments — grep the CLAIM, not the
+  symbol. A client-side note that contradicts the server is worse than no
+  note: it suppresses the action instead of failing loudly.
 - **History — Wave 25 (brand/store curation, MERGED + ACCEPTED)**
 - **Status 2026-08-10:** brand/store curation surface SHIPPED — MERGED
   to master `3ee441669` + pushed (jest 110/110, headless UI 12/12).

@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { PAGE_CATEGORIES } from 'app/views/adminViews/adminModule/Page/pageFormat';
 import { logSubject, pageCommand, pageSignature, pageSourceNotes } from './postizSource';
 
 // Wave 20: helpers behind the Postiz DIY-page source (source picker, preview
@@ -49,14 +50,19 @@ describe('pageSourceNotes', () => {
     expect(notes[0]).toMatch(/ACTIVE/);
   });
 
-  it('warns about the groupon-category refusal (server still decides)', () => {
-    const notes = pageSourceNotes({ status: 'active', category: 'groupon' });
-    expect(notes).toHaveLength(1);
-    expect(notes[0]).toMatch(/refused/i);
+  // Wave 21 retired errno 765 (the groupon-page hold) when priced group-buy
+  // submit shipped, and the server now composes bespoke groupon post copy.
+  // A note claiming a refusal would talk an admin out of a path that works.
+  it('never warns about category — every category publishes since Wave 21', () => {
+    for (const { value } of PAGE_CATEGORIES) {
+      expect(pageSourceNotes({ status: 'active', category: value })).toEqual([]);
+    }
   });
 
-  it('stacks both notes for a draft groupon page and stays empty with no selection', () => {
-    expect(pageSourceNotes({ status: 'draft', category: 'groupon' })).toHaveLength(2);
+  it('warns only about the draft status on a draft groupon page, and stays empty with no selection', () => {
+    const notes = pageSourceNotes({ status: 'draft', category: 'groupon' });
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatch(/ACTIVE/);
     expect(pageSourceNotes(null)).toEqual([]);
     expect(pageSourceNotes(undefined)).toEqual([]);
   });
