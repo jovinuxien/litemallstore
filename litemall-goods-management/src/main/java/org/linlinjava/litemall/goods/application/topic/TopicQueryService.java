@@ -32,9 +32,21 @@ public class TopicQueryService {
         this.goodsService = goodsService;
     }
 
-    /** Paginated topic list (PageHelper-backed). */
+    /**
+     * Paginated topic list (PageHelper-backed; the same list instance is returned so
+     * {@code okList} reports the true total). Each row carries {@code goodsCount}: how many of
+     * the topic's curated goods are still live.
+     *
+     * <p>The count is what makes the row honest on a narrowed catalogue. The list payload omits
+     * the {@code goods} column, so a client could previously only tell a substantial topic from
+     * an empty one by opening each topic's detail — which the storefront capped at the first
+     * handful of topics, leaving a real topic sorted below the cap unable to light its nav entry
+     * (see handoff-topic-goods-count.md).
+     */
     public List<LitemallTopic> list(Integer page, Integer limit, String sort, String order) {
-        return topicService.queryList(page, limit, sort, order);
+        List<LitemallTopic> topics = topicService.queryList(page, limit, sort, order);
+        topicService.attachGoodsCounts(topics);
+        return topics;
     }
 
     /** Topic + its associated goods (+ userHasCollect=0), or null when the topic is absent. */

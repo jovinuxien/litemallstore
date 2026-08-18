@@ -83,6 +83,17 @@ public interface LitemallCjLinkageMapper {
     List<java.util.Map<String, Object>> countOnSaleGoodsByBrand(@Param("brandIds") List<Integer> brandIds);
 
     /**
+     * Of the given goods ids, the subset that is live (on sale, not deleted) — one query,
+     * regardless of how many callers asked. Used to count a topic's curated goods without
+     * opening each topic (a topic's goods are a JSON id array on {@code litemall_topic.goods},
+     * not a foreign key, so they cannot be grouped in SQL the way brand ids can).
+     *
+     * <p>The filter matches {@code LitemallGoodsService#findByIdVO} exactly, which is what
+     * {@code /srv/topic/detail} renders with.
+     */
+    List<Integer> selectOnSaleGoodsIds(@Param("goodsIds") List<Integer> goodsIds);
+
+    /**
      * Write the V31 ranking signals onto a native goods row without touching the generated
      * insert/update (which don't carry these columns). Each argument is COALESCEd against the
      * existing column, so a null leaves that signal unchanged — the CJ promote path passes all
