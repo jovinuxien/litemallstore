@@ -1535,8 +1535,27 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (Wave 24.1 order half DONE)
+### Worktree: `order` — idle (mail-currency fix SHIPPED 2026-08-18)
 - **No active assignment.**
+- **Status 2026-08-18 — MAIL CURRENCY HONESTY: order mails render EUR, not
+  dollars.** MERGED to master `ec481fad8` + pushed (branch commit
+  `f05238693`; module tests 279 run / 0 failures, +1 new). User-commissioned
+  outside any wave. The Wave-24 EUR flip swept both SPAs but NOT
+  litemall-order's mail bodies — a customer charged €54.31 received a
+  confirmation reading "$54.31", and every admin paid-order notice + CJ ops
+  alert said "$" too. Fixed at the 4 render sites
+  (`CustomerMailEnqueueListener` money/moneyNonZero/admin-subject fallback,
+  `CjPlacementService.money`) behind a per-class `CURRENCY_SYMBOL`.
+  ⚠ **litemall-core is touched:** `SmtpCustomerMailSender` built
+  `JavaMailSenderImpl` with NO `setDefaultEncoding`, so the PLAIN-TEXT sends
+  (`SimpleMailMessage` — admin paid-notice, refund-approved, pickup code)
+  shipped a non-ASCII symbol with no declared charset and JavaMail fell back
+  to the platform default (mojibake risk); now UTF-8, matching what the HTML
+  path already forced via `MimeMessageHelper`. **DEPLOY = shared-module
+  discipline:** `mvn install` litemall-core, rebuild + restart EVERY
+  dependent, verify the nested `BOOT-INF/lib` copy. NO migration (schema
+  stays V60), no reindex. Amounts stay plain decimals — the symbol is
+  presentation only, exactly as both SPAs treat it.
 - **History — Wave 24.1: courier upgrade-delta freight.** Branch commit
   `95954a08f` (2026-08-10; module tests 278/0, 13 new). Charged CJ
   freight = flat ladder (incl. FREE_MIN) + `CjFreightQuoteService
@@ -2237,7 +2256,35 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — done (Wave 27 admin half BUILT)
+### Worktree: `gateway-admin` — done (Wave 27 admin half BUILT; pending-approval dashboard SHIPPED)
+- **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**
+  MERGED to master (branch commit `dd874e657`, fast-forwarded into
+  `ec481fad8`'s first parent) + pushed; jest 125/125 (11 suites, +14 new),
+  `tsc` clean in `app/`. User-commissioned outside any wave. Paid CJ orders
+  wait in the durable placement queue behind the Wave-23 manual gate — money
+  already taken, fulfilment not started — but that queue was only visible
+  behind a tab, so the dashboard could show healthy revenue while orders sat
+  unnoticed. Dashboard gains a "Pending CJ approval" stat tile + an
+  "Awaiting your approval" card (up to 5 rows: SN, paid time, total,
+  ship-to, items, Ready/Check badge), every row linking to
+  `/admin/mall/order/:id` where Approve lives, plus "View all N" and the
+  real-money reminder; the card hides itself when nothing is waiting.
+  **NO backend work** — order already served `total` + full rows on
+  `GET /srv/private/admin/order/cj-placement/pending` and the typed RTK
+  query shipped in Wave 23; tile and card share ONE cache entry (same args)
+  so they cannot disagree and cost one request. `OrderList`'s tab moved from
+  `useState` into the URL (`?tab=pending`, unrecognised ⇒ `all`, switches use
+  `replace`) so those links land on the right tab — existing links
+  unaffected. ⚠ **A failed fetch renders '—', NEVER '0':** `OrderList`
+  coerces the error to 0 for its tab badge (fine decorating a visible tab),
+  but on a dashboard KPI a bare "0" asserts nothing is waiting exactly when
+  orders are stuck behind a dead endpoint; an errno body is treated the same
+  and its message shown verbatim. Logic lives in
+  `Dashboard/pendingApproval.ts` so it is testable without rendering (the
+  `pageFormat.ts` pattern). ⚠ **jest here needs `--config jest.conf.js`**
+  (config sits at the module root, not `src/main/webapp`) — without it babel
+  parses `.ts` as plain JS and even pre-existing specs die on `as never`.
+  Deploy = admin container rebuild only. USER-SIDE: admin click-through.
 - **Status 2026-08-18 — Wave 27 season collection, admin half BUILT.**
   Coded to the FROZEN spec `litemall-goods-management/docs/spec-season-
   collection.md` §"gateway-admin". `'season'` now round-trips end to end:
