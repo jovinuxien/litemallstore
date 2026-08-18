@@ -1,10 +1,19 @@
 import { CategoryScale, Chart as ChartJS, ChartData, ChartOptions, Legend, LinearScale, LineElement, PointElement, Title, Tooltip } from 'chart.js';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchDashboardTotals, fetchOrderStats } from 'app/shared/reducers/private/catalogMgn/adminStateSlice';
-import { IChannelRow, useGetChannelStatQuery, useGetCjBalanceQuery } from 'app/shared/reducers/private/services/adminOrderCjApi';
+import {
+  IChannelRow,
+  pendingItemsSummary,
+  useGetChannelStatQuery,
+  useGetCjBalanceQuery,
+  useGetCjPlacementPendingQuery,
+} from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { money } from 'app/shared/util/money';
 import * as React from 'react';
 import { Line } from 'react-chartjs-2';
+import { Link } from 'react-router-dom';
+
+import { DASHBOARD_PENDING_ROWS, dashboardPendingRows, pendingOverflow, pendingTileState } from './pendingApproval';
 
 // Order-statistics dashboard, styled to the upstream litemall-admin look:
 // .app-container of colored stat tiles + .box-card chart panels + an .el-table
@@ -42,6 +51,95 @@ const StatTile: React.FC<{ value: React.ReactNode; label: string; color: string 
     </div>
   </div>
 );
+
+const PENDING_TAB = '/admin/mall/order?tab=pending';
+
+// Paid CJ orders held for admin approval (Wave 23 manual placement gate). These
+// are orders the customer has ALREADY paid for and that will not be sent to CJ
+// until someone approves them here, so they get first position on the dashboard
+// and every row is a link straight to the order detail, where Approve lives.
+const PendingApprovalCard: React.FC = () => {
+  // limit = the card's row count: one request feeds both the tile total and the list.
+  const q = useGetCjPlacementPendingQuery({ page: 1, limit: DASHBOARD_PENDING_ROWS }, { refetchOnMountOrArgChange: true });
+  const state = pendingTileState(q);
+  const rows = dashboardPendingRows(q.data);
+  const overflow = pendingOverflow(state, rows.length);
+
+  if (state.kind === 'empty') {
+    return null; // nothing waiting — the tile already says so; no empty table
+  }
+
+  return (
+    <div className='box-card'>
+      <div className='box-card-header d-flex align-items-center justify-content-between'>
+        <span>
+          Awaiting your approval {q.isFetching && <span className='spinner-border spinner-border-sm text-primary ms-2' role='status' />}
+        </span>
+        <Link to={PENDING_TAB} className='btn btn-sm btn-outline-primary'>
+          {overflow > 0 ? `View all ${state.count}` : 'Open orders'}
+        </Link>
+      </div>
+      <div className='box-card-body'>
+        {state.kind === 'unavailable' ? (
+          <div className='alert alert-warning mb-0'>
+            Pending CJ approvals could not be loaded — {state.note}.{' '}
+            <span className='text-muted small'>Orders may still be waiting; this is a display failure, not an empty queue.</span>
+          </div>
+        ) : state.kind === 'loading' ? (
+          <div className='text-center py-3'>
+            <span className='spinner-border spinner-border-sm text-primary' role='status' />
+          </div>
+        ) : (
+          <>
+            <table className='el-table'>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Paid</th>
+                  <th className='text-end'>Total</th>
+                  <th>Ship to</th>
+                  <th>Items</th>
+                  <th>Ready</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.orderId ?? r.orderSn}>
+                    <td>
+                      <Link to={`/admin/mall/order/${r.orderId}`}>{r.orderSn || `#${r.orderId}`}</Link>
+                    </td>
+                    <td className='small'>{r.payTime ? r.payTime.replace('T', ' ').slice(0, 16) : '—'}</td>
+                    <td className='text-end'>{money(r.actualPrice)}</td>
+                    <td className='small'>
+                      {r.consignee || '—'}
+                      {r.country ? ` (${r.country})` : ''}
+                    </td>
+                    <td className='small'>{pendingItemsSummary(r.items)}</td>
+                    <td>
+                      {r.cjReady === false ? (
+                        <span className='badge text-bg-warning' title={r.holdReason || undefined}>
+                          Check
+                        </span>
+                      ) : (
+                        <span className='badge text-bg-success'>Ready</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {overflow > 0 && (
+              <div className='text-muted small mt-2'>
+                +{overflow} more waiting — <Link to={PENDING_TAB}>see all {state.count}</Link>
+              </div>
+            )}
+            <div className='text-muted small mt-2'>Approving an order sends it to CJ and spends real money from the CJ balance.</div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const dateOnly = (d: Date): string => d.toISOString().slice(0, 10);
 
@@ -148,6 +246,10 @@ const Dashboard: React.FC = () => {
       ? `${Number(cjBalance.amount).toFixed(2)} ${cjBalance.currency ?? 'USD'}`
       : '—';
 
+  // Same args as PendingApprovalCard's query, so RTK Query serves both from one
+  // cache entry (one request) — the tile and the card can never disagree.
+  const pendingTile = pendingTileState(useGetCjPlacementPendingQuery({ page: 1, limit: DASHBOARD_PENDING_ROWS }));
+
   React.useEffect(() => {
     dispatch(fetchOrderStats());
     dispatch(fetchDashboardTotals());
@@ -202,7 +304,14 @@ const Dashboard: React.FC = () => {
         <div className='col-sm-3 mt-3'>
           <StatTile value={cjBalanceValue} label='CJ dropship balance' color='#F56C6C' />
         </div>
+        <div className='col-sm-3 mt-3'>
+          <Link to={PENDING_TAB} className='text-decoration-none' title='Paid orders held for CJ fulfilment approval'>
+            <StatTile value={pendingTile.display} label='Pending CJ approval' color={pendingTile.kind === 'pending' ? '#E6A23C' : '#909399'} />
+          </Link>
+        </div>
       </div>
+
+      <PendingApprovalCard />
 
       <ChannelStatsCard />
 
