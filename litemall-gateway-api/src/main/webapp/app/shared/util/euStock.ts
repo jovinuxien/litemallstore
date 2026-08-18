@@ -51,3 +51,35 @@ export const euStockLabel = (stock: EuStock): string => {
   const named = stock.countries.map(c => COUNTRY_NAMES[c.toUpperCase()]).filter(Boolean);
   return named.length === 1 ? `Ships from ${named[0]}` : 'Ships from EU stock';
 };
+
+/**
+ * The origin as a bare VALUE, for surfaces that already carry their own "Ships from"
+ * label (the PDP trust rows, the checkout line badges) and would otherwise read
+ * "Ships from → Ships from Germany".
+ *
+ * Same honesty rule as {@link euStockLabel}: callers pass null for unmeasured
+ * products and render nothing at all. There is deliberately no "China" fallback —
+ * the payload collapses "never probed" and "probed, no EU stock" into the same
+ * absent key, so naming an origin for that case would be a guess, and the row it
+ * replaced ("Trovemo") was already the wrong kind of guess.
+ */
+export const euOriginName = (stock: EuStock): string => {
+  const named = stock.countries.map(c => COUNTRY_NAMES[c.toUpperCase()]).filter(Boolean);
+  return named.length === 1 ? named[0] : 'an EU warehouse';
+};
+
+/**
+ * Names an ISO-2 code IF it is an EU warehouse we actually stock from; null otherwise.
+ *
+ * Returning null for everything else — including a perfectly factual "CN" — is a
+ * deliberate display choice, not missing coverage. The surfaces that call this
+ * (checkout line badges, the courier chooser) follow the same rule the whole EU
+ * signal follows: say something only where there is something positive and measured
+ * to say, and render nothing otherwise. That mirrors `upgradeDelta`'s null-means-no-
+ * label precedent from Wave 24.1, and it keeps us from stamping "Ships from China"
+ * across a checkout as a side effect of a plumbing change nobody asked for.
+ */
+export const originCountryName = (code: string | null | undefined): string | null => {
+  if (!code) return null;
+  return COUNTRY_NAMES[code.toUpperCase()] ?? null;
+};

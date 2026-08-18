@@ -90,11 +90,15 @@ export interface IFreightQuote {
   cj?: {
     logisticName?: string;
     logisticAging?: string;
+    /** Wave-28: the warehouse country this shipment was actually QUOTED from (ISO-2).
+     *  A fact about the quote, not a restatement of the stock measurement — the order
+     *  side falls back to CN when an EU quote comes back empty. Absent pre-Wave-28. */
+    originCountry?: string | null;
     /** V52: every line CJ offers for this shipment — the delivery-option chooser's data.
      *  Wave-24.1: `upgradeDelta` (post-fx decimal vs the default line; 0.00 ⇒ "Included",
      *  null ⇒ unpriceable) feeds the labels VERBATIM — raw CJ courier costs are never
      *  surfaced. Absent (pre-24.1 order half) ⇒ the chooser renders label-less. */
-    options?: { logisticName?: string; logisticAging?: string; upgradeDelta?: number | null }[];
+    options?: { logisticName?: string; logisticAging?: string; upgradeDelta?: number | null; originCountry?: string | null }[];
   } | null;
   cjNote?: string | null;
 }
