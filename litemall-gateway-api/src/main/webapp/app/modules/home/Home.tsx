@@ -14,6 +14,8 @@ import PageRenderer from '../page/PageRenderer';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
 import InfiniteProductGrid from '../../components/userComponents/card/InfiniteProductGrid';
 import { getCatalogAllData, getCatalogIndexData } from '../Category/categorySlice';
+import { secureImageUrl } from 'app/shared/util/imageUrl';
+import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 import { getProductList } from '../product/productSlice';
 import { getHomeData } from './homeSlice';
 import 'app/components/userComponents/card/product-card.scss';
@@ -97,6 +99,11 @@ const HomeView: React.FC = () => {
   const entities = useAppSelector(state => state.home.homeData);
   const { list } = useAppSelector(state => state.product.data);
   const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
+  // Wave 26: the home payload can still carry the legacy brand/topic seeds,
+  // which have no goods behind them on the narrowed catalogue. Same shared
+  // probe as the header/drawer/footer — one request per session, not per zone.
+  const hasBrands = useContentAvailability('brands');
+  const hasTopics = useContentAvailability('topics');
   // Mobile: the hero category tree collapses behind a toggle; desktop keeps it open.
   const [menuOpen, setMenuOpen] = useState(false);
   const cols = useGridColumns();
@@ -312,12 +319,12 @@ const HomeView: React.FC = () => {
         )}
 
         {/* Brand zone */}
-        {brands.length > 0 && (
+        {hasBrands && brands.length > 0 && (
           <Section title="Brands">
             <div className="lm-brands">
               {brands.map(brand => (
                 <Link key={brand.id} to={`/brand/${brand.id}`} className="lm-brand">
-                  <img src={brand.picUrl} alt={brand.name} loading="lazy" />
+                  {secureImageUrl(brand.picUrl) && <img src={secureImageUrl(brand.picUrl) as string} alt={brand.name} loading="lazy" />}
                   <span>{brand.name}</span>
                 </Link>
               ))}
@@ -326,12 +333,12 @@ const HomeView: React.FC = () => {
         )}
 
         {/* Topics */}
-        {topics.length > 0 && (
+        {hasTopics && topics.length > 0 && (
           <Section title="Discover">
             <div className="lm-topics">
               {topics.slice(0, 3).map(topic => (
                 <Link key={topic.id} to={`/topic/${topic.id}`} className="lm-topic">
-                  <img src={topic.picUrl} alt={topic.title} loading="lazy" />
+                  {secureImageUrl(topic.picUrl) && <img src={secureImageUrl(topic.picUrl) as string} alt={topic.title} loading="lazy" />}
                   <div className="lm-topic__overlay">
                     <h3 className="lm-topic__title">{topic.title}</h3>
                     {topic.subtitle && <p className="lm-topic__subtitle">{topic.subtitle}</p>}

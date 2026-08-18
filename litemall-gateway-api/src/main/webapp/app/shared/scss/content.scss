@@ -23,6 +23,15 @@
   transition: border-color 0.15s;
   &:hover { border-color: var(--lm-primary, #0e7c86); }
   img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+  /* Stands in for a picture we refuse to load (a plain-http seed image is
+     blocked on the https storefront) — a neutral block, never a broken img. */
+  &__ph {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: var(--lm-bg, #f5f7f8);
+  }
   &__name { font-weight: 600; margin-top: 6px; }
   &__count { color: var(--lm-muted, #78909c); font-size: 0.8rem; margin-top: 2px; }
 }
