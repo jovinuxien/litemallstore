@@ -117,6 +117,16 @@ public class ProductDocument {
     private Integer grouponFlag;
 
     /**
+     * Wave-27 EU-warehouse visibility: 1 when this product's last inventory probe measured
+     * non-zero EU warehouse stock (V61 {@code eu_stock_num}). Always emitted (0 when none) —
+     * the same always-emit rule as the deal/coupon/groupon fields, so a reindex run before the
+     * enrichment rotation has probed anything never drops the field from OCS's mapping
+     * resolution. 0 means "not known to hold EU stock", NOT "known to hold none".
+     */
+    @JsonProperty("eu_flag")
+    private Integer euFlag;
+
+    /**
      * Live flash-deal signals (price-swap lifecycle, Phase B). The three QUERYABLE fields ride
      * every document — {@code dealActive} 1/0, {@code dealEndEpoch} (millis; card countdown +
      * "ending soon" sort, {@code DealMath.NO_DEAL_END_EPOCH} when no deal so live deals always
@@ -291,6 +301,14 @@ public class ProductDocument {
 
     public void setGrouponFlag(Integer grouponFlag) {
         this.grouponFlag = grouponFlag;
+    }
+
+    public Integer getEuFlag() {
+        return euFlag;
+    }
+
+    public void setEuFlag(Integer euFlag) {
+        this.euFlag = euFlag;
     }
 
     public Integer getDealActive() {

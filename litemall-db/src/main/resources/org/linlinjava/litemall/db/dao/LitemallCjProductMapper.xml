@@ -186,6 +186,15 @@
     group by t.root, cat.name
   </select>
 
+  <!-- Wave 27: the pids we have MEASURED to hold EU warehouse stock. NULL (never probed) is
+       excluded along with 0, which is the honest reading for a filter: eu_flag=0 means "not known
+       to hold EU stock", never "known to hold none". Pids only — the caller wants a yes/no. -->
+  <select id="selectEuStockedPids" resultType="java.lang.String">
+    select pid
+    from litemall_cj_product
+    where deleted = 0 and eu_stock_num is not null and eu_stock_num > 0
+  </select>
+
   <!-- Wave 26: CJ said this pid has no detail — its own answer about this product, unlike absence
        from a sampled sweep. Strikes accumulate across passes; any successful detail resets them. -->
   <update id="recordDelistedStrike">
