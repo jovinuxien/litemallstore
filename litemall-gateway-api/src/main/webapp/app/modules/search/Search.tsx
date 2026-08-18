@@ -24,6 +24,7 @@ import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
 
 import CategoryTree from './instantsearch/CategoryTree';
+import { emptyStateCopy, hasRefinements } from './instantsearch/emptyStateCopy';
 import CatalogTreeNav from './instantsearch/CatalogTreeNav';
 import ProductHit from './instantsearch/ProductHit';
 import SearchUnavailableState from './instantsearch/SearchUnavailableState';
@@ -185,9 +186,13 @@ const NoResultsBoundary: React.FC<{ fallback: React.ReactNode; children: React.R
  * ways onward — trending keywords (GET /srv/search/index) and the top catalog
  * categories (already in redux for the header drawer / home page).
  */
-const SearchEmptyState: React.FC = () => {
-  const { results } = useInstantSearch();
+const SearchEmptyState: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
+  const { results, indexUiState } = useInstantSearch();
   const query = (results?.query ?? '').trim();
+  // Why the page is empty decides what it may say — a retired department, a
+  // filter that matched nothing, or a term that found nothing are three
+  // different statements (see instantsearch/emptyStateCopy.ts).
+  const copy = emptyStateCopy({ categoryId, query, refined: hasRefinements(indexUiState as Record<string, unknown>) });
   const [trending, setTrending] = useState<string[]>([]);
 
   useEffect(() => {
@@ -222,8 +227,8 @@ const SearchEmptyState: React.FC = () => {
 
   return (
     <div className="lm-isearch__empty">
-      <h2>{query ? `No results for “${query}”` : 'No products found'}</h2>
-      <p>Check the spelling or try a different term — or start from one of these.</p>
+      <h2>{copy.title}</h2>
+      <p>{copy.body}</p>
       {trending.length > 0 && (
         <section>
           <h3>Trending searches</h3>
@@ -449,7 +454,7 @@ const SearchView: React.FC = () => {
             {/* An outage (typed errno 502 / gateway unreachable — published by the
                 search client as meta.unavailable) is NOT a relevance miss: say so
                 honestly instead of showing the "no results" suggestions. */}
-            <NoResultsBoundary fallback={meta.unavailable ? <SearchUnavailableState /> : <SearchEmptyState />}>
+            <NoResultsBoundary fallback={meta.unavailable ? <SearchUnavailableState /> : <SearchEmptyState categoryId={params.id} />}>
               <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />
 
               <Pagination className="lm-isearch__pager" padding={2} />

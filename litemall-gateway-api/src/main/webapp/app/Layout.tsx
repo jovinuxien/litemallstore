@@ -11,6 +11,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
 import SocialLinks from 'app/shared/config/SocialLinks';
+import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 import './layout-header.scss';
 
 /**
@@ -78,6 +79,16 @@ const Layout: React.FC = () => {
   // Recents change whenever a search is submitted — mark the cached index data
   // stale so the next empty-focus refetches instead of showing old history.
   const indexStale = useRef(true);
+
+  // Wave 26: the narrowed catalogue left these sections with nothing behind
+  // them (every seed brand reports zero goods, every seeded topic is empty, the
+  // article CMS is empty, no campaign is running). Advertise a section only
+  // while it has content — an admin enabling a brand or starting a campaign
+  // brings the entry back with no rebuild.
+  const hasBrands = useContentAvailability('brands');
+  const hasTopics = useContentAvailability('topics');
+  const hasArticles = useContentAvailability('articles');
+  const hasGroupons = useContentAvailability('groupons');
 
   const cartCount = useAppSelector(state => state.cart.data.cartList.length);
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
@@ -421,15 +432,21 @@ const Layout: React.FC = () => {
             <Link to='/search' className='lm-header__strip-link'>
               All Products
             </Link>
-            <Link to='/brands' className='lm-header__strip-link'>
-              Brands
-            </Link>
-            <Link to='/topics' className='lm-header__strip-link'>
-              Topics
-            </Link>
-            <Link to='/groupon' className='lm-header__strip-link'>
-              Group Buys
-            </Link>
+            {hasBrands && (
+              <Link to='/brands' className='lm-header__strip-link'>
+                Brands
+              </Link>
+            )}
+            {hasTopics && (
+              <Link to='/topics' className='lm-header__strip-link'>
+                Topics
+              </Link>
+            )}
+            {hasGroupons && (
+              <Link to='/groupon' className='lm-header__strip-link'>
+                Group Buys
+              </Link>
+            )}
             <Link to='/service' className='lm-header__strip-link'>
               Customer Service
             </Link>
@@ -520,18 +537,26 @@ const Layout: React.FC = () => {
                   <Link to='/new' className='link-light text-decoration-none small'>
                     New arrivals
                   </Link>
-                  <Link to='/brands' className='link-light text-decoration-none small'>
-                    Shop by brand
-                  </Link>
-                  <Link to='/topics' className='link-light text-decoration-none small'>
-                    Topics &amp; guides
-                  </Link>
-                  <Link to='/articles' className='link-light text-decoration-none small'>
-                    Articles
-                  </Link>
-                  <Link to='/groupon' className='link-light text-decoration-none small'>
-                    Group buys
-                  </Link>
+                  {hasBrands && (
+                    <Link to='/brands' className='link-light text-decoration-none small'>
+                      Shop by brand
+                    </Link>
+                  )}
+                  {hasTopics && (
+                    <Link to='/topics' className='link-light text-decoration-none small'>
+                      Topics &amp; guides
+                    </Link>
+                  )}
+                  {hasArticles && (
+                    <Link to='/articles' className='link-light text-decoration-none small'>
+                      Articles
+                    </Link>
+                  )}
+                  {hasGroupons && (
+                    <Link to='/groupon' className='link-light text-decoration-none small'>
+                      Group buys
+                    </Link>
+                  )}
                   <Link to='/coupons' className='link-light text-decoration-none small'>
                     Coupons &amp; deals
                   </Link>
