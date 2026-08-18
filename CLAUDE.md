@@ -1642,7 +1642,22 @@
     "New from template" already exists.
   Until the storefront half ships the endpoint is INERT and `/summer` behaves
   exactly as today.
-- **EU-warehouse surfacing (measured 2026-08-18, prod, NOT yet built):** of the 30
+- **EU-warehouse surfacing — `eu_flag` BUILT (2026-08-18).** Contract:
+  `litemall-goods-management/docs/spec-eu-warehouse-flag.md`. Fourth instance of the
+  `deal_flag`/`coupon_flag`/`groupon_flag` pattern: `EuStockSignalResolver` (60s TTL
+  snapshot of EU-stocked pids, fail-soft, pid strings ONLY — `queryAllLive()` would
+  drag every variants_json through memory), `ProductDocument.euFlag` always-emit 0/1,
+  keyed on `cj_pid` not goods id, positive-only hit passthrough, `eu_flag` field +
+  facet in `application.indexer-service.yml` **and BOTH dynamic-field regexes**.
+  NO migration (V61 already stores it); NO filter-side code (SearchService forwards
+  all candidates, OCS acts on configured facets). ⚠ **`eu_flag=0` means "not known to
+  hold EU stock"** — it lumps "probed, none" with "never probed"; honest for a filter,
+  a lie as a catalogue claim. ⚠ A reading is a measurement with a timestamp, NOT a
+  delivery promise — customer copy must say "in stock in Germany at last check".
+  ⚠ DEPLOY ORDER (Wave-19/21 lesson): indexer recreate → goods-management → full
+  reindex → **searcher restart AFTER the reindex**, else `eu_flag=1` returns nothing.
+  **gateway-api half NOT started** (badge + filter toggle; PDP badge already exists).
+- **EU-warehouse measurement (2026-08-18, prod):** of the 30
   NEWEST arrivals **16 carry measured DE stock** (units 230 x9, 20 x7 — two arrival
   batches, so directional not precise); of 40 relevance-ordered catalogue products
   **0** do. The Wave-26 DE acquisition targets are working; the standing catalogue
