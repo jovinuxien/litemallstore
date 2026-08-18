@@ -70,7 +70,7 @@ const PostizPagePublish: React.FC = () => {
       setActionError(`Request failed (${(res.error as { status?: number | string }).status ?? 'network'}).`);
       return;
     }
-    // The groupon-category refusal (and any other typed errno) lands here —
+    // Any typed errno from the server lands here —
     // errmsg is shown verbatim.
     const msg = errnoMessage(res.data);
     if (msg) {
@@ -125,8 +125,7 @@ const PostizPagePublish: React.FC = () => {
       {/* 1 — page */}
       <h5 className='mt-3'>1 · Pick a page</h5>
       <div className='text-muted small mb-2'>
-        One post per channel promoting the page at its public <code>/page/&lt;id&gt;</code> URL. Only ACTIVE pages can publish; groupon-category pages are
-        refused for now.
+        One post per channel promoting the page at its public <code>/page/&lt;id&gt;</code> URL. Only ACTIVE pages can publish.
       </div>
       <div className='filter-container'>
         <select
@@ -269,7 +268,7 @@ const PostizPagePublish: React.FC = () => {
         {previewData != null && !previewFresh && <span className='filter-item text-warning'>Selection changed — preview again before publishing.</span>}
       </div>
 
-      {/* server refusals (incl. the groupon-category one) land here VERBATIM */}
+      {/* server refusals land here VERBATIM */}
       {actionError && <div className='alert alert-danger'>{actionError}</div>}
 
       {/* preview */}

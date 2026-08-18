@@ -814,7 +814,7 @@ const PageEditor: React.FC = () => {
               </option>
             ))}
           </select>
-          <div className='form-text'>Merchandising category — drives list filters and social page publishing (groupon pages are held back).</div>
+          <div className='form-text'>Merchandising category — drives list filters and social page publishing.</div>
         </div>
         <div className='col-3'>
           <label className='form-label'>Position</label>
