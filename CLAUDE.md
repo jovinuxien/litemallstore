@@ -1938,14 +1938,35 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — idle (Wave 26 nav honesty MERGED, deploy pending)
+### Worktree: `gateway-api` — idle (Wave 26 nav honesty SHIPPED + DEPLOYED)
 - **No active assignment.** Launch with FRESH=1 only after a new wave is
   commissioned and this block is rewritten.
 - **History — Wave 26 (Phase 2/4 storefront half): "no empty tiles, no dead
   links" after the narrowing.** MERGED to master `40cb2e024` (2026-08-18;
   webapp suite 170 passed / 25 suites, 39 new tests, clean prod build).
-  **VPS deploy pending** — MAIN session, gateway-api container only, no
-  migration, no backend change.
+  **DEPLOYED to trovemo.com 2026-08-18** — gateway-api container only, no
+  migration, no backend change, no reindex. Built from the VERIFIED commit
+  (detached checkout of `87478b944`), NOT from master's tip: master had
+  meanwhile picked up another session's Wave-27 work incl. a litemall-db
+  migration (V63), and baking a peer's unshipped db code into this image was
+  not mine to decide. Evidence: image built, container recreated healthy in
+  11s, 0 errors in its log, smoke 200s across shell/robots/sitemap/PDP/
+  category + every `/srv` surface the probes call; new bundle
+  `main.b4f4a08ef3cd9fbf3ae5.js` carries `lm_content_avail` +
+  `requestIdleCallback`, lazy chunk 845 carries the new empty-state copy and
+  "No subcategories", chunk 923 "No brands to show yet" (⚠ route components
+  are code-split — verify by CHUNK content, the main bundle alone proves
+  nothing). Final click-through is USER-SIDE (the gate renders client-side).
+  ⚠ **VPS repo gotcha found while deploying:** `/opt/litemall`'s local
+  `master` ref was stale at `cb791e856` (Wave 18) — deploys had been running
+  from detached HEADs after `git pull --ff-only /opt/litemall.git master`,
+  so `git checkout master` there SILENTLY REWINDS the tree three months.
+  Left fast-forwarded to the pushed tip and clean; check
+  `git rev-parse --abbrev-ref HEAD` before trusting a VPS checkout.
+  ⚠ Pre-existing, NOT caused by this deploy: `promotion-service` has been
+  **unhealthy for 7 days**; disk is at 85% with 28GB of reclaimable build
+  cache (`litemall-prod.sh` refuses a full build below 30GB free — currently
+  12GB).
   Audit measured on the LIVE narrowed store (dev was never narrowed — it
   CANNOT reproduce this state; verification was fixture-based against captured
   live payloads): the L1 category nav was ALREADY honest (goods-management
