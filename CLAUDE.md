@@ -1603,8 +1603,59 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (Wave 26 Phase 2 code SHIPPED + DEPLOYED)
-- **No active assignment.** Phase 2's code half (deliverables 2, 4, 5) merged
+### Worktree: `goods-management` — Wave 27 season collection (backend half BUILT)
+- **Wave 27 (2026-08-18) — SEASONAL MERCHANDISING COLLECTION.** User ask: push the
+  current season's products in place of "Summer Deals", with a clear admin
+  procedure to manage them and select them for promotion. **Backend half BUILT +
+  merged: `bac29f144`** (module suite 455 run / 0 failures / 8 skipped; Flyway 4/4
+  with **V63** applied clean on a real MySQL container, schema at v63).
+  Audit facts (measured live 2026-08-18, prod): "Summer Deals" was NEVER a
+  collection — a hardcoded keyword search (`q=summer&source=cj`,
+  `GoodsListPage.tsx:27`) with its label hardcoded in `Layout.tsx:416`,
+  `CategoryDrawer.tsx:84` and `Home.tsx:294`, and NO admin surface at all. Post
+  narrowing it returned **39 products of 3,026**, relevance-relaxed so not even
+  reliably on topic (result #2 = "Diving Tube Super Bright Flashlight", which does
+  not contain the word). A season is now an ordinary DIY page with
+  `category='season'`, inheriting the palette editor, draft/active lifecycle,
+  clone flow and Postiz publishing.
+  **Wave-27 CONTRACT (the other halves code to
+  `litemall-goods-management/docs/spec-season-collection.md`, NOT to this branch):**
+  - `GET /srv/page/season` → the active season page (identical PageView shape to
+    `/srv/page/home`), or errno 642 "no active season page". Already anonymous —
+    `/srv/page/**` was on public-paths.
+  - Selection: `category='season' AND status='active' AND deleted=0 AND
+    is_template=0`, `ORDER BY update_time DESC, id DESC LIMIT 1`. Deliberate: NO
+    single-active invariant (that would need a migration + demote-then-promote),
+    so two active season pages resolve **last-activated-wins**, never arbitrarily;
+    `is_template=0` stops the seeded template ever going live; **NO scheduling
+    columns** — activation is the switch, admin-gated and reversible.
+  - **V63** seeds ONE draft template ("Season spotlight"). Its rail is
+    `mode=deals`, NOT `byIds`: the validator demands 1-24 REAL ids, so a seeded
+    byIds rail could only carry placeholders that either render nothing or
+    advertise products nobody chose. Pinned by `PageTemplateSeedTest`.
+  - No structural migration was needed for the category itself — `VARCHAR(31)`,
+    no DB constraint; `'season'` only had to join `AdminPageController.CATEGORIES`.
+  - **gateway-api (NOT started):** header link + home strip + `/summer` route
+    become season-driven; on errno 642 the strip AND the nav link are ABSENT —
+    never an empty grid or a dead link.
+  - **gateway-admin (NOT started):** `'season'` in the page-list category filter;
+    "New from template" already exists.
+  Until the storefront half ships the endpoint is INERT and `/summer` behaves
+  exactly as today.
+- **EU-warehouse surfacing (measured 2026-08-18, prod, NOT yet built):** of the 30
+  NEWEST arrivals **16 carry measured DE stock** (units 230 x9, 20 x7 — two arrival
+  batches, so directional not precise); of 40 relevance-ordered catalogue products
+  **0** do. The Wave-26 DE acquisition targets are working; the standing catalogue
+  predates them. Authoritative split =
+  `GET /srv/private/admin/insight/eu-sourcing` (computes survival over PROBED
+  count, not on-sale, and returns null never 0 where unprobed). ⚠ The brand
+  section is the WRONG home for this: brand answers *who sells it* (Wave 25 —
+  a supplier must never render as a brand) while warehouse stock is a per-SKU,
+  per-measurement property. The right seam is an **`eu_flag`** in the search index
+  beside `dealFlag`/`couponFlag`/`grouponFlag` in `ProductDocument` (no migration —
+  V61 already stores it). A delivery CLAIM must stay per-SKU: the PDP payload
+  already omits `euStock` unless a real measurement found units > 0.
+- **History — Wave 26 Phase 2.** Phase 2's code half (deliverables 2, 4, 5) merged
   to master and deployed to prod 2026-08-14 (`4d1bdf289`), together with the
   Wave 25.1 work Task 0 asked for. What remains of Wave 26 is OPERATIONAL and
   belongs to the MAIN session against prod data, in this order: set the €5.00
