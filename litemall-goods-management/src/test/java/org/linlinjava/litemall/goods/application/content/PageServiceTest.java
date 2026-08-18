@@ -157,4 +157,41 @@ public class PageServiceTest {
         assertThat(captor.getValue().getConfig()).isNull();
         assertThat(captor.getValue().getIsTemplate()).isNull();
     }
+
+    // ---------------- season collection (Wave 27) ----------------
+
+    @Test
+    public void activeByCategoryServesTheSeasonPageView() {
+        LitemallPage season = page(31, "Autumn spotlight", LitemallPage.POSITION_CUSTOM,
+                LitemallPage.CATEGORY_SEASON, LitemallPage.STATUS_ACTIVE, false);
+        when(pageMapper.selectActiveByCategory(LitemallPage.CATEGORY_SEASON)).thenReturn(season);
+
+        Map<String, Object> view = service.activeByCategory(LitemallPage.CATEGORY_SEASON);
+
+        assertThat(view).isNotNull();
+        assertThat(view.get("id")).isEqualTo(31);
+        assertThat(view.get("name")).isEqualTo("Autumn spotlight");
+        assertThat(view.get("category")).isEqualTo(LitemallPage.CATEGORY_SEASON);
+    }
+
+    /**
+     * No season running is a NORMAL state, not a failure: null here becomes errno 642 at the
+     * edge and an ABSENT strip in the storefront. If this ever threw or fabricated an empty
+     * page, the SPA would render a dead nav link to nothing.
+     */
+    @Test
+    public void noActiveSeasonPageIsNullRatherThanAnEmptyView() {
+        when(pageMapper.selectActiveByCategory(LitemallPage.CATEGORY_SEASON)).thenReturn(null);
+
+        assertThat(service.activeByCategory(LitemallPage.CATEGORY_SEASON)).isNull();
+    }
+
+    /** The category is passed through verbatim — the season route must not read the home slot. */
+    @Test
+    public void activeByCategoryQueriesTheRequestedCategoryOnly() {
+        service.activeByCategory(LitemallPage.CATEGORY_SEASON);
+
+        verify(pageMapper).selectActiveByCategory(LitemallPage.CATEGORY_SEASON);
+        verify(pageMapper, org.mockito.Mockito.never()).selectActiveHome();
+    }
 }

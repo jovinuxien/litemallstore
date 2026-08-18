@@ -18,7 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Wave-20 admin surface rules at the edge: the 3-value category whitelist on
+ * Wave-20 admin surface rules at the edge: the category whitelist on
  * create/update (junk → errno 640 naming the allowed set), the list
  * category/template filter validation, and the clone endpoint envelope.
  * {@code is_template} has no writable path anywhere in the controller.
@@ -90,6 +90,31 @@ public class AdminPageControllerTest {
         assertThat(envelope(response).get("errno")).isEqualTo(0);
         verify(service).create(eq("Coupon page"), anyString(),
                 eq(LitemallPage.CATEGORY_COUPON), anyString());
+    }
+
+    /**
+     * Wave 27: 'season' joined the whitelist. Without this the season page could be created
+     * only by hand in SQL — the admin procedure would have no first step.
+     */
+    @Test
+    public void createAcceptsASeasonCategory() {
+        when(service.create(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(new LitemallPage());
+        Object response = controller.create(body(null, "Autumn spotlight", "season", EMPTY_CONFIG));
+        assertThat(envelope(response).get("errno")).isEqualTo(0);
+        verify(service).create(eq("Autumn spotlight"), anyString(),
+                eq(LitemallPage.CATEGORY_SEASON), anyString());
+    }
+
+    @Test
+    public void listForwardsTheSeasonCategoryFilter() {
+        when(service.adminList(any(), any(), any(), any(), Mockito.anyInt(), Mockito.anyInt()))
+                .thenReturn(Map.of());
+
+        Object response = controller.list(null, "active", "season", null, 1, 10);
+
+        assertThat(envelope(response).get("errno")).isEqualTo(0);
+        verify(service).adminList(null, "active", "season", null, 1, 10);
     }
 
     @Test

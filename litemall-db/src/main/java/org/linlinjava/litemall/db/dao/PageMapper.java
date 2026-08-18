@@ -33,6 +33,19 @@ public interface PageMapper {
     LitemallPage selectActiveById(@Param("id") Integer id);
 
     /**
+     * The current ACTIVE page of a merchandising category (Wave 27: {@code season}), or null.
+     * Loads config.
+     *
+     * <p>Unlike the home slot there is NO schema-level single-active invariant for a category —
+     * deliberately, so a season swap needs no migration and no demote-then-promote transaction.
+     * Two simultaneously active season pages are therefore possible, and this resolves them as
+     * LAST-ACTIVATED-WINS ({@code update_time} desc, id desc, limit 1) rather than returning an
+     * arbitrary row. Templates are excluded: a seeded template is a starting point, never a
+     * live page.
+     */
+    LitemallPage selectActiveByCategory(@Param("category") String category);
+
+    /**
      * Admin list, newest first, WITHOUT the (potentially 64KB) config column.
      * Nullable filters: position, status, category (exact), isTemplate.
      */

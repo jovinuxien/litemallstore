@@ -24,13 +24,15 @@ public class LitemallPage {
     public static final String CATEGORY_GENERAL = "general";
     public static final String CATEGORY_COUPON = "coupon";
     public static final String CATEGORY_GROUPON = "groupon";
+    /** Seasonal merchandising collection (Wave 27) — the storefront's season strip reads it. */
+    public static final String CATEGORY_SEASON = "season";
 
     private Integer id;
     /** Admin-facing label. */
     private String name;
     /** home | custom. */
     private String position;
-    /** general | coupon | groupon (V54). */
+    /** general | coupon | groupon (V54) | season (Wave 27). */
     private String category;
     /** Palette v1 JSON (validated, &le;64KB UTF-8). */
     private String config;
