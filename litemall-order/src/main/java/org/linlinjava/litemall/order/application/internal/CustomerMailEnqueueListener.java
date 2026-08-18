@@ -53,6 +53,18 @@ public class CustomerMailEnqueueListener {
 
     private static final Logger log = LoggerFactory.getLogger(CustomerMailEnqueueListener.class);
 
+    /**
+     * The store charges ONE currency (Wave 24, 2026-08-09: EUR storewide), so every
+     * amount in a mail carries this symbol. Amounts arrive as plain decimals — the
+     * symbol is presentation, exactly as the two SPAs treat it.
+     *
+     * <p>The plain-text mails (admin paid-notice, refund-approved, pickup code) go out
+     * as {@code SimpleMailMessage}; a non-ASCII symbol only survives that path because
+     * {@code SmtpCustomerMailSender} sets the sender's default encoding to UTF-8. The
+     * HTML mails already force UTF-8 via {@code MimeMessageHelper}.
+     */
+    private static final String CURRENCY_SYMBOL = "\u20ac";
+
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
     private final LitemallUserMapper userMapper;
@@ -368,7 +380,7 @@ public class CustomerMailEnqueueListener {
         if (value == null || value.getAmount() == null || value.getAmount().signum() == 0) {
             return "";
         }
-        return "$" + value.getAmount().toPlainString();
+        return CURRENCY_SYMBOL + value.getAmount().toPlainString();
     }
 
     private void enqueueShippedMail(LitemallOrderAggregate order, String email) {
@@ -385,7 +397,7 @@ public class CustomerMailEnqueueListener {
      */
     private void enqueueAdminPaidNotice(LitemallOrderAggregate order) {
         String total = money(order.getActualPrice());
-        String subject = "New paid order " + order.getOrderSn() + " — " + (total.isEmpty() ? "$?" : total);
+        String subject = "New paid order " + order.getOrderSn() + " — " + (total.isEmpty() ? CURRENCY_SYMBOL + "?" : total);
         StringBuilder body = new StringBuilder();
         body.append("A new order was paid on ").append(payTime(order.getPayTime())).append(".\n\n");
         body.append("Order: ").append(order.getOrderSn()).append('\n');
@@ -440,7 +452,7 @@ public class CustomerMailEnqueueListener {
     }
 
     private static String money(LitemallMoney value) {
-        return value == null || value.getAmount() == null ? "" : "$" + value.getAmount().toPlainString();
+        return value == null || value.getAmount() == null ? "" : CURRENCY_SYMBOL + value.getAmount().toPlainString();
     }
 
     private void insertRow(String recipient, MailTemplates.RenderedMail mail, String bodyHtml) {
