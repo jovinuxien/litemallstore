@@ -30,6 +30,18 @@ export const catalogApi = {
     ),
   /** GET /srv/goods/list — flat SQL listing (used for hot/new/category quick lists). */
   goodsList: (params: GoodsListParams) => unwrap(baseAxios.get(`${SRV}/goods/list`, { params })),
+  /**
+   * GET /srv/goods/origin?ids= — Wave-28 batch warehouse-origin read.
+   *
+   * Returns a row ONLY for goods with a measured, non-zero EU warehouse stock;
+   * unmeasured goods are absent from the list rather than carrying a null or a
+   * guessed "CN". Public for the same reason the PDP's `euStock` key is public:
+   * it is the same measurement, already served anonymously by /srv/goods/detail.
+   */
+  goodsOrigin: (ids: (number | string)[]) =>
+    unwrap<{ list?: { goodsId?: number; originCountry?: string }[] }>(
+      baseAxios.get(`${SRV}/goods/origin`, { params: { ids: ids.join(',') } })
+    ),
   /** GET /srv/catalog/all — full category tree (mega menu). */
   catalogAll: () => unwrap(baseAxios.get(`${SRV}/catalog/all`)),
   /** GET /srv/catalog/current?id= — one category branch. */

@@ -19,6 +19,7 @@ import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
+import OriginNote from 'app/components/commonComponents/OriginNote';
 import RegionInput from 'app/components/commonComponents/RegionInput';
 import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
 import { regionsFor } from 'app/shared/data/regions';
@@ -35,10 +36,11 @@ import {
   ShippingInfo,
   TaxUnavailableError,
 } from 'app/shared/reducers/orderSlice';
-import { authApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
+import { authApi, catalogApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
 import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
+import { originCountryName } from 'app/shared/util/euStock';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -320,6 +322,48 @@ const CheckoutView: React.FC = () => {
   // CJ lines ship via CJ Dropshipping, which requires a country + phone.
   const hasCjItems = useMemo(() => cartList.some(isCjItem), [cartList]);
   const hasLocalItems = useMemo(() => cartList.some(it => !isCjItem(it)), [cartList]);
+
+  /**
+   * Wave-28 per-line warehouse origin. One batched public read for the whole cart
+   * (the coupon selectlist below collects goodsIds the same way), keyed by goodsId.
+   *
+   * Absent from the response ⇒ absent from the map ⇒ no note on that line. Any
+   * failure leaves the map empty, so a backend without /srv/goods/origin — or one
+   * that is briefly down — renders the checkout exactly as it looked before this
+   * wave. An origin note is a nicety; it must never be able to break a checkout.
+   */
+  const [origins, setOrigins] = useState<Record<number, string>>({});
+  const originIds = useMemo(
+    () =>
+      Array.from(new Set(cartList.map(it => Number(it.goodsId)).filter(id => Number.isFinite(id) && id > 0))).sort((a, b) => a - b),
+    [cartList]
+  );
+  const originKey = originIds.join(',');
+  useEffect(() => {
+    if (originIds.length === 0) {
+      setOrigins({});
+      return;
+    }
+    let cancelled = false;
+    catalogApi
+      .goodsOrigin(originIds)
+      .then(res => {
+        if (cancelled) return;
+        const map: Record<number, string> = {};
+        (res?.list ?? []).forEach(row => {
+          if (row?.goodsId != null && row.originCountry) map[Number(row.goodsId)] = row.originCountry;
+        });
+        setOrigins(map);
+      })
+      .catch(() => {
+        if (!cancelled) setOrigins({});
+      });
+    return () => {
+      cancelled = true;
+    };
+    // originKey is the stable identity of originIds — the array is rebuilt each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originKey]);
 
   // Pickup checkout (Wave 4 — handoff-gateway-api-pickup.md; the toggle only
   // appears when /srv/store/list has visible stores). CJ lines always ship —
@@ -1306,8 +1350,14 @@ const CheckoutView: React.FC = () => {
               saved-address path — a new address already carries the field above. */}
           {hasCjItems && (
             <div className='px-3 pb-3'>
+              {/* Wave-28: this used to name our internal supplier ("CJ Dropshipping") to
+                  the customer, which told them nothing useful about their delivery and
+                  named the wrong party besides. The ask it actually exists to make —
+                  country + phone, which the carrier needs — is kept; per-item origin is
+                  now stated on the lines themselves, from measurement. */}
               <Alert variant='info' className='mb-2'>
-                Some items ship via <strong>CJ Dropshipping</strong> — please provide a <strong>country</strong> and a <strong>phone number</strong>.
+                These items ship direct from the warehouse — please provide a <strong>country</strong> and a{' '}
+                <strong>phone number</strong> so the carrier can deliver.
               </Alert>
               {!usingNewAddress && (
                 <>
@@ -1548,6 +1598,7 @@ const CheckoutView: React.FC = () => {
               specs={item.specifications}
               price={priceNum(item.price) * (item.number ?? 0)}
               qty={item.number ?? 0}
+              note={<OriginNote countryCode={origins[Number(item.goodsId)]} />}
             />
           ))}
           </div>
@@ -1672,7 +1723,15 @@ const CheckoutView: React.FC = () => {
                           >
                             <i className='bi bi-truck' />
                             <div>
-                              <div className='lm-delivery__name'>{o.logisticName}</div>
+                              <div className='lm-delivery__name'>
+                                {o.logisticName}
+                                {/* Wave-28: flag the couriers quoted from an EU warehouse.
+                                    Non-EU lines get no counter-label — the absence is the
+                                    signal, same as upgradeDelta's null. */}
+                                {originCountryName(o.originCountry) && (
+                                  <span className='lm-delivery__origin'>EU · {originCountryName(o.originCountry)}</span>
+                                )}
+                              </div>
                               {o.logisticAging && <div className='lm-delivery__meta'>Estimated delivery {o.logisticAging} days</div>}
                             </div>
                             {deltaLabel && (

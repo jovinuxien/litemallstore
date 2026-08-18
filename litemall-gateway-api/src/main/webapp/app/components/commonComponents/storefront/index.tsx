@@ -75,8 +75,14 @@ interface GoodsLineCardProps {
   qtyControl?: React.ReactNode;
   /** Extra controls on the right (e.g. a remove button). */
   trailing?: React.ReactNode;
+  /**
+   * Small line under the specs — Wave-28 uses it for the measured warehouse origin.
+   * A ReactNode rather than a string so callers own the icon and wording; absent
+   * renders nothing at all, which is the common case (most goods are unmeasured).
+   */
+  note?: React.ReactNode;
 }
-export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, specs, price, qty, qtyControl, trailing }) => {
+export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, specs, price, qty, qtyControl, trailing, note }) => {
   const title = to ? (
     <Link to={to} className='lm-goods-card__title'>
       {name}
@@ -98,6 +104,7 @@ export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, 
             ))}
           </div>
         )}
+        {note != null && <div className='lm-goods-card__note'>{note}</div>}
         <div className='lm-goods-card__footer'>
           {price != null && <span className='lm-goods-card__price'>{money(price)}</span>}
           {qtyControl != null ? qtyControl : qty != null && <span className='lm-goods-card__qty'>× {qty}</span>}

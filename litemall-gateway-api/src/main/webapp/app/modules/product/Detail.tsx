@@ -30,7 +30,7 @@ import ShareButton from './productDetailComponent/ShareButton';
 import SoldByRow from './productDetailComponent/SoldByRow';
 import EuStockBadge from './productDetailComponent/EuStockBadge';
 import { brandIdOf } from 'app/shared/util/attribution';
-import { euStockOf } from 'app/shared/util/euStock';
+import { euOriginName, euStockOf } from 'app/shared/util/euStock';
 import './Detail.scss';
 
 const productId = (p: DetailProduct): number | undefined => {
@@ -186,6 +186,10 @@ const ProductDetailView: React.FC = () => {
   // right under the title.
   const briefText = useMemo(() => briefToText(goods?.brief), [goods?.brief]);
 
+  // Wave-28: ONE reading of the EU warehouse measurement, shared by the badge under
+  // the title and the "Ships from" trust row below, so the two can never disagree.
+  const euStock = useMemo(() => euStockOf(data), [data]);
+
   useEffect(() => {
     setActiveImage(goods?.picUrl ?? '');
   }, [goods?.picUrl]);
@@ -309,7 +313,7 @@ const ProductDetailView: React.FC = () => {
           {goods.hot && <span className='lm-pdp__popular'>Popular</span>}
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
           <SoldByRow brandId={brandIdOf(goods)} />
-          <EuStockBadge stock={euStockOf(data)} />
+          <EuStockBadge stock={euStock} />
           <RatingSummary goodsId={gid} />
           {briefText && <p className='lm-pdp__brief'>{briefText}</p>}
 
@@ -474,14 +478,21 @@ const ProductDetailView: React.FC = () => {
                 <Link to='/help'>Varies by destination</Link>
               </dd>
             </div>
-            <div>
-              <dt>Ships from</dt>
-              <dd>Trovemo</dd>
-            </div>
-            <div>
-              <dt>Sold by</dt>
-              <dd>Trovemo</dd>
-            </div>
+            {/* Wave-28: origin is a MEASUREMENT, not branding. Both of these rows used
+                to read "Trovemo", which was false twice over — we dropship, so we are
+                neither the warehouse nor (with Wave-25 attribution live) always the
+                named seller. "Ships from" now appears only for a product with real EU
+                warehouse stock; everything else shows no row, because the payload
+                collapses "never probed" and "probed, none" and guessing between them
+                is what got us "Trovemo" in the first place. Seller attribution already
+                has an honest home in <SoldByRow /> under the title, so the duplicate
+                "Sold by" row is gone rather than restated here. */}
+            {euStock && (
+              <div>
+                <dt>Ships from</dt>
+                <dd>{euOriginName(euStock)}</dd>
+              </div>
+            )}
             <div>
               <dt>Returns</dt>
               <dd>

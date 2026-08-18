@@ -131,6 +131,9 @@
     &:hover { color: var(--lm-primary, #0e7c86); }
   }
   &__specs { display: flex; flex-wrap: wrap; gap: 4px; }
+  // Wave-28 origin line. Deliberately quieter than the PDP's pill badge: at
+  // checkout it is one of several per-line facts, not the headline.
+  &__note { font-size: 0.78rem; line-height: 1.4; }
   &__footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; }
   &__price { color: var(--lm-accent, #ff5a5f); font-weight: 700; }
   &__qty { color: var(--lm-muted, #6b7b82); font-size: 0.85rem; }
@@ -200,6 +203,19 @@
   }
   &__name { font-weight: 600; font-size: .9rem; }
   &__meta { color: var(--lm-muted, #6b7b82); font-size: .8rem; }
+  // Wave-28: marks a courier line quoted from an EU warehouse. Non-EU lines carry
+  // no counter-badge, so this reads as a bonus rather than a scarlet letter.
+  &__origin {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: .7rem;
+    font-weight: 700;
+    color: #1b5e20;
+    background: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    white-space: nowrap;
+  }
   &__check { color: var(--lm-primary, #0e7c86); margin-left: auto; }
   // Wave-24.1 upgrade-delta label: "+€x.xx" (accent) / "Included" (muted).
   &__delta {
@@ -374,4 +390,13 @@
   margin-left: 8px;
   svg { display: block; border-radius: 3px; }
   &--muted { filter: grayscale(1); opacity: 0.45; }
+}
+
+// ---- Wave-28 warehouse origin note (cart / checkout lines) -----------------
+// Rendered only for a measured EU warehouse, so the affirmative green is earned.
+.lm-origin-note {
+  display: inline-flex;
+  align-items: center;
+  color: #1b5e20;
+  font-weight: 600;
 }
