@@ -32,12 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V62 (CJ delisting strikes, Wave 26;
-    // previously V59 order CJ-placement approval stamp, Wave 23) is the latest
-    // known migration ON THIS BRANCH; numbering contiguous, so the SCRIPT COUNT
-    // equals the version: 60. Being a floor it still passes when it drifts, so
-    // it only asserts what it is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 62;
+    // Hand-maintained floor: V63 (season page template, Wave 27; previously V62
+    // CJ delisting strikes, Wave 26) is the latest known migration ON THIS
+    // BRANCH; numbering contiguous, so the SCRIPT COUNT equals the version: 63.
+    // Being a floor it still passes when it drifts, so it only asserts what it
+    // is raised to — bump it when you add a migration.
+    private static final int MIN_EXPECTED_MIGRATIONS = 63;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =

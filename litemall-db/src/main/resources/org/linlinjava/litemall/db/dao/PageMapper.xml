@@ -43,6 +43,19 @@
     where id = #{id} and status = 'active' and deleted = 0
   </select>
 
+  <!--
+    Wave 27 season collection. is_template = 0 matters: the seeded "Season spotlight" template
+    must never become the customer-visible season page just because someone activated it.
+    Ordering is the tie-break for the (allowed) multi-active case — see the mapper interface.
+  -->
+  <select id="selectActiveByCategory" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
+    select <include refid="columns" />
+    from litemall_page
+    where category = #{category} and status = 'active' and deleted = 0 and is_template = 0
+    order by update_time desc, id desc
+    limit 1
+  </select>
+
   <select id="selectAdminPage" resultType="org.linlinjava.litemall.db.domain.LitemallPage">
     select <include refid="listColumns" />
     from litemall_page

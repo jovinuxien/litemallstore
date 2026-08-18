@@ -34,7 +34,7 @@ public class AdminPageController {
             Set.of(LitemallPage.STATUS_DRAFT, LitemallPage.STATUS_ACTIVE);
     private static final Set<String> CATEGORIES =
             Set.of(LitemallPage.CATEGORY_GENERAL, LitemallPage.CATEGORY_COUPON,
-                    LitemallPage.CATEGORY_GROUPON);
+                    LitemallPage.CATEGORY_GROUPON, LitemallPage.CATEGORY_SEASON);
 
     private final PageService pageService;
 

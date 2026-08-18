@@ -56,6 +56,18 @@ public class PageService {
         return page == null ? null : toPageView(page);
     }
 
+    /**
+     * The active page of a merchandising category (Wave 27: {@code season}), or null.
+     *
+     * <p>The storefront reads this to decide whether a season strip exists at all; null is the
+     * honest "no season running" answer, which the edge turns into errno 642 and the SPA turns
+     * into an ABSENT strip — never an empty grid or a dead nav link.
+     */
+    public Map<String, Object> activeByCategory(String category) {
+        LitemallPage page = pageMapper.selectActiveByCategory(category);
+        return page == null ? null : toPageView(page);
+    }
+
     /** Active page by id, or null (drafts are never served customer-side). */
     public Map<String, Object> activeById(Integer id) {
         LitemallPage page = pageMapper.selectActiveById(id);
