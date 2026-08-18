@@ -57,7 +57,10 @@ const CategoryTree: React.FC<{ categoryId: string }> = ({ categoryId }) => {
   if (!detail?.category) return null;
 
   const crumbs = detail.breadcrumb ?? [];
-  const subs = detail.subcategories ?? [];
+  // Wave 26: a child with a measured count of zero is a link into an empty page
+  // — the narrowed catalogue leaves several of them under the anchor roots. A
+  // child whose count the backend did not measure is kept (absent ≠ empty).
+  const subs = (detail.subcategories ?? []).filter(s => typeof s.count !== 'number' || s.count > 0);
 
   return (
     <section className="lm-isearch__facet lm-cattree">

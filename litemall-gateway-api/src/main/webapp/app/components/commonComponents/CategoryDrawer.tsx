@@ -3,6 +3,7 @@ import { Offcanvas } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
+import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 
 // Categories come back as DDD aggregates (categoryId:{id} / categoryName /
 // iconUrl) but some endpoints use the flat id/name shape — read whichever.
@@ -25,6 +26,10 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
   const nickName = useAppSelector(state => state.customerAuth.data.userInfo?.nickName);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  // Wave 26: same rule as the header/footer — a section is listed only while it
+  // has something behind it (see shared/util/contentAvailability.ts).
+  const hasBrands = useContentAvailability('brands');
+  const hasTopics = useContentAvailability('topics');
 
   // Prefer /catalog/all (carries every L1 category AND its subcategories);
   // fall back to /catalog/index's flat list.
@@ -86,12 +91,16 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
         <Link to='/new' className='lm-drawer__link d-block' onClick={onHide}>
           New Arrivals
         </Link>
-        <Link to='/brands' className='lm-drawer__link d-block' onClick={onHide}>
-          Brands
-        </Link>
-        <Link to='/topics' className='lm-drawer__link d-block' onClick={onHide}>
-          Topics &amp; guides
-        </Link>
+        {hasBrands && (
+          <Link to='/brands' className='lm-drawer__link d-block' onClick={onHide}>
+            Brands
+          </Link>
+        )}
+        {hasTopics && (
+          <Link to='/topics' className='lm-drawer__link d-block' onClick={onHide}>
+            Topics &amp; guides
+          </Link>
+        )}
 
         <div className='lm-drawer__section-title'>Help &amp; settings</div>
         <Link to='/user' className='lm-drawer__link d-block' onClick={onHide}>
