@@ -64,6 +64,9 @@ public class CjPlacementService {
     /** Local sentinel in {@code cj_order_status} (only ever set while {@code cj_order_id} is null). */
     public static final String STATUS_PLACEMENT_REJECTED = "PLACEMENT_REJECTED";
 
+    /** Store currency symbol for ops-mail amounts (Wave 24: EUR storewide). */
+    private static final String CURRENCY_SYMBOL = "\u20ac";
+
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderGoodsRepository orderGoodsRepository;
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
@@ -230,9 +233,10 @@ public class CjPlacementService {
                 order.getOrderId(), local, local, changeType, message, "system", LocalDateTime.now()));
     }
 
+    /** Ops-mail amount. Single-currency store (Wave 24: EUR storewide) — see CURRENCY_SYMBOL. */
     private static String money(LitemallOrderAggregate order) {
         return order.getActualPrice() == null || order.getActualPrice().getAmount() == null
-                ? "amount unknown" : "$" + order.getActualPrice().getAmount().toPlainString();
+                ? "amount unknown" : CURRENCY_SYMBOL + order.getActualPrice().getAmount().toPlainString();
     }
 
     /** CJ enforces ~1 QPS account-wide; pause between consecutive CJ calls. */
