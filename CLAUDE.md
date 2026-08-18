@@ -1627,8 +1627,28 @@
   `9ee2f89d6`) are merged to master; the gateway-admin half shipped separately as
   `a336203a5`, the gateway-api half is still not started. Rewrite this block before
   launching new work here.
-- **Topic goodsCount (2026-08-18) — closed the raise gateway-api logged in
-  `contentAvailability.ts`.** `/srv/topic/list` rows now carry `goodsCount` (live =
+- **Topic goodsCount — SHIPPED + DEPLOYED to trovemo.com (2026-08-18, master
+  `ead2cb3d5`).** Closed the raise gateway-api logged in `contentAvailability.ts`.
+  Deploy: goods-management container ONLY (build + `up -d --no-deps`), no migration,
+  no reindex; live `goodsCount` on `/srv/topic/list`, paging byte-identical
+  (total 20 / pages 7), smoke 200s across storefront + sitemap.
+  ⚠ **The VPS was 5 merged-but-never-deployed commits behind** (`cedf964c7`):
+  gateway-admin's season-category fix + pending-approval dashboard + groupon copy,
+  and order's EUR mails, are STILL undeployed — this deploy rebuilt only
+  goods-management, though its image now compiles against the newer
+  litemall-core/litemall-db those commits carry. Their containers are the owning
+  sessions' to ship.
+  ⚠ **Prod disk was 85% (12 G free)** — below `litemall-prod.sh`'s own 30 G build
+  threshold; `docker builder prune -f --filter until=24h` freed 22 G. Check disk
+  BEFORE building on this host.
+  ⚠ **No prod positive control is possible:** all 20 seed topics hold literally
+  EMPTY goods arrays (`JSON_LENGTH = 0`, confirmed by an independently written SQL
+  that matched the endpoint 20/20), so every live count is a correct 0. Non-zero is
+  proven only by the Testcontainers test until an admin curates a topic.
+  ⚠ **Pre-existing, NOT from this deploy:** `promotion-service` has been unhealthy
+  8 days — its actuator health check times out at 5 s and a curl inside the
+  container hangs. Untouched here; needs its own look.
+  **Original detail:** `/srv/topic/list` rows now carry `goodsCount` (live =
   on-sale + not-deleted among the topic's curated ids). Contract:
   `litemall-goods-management/docs/handoff-topic-goods-count.md`. The raise named the
   request count (9 → 1); the bigger half was CORRECTNESS — `TOPIC_PROBE_LIMIT = 8`
