@@ -9,7 +9,7 @@ import {
 import { money } from 'app/shared/util/money';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 // Admin order list — read-only inline table sourced from litemall-order
 // (/srv/private/admin/order/list) through the gateway as an authenticated
@@ -23,7 +23,21 @@ const PENDING_CJ_LIMIT = 20;
 
 const OrderList: React.FC = () => {
   // Wave 23: 'pending' = paid CJ orders held for admin placement approval.
-  const [tab, setTab] = React.useState<'all' | 'pending'>('all');
+  // Held in the URL (?tab=pending) rather than component state so the dashboard's
+  // pending card can deep-link straight here; anything unrecognised (or absent)
+  // falls back to 'all', so every existing link keeps working unchanged.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: 'all' | 'pending' = searchParams.get('tab') === 'pending' ? 'pending' : 'all';
+  const setTab = (next: 'all' | 'pending') => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'pending') {
+      params.set('tab', 'pending');
+    } else {
+      params.delete('tab');
+    }
+    // replace: switching tabs is a view toggle, not a navigation step to go Back through.
+    setSearchParams(params, { replace: true });
+  };
   const [pendingPage, setPendingPage] = React.useState(1);
   const [page, setPage] = React.useState(1);
   const [limit, setLimit] = React.useState(20);
