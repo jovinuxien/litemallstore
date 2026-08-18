@@ -69,8 +69,13 @@ export interface ArticleListParams {
 
 export type PagePosition = 'home' | 'custom';
 export type PageStatus = 'draft' | 'active';
-/** Wave 20: page merchandising category — drives filters + Postiz page publishing rules. */
-export type PageCategory = 'general' | 'coupon' | 'groupon';
+/**
+ * Wave 20: page merchandising category — drives filters + Postiz page publishing rules.
+ * Wave 27 adds 'season': the active season page is served to the storefront by
+ * GET /srv/page/season (spec-season-collection.md). Whitelisted server-side in
+ * AdminPageController.CATEGORIES.
+ */
+export type PageCategory = 'general' | 'coupon' | 'groupon' | 'season';
 
 /** One component entry in the page config — {type, key?, config}. */
 export interface IPageComponent {
@@ -90,7 +95,7 @@ export interface IPageSummary {
   name: string;
   position: PagePosition;
   status: PageStatus;
-  /** Wave 20 — 'general' | 'coupon' | 'groupon'; absent on pre-V54 rows ⇒ treat as 'general'. */
+  /** Wave 20/27 — 'general' | 'coupon' | 'groupon' | 'season'; absent on pre-V54 rows ⇒ treat as 'general'. */
   category?: PageCategory;
   /** Wave 20 — seeded template pages (clone source for "New from template"). */
   isTemplate?: boolean;

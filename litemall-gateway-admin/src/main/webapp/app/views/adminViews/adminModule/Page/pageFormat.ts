@@ -9,24 +9,33 @@ export const PAGE_CATEGORIES: { value: PageCategory; label: string }[] = [
   { value: 'general', label: 'General' },
   { value: 'coupon', label: 'Coupon' },
   { value: 'groupon', label: 'Groupon' },
+  { value: 'season', label: 'Season' },
 ];
 
-/** Pre-V54 rows may not carry the field — the server default is 'general'. */
+/**
+ * Pre-V54 rows may not carry the field — the server default is 'general'.
+ * Wave 27: 'season' MUST round-trip. PageEditor seeds its select from this
+ * helper, so folding an unknown-but-real category into 'general' would make a
+ * plain open-and-save silently rewrite the row's category and orphan it from
+ * GET /srv/page/season. Only genuinely unknown values fall back.
+ */
 export const normalizeCategory = (category?: string | null): PageCategory =>
-  category === 'coupon' || category === 'groupon' ? category : 'general';
+  category === 'coupon' || category === 'groupon' || category === 'season' ? category : 'general';
 
 export const categoryLabel = (category?: string | null): string => {
   const c = normalizeCategory(category);
   return PAGE_CATEGORIES.find(x => x.value === c)?.label ?? 'General';
 };
 
-/** Tag color per category — coupon/groupon pop, general stays neutral. */
+/** Tag color per category — coupon/groupon/season pop, general stays neutral. */
 export const categoryTag = (category?: string | null): ElTag => {
   switch (normalizeCategory(category)) {
     case 'coupon':
       return 'danger';
     case 'groupon':
       return 'warning';
+    case 'season':
+      return 'success';
     default:
       return 'info';
   }
