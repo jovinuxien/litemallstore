@@ -1872,9 +1872,50 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — idle (Waves 24.1 + 25 halves SHIPPED + DEPLOYED)
+### Worktree: `gateway-api` — idle (Wave 26 nav honesty MERGED, deploy pending)
 - **No active assignment.** Launch with FRESH=1 only after a new wave is
   commissioned and this block is rewritten.
+- **History — Wave 26 (Phase 2/4 storefront half): "no empty tiles, no dead
+  links" after the narrowing.** MERGED to master `40cb2e024` (2026-08-18;
+  webapp suite 170 passed / 25 suites, 39 new tests, clean prod build).
+  **VPS deploy pending** — MAIN session, gateway-api container only, no
+  migration, no backend change.
+  Audit measured on the LIVE narrowed store (dev was never narrowed — it
+  CANNOT reproduce this state; verification was fixture-based against captured
+  live payloads): the L1 category nav was ALREADY honest (goods-management
+  `9db298ccf` filters empty roots out of `/srv/catalog/all`, and the homepage
+  tiles / drawer / search rail all read that filtered list; sitemap carries
+  exactly the 2 anchor categories — do NOT rebuild any of that). What was
+  broken were the CONTENT sections the header strip, "☰ All" drawer and footer
+  advertised regardless: `/srv/brand/list` 49 seed brands with **goodsCount 0
+  on all 49** and plain-`http` yanxuan images (mixed content, blocked on the
+  https page); `/srv/topic/list` 20 seed topics from 2018 with **goods:[] on
+  all 20**; `/srv/article/list` total 0; `/srv/groupon/list` total 0. Plus:
+  retired L1 departments still resolve by URL (`/category/1005000` → 0 hits)
+  and said "No products found. Check the spelling"; `/srv/search/category/{id}`
+  lists zero-count children (Cross-Stitch 0) as links into empty pages.
+  Fix: `app/shared/util/contentAvailability.ts` is the SINGLE answer to "does
+  this section have content", read by the nav AND the page it points at so they
+  can never disagree. Data-driven, not a static removal — enabling a brand,
+  filling a topic or starting a campaign restores the entry with NO rebuild.
+  Failure semantics mirror the backend's own empty-category filter: pending ⇒
+  hide (never advertise unconfirmed), FAILED probe ⇒ show (an outage must not
+  amputate navigation), unjudgeable payload ⇒ show. One probe per surface per
+  session (sessionStorage + in-flight dedup), deferred to `requestIdleCallback`.
+  Also: /topics and /brands list only entries with products behind them
+  (BrandList's 49 count-probes drop to 0 — the backend has supplied
+  `goodsCount` since Wave 25); zero-count subcategory children dropped while
+  UNCOUNTED ones survive; the empty state names the real reason only when
+  nothing else explains it (a filter that emptied a live category blames the
+  filter); blocked `http` images render a placeholder, never a broken img.
+  ⚠ **RAISED for goods-management:** a `goodsCount` on `/srv/topic/list` rows
+  would collapse the topic probe from 9 requests to 1.
+  ⚠ **Test gotcha:** jsdom has no `window.matchMedia`, so react-bootstrap's
+  `Offcanvas` (CategoryDrawer) fails inside `useBreakpoint` without a polyfill.
+- **History — Wave 26 Phase 1b: EU stock badge on the PDP** (`ce75ab5e7` +
+  `c12708982`, merged 2026-08-15; the payload half landed in goods-management
+  `56dc33fe9`). Badge stays SILENT unless a product was probed AND has non-zero
+  EU stock; it promises no delivery window.
 - **History — Wave 24.1 (checkout money honesty SPA), original spec below.**
 - **Task — Wave 24.1 storefront half.** Code to the Wave-24.1 CONTRACT
   above: CouponStrip passes `goodsId`; checkout coupon cell renders
