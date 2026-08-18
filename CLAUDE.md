@@ -1642,8 +1642,11 @@
   rebuilding rows into maps would silently collapse `total` to the page size.
   ⚠ NEW FAILURE MODE, handled: `JsonIntegerArrayTypeHandler` throws on a malformed
   `goods` column and fails the WHOLE result set — caught, counts go unmeasured
-  (absent, per module-wide Jackson NON_NULL) rather than 500-ing an anonymous
-  endpoint. `/srv/topic/detail` has always had that exposure and was deliberately
+  (`null`) rather than 500-ing an anonymous endpoint. ⚠ goods-management SERIALIZES
+  NULLS despite core's NON_NULL customizer: `JacksonConfig` also declares a raw
+  `@Bean ObjectMapper` and that one wins — the same root cause as the known
+  "LocalDateTime as arrays" quirk. Clients must test for a number, not for key
+  presence. `/srv/topic/detail` has always had that exposure and was deliberately
   left alone. ⚠ Testcontainers gotcha: `LitemallCjLinkageMapper.xml` `<include>`s
   fragments from Brand/CjProduct mappers, and MyBatis parses statements LAZILY — a
   missing `addMapper` surfaces as a failure on first call, not at build time.

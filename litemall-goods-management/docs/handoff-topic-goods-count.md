@@ -46,10 +46,14 @@ the admin topic list.
   an invariant of the code, not a convention — `TopicGoodsCountTest` pins it.
 - **`0` is a measurement, not a gap.** A topic with no goods, or whose goods were all off-saled
   (what the Wave-26 narrowing did to all 20 seed topics), reports `0`.
-- **Absent means unmeasured.** Jackson runs `NON_NULL` module-wide, so the key is simply missing
-  rather than null when no count was attached. That happens in exactly two cases: an older backend,
-  or an unreadable `goods` column (below). Keep treating an absent count as "cannot judge ⇒ show"
-  — the behaviour you already implement.
+- **`null` means unmeasured.** Verified against the live payload, not assumed: this service
+  serializes nulls (`"goods":null`, `"sortOrder":null` are already in every row today), because
+  `JacksonConfig` declares a raw `@Bean ObjectMapper` alongside its builder customizer and the raw
+  one wins — the same reason `LocalDateTime` serializes as arrays here. So an uncounted row carries
+  `"goodsCount": null`, and a row from an older backend carries no key at all. Both are
+  "unmeasured": test for a number (`typeof c === 'number'`), not for presence. Unmeasured happens
+  in exactly two cases — an older backend, or an unreadable `goods` column (below). Keep treating
+  it as "cannot judge ⇒ show", the behaviour you already implement.
 - Duplicate ids count once per entry, because `detail` renders one tile per entry.
 - Paging is untouched: counts are attached in place, so `total`/`page`/`limit`/`pages` are
   byte-identical to before.
@@ -58,7 +62,7 @@ the admin topic list.
 
 `JsonIntegerArrayTypeHandler` throws on a malformed `goods` column, and it fails the whole result
 set rather than one row. Reading that column for the count therefore introduced a failure mode the
-list did not have. It is caught: the counts go unmeasured (absent) and the list is served normally,
+list did not have. It is caught: the counts go unmeasured (`null`) and the list is served normally,
 rather than one corrupt row 500-ing an anonymous endpoint.
 
 Note `/srv/topic/detail` has always had this exposure and still does — it reads `goods` directly.
