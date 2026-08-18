@@ -1622,7 +1622,35 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — Wave 27 season collection (backend half BUILT)
+### Worktree: `goods-management` — idle (topic goodsCount MERGED)
+- **No active assignment.** Both Wave-27 items (season backend `bac29f144`, `eu_flag`
+  `9ee2f89d6`) are merged to master; the gateway-admin half shipped separately as
+  `a336203a5`, the gateway-api half is still not started. Rewrite this block before
+  launching new work here.
+- **Topic goodsCount (2026-08-18) — closed the raise gateway-api logged in
+  `contentAvailability.ts`.** `/srv/topic/list` rows now carry `goodsCount` (live =
+  on-sale + not-deleted among the topic's curated ids). Contract:
+  `litemall-goods-management/docs/handoff-topic-goods-count.md`. The raise named the
+  request count (9 → 1); the bigger half was CORRECTNESS — `TOPIC_PROBE_LIMIT = 8`
+  decided the Topics nav entry from the 8 newest topics, so a real topic sorted 9th
+  could never light it. The count uses the SAME predicate as `findByIdVO`, which is
+  what `/srv/topic/detail` renders with, so nav and page cannot disagree — an
+  invariant, pinned by test, not a convention. ⚠ `queryList` selects only
+  id/title/subtitle/price/picUrl/readCount, so `goods` was never in the list payload
+  — the client could not have computed this. ⚠ Counts attach IN PLACE:
+  `ResponseUtil.okList` reads `total` off the PageHelper `Page` it is handed, so
+  rebuilding rows into maps would silently collapse `total` to the page size.
+  ⚠ NEW FAILURE MODE, handled: `JsonIntegerArrayTypeHandler` throws on a malformed
+  `goods` column and fails the WHOLE result set — caught, counts go unmeasured
+  (absent, per module-wide Jackson NON_NULL) rather than 500-ing an anonymous
+  endpoint. `/srv/topic/detail` has always had that exposure and was deliberately
+  left alone. ⚠ Testcontainers gotcha: `LitemallCjLinkageMapper.xml` `<include>`s
+  fragments from Brand/CjProduct mappers, and MyBatis parses statements LAZILY — a
+  missing `addMapper` surfaces as a failure on first call, not at build time.
+  litemall-db 24/0 (9 against real MySQL), goods-management 465 run / 0 failures /
+  8 skipped. NO migration; litemall-db entity + mapper XML hand-edited together, so
+  every dependent needs a rebuild to pick the field up.
+- **History — Wave 27 season collection (backend half BUILT + MERGED).**
 - **Wave 27 (2026-08-18) — SEASONAL MERCHANDISING COLLECTION.** User ask: push the
   current season's products in place of "Summer Deals", with a clear admin
   procedure to manage them and select them for promotion. **Backend half BUILT +
