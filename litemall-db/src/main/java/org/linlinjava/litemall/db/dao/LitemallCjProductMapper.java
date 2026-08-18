@@ -51,6 +51,14 @@ public interface LitemallCjProductMapper {
     /** Wave 26 Phase 1b: per-L1 EU survival over ON-SALE CJ goods, with an honest probed denominator. */
     java.util.List<java.util.Map<String, Object>> selectEuSurvivalByRoot();
 
+    /**
+     * Wave 27 {@code eu_flag} basis: the pids whose LAST measured EU warehouse reading was
+     * non-zero. Deliberately narrow — pid strings only, no snapshot bodies — because this is
+     * refreshed on a TTL during indexing and {@code selectAllLive()} would drag every
+     * variants_json and detail_html through memory to answer a yes/no question.
+     */
+    java.util.List<String> selectEuStockedPids();
+
     /** Wave 26: CJ explicitly reported no detail for this pid — count it. */
     int recordDelistedStrike(@Param("pid") String pid);
 

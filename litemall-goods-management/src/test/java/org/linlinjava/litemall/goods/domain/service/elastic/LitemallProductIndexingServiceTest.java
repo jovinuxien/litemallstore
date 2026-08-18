@@ -29,6 +29,7 @@ public class LitemallProductIndexingServiceTest {
 
     private CouponSignalResolver couponSignalResolver;
     private GrouponSignalResolver grouponSignalResolver;
+    private EuStockSignalResolver euStockSignalResolver;
     private LitemallProductIndexingService service;
 
     @BeforeEach
@@ -40,12 +41,14 @@ public class LitemallProductIndexingServiceTest {
         LitemallSeckillService seckillService = mock(LitemallSeckillService.class);
         couponSignalResolver = mock(CouponSignalResolver.class);
         grouponSignalResolver = mock(GrouponSignalResolver.class);
+        euStockSignalResolver = mock(EuStockSignalResolver.class);
         when(attributeService.queryByGid(anyInt())).thenReturn(List.of());
         when(productService.queryByGid(anyInt())).thenReturn(List.of());
         when(seckillService.findLiveByGoodsId(anyInt())).thenReturn(null);
         service = new LitemallProductIndexingService(brandService, categoryService,
                 attributeService, productService, seckillService,
-                couponSignalResolver, grouponSignalResolver, new LitemallSearchProperties());
+                couponSignalResolver, grouponSignalResolver, euStockSignalResolver,
+                new LitemallSearchProperties());
     }
 
     private static LitemallGoods goods(int id) {
@@ -73,5 +76,29 @@ public class LitemallProductIndexingServiceTest {
         ProductDocument doc = service.createProductDocument(goods(42));
         assertEquals(0, doc.getCouponFlag(), "coupon_flag must be 0, not absent");
         assertEquals(0, doc.getGrouponFlag(), "groupon_flag must be 0, not absent");
+    }
+
+    // ---- Wave-27 eu_flag ---------------------------------------------------
+
+    /** The reading lives on the CJ snapshot row, so the resolver is keyed on cj_pid, not goods id. */
+    @Test
+    public void euFlagIsResolvedFromTheProductsCjPid() {
+        when(euStockSignalResolver.euFlag("pid-de-1")).thenReturn(1);
+        LitemallGoods goods = goods(42);
+        goods.setCjPid("pid-de-1");
+
+        ProductDocument doc = service.createProductDocument(goods);
+
+        assertEquals(1, doc.getEuFlag());
+        Mockito.verify(euStockSignalResolver).euFlag("pid-de-1");
+    }
+
+    @Test
+    public void euFlagAlwaysEmitsZeroNeverAbsentWhenUnsignalled() {
+        when(euStockSignalResolver.euFlag(any())).thenReturn(0);
+
+        ProductDocument doc = service.createProductDocument(goods(42));
+
+        assertEquals(0, doc.getEuFlag(), "eu_flag must be 0, not absent");
     }
 }

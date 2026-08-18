@@ -99,6 +99,27 @@ public class SearchServiceTest {
         assertThat(items.get(2)).doesNotContainKey("coupon_flag");
     }
 
+    // ---- Wave-27 eu_flag passthrough --------------------------------------
+
+    @Test
+    public void euFlagRidesTheHitOnlyWhenPositive() {
+        OcsSearchResult.Hit flagged = hit("1", "Garden Hose Reel", "desc");
+        flagged.getDocument().getData().put("eu_flag", 1);
+        OcsSearchResult.Hit unflagged = hit("2", "Hand Plane", "desc");
+        unflagged.getDocument().getData().put("eu_flag", 0);
+        OcsSearchResult.Hit preReindex = hit("3", "Tool Chest", "desc"); // field absent
+
+        Mockito.when(searchClient.search(anyString(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(resultWithHits(flagged, unflagged, preReindex));
+
+        List<Map<String, Object>> items = goodsList(service.search("q", 1, 20, null, Map.of()));
+        assertThat(items.get(0)).containsEntry("eu_flag", 1);
+        // A product whose probe found no EU stock and a product indexed before eu_flag existed are
+        // indistinguishable here, and both must render no badge — absence is not a negative claim.
+        assertThat(items.get(1)).doesNotContainKey("eu_flag");
+        assertThat(items.get(2)).doesNotContainKey("eu_flag");
+    }
+
     // ---- Wave-21 groupon_flag passthrough ---------------------------------
 
     @Test

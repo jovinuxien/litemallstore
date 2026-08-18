@@ -274,6 +274,14 @@ public class SearchService {
             if (grouponFlag instanceof Number && ((Number) grouponFlag).intValue() == 1) {
                 item.put("groupon_flag", 1);
             }
+            // Wave-27 EU-warehouse badge (same positive-only rule): field absent (pre-reindex) and
+            // 0 both mean "no badge". The badge says where stock was LAST MEASURED, so the SPA copy
+            // has to read as a measurement ("in stock in Germany at last check"), never as a
+            // delivery promise the searcher cannot keep.
+            Object euFlag = data.get("eu_flag");
+            if (euFlag instanceof Number && ((Number) euFlag).intValue() == 1) {
+                item.put("eu_flag", 1);
+            }
             // Live flash-deal extras (present only while a deal is live): countdown + claimed bar.
             if (data.get("deal_active") instanceof Number && ((Number) data.get("deal_active")).intValue() == 1) {
                 item.put("dealActive", true);
