@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
+import { seasonLabel, seasonPath } from 'app/shared/util/season';
+import { useSeason } from 'app/shared/util/useSeason';
 
 // Categories come back as DDD aggregates (categoryId:{id} / categoryName /
 // iconUrl) but some endpoints use the flat id/name shape — read whichever.
@@ -30,6 +32,8 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
   // has something behind it (see shared/util/contentAvailability.ts).
   const hasBrands = useContentAvailability('brands');
   const hasTopics = useContentAvailability('topics');
+  // Wave 27: the season collection, named by whoever activated it.
+  const season = useSeason();
 
   // Prefer /catalog/all (carries every L1 category AND its subcategories);
   // fall back to /catalog/index's flat list.
@@ -85,9 +89,11 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
         <Link to='/hot' className='lm-drawer__link d-block' onClick={onHide}>
           Today&rsquo;s Deals
         </Link>
-        <Link to='/summer' className='lm-drawer__link d-block' onClick={onHide}>
-          Summer Deals
-        </Link>
+        {season && seasonLabel(season) && (
+          <Link to={seasonPath(season)} className='lm-drawer__link d-block' onClick={onHide}>
+            {seasonLabel(season)}
+          </Link>
+        )}
         <Link to='/new' className='lm-drawer__link d-block' onClick={onHide}>
           New Arrivals
         </Link>

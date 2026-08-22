@@ -85,7 +85,7 @@ export interface IPageView {
   id: number;
   name?: string;
   position?: 'home' | 'custom';
-  /** Wave-20 V54: 'general' | 'coupon' | 'groupon'; absent on pre-V54 payloads. */
+  /** Wave-20 V54: 'general' | 'coupon' | 'groupon'; 'season' since Wave 27. Absent on pre-V54 payloads. */
   category?: string;
   components: IPageComponent[];
   updateTime?: string | number[];
@@ -140,6 +140,12 @@ export const contentApi = {
   // home / page not active; the SPA falls back to the legacy home.
   pageHome: () => unwrap<IPageView>(baseAxios.get(`${SRV}/page/home`)),
   pageById: (id: number | string) => unwrap<IPageView>(baseAxios.get(`${SRV}/page/${encodeURIComponent(String(id))}`)),
+  /**
+   * The season collection (Wave 27, spec-season-collection.md §3) — the active
+   * page carrying `category='season'`, or errno 642 when no season is running.
+   * "No season" is a NORMAL state, not a failure: see `shared/util/season.ts`.
+   */
+  pageSeason: () => unwrap<IPageView>(baseAxios.get(`${SRV}/page/season`)),
 
   // Region cascade — handoff-content-endpoints.md §3. BOTH return data as a
   // BARE ARRAY (no {list,total} wrapper); unwrap() passes bare payloads through.

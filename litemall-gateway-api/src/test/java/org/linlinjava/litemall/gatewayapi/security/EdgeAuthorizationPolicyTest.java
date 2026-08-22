@@ -168,6 +168,25 @@ class EdgeAuthorizationPolicyTest {
         anonymous.get().uri("/srv/track/collect").exchange().expectStatus().isUnauthorized();
     }
 
+    /**
+     * Wave 27: the bulk goods read is a POST only because its argument is a list
+     * of ids in the body. Curated DIY rails ({@code goods-list mode: byIds} — the
+     * mode the season and coupon curation procedures tell admins to pick) resolve
+     * their products through it, so while it was authenticated every such rail
+     * rendered EMPTY for logged-out shoppers and correct for a signed-in admin
+     * previewing the page. It exposes nothing that {@code GET /srv/goods/detail}
+     * did not already serve anonymously, one id at a time.
+     */
+    @Test
+    @DisplayName("the bulk goods read is anonymous, and it is the only POST under /srv/goods")
+    void goodsBatchIsAnonymousPostOnly() {
+        anonymous.post().uri("/srv/goods/batch").exchange().expectStatus().isOk();
+        customer.post().uri("/srv/goods/batch").exchange().expectStatus().isOk();
+        // The entry is the exact path, so no other /srv/goods write rides in on it.
+        anonymous.post().uri("/srv/goods/create").exchange().expectStatus().isUnauthorized();
+        anonymous.post().uri("/srv/goods/batch/anything").exchange().expectStatus().isUnauthorized();
+    }
+
     @Test
     @DisplayName("CORS preflight needs no credential")
     void corsPreflightNeedsNoCredential() {

@@ -123,6 +123,32 @@ public final class PublicPaths {
     static final String TRACK_POST = "/srv/track/**";
 
     /**
+     * Bulk goods read, which is a POST only because its argument is a list of ids
+     * in the body ({@code batchGoods(@RequestBody Set<Integer>)}).
+     *
+     * <p>Wave 27 found this the hard way: a DIY page whose {@code goods-list}
+     * component uses {@code mode: byIds} — the mode the season/coupon curation
+     * procedure tells admins to pick — resolves its products through this call,
+     * so with the path authenticated the whole rail rendered EMPTY for every
+     * logged-out shopper while looking perfectly healthy to a signed-in admin
+     * previewing it. Verified against production: {@code GET /srv/goods/detail}
+     * 200, {@code POST /srv/goods/batch} 401.
+     *
+     * <p>It exposes nothing new: the same aggregate is already public one id at a
+     * time via {@code GET /srv/goods/**}, and goods-management's own
+     * {@code public-paths} has always allowed {@code /srv/goods/**} for any
+     * method — the GET qualifier here was the only gate. The entry is the exact
+     * path, not a prefix, so no future {@code POST /srv/goods/*} write rides in
+     * on it.
+     *
+     * <p>Known limit, raised for goods-management rather than worked around
+     * here: the handler applies no cap to the id set, so this is an
+     * amplification surface (the palette caps a component at 24 ids, but the
+     * endpoint accepts any body). A server-side cap belongs in the handler.
+     */
+    static final String GOODS_BATCH_POST = "/srv/goods/batch";
+
+    /**
      * The API surface. Deny-by-default applies WITHIN these prefixes; a GET anywhere
      * else is the SPA shell — see {@link #spaShell()}.
      */
@@ -181,6 +207,7 @@ public final class PublicPaths {
         }
         matchers.add(new PathPatternParserServerWebExchangeMatcher(STRIPE_WEBHOOK_POST, HttpMethod.POST));
         matchers.add(new PathPatternParserServerWebExchangeMatcher(TRACK_POST, HttpMethod.POST));
+        matchers.add(new PathPatternParserServerWebExchangeMatcher(GOODS_BATCH_POST, HttpMethod.POST));
         matchers.add(spaShell());
         return new OrServerWebExchangeMatcher(matchers);
     }
