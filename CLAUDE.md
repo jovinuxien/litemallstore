@@ -1622,7 +1622,58 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — Wave 27 season collection (backend half BUILT)
+### Worktree: `goods-management` — idle (topic goodsCount MERGED)
+- **No active assignment.** Both Wave-27 items (season backend `bac29f144`, `eu_flag`
+  `9ee2f89d6`) are merged to master; the gateway-admin half shipped separately as
+  `a336203a5`, the gateway-api half is still not started. Rewrite this block before
+  launching new work here.
+- **Topic goodsCount — SHIPPED + DEPLOYED to trovemo.com (2026-08-18, master
+  `ead2cb3d5`).** Closed the raise gateway-api logged in `contentAvailability.ts`.
+  Deploy: goods-management container ONLY (build + `up -d --no-deps`), no migration,
+  no reindex; live `goodsCount` on `/srv/topic/list`, paging byte-identical
+  (total 20 / pages 7), smoke 200s across storefront + sitemap.
+  ⚠ **The VPS was 5 merged-but-never-deployed commits behind** (`cedf964c7`):
+  gateway-admin's season-category fix + pending-approval dashboard + groupon copy,
+  and order's EUR mails, are STILL undeployed — this deploy rebuilt only
+  goods-management, though its image now compiles against the newer
+  litemall-core/litemall-db those commits carry. Their containers are the owning
+  sessions' to ship.
+  ⚠ **Prod disk was 85% (12 G free)** — below `litemall-prod.sh`'s own 30 G build
+  threshold; `docker builder prune -f --filter until=24h` freed 22 G. Check disk
+  BEFORE building on this host.
+  ⚠ **No prod positive control is possible:** all 20 seed topics hold literally
+  EMPTY goods arrays (`JSON_LENGTH = 0`, confirmed by an independently written SQL
+  that matched the endpoint 20/20), so every live count is a correct 0. Non-zero is
+  proven only by the Testcontainers test until an admin curates a topic.
+  ⚠ **Pre-existing, NOT from this deploy:** `promotion-service` has been unhealthy
+  8 days — its actuator health check times out at 5 s and a curl inside the
+  container hangs. Untouched here; needs its own look.
+  **Original detail:** `/srv/topic/list` rows now carry `goodsCount` (live =
+  on-sale + not-deleted among the topic's curated ids). Contract:
+  `litemall-goods-management/docs/handoff-topic-goods-count.md`. The raise named the
+  request count (9 → 1); the bigger half was CORRECTNESS — `TOPIC_PROBE_LIMIT = 8`
+  decided the Topics nav entry from the 8 newest topics, so a real topic sorted 9th
+  could never light it. The count uses the SAME predicate as `findByIdVO`, which is
+  what `/srv/topic/detail` renders with, so nav and page cannot disagree — an
+  invariant, pinned by test, not a convention. ⚠ `queryList` selects only
+  id/title/subtitle/price/picUrl/readCount, so `goods` was never in the list payload
+  — the client could not have computed this. ⚠ Counts attach IN PLACE:
+  `ResponseUtil.okList` reads `total` off the PageHelper `Page` it is handed, so
+  rebuilding rows into maps would silently collapse `total` to the page size.
+  ⚠ NEW FAILURE MODE, handled: `JsonIntegerArrayTypeHandler` throws on a malformed
+  `goods` column and fails the WHOLE result set — caught, counts go unmeasured
+  (`null`) rather than 500-ing an anonymous endpoint. ⚠ goods-management SERIALIZES
+  NULLS despite core's NON_NULL customizer: `JacksonConfig` also declares a raw
+  `@Bean ObjectMapper` and that one wins — the same root cause as the known
+  "LocalDateTime as arrays" quirk. Clients must test for a number, not for key
+  presence. `/srv/topic/detail` has always had that exposure and was deliberately
+  left alone. ⚠ Testcontainers gotcha: `LitemallCjLinkageMapper.xml` `<include>`s
+  fragments from Brand/CjProduct mappers, and MyBatis parses statements LAZILY — a
+  missing `addMapper` surfaces as a failure on first call, not at build time.
+  litemall-db 24/0 (9 against real MySQL), goods-management 465 run / 0 failures /
+  8 skipped. NO migration; litemall-db entity + mapper XML hand-edited together, so
+  every dependent needs a rebuild to pick the field up.
+- **History — Wave 27 season collection (backend half BUILT + MERGED).**
 - **Wave 27 (2026-08-18) — SEASONAL MERCHANDISING COLLECTION.** User ask: push the
   current season's products in place of "Summer Deals", with a clear admin
   procedure to manage them and select them for promotion. **Backend half BUILT +
@@ -2256,7 +2307,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — done (Wave 27 admin half BUILT; pending-approval dashboard SHIPPED)
+### Worktree: `gateway-admin` — idle (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**
   MERGED to master (branch commit `dd874e657`, fast-forwarded into
   `ec481fad8`'s first parent) + pushed; jest 125/125 (11 suites, +14 new),
@@ -2307,10 +2358,26 @@
   one-category change touched six sites. `postizSource.ts` is a courtesy
   note, NOT a client-side block — season pages are never refused, so the
   spec's step-5 Postiz promotion path works. No backend, no migration, no
-  litemall-db touch. NOT MERGED to master yet.
-  ⚠ Adjacent, NOT fixed (out of Wave-27 scope): `postizSource.ts:41`'s
-  groupon note still says group-buy publishing is "held back" — Wave 21
-  DELETED the backend errno-765 groupon gate, so that copy is stale.
+  litemall-db touch. **MERGED to master** (`a336203a5`; verified contained
+  in master 2026-08-18 — the earlier "NOT MERGED" note was stale).
+- **Status 2026-08-18 — stale groupon-refusal copy DELETED** (follow-up to
+  the adjacent item Wave 27 flagged; no wave, no backend, no migration).
+  The claim sat at FOUR sites, TWO of them admin-visible copy, all
+  repeating a refusal Wave 21 retired: `postizSource.ts` (the note + its
+  file header), `PostizPagePublish.tsx:128` ("groupon-category pages are
+  refused for now") and `PageEditor.tsx:817` ("groupon pages are held
+  back"). Backend truth re-verified BEFORE editing:
+  `PostizPublishServiceImpl.java:62-63` marks errno 765 RETIRED and `:337`
+  composes bespoke groupon post copy ("Team up, unlock the group price") —
+  groupon pages publish like any other. The panel was talking admins out of
+  a path that works. `pageSourceNotes` now judges status ONLY (draft ⇒ the
+  errno-764 warning, which is still real); category is never judged, pinned
+  by a test looping `PAGE_CATEGORIES` so a new category cannot reintroduce
+  a gate. Deploy = admin container rebuild only.
+  ⚠ Lesson: the defect was one `if`, but the same claim had been copied
+  into file headers, JSX copy and comments — grep the CLAIM, not the
+  symbol. A client-side note that contradicts the server is worse than no
+  note: it suppresses the action instead of failing loudly.
 - **History — Wave 25 (brand/store curation, MERGED + ACCEPTED)**
 - **Status 2026-08-10:** brand/store curation surface SHIPPED — MERGED
   to master `3ee441669` + pushed (jest 110/110, headless UI 12/12).

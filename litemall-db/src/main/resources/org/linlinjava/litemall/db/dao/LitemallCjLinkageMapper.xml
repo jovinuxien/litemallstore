@@ -104,6 +104,19 @@
   </select>
 
   <!--
+    Live subset of the given goods ids. Same predicate as findByIdVO (on sale, not deleted),
+    so a topic's goodsCount equals what /srv/topic/detail actually renders.
+  -->
+  <select id="selectOnSaleGoodsIds" resultType="java.lang.Integer">
+    select id
+    from litemall_goods
+    where deleted = 0 and is_on_sale = 1 and id in
+    <foreach collection="goodsIds" item="gid" open="(" separator="," close=")">
+      #{gid}
+    </foreach>
+  </select>
+
+  <!--
     V31 ranking signals: written directly onto litemall_goods without the generated
     insert/update (which don't carry these columns). COALESCE preserves a column when its
     argument is null. createTime, when present, also refreshes add_time so CJ recency
