@@ -1,12 +1,11 @@
 import { IPageSummary } from 'app/shared/reducers/private/services/adminContentApi';
 import { IPostizLogRow, PostizPageCommand } from 'app/shared/reducers/private/services/postizApi';
-import { normalizeCategory } from 'app/views/adminViews/adminModule/Page/pageFormat';
 
 // Wave 20: pure helpers behind the Postiz source picker (Products | DIY page).
 // The page source posts ONE promotion of a DIY page ({pageId, channelIds[],
-// startTime} against the SAME /preview + /publish endpoints); groupon-category
-// pages are REFUSED server-side with a typed errno that the panel shows
-// verbatim — the notes here are only a courtesy heads-up, never a gate.
+// startTime}) against the SAME /preview + /publish endpoints. Refusals are the
+// SERVER's call and are shown verbatim — the notes here are only a courtesy
+// heads-up, never a gate.
 
 /** Default start = the next full local hour, as a datetime-local value. */
 export const nextFullHourLocal = (): string => {
@@ -30,16 +29,17 @@ export const pageSignature = (pageId: number | null, channelIds: Iterable<string
 
 /**
  * Courtesy notes for the selected page. The SERVER is the authority (active
- * resolution + the groupon-category refusal) — these only set expectations.
+ * resolution) — these only set expectations.
+ *
+ * Category is deliberately NOT judged here: the groupon-page hold (errno 765)
+ * was retired in Wave 21 when priced group-buy submit shipped, so every page
+ * category — general, coupon, groupon, season — is publishable.
  */
 export const pageSourceNotes = (page?: Pick<IPageSummary, 'status' | 'category'> | null): string[] => {
   if (!page) return [];
   const notes: string[] = [];
   if (page.status !== 'active') {
     notes.push('Only ACTIVE pages can be published — activate this page first, otherwise the server will refuse it.');
-  }
-  if (normalizeCategory(page.category) === 'groupon') {
-    notes.push('Groupon-category pages are currently refused for social publishing (held back until group-buy checkout ships).');
   }
   return notes;
 };

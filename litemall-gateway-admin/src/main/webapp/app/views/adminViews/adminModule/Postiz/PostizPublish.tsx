@@ -25,7 +25,7 @@ import { Link } from 'react-router-dom';
 // panel is menu-hidden unless /postiz/status says enabled; deep links land on
 // an honest "not configured" note instead.
 // Wave 20 adds a SOURCE picker: Products (this flow, unchanged) | DIY page
-// (PostizPagePublish — one page per post, groupon-category refusal verbatim).
+// (PostizPagePublish — one page per post, server refusals shown verbatim).
 
 const MAX_BATCH = 25;
 
