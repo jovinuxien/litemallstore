@@ -2008,9 +2008,80 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — idle (Wave 26 nav honesty SHIPPED + DEPLOYED)
+### Worktree: `gateway-api` — Wave 27 season storefront BUILT (+ Autumn Deals curated)
 - **No active assignment.** Launch with FRESH=1 only after a new wave is
   commissioned and this block is rewritten.
+- **Status 2026-08-22 — WAVE 27 STOREFRONT HALF + THE AUTUMN COLLECTION.**
+  Branch commit `bbd69f92c` (jest 219/219, 32 suites, 36 new; module 67/0;
+  prod build clean). User-commissioned: "replace Summer Deals with Autumn
+  Deals based on goods appropriate for the autumn period, both Home, Garden
+  and Home improvement." NOT merged to master yet.
+  Coded to the FROZEN spec `litemall-goods-management/docs/spec-season-
+  collection.md` §3. Header strip, "☰ All" drawer and home rail now read
+  `GET /srv/page/season`; `/summer` redirects to the active season (home when
+  none). **Nothing hardcodes a season** — name and products are page data, so
+  swapping Autumn for Winter is one admin activation, no deploy.
+  New: `shared/util/season.ts` + `useSeason.ts`, `modules/home/SeasonRail.tsx`
+  + `Section.tsx` (extracted from Home), `modules/page/SeasonRedirect.tsx`,
+  `modules/page/goodsListSource.ts` (the goods-list resolver lifted OUT of
+  PageRenderer so the home rail and the season page cannot disagree).
+  ⚠ **Two deliberate departures from the Wave-26 `contentAvailability` probe
+  next door, both documented in season.ts:** (a) NO fail-open — the link
+  target `/page/<id>` exists only inside the payload, so a failed fetch has
+  nothing to fail open TO; 642 and a transport error both mean absent;
+  (b) NO sessionStorage — caching the payload would keep a DEACTIVATED season
+  on screen for the rest of the session.
+  ⚠ **FOUND + FIXED, and it would have silently broken the collection:**
+  `POST /srv/goods/batch` was public for **GET only**, and `byIds` — the
+  goods-list mode the season AND coupon curation procedures tell admins to
+  pick — resolves through it. Every curated DIY rail therefore rendered
+  **EMPTY for logged-out shoppers** while looking correct to the signed-in
+  admin previewing it. Proven on prod 2026-08-22: `GET /srv/goods/detail`
+  200, `POST /srv/goods/batch` **401**. `PublicPaths.GOODS_BATCH_POST` is the
+  EXACT path, POST only (no prefix, so no future write rides in); exposes
+  nothing `GET /srv/goods/**` did not already serve one id at a time;
+  goods-management's own public-paths never restricted the method.
+  **RAISED for goods-management:** `batchGoods(@RequestBody Set<Integer>)`
+  caps nothing, so it is an amplification surface — the cap belongs in that
+  handler.
+  **Live verification against PRODUCTION (read-only, no VPS access):**
+  `/srv/page/season` → `{"errno":642,"errmsg":"no active season page"}` — the
+  Wave-27 backend IS deployed and anonymous, and 642 is exactly the shape the
+  resolver handles. The POSITIVE path (season activated ⇒ surfaces light up)
+  is proven at the jest seam only: dev has no Java stack running and the
+  MySQL password is user-held, so no dev season could be activated. First
+  live positive check = prod, after deploy + activation.
+  **THE AUTUMN COLLECTION IS CURATED AND HANDED OVER, NOT ACTIVATED:**
+  `litemall-gateway-api/docs/autumn-deals-collection.md` — 24 goods ids
+  validated against the live feed (on sale, in stock, real images), 15 Home &
+  Garden / 9 Hardware, ordered so the first 8 are the home rail (4/4 across
+  both anchors), with per-pick rationale, the paste-ready byIds config, page
+  copy, and the admin procedure. Measured justification: `q=autumn` matches
+  **5 products of 3,646** (`summer` matched 18) — a keyword swap would have
+  been worse than what it replaced; curated by theme the catalogue holds ~144
+  Halloween/harvest, ~96 outdoor lighting, ~31 cosy textiles, ~19 garden
+  tidy-up. ⚠ **Do NOT activate the page until the gateway-api container
+  carries this build** — on the old container the rail is empty for every
+  logged-out shopper. ⚠ Halloween is a deliberate MINORITY (4 of 24) so the
+  page stays truthful into November; swap or clone around 1 Nov.
+  **Also measured, for whoever plans autumn ads:** draught-sealing and
+  weatherproofing — the obvious autumn DIY theme — has **3 products in the
+  entire store**. Sourcing gap, not a curation one.
+  **RAISED for goods-management (catalogue hygiene, not blocking):** 68 live
+  products carry a raw supplier prefix in the title ("Support Pan European："
+  with a fullwidth colon); 2 are titled "Halloween …" for no reason, incl.
+  ordinary thermal blackout curtains. Both are customer-visible on the PDP
+  and in the Meta feed.
+- **Status 2026-08-22 — WAVE 28 (peer session's work) MERGED to master
+  `8373f2b3f`.** "Ships from: Trovemo" → measured origin. It had been sitting
+  committed-but-unmerged on this branch since 2026-08-19 with the block never
+  updated; its jest claim (183/183) was RE-RUN and confirmed before merging.
+  Spec for its unstarted backend halves: `docs/spec-wave28-eu-origin-
+  freight.md`.
+- **Still NOT started (both backends already on master):** the `eu_flag`
+  search badge + filter toggle (`spec-eu-warehouse-flag.md`; ⚠ deploy order
+  is reindex → searcher restart, and `eu_flag=0` means "not known", not
+  "none").
 - **History — Wave 26 (Phase 2/4 storefront half): "no empty tiles, no dead
   links" after the narrowing.** MERGED to master `40cb2e024` (2026-08-18;
   webapp suite 170 passed / 25 suites, 39 new tests, clean prod build).
