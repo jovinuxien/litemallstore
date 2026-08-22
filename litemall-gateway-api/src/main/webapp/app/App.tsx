@@ -45,6 +45,7 @@ const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
 const TopicList = lazy(() => import('app/modules/topic/TopicList'));
 const TopicDetail = lazy(() => import('app/modules/topic/TopicDetail'));
 const PageView = lazy(() => import('app/modules/page/PageView'));
+const SeasonRedirect = lazy(() => import('app/modules/page/SeasonRedirect'));
 const ArticleList = lazy(() => import('app/modules/article/ArticleList'));
 const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
 const Groupon = lazy(() => import('app/modules/groupon/Groupon'));
@@ -102,7 +103,9 @@ const App: React.FC = () => (
           <Route path='hot' element={<GoodsListPage mode='hot' />} />
           <Route path='new' element={<GoodsListPage mode='new' />} />
           <Route path='deals' element={<DealsPage />} />
-          <Route path='summer' element={<GoodsListPage mode='summer' />} />
+          {/* Wave 27: the season collection lives on its own DIY page; this
+              legacy path follows whichever season is active (home if none). */}
+          <Route path='summer' element={<SeasonRedirect />} />
           <Route path='brands' element={<BrandList />} />
           <Route path='brand/:id' element={<BrandDetail />} />
           <Route path='topics' element={<TopicList />} />

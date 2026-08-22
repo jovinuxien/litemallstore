@@ -6,6 +6,7 @@ import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
 import { EURO, money } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
+import { loadGoodsListGoods } from './goodsListSource';
 import 'app/components/userComponents/card/product-card.scss';
 import 'app/modules/home/storefront-home.scss';
 
@@ -115,39 +116,9 @@ const GoodsListC: React.FC<{ config: Record<string, unknown> }> = ({ config }) =
 
   useEffect(() => {
     let cancelled = false;
-    const mode = config.mode as string;
-    const limit = Math.min(Math.max(Number(config.limit) || 8, 1), 24);
-    const load = async (): Promise<IGood[]> => {
-      if (mode === 'byIds') {
-        const ids = (config.goodsIds as number[] | undefined) ?? [];
-        if (ids.length === 0) return [];
-        // RAW map {goodsId: aggregate} — no envelope; unwrap passes it through.
-        const map = await unwrap<Record<string, IGood>>(baseAxios.post(`${SRV}/goods/batch`, ids));
-        if (!map || typeof map !== 'object') return [];
-        // Preserve the configured order; missing/off-sale ids are absent.
-        return ids.map(id => map[String(id)]).filter(Boolean) as IGood[];
-      }
-      if (mode === 'deals') {
-        // Search envelope ({goodsList}, NOT {list}) — spec §2.3 v1.1. Scored browse:
-        // deepest-discount × most-popular deals first.
-        const res =
-          (await unwrap<{ goodsList?: IGood[] }>(baseAxios.get(`${SRV}/search`, { params: { deal_flag: 1, size: limit, page: 1 } }))) ??
-          {};
-        return res.goodsList ?? [];
-      }
-      const params =
-        mode === 'byCategory'
-          ? { categoryId: config.categoryId as number, limit, page: 1 }
-          : mode === 'hot'
-            ? { isHot: true, limit, page: 1 }
-            : mode === 'new'
-              ? { isNew: true, limit, page: 1 }
-              : null;
-      if (!params) return [];
-      const res = (await unwrap<{ list?: IGood[] }>(baseAxios.get(`${SRV}/goods/list`, { params }))) ?? {};
-      return res.list ?? [];
-    };
-    load()
+    // Shared with the home season rail (Wave 27) so the two never disagree
+    // about a component's products — see `goodsListSource.ts`.
+    loadGoodsListGoods(config)
       .then(list => {
         if (!cancelled) setGoods(list);
       })

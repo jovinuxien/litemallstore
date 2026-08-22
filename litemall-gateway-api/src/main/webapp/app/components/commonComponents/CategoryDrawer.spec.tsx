@@ -18,6 +18,7 @@ jest.mock('app/config/axiosinstance', () => ({
 import { baseAxios } from 'app/config/axiosinstance';
 import store from 'app/config/store';
 import { __resetContentAvailability } from 'app/shared/util/contentAvailability';
+import { __resetSeason } from 'app/shared/util/season';
 
 import CategoryDrawer from './CategoryDrawer';
 
@@ -25,8 +26,12 @@ const mockGet = baseAxios.get as jest.Mock;
 
 const envelope = (data: unknown) => Promise.resolve({ data: { errno: 0, data } });
 
-const wire = (opts: { brandCount?: number; topicGoods?: unknown[]; fail?: boolean } = {}) => {
+const wire = (opts: { brandCount?: number; topicGoods?: unknown[]; fail?: boolean; season?: unknown } = {}) => {
   mockGet.mockImplementation((url: string) => {
+    if (url.includes('/page/season')) {
+      // Wave 27: no season running is the storefront's normal state.
+      return opts.season ? envelope(opts.season) : Promise.resolve({ data: { errno: 642, errmsg: 'no active season page' } });
+    }
     if (opts.fail) return Promise.reject(new Error('down'));
     if (url.includes('/brand/list')) {
       return envelope({ total: 1, list: [{ id: 1022000, name: 'Seed brand', kind: 0, displayEnabled: 1, goodsCount: opts.brandCount ?? 0 }] });
@@ -66,6 +71,7 @@ beforeAll(() => {
 beforeEach(() => {
   mockGet.mockReset();
   __resetContentAvailability();
+  __resetSeason();
   sessionStorage.clear();
 });
 
@@ -105,5 +111,45 @@ describe('CategoryDrawer content entries', () => {
     expect(await screen.findByText('Today’s Deals')).toBeTruthy();
     expect(screen.getByText('New Arrivals')).toBeTruthy();
     expect(screen.getByText('Customer service')).toBeTruthy();
+  });
+});
+
+/**
+ * Wave 27 — the season entry that replaced the hardcoded "Summer Deals" link.
+ * The drawer, the header strip and the home rail all read the same resolver,
+ * so this is the wiring test for the nav rule: a season is advertised by NAME
+ * while one is running, and not at all when none is.
+ */
+describe('CategoryDrawer season entry', () => {
+  const season = (over: Record<string, unknown> = {}) => ({
+    id: 31,
+    name: 'Autumn Deals',
+    category: 'season',
+    components: [{ type: 'goods-list', config: { mode: 'byIds', goodsIds: [10034827] } }],
+    ...over,
+  });
+
+  it('links the running season under the name the admin gave it', async () => {
+    wire({ season: season() });
+    renderDrawer();
+    const link = await screen.findByText('Autumn Deals');
+    expect(link.getAttribute('href')).toBe('/page/31');
+  });
+
+  it('shows no season entry when none is running, and nothing of the old hardcoded link survives', async () => {
+    wire();
+    renderDrawer();
+    await screen.findByText('Your orders');
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith(expect.stringContaining('/page/season')));
+    expect(screen.queryByText('Autumn Deals')).toBeNull();
+    expect(screen.queryByText('Summer Deals')).toBeNull();
+  });
+
+  it('shows no season entry when the season page has no name to show', async () => {
+    wire({ season: season({ name: '' }) });
+    renderDrawer();
+    await screen.findByText('Your orders');
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith(expect.stringContaining('/page/season')));
+    expect(document.querySelector('a[href="/page/31"]')).toBeNull();
   });
 });

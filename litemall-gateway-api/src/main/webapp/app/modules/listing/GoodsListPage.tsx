@@ -12,19 +12,17 @@ import 'app/shared/scss/content.scss';
  * `/srv/search` surface (local + CJ goods, the relevance-boost ranking):
  *   - hot    → "Today's Deals":  bestsellers, sort=-listed_num
  *   - new    → "New Arrivals":   newest first, sort=-created_epoch
- *   - summer → "Summer Deals":   CJ goods matching "summer", relevance-ranked
  * (The old `/srv/goods/list?isHot|isNew` source was DB-flag-based and
  * local-only.) For keyword/category faceted browsing the InstantSearch
  * `/search` page is used instead.
  */
 interface Props {
-  mode: 'hot' | 'new' | 'summer';
+  mode: 'hot' | 'new';
 }
 
 const MODES: Record<Props['mode'], { title: string; params: Record<string, string> }> = {
   hot: { title: 'Today’s Deals', params: { q: '', sort: '-listed_num' } },
   new: { title: 'New Arrivals', params: { q: '', sort: '-created_epoch' } },
-  summer: { title: 'Summer Deals', params: { q: 'summer', source: 'cj' } },
 };
 
 const GoodsListPage: React.FC<Props> = ({ mode }) => {

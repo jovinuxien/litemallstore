@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Carousel } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
-import { BASE_URL_CONTEXT } from 'app/config/api';
-import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { contentApi, IPageView } from 'app/shared/api';
 import { IBanner } from 'app/shared/model/home.models';
@@ -18,6 +16,8 @@ import { secureImageUrl } from 'app/shared/util/imageUrl';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 import { getProductList } from '../product/productSlice';
 import { getHomeData } from './homeSlice';
+import SeasonRail from './SeasonRail';
+import Section from './Section';
 import 'app/components/userComponents/card/product-card.scss';
 import './storefront-home.scss';
 
@@ -80,20 +80,6 @@ const BannerSlide: React.FC<{ banner: IBanner; eager?: boolean }> = ({ banner, e
 };
 
 // Small section wrapper with a title + optional "see more" link.
-const Section: React.FC<{ title: string; moreTo?: string; children: React.ReactNode }> = ({ title, moreTo, children }) => (
-  <section className="lm-section">
-    <div className="lm-section__head">
-      <h2 className="lm-section__title">{title}</h2>
-      {moreTo && (
-        <Link to={moreTo} className="lm-section__more">
-          See more ›
-        </Link>
-      )}
-    </div>
-    {children}
-  </section>
-);
-
 const HomeView: React.FC = () => {
   const dispatch = useAppDispatch();
   const entities = useAppSelector(state => state.home.homeData);
@@ -107,8 +93,6 @@ const HomeView: React.FC = () => {
   // Mobile: the hero category tree collapses behind a toggle; desktop keeps it open.
   const [menuOpen, setMenuOpen] = useState(false);
   const cols = useGridColumns();
-  // Summer Deals — CJ goods matching "summer" on the OCS relevance ranking.
-  const [summerGoods, setSummerGoods] = useState<IGood[]>([]);
   // DIY home (goods-management Wave 4, spec-page-palette-v1.md): when an admin
   // has activated a home page, render it instead of the legacy home. errno 642
   // (none active), 404/501 (backend not shipped) or any failure ⇒ legacy home,
@@ -135,19 +119,6 @@ const HomeView: React.FC = () => {
     dispatch(getCatalogAllData());
   }, [dispatch]);
 
-  useEffect(() => {
-    let cancelled = false;
-    baseAxios
-      .get(`${BASE_URL_CONTEXT}/search`, { params: { q: 'summer', source: 'cj', page: 1, size: 8 } })
-      .then(res => {
-        const d = res.data?.data ?? res.data ?? {};
-        if (!cancelled) setSummerGoods((d.goodsList ?? []) as IGood[]);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   if (diyPage) {
     return <PageRenderer page={diyPage} />;
@@ -296,16 +267,9 @@ const HomeView: React.FC = () => {
           </Section>
         )}
 
-        {/* Summer Deals — CJ goods matching "summer", OCS relevance-ranked */}
-        {summerGoods.length > 0 && (
-          <Section title="Summer Deals" moreTo="/summer">
-            <div className="lm-rail">
-              {summerGoods.map((product, i) => (
-                <ProductCard key={`summer-${goodId(product) ?? i}`} product={product} />
-              ))}
-            </div>
-          </Section>
-        )}
+        {/* Wave 27: the season collection an admin activated — name, products and
+            order all come from that page; absent when no season is running. */}
+        <SeasonRail />
 
         {/* New arrivals */}
         {newGoods.length > 0 && (

@@ -12,6 +12,8 @@ import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/cat
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
 import SocialLinks from 'app/shared/config/SocialLinks';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
+import { seasonLabel, seasonPath } from 'app/shared/util/season';
+import { useSeason } from 'app/shared/util/useSeason';
 import './layout-header.scss';
 
 /**
@@ -89,6 +91,8 @@ const Layout: React.FC = () => {
   const hasTopics = useContentAvailability('topics');
   const hasArticles = useContentAvailability('articles');
   const hasGroupons = useContentAvailability('groupons');
+  // Wave 27: the season collection replaced the hardcoded "Summer Deals" link.
+  const season = useSeason();
 
   const cartCount = useAppSelector(state => state.cart.data.cartList.length);
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
@@ -423,9 +427,13 @@ const Layout: React.FC = () => {
             <Link to='/deals' className='lm-header__strip-link'>
               Today&rsquo;s Deals
             </Link>
-            <Link to='/summer' className='lm-header__strip-link'>
-              Summer Deals
-            </Link>
+            {/* Wave 27: the running season, named by the admin who activated it.
+                No season ⇒ no entry — never a link to a collection that isn't. */}
+            {season && seasonLabel(season) && (
+              <Link to={seasonPath(season)} className='lm-header__strip-link'>
+                {seasonLabel(season)}
+              </Link>
+            )}
             <Link to='/new' className='lm-header__strip-link'>
               New Arrivals
             </Link>
