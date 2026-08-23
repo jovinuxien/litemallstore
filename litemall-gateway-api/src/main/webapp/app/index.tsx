@@ -9,10 +9,13 @@ import 'app/sass/global.scss';
 
 import App from 'app/App';
 import store from 'app/config/store';
+import { RootErrorBoundary } from 'app/components/commonComponents/ErrorBoundary';
 
 const root = createRoot(document.getElementById('root') as HTMLElement);
 root.render(
   <Provider store={store}>
-    <App />
+    <RootErrorBoundary>
+      <App />
+    </RootErrorBoundary>
   </Provider>
 );
