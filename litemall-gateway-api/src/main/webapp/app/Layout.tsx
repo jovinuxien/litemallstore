@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { logoutCustomerThunk } from 'app/auth/customerAuthSlice';
 import CategoryDrawer from 'app/components/commonComponents/CategoryDrawer';
+import { RouteErrorBoundary } from 'app/components/commonComponents/ErrorBoundary';
 import TrovemoWordmark from 'app/components/commonComponents/TrovemoWordmark';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
@@ -464,7 +465,11 @@ const Layout: React.FC = () => {
 
       <CategoryDrawer show={drawerOpen} onHide={() => setDrawerOpen(false)} />
       <main>
-        <Outlet />
+        {/* A crashed page must not take the header, search and nav down with
+            it — see components/commonComponents/ErrorBoundary.tsx. */}
+        <RouteErrorBoundary>
+          <Outlet />
+        </RouteErrorBoundary>
       </main>
       <footer className='mt-5'>
         {/* Back-to-top bar — Amazon's signature footer affordance. */}
