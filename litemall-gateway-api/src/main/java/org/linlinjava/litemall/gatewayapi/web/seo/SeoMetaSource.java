@@ -8,14 +8,19 @@ import reactor.core.publisher.Mono;
  * test classpath carries a Mockito far too old to mock classes on JDK 21).
  * {@link SeoMetaClient} is the production implementation.
  *
- * <p>Both methods complete EMPTY — never with an error — when the answer
- * cannot be had within budget; callers treat empty as "serve the plain shell".
+ * <p>No method ever completes with an error, and none completes empty: every
+ * one answers a {@link MetaLookup}, which says whether the row was found, was
+ * reported missing in contract, or could not be looked up at all. That
+ * distinction is the whole point — see {@link MetaLookup}.
  */
 public interface SeoMetaSource {
 
-    Mono<GoodsMeta> goodsMeta(String goodsId);
+    Mono<MetaLookup<GoodsMeta>> goodsMeta(String goodsId);
 
-    Mono<String> categoryName(String categoryId);
+    Mono<MetaLookup<CategoryMeta>> category(String categoryId);
 
-    Mono<PageMeta> pageMeta(String pageId);
+    Mono<MetaLookup<PageMeta>> pageMeta(String pageId);
+
+    /** The active season page, or absent when no season is running. */
+    Mono<MetaLookup<PageMeta>> seasonPage();
 }

@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -27,8 +28,11 @@ import java.util.function.Supplier;
  * <p><b>Fail-open is the whole design.</b> Head injection sits on the SPA
  * navigation path, so a slow or dead goods service must cost a deep link at
  * most {@link #FETCH_BUDGET} before it gets the plain shell it gets today.
- * Every public method completes empty on timeout, connection failure, a
- * non-zero errno envelope, or an unparseable body — never with an error.
+ * Every public method answers a {@link MetaLookup} and never completes with an
+ * error: a timeout, connection failure or unparseable body is
+ * {@code unavailable} (serve the plain shell, exactly as before), while a
+ * non-zero errno envelope is {@code absent} (the row really is gone, and the
+ * caller may answer 404).
  *
  * <p>Results are memoised per id as TTL-cached {@link Mono}s (hits 5&nbsp;min,
  * misses/errors 60&nbsp;s so a booting service is retried soon). The cache also
@@ -67,36 +71,76 @@ public class SeoMetaClient implements SeoMetaSource {
         this.clientManager = machineAuthorizedClientManager;
     }
 
-    /** Product meta, or empty (never an error) when it cannot be had in budget. */
+    /** Product meta; absent only when goods-management says the row is gone. */
     @Override
-    public Mono<GoodsMeta> goodsMeta(String goodsId) {
-        return cached("goods:" + goodsId, () -> fetch("/srv/goods/meta/{id}", goodsId))
-                .timeout(FETCH_BUDGET)
-                .onErrorResume(e -> Mono.empty())
-                .flatMap(body -> Mono.justOrEmpty(parseGoods(goodsId, body)));
+    public Mono<MetaLookup<GoodsMeta>> goodsMeta(String goodsId) {
+        return lookup("goods:" + goodsId,
+                () -> fetch("/srv/goods/meta/{id}", goodsId),
+                body -> parseGoods(goodsId, body));
     }
 
-    /** Category display name, or empty (never an error). */
+    /** Category name + product count; absent on the service's own "not found". */
     @Override
-    public Mono<String> categoryName(String categoryId) {
-        return cached("category:" + categoryId, () -> fetch("/srv/search/category/{id}?size=1", categoryId))
-                .timeout(FETCH_BUDGET)
-                .onErrorResume(e -> Mono.empty())
-                .flatMap(body -> Mono.justOrEmpty(parseCategoryName(body)));
+    public Mono<MetaLookup<CategoryMeta>> category(String categoryId) {
+        return lookup("category:" + categoryId,
+                () -> fetch("/srv/search/category/{id}?size=1", categoryId),
+                body -> parseCategory(categoryId, body));
     }
 
     /**
-     * Wave-20 DIY-page meta from the public {@code GET /srv/page/{id}} read, or
-     * empty (never an error). The endpoint serves ACTIVE pages only — a draft
-     * or missing page answers a non-zero errno, which parses to empty and the
-     * navigation falls open to the plain shell.
+     * Wave-20 DIY-page meta from the public {@code GET /srv/page/{id}} read.
+     * The endpoint serves ACTIVE pages only, so a draft or missing page answers
+     * a non-zero errno and arrives here as absent — correct for both: neither
+     * is a page the index should hold.
      */
     @Override
-    public Mono<PageMeta> pageMeta(String pageId) {
-        return cached("page:" + pageId, () -> fetch("/srv/page/{id}", pageId))
+    public Mono<MetaLookup<PageMeta>> pageMeta(String pageId) {
+        return lookup("page:" + pageId,
+                () -> fetch("/srv/page/{id}", pageId),
+                body -> parsePage(pageId, body));
+    }
+
+    /**
+     * The active season page (Wave 27). Errno 642 — no season running — is a
+     * normal state, not a failure, and arrives as absent.
+     */
+    @Override
+    public Mono<MetaLookup<PageMeta>> seasonPage() {
+        return lookup("page:season",
+                () -> fetch("/srv/page/season"),
+                body -> parsePage(null, body));
+    }
+
+    /**
+     * One fetch, classified into the three answers.
+     *
+     * <p>Everything that is not an in-contract errno envelope stays
+     * "unavailable", which the caller treats exactly as this client behaved
+     * before {@link MetaLookup} existed: serve the plain shell, 200. Only a
+     * body that parsed as an envelope AND carried a non-zero errno is reported
+     * absent, because that is the service positively stating the row is not
+     * there. An envelope we cannot parse is NOT absence — a contract drift
+     * must degrade to the old behaviour, never to a site-wide 404.
+     */
+    private <T> Mono<MetaLookup<T>> lookup(String key,
+                                           Supplier<Mono<JsonNode>> fetch,
+                                           Function<JsonNode, T> parser) {
+        return cached(key, fetch)
                 .timeout(FETCH_BUDGET)
-                .onErrorResume(e -> Mono.empty())
-                .flatMap(body -> Mono.justOrEmpty(parsePage(pageId, body)));
+                .map(body -> classify(body, parser))
+                .onErrorReturn(MetaLookup.unavailable())
+                .defaultIfEmpty(MetaLookup.unavailable());
+    }
+
+    private static <T> MetaLookup<T> classify(JsonNode body, Function<JsonNode, T> parser) {
+        if (body == null || !body.hasNonNull("errno")) {
+            return MetaLookup.unavailable();
+        }
+        if (body.path("errno").asInt(-1) != 0) {
+            return MetaLookup.missing();
+        }
+        T value = parser.apply(body);
+        return value == null ? MetaLookup.unavailable() : MetaLookup.found(value);
     }
 
     private Mono<JsonNode> cached(String key, Supplier<Mono<JsonNode>> fetch) {
@@ -107,9 +151,10 @@ public class SeoMetaClient implements SeoMetaSource {
                 fetch.get().cache(value -> HIT_TTL, error -> MISS_TTL, () -> MISS_TTL));
     }
 
-    private Mono<JsonNode> fetch(String uriTemplate, String id) {
+    /** Varargs so the season read, which takes no path variable, uses the same path. */
+    private Mono<JsonNode> fetch(String uriTemplate, Object... uriVariables) {
         return machineToken().flatMap(token -> webClient.get()
-                .uri(uriTemplate, id)
+                .uri(uriTemplate, uriVariables)
                 .headers(h -> {
                     if (!token.isEmpty()) {
                         h.setBearerAuth(token);
@@ -134,9 +179,6 @@ public class SeoMetaClient implements SeoMetaSource {
     }
 
     private static GoodsMeta parseGoods(String goodsId, JsonNode body) {
-        if (body == null || body.path("errno").asInt(-1) != 0) {
-            return null;
-        }
         JsonNode d = body.path("data");
         if (!d.hasNonNull("name") || d.path("name").asText().isBlank()) {
             return null;
@@ -150,7 +192,9 @@ public class SeoMetaClient implements SeoMetaSource {
                 d.hasNonNull("currency") ? d.path("currency").asText() : null,
                 d.path("onSale").asBoolean(true),
                 text(d, "rating"),
-                d.hasNonNull("reviewCount") ? d.path("reviewCount").asInt() : null);
+                d.hasNonNull("reviewCount") ? d.path("reviewCount").asInt() : null,
+                text(d, "categoryId"),
+                text(d, "categoryName"));
     }
 
     /**
@@ -158,10 +202,7 @@ public class SeoMetaClient implements SeoMetaSource {
      * with the breadcrumb alongside; older shapes carried the name only on the
      * breadcrumb's last element, so both are read.
      */
-    private static String parseCategoryName(JsonNode body) {
-        if (body == null || body.path("errno").asInt(-1) != 0) {
-            return null;
-        }
+    private static CategoryMeta parseCategory(String categoryId, JsonNode body) {
         JsonNode d = body.path("data");
         String name = text(d.path("category"), "name");
         if (name == null) {
@@ -170,19 +211,22 @@ public class SeoMetaClient implements SeoMetaSource {
                 name = text(crumbs.get(crumbs.size() - 1), "name");
             }
         }
-        return name;
+        // `total` is the count behind the landing; a real category that the
+        // narrowing emptied reports 0 and must be rendered noindex, not 404.
+        return name == null ? null : new CategoryMeta(categoryId, name, d.path("total").asInt(0));
     }
 
     private static PageMeta parsePage(String pageId, JsonNode body) {
-        if (body == null || body.path("errno").asInt(-1) != 0) {
-            return null;
-        }
         JsonNode d = body.path("data");
         if (!d.hasNonNull("name") || d.path("name").asText().isBlank()) {
             return null;
         }
+        String id = d.hasNonNull("id") ? d.path("id").asText() : pageId;
+        if (id == null) {
+            return null;
+        }
         return new PageMeta(
-                d.hasNonNull("id") ? d.path("id").asText() : pageId,
+                id,
                 d.path("name").asText(),
                 firstComponentImage(d.path("components")));
     }

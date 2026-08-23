@@ -177,8 +177,27 @@ public final class PublicPaths {
             api.add(new PathPatternParserServerWebExchangeMatcher(p));
         }
         return new AndServerWebExchangeMatcher(
-                new PathPatternParserServerWebExchangeMatcher("/**", HttpMethod.GET),
+                read("/**"),
                 new NegatedServerWebExchangeMatcher(new OrServerWebExchangeMatcher(api)));
+    }
+
+    /**
+     * A read of {@code pattern}: GET or HEAD.
+     *
+     * <p>HEAD used to be absent everywhere, so every public URL — the SPA shell,
+     * robots.txt, the sitemap, every product page — answered 401 to a HEAD while
+     * answering 200 to the identical GET. Nothing was protected by that: HEAD
+     * returns no body, and the matching GET was already public. What it did do
+     * was make the site look dead to link checkers, uptime monitors and the
+     * crawlers that probe with HEAD before fetching.
+     *
+     * <p>Deliberately not applied to the POST entries below: HEAD is a read, and
+     * those are writes.
+     */
+    private static ServerWebExchangeMatcher read(String pattern) {
+        return new OrServerWebExchangeMatcher(
+                new PathPatternParserServerWebExchangeMatcher(pattern, HttpMethod.GET),
+                new PathPatternParserServerWebExchangeMatcher(pattern, HttpMethod.HEAD));
     }
 
     /**
@@ -200,10 +219,10 @@ public final class PublicPaths {
             matchers.add(new PathPatternParserServerWebExchangeMatcher(p));
         }
         for (String p : CATALOG_GET) {
-            matchers.add(new PathPatternParserServerWebExchangeMatcher(p, HttpMethod.GET));
+            matchers.add(read(p));
         }
         for (String p : ACTUATOR_GET) {
-            matchers.add(new PathPatternParserServerWebExchangeMatcher(p, HttpMethod.GET));
+            matchers.add(read(p));
         }
         matchers.add(new PathPatternParserServerWebExchangeMatcher(STRIPE_WEBHOOK_POST, HttpMethod.POST));
         matchers.add(new PathPatternParserServerWebExchangeMatcher(TRACK_POST, HttpMethod.POST));

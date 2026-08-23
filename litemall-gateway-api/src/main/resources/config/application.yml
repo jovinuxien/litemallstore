@@ -146,6 +146,20 @@ litemall:
   # sitemap builder — the two MUST agree or canonical URLs diverge from
   # sitemap URLs.
   public-base-url: https://trovemo.com
+  seo:
+    # Identity the injected homepage head states as schema.org Organization +
+    # WebSite, and the returns terms a product's Offer carries as a
+    # MerchantReturnPolicy. Every value here is ALREADY published on the site
+    # (footer, /returns, seller identity) — this only makes it machine-readable.
+    # sameAs is assembled from litemall.social.* below, so an unconfigured
+    # network stays absent instead of emitting a dead profile link.
+    # Explicit placeholders, not relaxed binding (the admin-notify-email lesson).
+    store-name: ${LITEMALL_SEO_STORE_NAME:Trovemo}
+    contact-email: ${LITEMALL_SEO_CONTACT_EMAIL:support@trovemo.com}
+    # 0 days or a blank country ⇒ the return-policy block is omitted entirely
+    # rather than promising terms nobody configured.
+    return-days: ${LITEMALL_SEO_RETURN_DAYS:30}
+    return-country: ${LITEMALL_SEO_RETURN_COUNTRY:SE}
   auth:
     reset-mail:
       # Forgot-password-by-email flow (V37). Disabled by default:
