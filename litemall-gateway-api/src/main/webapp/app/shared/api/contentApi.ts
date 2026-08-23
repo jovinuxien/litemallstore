@@ -109,11 +109,13 @@ export interface IRegionNode {
 }
 
 export const contentApi = {
-  // TODO(/srv follow-up: goods-management) — brand list/detail.
+  // Brands — goods-management LitemallBrandController. Rows carry Wave-25
+  // attribution (kind/source/displayEnabled) and a goodsCount since Wave 26.
   brandList: (params: PageParams = {}) => unwrap<{ list: IBrand[]; total: number }>(baseAxios.get(`${SRV}/brand/list`, { params })),
   brandDetail: (id: number | string) => unwrap<IBrand>(baseAxios.get(`${SRV}/brand/detail?id=${encodeURIComponent(String(id))}`)),
 
-  // TODO(/srv follow-up: goods-management) — topics.
+  // Topics — goods-management LitemallTopicController. List rows carry a
+  // goodsCount, so substance can be judged without opening each one.
   topicList: (params: PageParams = {}) => unwrap<{ list: ITopic[]; total: number }>(baseAxios.get(`${SRV}/topic/list`, { params })),
   topicDetail: (id: number | string) => unwrap<{ topic: ITopic; goods: unknown[] }>(baseAxios.get(`${SRV}/topic/detail?id=${encodeURIComponent(String(id))}`)),
   topicRelated: (id: number | string) => unwrap<{ list: ITopic[] }>(baseAxios.get(`${SRV}/topic/related?id=${encodeURIComponent(String(id))}`)),

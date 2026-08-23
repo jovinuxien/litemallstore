@@ -293,11 +293,16 @@ const ProductDetailView: React.FC = () => {
           </button>
           {gallery.length > 1 && (
             <div className='lm-pdp__thumbs'>
-              {gallery.map(img => (
+              {gallery.map((img, i) => (
                 <button
                   key={img}
                   type='button'
                   className={`lm-pdp__thumb${img === activeImage ? ' is-active' : ''}`}
+                  // The thumbnail is decorative (alt=''), so without a label on the
+                  // button a screen reader announces only "button". The stage button
+                  // above already carries one; these were missed.
+                  aria-label={`Show image ${i + 1} of ${gallery.length}`}
+                  aria-pressed={img === activeImage}
                   onMouseEnter={() => setActiveImage(img)}
                   onClick={() => setActiveImage(img)}
                 >

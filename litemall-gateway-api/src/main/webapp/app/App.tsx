@@ -45,6 +45,7 @@ const BrandDetail = lazy(() => import('app/modules/brand/BrandDetail'));
 const TopicList = lazy(() => import('app/modules/topic/TopicList'));
 const TopicDetail = lazy(() => import('app/modules/topic/TopicDetail'));
 const PageView = lazy(() => import('app/modules/page/PageView'));
+const NotFound = lazy(() => import('app/modules/static/NotFound'));
 const SeasonRedirect = lazy(() => import('app/modules/page/SeasonRedirect'));
 const ArticleList = lazy(() => import('app/modules/article/ArticleList'));
 const ArticleDetail = lazy(() => import('app/modules/article/ArticleDetail'));
@@ -250,7 +251,9 @@ const App: React.FC = () => (
               </CustomerProtectedRoute>
             }
           />
-          <Route path='*' element={<div className='container my-5'>Page not found</div>} />
+          {/* Retired-catalogue URLs stay in Google's index for weeks after a
+              narrowing, so this is a real landing page, not a rare edge case. */}
+          <Route path='*' element={<NotFound />} />
         </Route>
       </Routes>
     </Suspense>
