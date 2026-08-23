@@ -72,7 +72,9 @@ export const orderApi = {
     unwrap<{ clientSecret: string; amount: number; currency: string; publishableKey?: string }>(
       baseAxios.post(`${SRV}/order/${orderId}/actions/payment-intent`, {}),
     ),
-  // TODO(/srv follow-up: order) — list/detail/ops not implemented yet.
+  // Orders — litemall-order LitemallOrderController. List, detail and every
+  // action below are live; they are authenticated, so an anonymous call is a
+  // 401 the SPA turns into its sign-in flow.
   list: (params: OrderListParams) => unwrap<{ list: IOrderListItem[]; total: number }>(baseAxios.get(`${SRV}/order/list`, { params })),
   detail: (orderId: number | string) => unwrap<IOrderDetail>(baseAxios.get(`${SRV}/order/detail?orderId=${encodeURIComponent(String(orderId))}`)),
   cancel: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/cancel`, {})),

@@ -109,13 +109,13 @@ export const userApi = {
   addressSave: (body: IAddress) => unwrap(baseAxios.post(`${SRV}/address/save`, body)),
   addressDelete: (id: number) => unwrap(baseAxios.post(`${SRV}/address/delete`, { id })),
 
-  // TODO(/srv follow-up: user) — favorites (collect). type 0=goods, 1=topics.
+  // Favorites — goods-management LitemallCollectController. type 0=goods, 1=topics.
   collectList: (type = 0, params: PageParams = {}) =>
     unwrap(baseAxios.get(`${SRV}/collect/list`, { params: { type, ...params } })),
   collectToggle: (type: number, valueId: number | string) =>
     unwrap(baseAxios.post(`${SRV}/collect/addordelete`, { type, valueId })),
 
-  // TODO(/srv follow-up: goods-management) — footprint (browsing history).
+  // Footprint (browsing history) — goods-management LitemallFootprintController.
   // record is fired by the PDP on view; the backend dedupes same goods/day
   // (contract: docs/handoff-goods-management-engagement.md).
   footprintList: (params: PageParams = {}) => unwrap(baseAxios.get(`${SRV}/footprint/list`, { params })),
@@ -171,7 +171,7 @@ export const userApi = {
   // a failed gift grant must never block signup (use fireRegisterGifts()).
   couponRegisterGifts: () => unwrap(baseAxios.post(`${SRV}/promotion/coupon/register-gifts`, {})),
 
-  // TODO(/srv follow-up: user) — feedback.
+  // Feedback — goods-management LitemallFeedbackController.
   feedbackSubmit: (body: unknown) => unwrap(baseAxios.post(`${SRV}/feedback/submit`, body)),
 
   // Product comments/reviews — LIVE on goods-management (/srv/comment/*, public).
@@ -183,7 +183,7 @@ export const userApi = {
     unwrap<{ list: IComment[]; total: number }>(
       baseAxios.get(`${SRV}/comment/list`, { params: { valueId, type, showType: 0, ...params } })
     ),
-  // TODO(/srv follow-up: goods-management) — post a review. Authenticated
+  // Post a review — goods-management LitemallCommentController. Authenticated
   // (buyer from X-User-Id); this request shape is the contract goods-management
   // builds to (docs/handoff-goods-management-engagement.md).
   commentPost: (body: ICommentPost) => unwrap(baseAxios.post(`${SRV}/comment/post`, body)),
