@@ -32,7 +32,8 @@ class SeoHeadRendererTest {
 
     private static GoodsMeta meta() {
         return new GoodsMeta("10000553", "Vintage Denim Jacket", "Classic 90s wash denim.",
-                "https://cf.cjdropshipping.com/pic/abc.jpg", "39.99", "USD", true, "4.6", 12);
+                "https://cf.cjdropshipping.com/pic/abc.jpg", "39.99", "USD", true, "4.6", 12,
+                "1036143", "Home, Garden & Furniture");
     }
 
     @Test
@@ -55,7 +56,7 @@ class SeoHeadRendererTest {
     @DisplayName("off-sale product carries robots noindex; on-sale never does")
     void offSaleNoindex() {
         GoodsMeta offSale = new GoodsMeta("10000553", "Vintage Denim Jacket", "Classic 90s wash denim.",
-                null, "39.99", "USD", false, null, null);
+                null, "39.99", "USD", false, null, null, null, null);
         assertThat(renderer.renderProduct(offSale).orElseThrow())
                 .contains("<meta name=\"robots\" content=\"noindex\"");
         assertThat(renderer.renderProduct(meta()).orElseThrow())
@@ -100,7 +101,7 @@ class SeoHeadRendererTest {
     @Test
     @DisplayName("product: no reviews ⇒ no aggregateRating; off-sale ⇒ OutOfStock")
     void productNoReviewsOffSale() {
-        GoodsMeta m = new GoodsMeta("7", "Basic Tee", null, null, "9.99", null, false, null, 0);
+        GoodsMeta m = new GoodsMeta("7", "Basic Tee", null, null, "9.99", null, false, null, 0, null, null);
         String html = renderer.renderProduct(m).orElseThrow();
         assertThat(html).doesNotContain("aggregateRating");
         assertThat(html).contains("\"availability\":\"https://schema.org/OutOfStock\"");
@@ -114,7 +115,7 @@ class SeoHeadRendererTest {
     @DisplayName("hostile names cannot break out of the head or the JSON-LD script")
     void escaping() {
         GoodsMeta m = new GoodsMeta("9", "</script><script>alert('x')</script> \"Deal\" & <Co>",
-                null, null, null, null, true, null, null);
+                null, null, null, null, true, null, null, null, null);
         String html = renderer.renderProduct(m).orElseThrow();
         assertThat(html).doesNotContain("<script>alert");
         // JSON-LD escapes every '<' so a nested closing tag can't end the block.
@@ -127,7 +128,7 @@ class SeoHeadRendererTest {
     void htmlOnlyBrief() {
         GoodsMeta m = new GoodsMeta("11", "Steel Water Bottle",
                 "<p><img src=\"/_cdn/oss/product/x.jpg\" style=\"max-width:100%;\" contenteditable=\"false\"/></p>",
-                null, "12.50", "USD", true, null, null);
+                null, "12.50", "USD", true, null, null, null, null);
         String html = renderer.renderProduct(m).orElseThrow();
         assertThat(html).contains("<meta name=\"description\" content=\"Steel Water Bottle\"");
         assertThat(html).contains("<meta property=\"og:description\" content=\"Steel Water Bottle\"");
@@ -139,7 +140,7 @@ class SeoHeadRendererTest {
     void mixedHtmlBrief() {
         GoodsMeta m = new GoodsMeta("12", "Desk Lamp",
                 "<p>Warm <b>LED</b> light.</p>\n<p><img src=\"x.jpg\"/></p>",
-                null, null, null, true, null, null);
+                null, null, null, true, null, null, null, null);
         String html = renderer.renderProduct(m).orElseThrow();
         assertThat(html).contains("<meta name=\"description\" content=\"Warm LED light.\"");
     }
@@ -147,7 +148,7 @@ class SeoHeadRendererTest {
     @Test
     @DisplayName("category: name-driven title, canonical and og:type website")
     void category() {
-        String html = renderer.renderCategory("1036007", "Women's Clothing").orElseThrow();
+        String html = renderer.renderCategory(new CategoryMeta("1036007", "Women's Clothing", 42)).orElseThrow();
         assertThat(html).contains("<title>Women&#39;s Clothing | Trovemo</title>");
         assertThat(html).contains("<link rel=\"canonical\" href=\"https://trovemo.com/category/1036007\"");
         assertThat(html).contains("<meta property=\"og:type\" content=\"website\"");
@@ -214,10 +215,85 @@ class SeoHeadRendererTest {
     @Test
     @DisplayName("non-CJ absolute https images pass through; http images are dropped")
     void imagePassThrough() {
-        GoodsMeta https = new GoodsMeta("1", "A", null, "https://example.com/x.jpg", null, null, true, null, null);
+        GoodsMeta https = new GoodsMeta("1", "A", null, "https://example.com/x.jpg", null, null, true, null, null, null, null);
         assertThat(renderer.renderProduct(https).orElseThrow())
                 .contains("<meta property=\"og:image\" content=\"https://example.com/x.jpg\"");
-        GoodsMeta http = new GoodsMeta("2", "B", null, "http://yanxuan.nosdn.127.net/x.jpg", null, null, true, null, null);
+        GoodsMeta http = new GoodsMeta("2", "B", null, "http://yanxuan.nosdn.127.net/x.jpg", null, null, true, null, null, null, null);
         assertThat(renderer.renderProduct(http).orElseThrow()).doesNotContain("og:image");
+    }
+
+    @Test
+    @DisplayName("product: breadcrumb runs Home > category > product")
+    void productBreadcrumb() {
+        String html = renderer.renderProduct(meta()).orElseThrow();
+        assertThat(html).contains("\"@type\":\"BreadcrumbList\"");
+        assertThat(html).contains("\"position\":1,\"name\":\"Home\",\"item\":\"https://trovemo.com/\"");
+        assertThat(html).contains("\"position\":2,\"name\":\"Home, Garden & Furniture\","
+                + "\"item\":\"https://trovemo.com/category/1036143\"");
+        assertThat(html).contains("\"position\":3,\"name\":\"Vintage Denim Jacket\"");
+    }
+
+    @Test
+    @DisplayName("product with no category: breadcrumb is skipped, not left sparse")
+    void productWithoutCategory() {
+        GoodsMeta uncategorised = new GoodsMeta("5", "Orphan", null, null, "1.00", "EUR",
+                true, null, null, null, null);
+        String html = renderer.renderProduct(uncategorised).orElseThrow();
+        assertThat(html).contains("\"position\":2,\"name\":\"Orphan\"");
+        assertThat(html).doesNotContain("\"position\":3");
+    }
+
+    @Test
+    @DisplayName("product offer: condition always, return policy only when configured")
+    void offerEnrichment() {
+        assertThat(renderer.renderProduct(meta()).orElseThrow())
+                .contains("\"itemCondition\":\"https://schema.org/NewCondition\"")
+                .doesNotContain("hasMerchantReturnPolicy");
+
+        SeoHeadRenderer configured = new SeoHeadRenderer("https://trovemo.com",
+                new SeoHeadRenderer.SiteIdentity("Trovemo", "support@trovemo.com",
+                        java.util.List.of("https://www.facebook.com/trovemo"), 30, "SE"),
+                () -> SHELL);
+        assertThat(configured.renderProduct(meta()).orElseThrow())
+                .contains("\"hasMerchantReturnPolicy\"")
+                .contains("\"merchantReturnDays\":30")
+                .contains("\"applicableCountry\":\"SE\"")
+                .contains("\"returnFees\":\"https://schema.org/ReturnShippingFees\"");
+    }
+
+    @Test
+    @DisplayName("category: emptied by the narrowing ⇒ noindex; populated ⇒ indexable")
+    void emptyCategoryNoindex() {
+        assertThat(renderer.renderCategory(new CategoryMeta("1005000", "home", 0)).orElseThrow())
+                .contains("<meta name=\"robots\" content=\"noindex\"");
+        assertThat(renderer.renderCategory(new CategoryMeta("1036143", "Home", 12)).orElseThrow())
+                .doesNotContain("\"robots\"");
+    }
+
+    @Test
+    @DisplayName("home: canonical, og and Organization + WebSite identity")
+    void home() {
+        SeoHeadRenderer configured = new SeoHeadRenderer("https://trovemo.com",
+                new SeoHeadRenderer.SiteIdentity("Trovemo", "support@trovemo.com",
+                        java.util.List.of("https://www.facebook.com/trovemo"), 30, "SE"),
+                () -> SHELL);
+        String html = configured.renderHome("Home, garden and DIY essentials.").orElseThrow();
+        assertThat(html).contains("<link rel=\"canonical\" href=\"https://trovemo.com/\"");
+        assertThat(html).contains("<meta property=\"og:url\" content=\"https://trovemo.com/\"");
+        assertThat(html).contains("<meta property=\"og:title\"");
+        assertThat(html).contains("\"@type\":\"Organization\"");
+        assertThat(html).contains("\"sameAs\":[\"https://www.facebook.com/trovemo\"]");
+        assertThat(html).contains("\"@type\":\"WebSite\"");
+        assertThat(html).contains("search?q={search_term_string}");
+        assertThat(html).contains("<meta name=\"description\" content=\"Home, garden and DIY essentials.\"");
+    }
+
+    @Test
+    @DisplayName("home: an unconfigured social profile is absent, never an empty sameAs")
+    void homeWithoutSocials() {
+        String html = renderer.renderHome("Anything").orElseThrow();
+        assertThat(html).contains("\"@type\":\"Organization\"");
+        assertThat(html).doesNotContain("sameAs");
+        assertThat(html).doesNotContain("\"email\"");
     }
 }

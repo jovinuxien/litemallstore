@@ -5,6 +5,10 @@ package org.linlinjava.litemall.gatewayapi.web.seo;
  * renders into a product page's head. Parsed defensively in
  * {@link SeoMetaClient} — any field the service omits arrives {@code null} and
  * the renderer simply drops the tag that needed it.
+ *
+ * <p>{@code categoryId}/{@code categoryName} have been in the contract since
+ * Wave 13 but were never parsed; they carry the BreadcrumbList that tells
+ * Google where a product sits in the store.
  */
 public record GoodsMeta(
         String id,
@@ -15,5 +19,7 @@ public record GoodsMeta(
         String currency,
         boolean onSale,
         String rating,
-        Integer reviewCount) {
+        Integer reviewCount,
+        String categoryId,
+        String categoryName) {
 }

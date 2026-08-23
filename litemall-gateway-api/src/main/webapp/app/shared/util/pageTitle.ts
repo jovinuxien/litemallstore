@@ -5,7 +5,7 @@
  * category landing) set it here and restore the sitewide default on unmount.
  * DEFAULT_TITLE mirrors webapp/public/index.html's <title>.
  */
-const DEFAULT_TITLE = 'Trovemo — Online Shopping for Fashion, Electronics, Home & More';
+const DEFAULT_TITLE = 'Trovemo — Home, Garden & DIY essentials, delivered';
 
 export const setPageTitle = (title?: string | null): void => {
   document.title = title ? `${title} | Trovemo` : DEFAULT_TITLE;

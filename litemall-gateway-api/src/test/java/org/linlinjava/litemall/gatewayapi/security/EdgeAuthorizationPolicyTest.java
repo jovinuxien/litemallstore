@@ -209,8 +209,38 @@ class EdgeAuthorizationPolicyTest {
     }
 
     /**
-     * The SPA-shell rule must not become a hole: it is GET-only and stops at the API
-     * prefixes, so deny-by-default still governs everything that carries data.
+     * HEAD is a read with the body left off, and every one of these URLs answers
+     * a public GET — yet HEAD used to 401 across the whole site, including
+     * robots.txt and the sitemap. Link checkers, uptime monitors and crawlers
+     * that probe before fetching all saw a dead site.
+     */
+    @Test
+    @DisplayName("HEAD of a public read is as public as its GET")
+    void headOfPublicReadsIsPublic() {
+        for (String path : new String[] {
+                "/", "/robots.txt", "/sitemap.xml", "/product/42",
+                "/srv/goods/detail", "/srv/search", "/actuator/health" }) {
+            anonymous.head().uri(path).exchange().expectStatus().isOk();
+        }
+    }
+
+    @Test
+    @DisplayName("HEAD does not open a write path")
+    void headDoesNotOpenWrites() {
+        // A path whose only public entry is a POST is not readable by HEAD: the
+        // read surface never listed it, and permitting HEAD did not add it.
+        anonymous.head().uri("/srv/track/collect").exchange().expectStatus().isUnauthorized();
+        // Nor does HEAD reach anything behind deny-by-default.
+        anonymous.head().uri("/srv/cart/items").exchange().expectStatus().isUnauthorized();
+        anonymous.head().uri("/auth/me").exchange().expectStatus().isUnauthorized();
+        // /srv/goods/batch is deliberately absent from this list: it sits under
+        // the /srv/goods/** catalog READ prefix, so its GET was already public
+        // before HEAD was added — it is the POST that needed its own entry.
+    }
+
+    /**
+     * The SPA-shell rule must not become a hole: it covers reads only and stops at
+     * the API prefixes, so deny-by-default still governs everything that carries data.
      */
     @Test
     @DisplayName("the SPA-shell rule does not leak into the API surface")
