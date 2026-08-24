@@ -2256,7 +2256,70 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — idle (Wave 27 admin half + pending-approval dashboard SHIPPED)
+### Worktree: `gateway-admin` — SEO title worklist (IN PROGRESS, uncommitted→committed here)
+- **Status 2026-08-24 — ON-PAGE SEO: over-length product titles.** Committed on
+  this branch, NOT merged, NOT run against a live stack. Backend compiles;
+  28 unit tests green (`TitleProposerTest` 10, `CsvKeywordResearchProviderTest`
+  10, `SeoPlatformKeywordClientTest` 8); admin `tsc` clean in `app/` (the only
+  6 errors are pre-existing `NoInfer` ones inside `node_modules/@reduxjs`).
+  **This branch deliberately carries goods-management files too** — the SPA page
+  is useless without its endpoint, so both halves are one commit here rather
+  than split across the `goods-management` worktree.
+- **The problem, measured against the live catalogue (not estimated):** 2,571 of
+  3,718 on-sale titles exceed 60 chars (median 85, max 127). Google renders ~60
+  and cuts the rest, so the end of a long title is invisible to a searcher.
+- **What was built.**
+  (1) `application/seo/KeywordResearchProvider` — the port, in goods-management's
+  own vocabulary (term / monthlySearches / competition / difficulty). No location
+  code, no tenant, no provider envelope.
+  (2) `infrastructure/acl/seo/` — the ACL. `CsvKeywordResearchProvider` (DEFAULT,
+  reads an export already paid for), `SeoPlatformKeywordClient` (live, buys),
+  `NoKeywordResearchProvider` (off), selected by `litemall.seo-research.source`
+  = `file` | `platform` | `none`.
+  (3) `application/seo/TitleProposer` + `TitleOptimisationService` — the first
+  consumer. Asks per CATEGORY, never per product (the live source bills per seed).
+  (4) `interfaces/rest/admin/AdminSeoController` — `GET /srv/private/admin/seo/
+  titles`, `POST /titles/apply` (errno 660). Rides gateway-admin's `/srv/**`
+  catch-all: **no gateway route change**.
+  (5) SPA `/admin/goods/seo-titles` — `adminSeoApi.ts` + `Insight/SeoTitleList.tsx`,
+  registered in `store.ts`, `reducers/index.ts`, `admin-routes.tsx`, `menu.config.ts`.
+- **Decisions that must not be silently reversed.**
+  * The proposal is a word-boundary truncation of the CURRENT title. It is NOT
+    generated from keyword data — the bought terms carry competitor brands and
+    homonyms ("friday night lights" under Night Lights), and rearranging supplier
+    wording around them produces copy that would ship under the shop's name.
+  * `HtmlText.truncateAtWord` HARD-cuts mid-word when no space precedes the limit
+    (`cut <= 0 -> cut = max`). It is shared with the merchant feed, so it was NOT
+    changed; `TitleProposer` detects the mid-word cut and keeps the original,
+    flagged `needsReview`. A test pins this.
+  * Apply reindexes the row (`reindexService.reindexGoods`) — the name lives in
+    the OCS document too. Precedent: `CatalogHygieneService`.
+  * `goods.keywords` is left alone ON PURPOSE. Despite the name it is a SEARCH
+    column (`LitemallGoodsService.querySelective` LIKE-matches it); the longer old
+    text there preserves recall the shortened title would lose.
+  * Nothing auto-applies. Every row is editable and `apply` writes exactly what
+    the administrator submitted.
+- **Honest limitation — do not oversell this.** Only 43 of 2,571 over-length
+  titles match a bought keyword, and 18 keep it after the cut. 28 of 81 categories
+  have terms at all. The truncation is the value; the keyword is evidence on ~2%
+  of rows. Raising it needs the remaining 50 category seeds bought.
+- **Data.** `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 1,368
+  servable, 28 categories) — bought 2026-08-24 for $0.6422 / 46 calls, UK
+  (locationCode 2826, `en`). The DataForSEO account then ran OUT OF CREDIT at
+  seed 31 of 81; it surfaces as 502 wrapping the provider's 402, not a clean
+  payment error. Finishing needs a top-up (~$50 min).
+- **Next steps (nothing here is done).**
+  1. Bring the stack up and exercise `/admin/goods/seo-titles` end to end — the
+     endpoint has NEVER served a live request.
+  2. Add jest coverage for `SeoTitleList` (the repo's admin suite is jest; none
+     was added).
+  3. Decide on a bulk-apply for the `needsReview == false` rows.
+  4. Rebase: this branch was 12 commits behind master when committed.
+- **Acceptance:** `/admin/goods/seo-titles` lists real over-length titles through
+  :8080, an Apply shortens one product's name AND the storefront's on-site search
+  reflects it (reindex proof), module tests green with real "Tests run:" counts.
+
+### Worktree: `gateway-admin` — history (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**
   MERGED to master (branch commit `dd874e657`, fast-forwarded into
   `ec481fad8`'s first parent) + pushed; jest 125/125 (11 suites, +14 new),
