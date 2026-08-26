@@ -1667,7 +1667,7 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (brand-facet leak MERGED, awaiting reindex)
+### Worktree: `goods-management` — idle (brand-facet leak SHIPPED + DEPLOYED)
 - **No active assignment.**
 - **Status 2026-08-26 — SEARCH BRAND FACET: raw CJ supplier legal names no longer
   indexed.** MERGED to master `a44540e69`; module suite 515 run / 0 failures / 8
@@ -1684,7 +1684,30 @@
   (PDP + public read, which label kind as "Brand" vs "Sold by") vs `isConsumerBrand`
   (feed column + search facet, which carry a BARE brand claim). Both fail closed on
   null.
-  ⚠ **DEPLOY NEEDS A FULL REINDEX** — the fix only changes what future documents
+  **DEPLOYED to trovemo.com 2026-08-26** (image built from `663ac54e9`, container
+  recreated healthy in ~30s, 0 boot errors, **reindex 4,214 docs**). Live evidence:
+  the `brand` facet on `q=lamp` is now **ABSENT** (was 20+ supplier legal entities);
+  `q="co., ltd"` autocomplete returns `[]` (was 8 supplier names) — **the suggest
+  index refreshed with the reindex, no container recreate needed**; PDP for goods
+  10035068 still serves `{"kind":1,"name":"EVERGREEN SHOP LLC"}`, so the enabled
+  supplier "Sold by" path is intact — the two predicates proven distinct in prod;
+  feed unchanged at 4,135 rows / 0 branded; smoke 200s across storefront, sitemap,
+  robots, PDP, search and the `/srv` reads.
+  ⚠ **Built from `663ac54e9`, NOT master's tip.** Master had meanwhile picked up a
+  peer's merge `19b3d496d` (gateway-admin SEO title worklist + a CJ credential-leak
+  fix + 1,652 lines of goods-management SEO keyword research + prod compose/env
+  changes) — theirs to ship, with env I do not own, so it was deliberately kept out
+  of this image. `/opt/litemall` is left **detached at 663ac54e9**, which is an
+  honest record of what is running; the next deployer checks out master as usual.
+  ⚠ **The peer had recreated goods-management minutes earlier from an image built at
+  `285c006a5`** — so "a container restarted recently" did NOT mean my fix was live.
+  Proven by grepping the running jar for the class WITH A POSITIVE CONTROL
+  (`LitemallProductIndexingService` 2 / `SupplierTitle` 2 / `BrandDisplayPolicy` 0).
+  ⚠ `pgrep -f "compose.*build goods-management"` **self-matches the polling loop's
+  own command line** — it reported "still building" after the image was done.
+  ⚠ Pre-existing, NOT from this deploy: `promotion-service` has now been unhealthy
+  for ~2.5 weeks. Still untouched; still needs its own look.
+  ⚠ **DEPLOY NEEDED A FULL REINDEX** — the fix only changes what future documents
   carry. Afterwards check whether the OCS suggest index still serves the old names
   and recreate the suggest container if it caches. NO migration, no indexer-config
   change, no searcher-restart-for-new-field (no new field).
