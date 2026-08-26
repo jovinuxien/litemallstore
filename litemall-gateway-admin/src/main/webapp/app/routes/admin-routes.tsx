@@ -66,6 +66,7 @@ import GoodsInsight from 'app/views/adminViews/adminModule/Insight/GoodsInsight'
 import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCandidateList';
 import PromoCandidateList from 'app/views/adminViews/adminModule/Insight/PromoCandidateList';
 import RetireCandidateList from 'app/views/adminViews/adminModule/Insight/RetireCandidateList';
+import SeoTitleList from 'app/views/adminViews/adminModule/Insight/SeoTitleList';
 import ArrivalsList from 'app/views/adminViews/adminModule/Insight/ArrivalsList';
 import SearchStatsPanel from 'app/views/adminViews/adminModule/Insight/SearchStatsPanel';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
@@ -99,6 +100,8 @@ export const AdminRoutes = () => (
       <Route path='goods/comment' element={<CommentList />} />
       {/* Wave 12: CJ inventory insight — static segments before ':id' routes */}
       <Route path='goods/categories' element={<CategoryInsightList />} />
+      {/* On-page SEO: titles Google will truncate. Static segment, before the ':id' routes. */}
+      <Route path='goods/seo-titles' element={<SeoTitleList />} />
       <Route path='goods/categories/:id' element={<CategoryGoodsList />} />
       <Route path='goods/deal-candidates' element={<DealCandidateList />} />
       {/* Wave 19: coupon/groupon promo suggestions — also static before ':id' */}

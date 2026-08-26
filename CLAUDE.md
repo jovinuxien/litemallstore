@@ -1535,8 +1535,53 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (mail-currency fix SHIPPED 2026-08-18)
+### Worktree: `order` — idle (mail design refactor SHIPPED 2026-08-26)
 - **No active assignment.**
+- **Status 2026-08-26 — CUSTOMER MAIL DESIGN: every lifecycle mail wears the
+  storefront design.** Branch commit `66f0a1296`; module tests 291 run / 0
+  failures (was 279, +12 new). User-commissioned outside any wave.
+  Audit of the lifecycle found the real gap was NOT inside the two HTML
+  templates: of the four customer mails, only order-confirmation and shipped
+  had HTML at all — **pickup-code and refund-approved arrived as raw plain
+  text**, so half the lifecycle looked like a different company. Both now have
+  HTML twins built from the same shell, wired through a shared `safeHtml()`
+  that degrades to plain-text-only on any throwable (the contract
+  `renderConfirmationHtml` already had). Plain-text bodies are UNTOUCHED —
+  they stay the multipart fallback and the admin panel's view.
+  `MailHtmlTemplates` is now token-driven: the storefront's own `--lm-*`
+  values as constants (band `#0a5d65` — the site header is primary-DARK, the
+  mails were using primary; `#0e7c86` CTA, `#e3f2f3` soft, `#1f9d6b` success
+  for discounts, 10px card radius, the Amazon Ember stack) plus shared
+  builders. No style literal at a call site again — that is how the first two
+  templates drifted from the site and from each other.
+  ⚠ Three of the fixes are CORRECTNESS, not taste: every text node must name
+  its `font-family` (Outlook's Word engine does not inherit it from `<body>` —
+  headings were rendering in **Times**); each template opens with a hidden
+  preheader (else the inbox preview shows whatever copy fell first); the shell
+  declares `color-scheme: light` (Apple Mail / Outlook dark mode was free to
+  invert the card and the brand band). A test asserts the font invariant over
+  every sized node in all four templates, so a new call site cannot regress it.
+  Verified by rendering all six variants (4 templates + 2 degrade paths) to
+  HTML and screenshotting them headless — puppeteer-core + `/usr/bin/google-chrome`,
+  `NODE_PATH` pointed at the repo's node_modules, JDK 21 for the render harness
+  (`java` on PATH is 11 and cannot read core's class files). ⚠ puppeteer
+  `fullPage` stitches a SHORT page twice — the doubled screenshot is an
+  artifact, check the .html before believing it.
+  **DEPLOY = shared-module discipline** (litemall-core touched): `mvn install`
+  core, rebuild + restart EVERY dependent, verify the nested `BOOT-INF/lib`
+  copy. NO migration (schema stays V60), no reindex.
+  **RAISED, not touched (both outside this worktree's scope):**
+  1. `MailTemplates.passwordReset` is **dead code** — gateway-api's
+     `SmtpResetMailSender` sends its own hardcoded body, and the two disagree
+     (core's template says "open this link"; the live mail sends a 6-char
+     CODE). The reset mail is the one customer mail still arriving as raw
+     plain text, and restyling core's version would change nothing a customer
+     sees. Fix belongs to the gateway-api worktree, which deliberately takes
+     no code dependency on litemall-core.
+  2. The confirmation CTA points at `/order/:id`, a `CustomerProtectedRoute` —
+     Wave-16 guest buyers (password-less shadow accounts) are bounced to a
+     login wall from their own confirmation mail. The honest fix is a
+     tokenized guest order view = gateway-api work, not a template change.
 - **Status 2026-08-18 — MAIL CURRENCY HONESTY: order mails render EUR, not
   dollars.** MERGED to master `ec481fad8` + pushed (branch commit
   `f05238693`; module tests 279 run / 0 failures, +1 new). User-commissioned
@@ -2482,7 +2527,70 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — idle (Wave 27 admin half + pending-approval dashboard SHIPPED)
+### Worktree: `gateway-admin` — SEO title worklist (IN PROGRESS, uncommitted→committed here)
+- **Status 2026-08-24 — ON-PAGE SEO: over-length product titles.** Committed on
+  this branch, NOT merged, NOT run against a live stack. Backend compiles;
+  28 unit tests green (`TitleProposerTest` 10, `CsvKeywordResearchProviderTest`
+  10, `SeoPlatformKeywordClientTest` 8); admin `tsc` clean in `app/` (the only
+  6 errors are pre-existing `NoInfer` ones inside `node_modules/@reduxjs`).
+  **This branch deliberately carries goods-management files too** — the SPA page
+  is useless without its endpoint, so both halves are one commit here rather
+  than split across the `goods-management` worktree.
+- **The problem, measured against the live catalogue (not estimated):** 2,571 of
+  3,718 on-sale titles exceed 60 chars (median 85, max 127). Google renders ~60
+  and cuts the rest, so the end of a long title is invisible to a searcher.
+- **What was built.**
+  (1) `application/seo/KeywordResearchProvider` — the port, in goods-management's
+  own vocabulary (term / monthlySearches / competition / difficulty). No location
+  code, no tenant, no provider envelope.
+  (2) `infrastructure/acl/seo/` — the ACL. `CsvKeywordResearchProvider` (DEFAULT,
+  reads an export already paid for), `SeoPlatformKeywordClient` (live, buys),
+  `NoKeywordResearchProvider` (off), selected by `litemall.seo-research.source`
+  = `file` | `platform` | `none`.
+  (3) `application/seo/TitleProposer` + `TitleOptimisationService` — the first
+  consumer. Asks per CATEGORY, never per product (the live source bills per seed).
+  (4) `interfaces/rest/admin/AdminSeoController` — `GET /srv/private/admin/seo/
+  titles`, `POST /titles/apply` (errno 660). Rides gateway-admin's `/srv/**`
+  catch-all: **no gateway route change**.
+  (5) SPA `/admin/goods/seo-titles` — `adminSeoApi.ts` + `Insight/SeoTitleList.tsx`,
+  registered in `store.ts`, `reducers/index.ts`, `admin-routes.tsx`, `menu.config.ts`.
+- **Decisions that must not be silently reversed.**
+  * The proposal is a word-boundary truncation of the CURRENT title. It is NOT
+    generated from keyword data — the bought terms carry competitor brands and
+    homonyms ("friday night lights" under Night Lights), and rearranging supplier
+    wording around them produces copy that would ship under the shop's name.
+  * `HtmlText.truncateAtWord` HARD-cuts mid-word when no space precedes the limit
+    (`cut <= 0 -> cut = max`). It is shared with the merchant feed, so it was NOT
+    changed; `TitleProposer` detects the mid-word cut and keeps the original,
+    flagged `needsReview`. A test pins this.
+  * Apply reindexes the row (`reindexService.reindexGoods`) — the name lives in
+    the OCS document too. Precedent: `CatalogHygieneService`.
+  * `goods.keywords` is left alone ON PURPOSE. Despite the name it is a SEARCH
+    column (`LitemallGoodsService.querySelective` LIKE-matches it); the longer old
+    text there preserves recall the shortened title would lose.
+  * Nothing auto-applies. Every row is editable and `apply` writes exactly what
+    the administrator submitted.
+- **Honest limitation — do not oversell this.** Only 43 of 2,571 over-length
+  titles match a bought keyword, and 18 keep it after the cut. 28 of 81 categories
+  have terms at all. The truncation is the value; the keyword is evidence on ~2%
+  of rows. Raising it needs the remaining 50 category seeds bought.
+- **Data.** `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 1,368
+  servable, 28 categories) — bought 2026-08-24 for $0.6422 / 46 calls, UK
+  (locationCode 2826, `en`). The DataForSEO account then ran OUT OF CREDIT at
+  seed 31 of 81; it surfaces as 502 wrapping the provider's 402, not a clean
+  payment error. Finishing needs a top-up (~$50 min).
+- **Next steps (nothing here is done).**
+  1. Bring the stack up and exercise `/admin/goods/seo-titles` end to end — the
+     endpoint has NEVER served a live request.
+  2. Add jest coverage for `SeoTitleList` (the repo's admin suite is jest; none
+     was added).
+  3. Decide on a bulk-apply for the `needsReview == false` rows.
+  4. Rebase: this branch was 12 commits behind master when committed.
+- **Acceptance:** `/admin/goods/seo-titles` lists real over-length titles through
+  :8080, an Apply shortens one product's name AND the storefront's on-site search
+  reflects it (reindex proof), module tests green with real "Tests run:" counts.
+
+### Worktree: `gateway-admin` — history (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**
   MERGED to master (branch commit `dd874e657`, fast-forwarded into
   `ec481fad8`'s first parent) + pushed; jest 125/125 (11 suites, +14 new),
