@@ -57,6 +57,21 @@ public class CatalogGoodsCountService {
         }
     }
 
+    /**
+     * On-sale goods in one category's subtree, counted live (not memoized).
+     *
+     * <p>Exposed for the sitemap, which needs per-SUBCATEGORY counts rather than the per-root map
+     * above. It shares {@link #countOnSale} with {@link #countsByRoot} deliberately: a sitemap
+     * that judged "has products" by a different rule than the navigation could advertise a
+     * category page the storefront treats as empty.
+     */
+    public long countOnSaleInSubtree(Integer categoryId) {
+        if (categoryId == null || categoryId <= 0) {
+            return 0L;
+        }
+        return countOnSale(subtreeIds(categoryId));
+    }
+
     /** The root id plus every descendant category id (depth-first walk of {@code queryByPid}). */
     public List<Integer> subtreeIds(Integer rootId) {
         List<Integer> acc = new ArrayList<>();

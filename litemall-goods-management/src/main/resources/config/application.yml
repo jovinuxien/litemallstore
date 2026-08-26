@@ -259,6 +259,12 @@ litemall:
     # OFF-SALED (reversible), never silently repriced — retail must stay cost x margin or the
     # margin guard, deal floors and coupon guard all compute against a lie.
     price-floor: ${LITEMALL_GOODS_PRICE_FLOOR:0}
+    # Maximum retail to stay on sale. 0 = OFF (default). Mirror of the floor, same off-sale
+    # semantics. Guards the OTHER end: outlier CJ costs produce listings like a EUR 32,819
+    # sideboard, which on a young merchant account reads as a pricing fault and risks an
+    # account-level misrepresentation review rather than a single-item rejection.
+    # Suggested prod value: 500 (97 live rows above it on 2026-08-26).
+    price-ceiling: ${LITEMALL_GOODS_PRICE_CEILING:0}
     # Wave 26 Phase 2: L1 root category ids the storefront is narrowed to. EMPTY = OFF (default).
     # Narrowing off-sales the goods that exist today, but the CJ pipeline keeps mirroring all 14
     # L1s and the nightly promote lands every NEW product on sale — measured on prod one night
@@ -352,6 +358,32 @@ litemall:
     search-url: http://localhost:8534
     suggest-url: http://localhost:8081
     index-name: litemall_index
+
+  # Keyword-demand facts from seo_plateform, read through the ACL in
+  # infrastructure/acl/seo. OFF by default and the default matters: the platform
+  # buys this data from a pay-as-you-go provider, so switching it on is what
+  # starts spending. A configured URL with the switch off costs nothing.
+  #
+  # location-code 2276 is Germany — where the store actually fulfils from (CJ's
+  # only EU warehouse) — while language-code stays 'en' because the catalogue is
+  # English. The platform's own default is 2840 (United States) and would buy
+  # plausible data for a market this store does not serve.
+  seo-research:
+    # file (default) = read an export already paid for; platform = buy live;
+    # none = off. All three sit behind the same port, so callers never change.
+    source: ${LITEMALL_SEO_RESEARCH_SOURCE:file}
+    # The CLEANED export. The raw one keeps permutation groups, which would make
+    # one keyword look like six. In a container this must be a MOUNTED path —
+    # see docker-compose.prod.yml.
+    file: ${LITEMALL_SEO_RESEARCH_FILE:${user.home}/trovemo-seo-export/category-keywords-clean.csv}
+    enabled: ${LITEMALL_SEO_RESEARCH_ENABLED:false}
+    base-url: ${LITEMALL_SEO_RESEARCH_BASE_URL:http://localhost:9000}
+    token-uri: ${LITEMALL_SEO_RESEARCH_TOKEN_URI:http://localhost:8090/realms/seo/protocol/openid-connect/token}
+    client-id: ${LITEMALL_SEO_RESEARCH_CLIENT_ID:litemall-goods}
+    client-secret: ${LITEMALL_SEO_RESEARCH_CLIENT_SECRET:}
+    location-code: ${LITEMALL_SEO_RESEARCH_LOCATION:2276}
+    language-code: ${LITEMALL_SEO_RESEARCH_LANGUAGE:en}
+    limit: 100
 
 server:
   port: 8082

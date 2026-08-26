@@ -217,8 +217,21 @@ litemall:
     # application-prod.yml turns it on behind the TLS edge.
     cookie-secure: ${LITEMALL_TRACKING_COOKIE_SECURE:false}
     matomo:
-      base-url: ""
-      site-id: ""
+      # Self-hosted Matomo, served to the SPA via GET /auth/site-config. BLANK = OFF
+      # (default): no script injected, no tracker requests, and the consent banner still
+      # governs the first-party event log independently.
+      #
+      # These were literal ""s with no placeholder until 2026-08-26, which is why prod has
+      # been running with NO analytics at all — /auth/site-config serves matomoUrl and
+      # matomoSiteId as null, so "no views, no clicks" was unmeasured rather than measured
+      # as zero. Explicit placeholders (plus the compose passthrough on the gateway-api
+      # container) are what make activation an env change + recreate with NO rebuild.
+      #
+      # base-url must be the PUBLIC url the browser can reach and end with a slash, e.g.
+      # https://analytics.trovemo.com/ — a container-internal host resolves to nothing in
+      # the visitor's browser. site-id is the numeric id Matomo assigns the site.
+      base-url: ${LITEMALL_TRACKING_MATOMO_BASE_URL:}
+      site-id: ${LITEMALL_TRACKING_MATOMO_SITE_ID:}
       # Matomo custom-dimension index (visit scope "action") that carries the
       # goods id on product-detail page views. Dimension must be created in
       # Matomo admin; index 1 is the handoff default.

@@ -6,6 +6,7 @@ import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
+import org.linlinjava.litemall.goods.application.content.PageService;
 import org.linlinjava.litemall.goods.application.goods.CatalogGoodsCountService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.PublicSiteProperties;
 import org.mockito.Mockito;
@@ -31,6 +32,7 @@ public class SitemapServiceTest {
     private LitemallGoodsService goodsService;
     private LitemallCategoryService categoryService;
     private CatalogGoodsCountService goodsCountService;
+    private PageService pageService;
     private PublicSiteProperties siteProperties;
     private SitemapService service;
 
@@ -39,8 +41,10 @@ public class SitemapServiceTest {
         goodsService = Mockito.mock(LitemallGoodsService.class);
         categoryService = Mockito.mock(LitemallCategoryService.class);
         goodsCountService = Mockito.mock(CatalogGoodsCountService.class);
+        pageService = Mockito.mock(PageService.class);
         siteProperties = new PublicSiteProperties();
-        service = new SitemapService(goodsService, categoryService, goodsCountService, siteProperties);
+        service = new SitemapService(goodsService, categoryService, goodsCountService, pageService,
+                siteProperties);
     }
 
     @Test
@@ -123,10 +127,73 @@ public class SitemapServiceTest {
         assertThat(texts(doc, "loc")).containsExactly("https://trovemo.com/");
     }
 
+    // ---------------- subcategory + season landings (2026-08-26) ----------------
+
+    @Test
+    void emitsSubcategoryLandingsThatHaveGoodsAndSkipsTheEmptyOnes() throws Exception {
+        stubCatalog();
+        // 200 has stock, 201 is empty, 202 is soft-deleted.
+        LitemallCategory deleted = category(202, "Retired Aisle");
+        deleted.setDeleted(true);
+        when(categoryService.queryByPid(100)).thenReturn(List.of(
+                category(200, "Outdoor Lighting"), category(201, "Empty Shelf"), deleted));
+        when(goodsCountService.countOnSaleInSubtree(200)).thenReturn(108L);
+        when(goodsCountService.countOnSaleInSubtree(201)).thenReturn(0L);
+
+        List<String> locs = texts(parse(service.sitemap()), "loc");
+
+        assertThat(locs).contains("https://trovemo.com/category/200");
+        assertThat(locs).noneMatch(loc -> loc.contains("/category/201"));
+        assertThat(locs).noneMatch(loc -> loc.contains("/category/202"));
+    }
+
+    @Test
+    void doesNotDescendIntoAnEmptyRoot() throws Exception {
+        stubCatalog();
+
+        service.sitemap();
+
+        // Root 101 has no on-sale goods, so its children are never even counted.
+        Mockito.verify(categoryService, Mockito.never()).queryByPid(101);
+    }
+
+    @Test
+    void emitsTheActiveSeasonPage() throws Exception {
+        stubCatalog();
+        when(pageService.activeByCategory("season")).thenReturn(Map.of("id", 5, "name", "Autumn"));
+
+        List<String> locs = texts(parse(service.sitemap()), "loc");
+
+        assertThat(locs).contains("https://trovemo.com/page/5");
+    }
+
+    @Test
+    void omitsTheSeasonPageWhenNoneIsActive() throws Exception {
+        stubCatalog();
+        when(pageService.activeByCategory("season")).thenReturn(null);
+
+        List<String> locs = texts(parse(service.sitemap()), "loc");
+
+        assertThat(locs).noneMatch(loc -> loc.contains("/page/"));
+    }
+
+    @Test
+    void anUnreadableSeasonPageCostsOneUrlNotTheWholeSitemap() throws Exception {
+        stubCatalog();
+        when(pageService.activeByCategory("season")).thenThrow(new IllegalStateException("db down"));
+
+        List<String> locs = texts(parse(service.sitemap()), "loc");
+
+        assertThat(locs).noneMatch(loc -> loc.contains("/page/"));
+        // The catalogue still ships.
+        assertThat(locs).contains("https://trovemo.com/", "https://trovemo.com/product/1-wireless-earbuds");
+    }
+
     private void stubCatalog() {
         when(goodsCountService.countsByRoot()).thenReturn(Map.of(100, 5L, 101, 0L));
         when(categoryService.queryL1()).thenReturn(List.of(
                 category(100, "Women's Clothing"), category(101, "Empty Corner")));
+        when(categoryService.queryByPid(anyInt())).thenReturn(List.of());
         when(goodsService.querySelective(any(), any(), any(), anyInt(), anyInt(), anyString(), anyString()))
                 .thenReturn(List.of(
                         goods(1, "Wireless Earbuds", true, LocalDateTime.of(2026, 7, 28, 3, 0, 5)),
