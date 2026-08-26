@@ -1567,9 +1567,31 @@
   (`java` on PATH is 11 and cannot read core's class files). ⚠ puppeteer
   `fullPage` stitches a SHORT page twice — the doubled screenshot is an
   artifact, check the .html before believing it.
-  **DEPLOY = shared-module discipline** (litemall-core touched): `mvn install`
-  core, rebuild + restart EVERY dependent, verify the nested `BOOT-INF/lib`
-  copy. NO migration (schema stays V60), no reindex.
+  **DEPLOYED to trovemo.com 2026-08-26** — and ⚠ **nothing had to be built**:
+  another session ran a full `docker compose build` ~2 h after this merge and
+  swept the commit into the order image (created 13:31 UTC, container healthy,
+  storefront smoke 200s). A worktree merge CAN reach production without its
+  author deploying it — check the running artifact before rebuilding. Verified
+  at the byte level (the "verify the nested BOOT-INF/lib copy" rule, done
+  properly): `docker cp` the running `/app/app.jar`, read
+  `BOOT-INF/lib/litemall-core-0.1.0.jar` with python `zipfile` (⚠ the VPS has
+  NO `unzip`), download it, and run the render harness against THAT jar — all
+  six renders came back byte-identical (`cmp`) to the local build.
+  ⚠ **The mail pipeline has NEVER fired in prod:** `litemall_mail_outbox` is
+  EMPTY (0 rows ever) and the last paid order was **2026-08-02**, before mail
+  was switched on. Config is live and correct (`CUSTOMERMAIL_ENABLED=true`,
+  Brevo :587, from noreply@, admin notify contact@; the 60 s sweep polls and
+  finds 0). The new mails are deployed but UNEXERCISED — first real proof is
+  the next paid order. NO migration (schema stays V60), no reindex.
+  `promotion-service` (image 2026-08-10, **unhealthy 2 weeks**) and
+  `loyalty-service` (2026-07-19) still carry an old litemall-core; left alone
+  deliberately — only litemall-order references the changed classes, and their
+  staleness pre-dates this work.
+  ⚠ **Pre-existing prod noise spotted while verifying, NOT from this change:**
+  order logs `IllegalStateException: Order status cannot transition from
+  CANCELED to SYSTEM_CANCELED` **451 times in 7 h** (a scheduled auto-cancel
+  retrying already-cancelled orders), plus one `AccessDeniedException:
+  /app/storage`. Neither investigated — they deserve their own task.
   **RAISED, not touched (both outside this worktree's scope):**
   1. `MailTemplates.passwordReset` is **dead code** — gateway-api's
      `SmtpResetMailSender` sends its own hardcoded body, and the two disagree
