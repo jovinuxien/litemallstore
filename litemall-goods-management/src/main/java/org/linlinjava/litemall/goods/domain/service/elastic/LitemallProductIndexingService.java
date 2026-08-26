@@ -52,6 +52,7 @@ public class LitemallProductIndexingService {
     private final CouponSignalResolver couponSignalResolver;
     private final GrouponSignalResolver grouponSignalResolver;
     private final EuStockSignalResolver euStockSignalResolver;
+    private final SeasonSignalResolver seasonSignalResolver;
     private final LitemallSearchProperties properties;
 
     public LitemallProductIndexingService(LitemallBrandService brandService,
@@ -62,6 +63,7 @@ public class LitemallProductIndexingService {
                                           CouponSignalResolver couponSignalResolver,
                                           GrouponSignalResolver grouponSignalResolver,
                                           EuStockSignalResolver euStockSignalResolver,
+                                         SeasonSignalResolver seasonSignalResolver,
                                           LitemallSearchProperties properties) {
         this.brandService = brandService;
         this.categoryService = categoryService;
@@ -71,6 +73,7 @@ public class LitemallProductIndexingService {
         this.couponSignalResolver = couponSignalResolver;
         this.grouponSignalResolver = grouponSignalResolver;
         this.euStockSignalResolver = euStockSignalResolver;
+        this.seasonSignalResolver = seasonSignalResolver;
         this.properties = properties;
     }
 
@@ -169,6 +172,12 @@ public class LitemallProductIndexingService {
         // stock. Keyed on cj_pid, not goods id — the reading lives on the CJ snapshot row. Always
         // 1/0 (never absent) — the deal-fields always-emit rule.
         doc.setEuFlag(euStockSignalResolver.euFlag(goods.getCjPid()));
+
+        // Seasonal membership: which seasons publish this product, e.g. ["autumn","winter"].
+        // Multi-valued rather than a flag because a product can belong to more than one season and
+        // a page needs to know WHICH. Empty is the common case and means "in no season" — see
+        // SeasonSignalResolver for why the deploy runs the scorer BEFORE the reindex.
+        doc.setSeasons(seasonSignalResolver.seasonsFor(goods.getId()));
 
         // V31 ranking signals, read straight off the goods row (populated for CJ at promote, for
         // local by the review aggregator). Emitted as master-level numeric fields the searcher's

@@ -312,6 +312,18 @@ litemall:
   # keywords — additive; admin-curated litemall_keyword rows are never deleted or
   # unhotted). 04:45 = after the 04:30 promo scorer, before the 05:00 auto-deal
   # tick. Env kill-switch; disabling needs only a container recreate, no rebuild.
+  # Seasonal candidacy: seasonal fitness scored nightly for EVERY season and published into the
+  # search index as the multi-valued `seasons` field. 04:35 sits between the 04:30 promo scorer
+  # and the 04:45 stats rollup. Explicit placeholders on purpose — relaxed binding has silently
+  # dropped an env before (LITEMALL_GOODS_PRICE_FLOOR), so verify these INSIDE the container.
+  seasons:
+    enabled: ${LITEMALL_SEASONS_ENABLED:true}
+    # false ⇒ everything stays `proposed` and no page changes, however well it scores.
+    auto-publish-enabled: ${LITEMALL_SEASONS_AUTO_PUBLISH:true}
+    auto-tier: ${LITEMALL_SEASONS_AUTO_TIER:featured}
+    per-season-cap: ${LITEMALL_SEASONS_PER_SEASON_CAP:24}
+    candidate-scan-limit: ${LITEMALL_SEASONS_SCAN_LIMIT:200}
+    cron: "0 35 4 * * *"
   search-stats:
     enabled: ${LITEMALL_SEARCHSTATS_ENABLED:true}
     cron: "0 45 4 * * *"

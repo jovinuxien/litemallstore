@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- Hand-written (season candidacy, V64). Relies on global mapUnderscoreToCamelCase=true. -->
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallSeasonCandidateMapper">
+
+  <resultMap id="BaseResultMap" type="org.linlinjava.litemall.db.domain.LitemallSeasonCandidate">
+    <id column="id" jdbcType="INTEGER" property="id"/>
+    <result column="season_key" jdbcType="VARCHAR" property="seasonKey"/>
+    <result column="goods_id" jdbcType="INTEGER" property="goodsId"/>
+    <result column="day" jdbcType="DATE" property="day"/>
+    <result column="tier" jdbcType="VARCHAR" property="tier"/>
+    <result column="score" jdbcType="DECIMAL" property="score"/>
+    <result column="reasons" jdbcType="VARCHAR" property="reasons"/>
+    <result column="status" jdbcType="VARCHAR" property="status"/>
+    <result column="config_version_hash" jdbcType="VARCHAR" property="configVersionHash"/>
+    <result column="config_snapshot" jdbcType="VARCHAR" property="configSnapshot"/>
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime"/>
+    <result column="update_time" jdbcType="TIMESTAMP" property="updateTime"/>
+    <result column="deleted" jdbcType="BIT" property="deleted"/>
+  </resultMap>
+
+  <sql id="Base_Column_List">
+    id, season_key, goods_id, `day`, tier, score, reasons, status,
+    config_version_hash, config_snapshot, add_time, update_time, deleted
+  </sql>
+
+  <!--
+    The UNIQUE key makes a collision loud, not safe: a plain INSERT would throw and take the
+    batch down. The guards below are what protect an admin decision — a `dismissed` row keeps
+    every one of its values, so a re-run can never overturn a veto.
+  -->
+  <insert id="upsertProposal" parameterType="org.linlinjava.litemall.db.domain.LitemallSeasonCandidate"
+          useGeneratedKeys="true" keyProperty="id">
+    insert into litemall_season_candidate
+      (season_key, goods_id, `day`, tier, score, reasons, status,
+       config_version_hash, config_snapshot, add_time, update_time, deleted)
+    values
+      (#{seasonKey}, #{goodsId}, #{day}, #{tier}, coalesce(#{score}, 0.00), #{reasons},
+       coalesce(#{status}, 'proposed'), #{configVersionHash}, #{configSnapshot}, now(), now(), 0)
+    on duplicate key update
+      tier = if(status = 'dismissed', tier, values(tier)),
+      score = if(status = 'dismissed', score, values(score)),
+      reasons = if(status = 'dismissed', reasons, values(reasons)),
+      status = if(status = 'dismissed', status, values(status)),
+      config_version_hash = if(status = 'dismissed', config_version_hash, values(config_version_hash)),
+      config_snapshot = if(status = 'dismissed', config_snapshot, values(config_snapshot)),
+      update_time = if(status = 'dismissed', update_time, now())
+  </insert>
+
+  <select id="selectBySeasonAndDay" resultMap="BaseResultMap">
+    select <include refid="Base_Column_List"/>
+    from litemall_season_candidate
+    where season_key = #{seasonKey} and `day` = #{day} and deleted = 0
+    <if test="status != null and status != ''">
+      and status = #{status}
+    </if>
+    order by score desc, goods_id asc
+  </select>
+
+  <select id="selectLatestDay" resultType="java.time.LocalDate">
+    select max(`day`)
+    from litemall_season_candidate
+    where season_key = #{seasonKey} and deleted = 0
+  </select>
+
+  <!--
+    Membership for the index: the season's most recent scoring day only, so a stale day never
+    leaks in beside a fresh one, capped and ranked here rather than at write time.
+  -->
+  <select id="selectPublishedGoodsIds" resultType="java.lang.Integer">
+    select goods_id
+    from litemall_season_candidate
+    where season_key = #{seasonKey}
+      and status = 'auto'
+      and deleted = 0
+      and `day` = (select max(`day`) from litemall_season_candidate
+                   where season_key = #{seasonKey} and status = 'auto' and deleted = 0)
+    order by score desc, goods_id asc
+    limit #{limit}
+  </select>
+
+  <!-- Any day, deliberately: a veto outlives the day it was cast on. -->
+  <select id="countDismissed" resultType="java.lang.Integer">
+    select count(*)
+    from litemall_season_candidate
+    where season_key = #{seasonKey} and goods_id = #{goodsId}
+      and status = 'dismissed' and deleted = 0
+  </select>
+
+  <update id="updateStatus">
+    update litemall_season_candidate
+    set status = #{toStatus}, update_time = now()
+    where season_key = #{seasonKey}
+      and goods_id = #{goodsId}
+      and `day` = #{day}
+      and status = #{fromStatus}
+      and deleted = 0
+  </update>
+
+</mapper>

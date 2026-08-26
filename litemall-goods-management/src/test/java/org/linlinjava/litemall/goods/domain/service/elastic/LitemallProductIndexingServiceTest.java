@@ -32,6 +32,7 @@ public class LitemallProductIndexingServiceTest {
     private CouponSignalResolver couponSignalResolver;
     private GrouponSignalResolver grouponSignalResolver;
     private EuStockSignalResolver euStockSignalResolver;
+    private SeasonSignalResolver seasonSignalResolver;
     private LitemallBrandService brandService;
     private LitemallProductIndexingService service;
 
@@ -45,12 +46,15 @@ public class LitemallProductIndexingServiceTest {
         couponSignalResolver = mock(CouponSignalResolver.class);
         grouponSignalResolver = mock(GrouponSignalResolver.class);
         euStockSignalResolver = mock(EuStockSignalResolver.class);
+        seasonSignalResolver = mock(SeasonSignalResolver.class);
+        when(seasonSignalResolver.seasonsFor(any())).thenReturn(List.of());
         when(attributeService.queryByGid(anyInt())).thenReturn(List.of());
         when(productService.queryByGid(anyInt())).thenReturn(List.of());
         when(seckillService.findLiveByGoodsId(anyInt())).thenReturn(null);
         service = new LitemallProductIndexingService(brandService, categoryService,
                 attributeService, productService, seckillService,
                 couponSignalResolver, grouponSignalResolver, euStockSignalResolver,
+                seasonSignalResolver,
                 new LitemallSearchProperties());
     }
 

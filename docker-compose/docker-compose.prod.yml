@@ -646,6 +646,13 @@ services:
       # `file` reads the mounted export — costs nothing, needs no network and no
       # identity provider, and is what makes the data already bought usable here.
       # `platform` buys live and is what ENABLED below gates.
+      # Seasonal candidacy. Dark-safe defaults; auto-publish is the switch that lets a scored
+      # product reach a season page, and per-season-cap bounds how many ever show.
+      LITEMALL_SEASONS_ENABLED: ${LITEMALL_SEASONS_ENABLED:-true}
+      LITEMALL_SEASONS_AUTO_PUBLISH: ${LITEMALL_SEASONS_AUTO_PUBLISH:-true}
+      LITEMALL_SEASONS_AUTO_TIER: ${LITEMALL_SEASONS_AUTO_TIER:-featured}
+      LITEMALL_SEASONS_PER_SEASON_CAP: ${LITEMALL_SEASONS_PER_SEASON_CAP:-24}
+      LITEMALL_SEASONS_SCAN_LIMIT: ${LITEMALL_SEASONS_SCAN_LIMIT:-200}
       LITEMALL_SEO_RESEARCH_SOURCE: ${LITEMALL_SEO_RESEARCH_SOURCE:-file}
       LITEMALL_SEO_RESEARCH_FILE: /app/seo-export/category-keywords-clean.csv
       LITEMALL_SEO_RESEARCH_ENABLED: ${LITEMALL_SEO_RESEARCH_ENABLED:-false}

@@ -1,5 +1,7 @@
 package org.linlinjava.litemall.goods.application.content;
 
+import org.linlinjava.litemall.goods.domain.service.elastic.SeasonSignalResolver;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSeasonProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +32,8 @@ public class PageServiceTest {
     @BeforeEach
     public void setUp() {
         pageMapper = mock(PageMapper.class);
-        service = new PageService(pageMapper, new ObjectMapper());
+        service = new PageService(pageMapper, new ObjectMapper(),
+                mock(SeasonSignalResolver.class), new LitemallSeasonProperties());
     }
 
     private static LitemallPage page(Integer id, String name, String position, String category,

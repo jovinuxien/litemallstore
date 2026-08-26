@@ -123,6 +123,20 @@ public class ProductDocument {
      * enrichment rotation has probed anything never drops the field from OCS's mapping
      * resolution. 0 means "not known to hold EU stock", NOT "known to hold none".
      */
+    /**
+     * Seasons this product is published for, e.g. {@code ["autumn","winter"]} — multi-valued
+     * because a product can honestly belong to more than one (a wool throw is autumn AND winter),
+     * and because a page needs to know WHICH season rather than that some season applies.
+     *
+     * <p>Deliberately membership only: the per-season SCORE is not indexed, since one scalar
+     * cannot hold a product's score for two seasons and a page filters to one anyway. Ranking
+     * within a season uses the existing sorts, exactly as the deals page ranks {@code deal_flag=1}.
+     *
+     * <p>Empty when the product is in no season — the common case, not an error.
+     */
+    @JsonProperty("seasons")
+    private List<String> seasons;
+
     @JsonProperty("eu_flag")
     private Integer euFlag;
 
@@ -301,6 +315,14 @@ public class ProductDocument {
 
     public void setGrouponFlag(Integer grouponFlag) {
         this.grouponFlag = grouponFlag;
+    }
+
+    public List<String> getSeasons() {
+        return seasons;
+    }
+
+    public void setSeasons(List<String> seasons) {
+        this.seasons = seasons;
     }
 
     public Integer getEuFlag() {
