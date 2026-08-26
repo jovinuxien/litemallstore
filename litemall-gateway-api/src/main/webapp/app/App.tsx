@@ -59,6 +59,8 @@ const Terms = lazy(() => import('app/modules/static/Terms'));
 const Privacy = lazy(() => import('app/modules/static/Privacy'));
 const Cookies = lazy(() => import('app/modules/static/Cookies'));
 const Returns = lazy(() => import('app/modules/static/Returns'));
+const Delivery = lazy(() => import('app/modules/static/Delivery'));
+const Payments = lazy(() => import('app/modules/static/Payments'));
 
 const Loading: React.FC = () => (
   <div className='text-center my-5'>
@@ -128,6 +130,10 @@ const App: React.FC = () => (
           {/* /returns is the POLICY. /refunds (below) is the customer's own refund
               list and is protected — the two are different pages, not aliases. */}
           <Route path='returns' element={<Returns />} />
+          {/* The pages behind the footer's "Tracked delivery" and "Secure payments"
+              promises — public, no login, so a shopper can check a claim before buying. */}
+          <Route path='delivery' element={<Delivery />} />
+          <Route path='payments' element={<Payments />} />
           <Route path='cart' element={<Cart />} />
           <Route path='login' element={<CustomerLogin />} />
           <Route path='register' element={<Register />} />

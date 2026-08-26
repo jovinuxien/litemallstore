@@ -16,6 +16,7 @@ jest.mock('app/config/axiosinstance', () => ({
 import { baseAxios } from 'app/config/axiosinstance';
 import store from 'app/config/store';
 import { __resetContentAvailability } from 'app/shared/util/contentAvailability';
+import { SUPPORT_HOURS } from 'app/modules/static/faqData';
 import { __resetSeason } from 'app/shared/util/season';
 
 import Layout from './Layout';
@@ -114,4 +115,44 @@ it('keeps the permanent strip entries either way', async () => {
   expect(await screen.findByText('Today’s Deals')).toBeTruthy();
   expect(screen.getByText('New Arrivals')).toBeTruthy();
   expect(screen.getByText('All Products')).toBeTruthy();
+});
+
+/**
+ * The four customer promises in the footer strip. They used to be inert text
+ * making claims a shopper could not check — and two of those claims were wrong.
+ * Each is now a link to the page that governs it.
+ */
+describe('footer promise strip', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    __resetContentAvailability();
+    __resetSeason();
+    wire();
+  });
+
+  it('links every promise to the page that governs it', async () => {
+    renderLayout();
+    await waitFor(() => expect(document.querySelector('.lm-promise')).toBeTruthy());
+
+    const targets = Array.from(document.querySelectorAll('a.lm-promise')).map(a => a.getAttribute('href'));
+    expect(targets).toEqual(['/delivery', '/payments', '/returns', '/help']);
+  });
+
+  it('states support hours from the shared constant, not its own copy', async () => {
+    renderLayout();
+    await waitFor(() => expect(document.querySelector('.lm-promise')).toBeTruthy());
+
+    const help = document.querySelector('a.lm-promise[href="/help"]');
+    expect(help?.textContent).toContain(SUPPORT_HOURS);
+    // The claim that disagreed with /service for months.
+    expect(help?.textContent).not.toContain('every day');
+  });
+
+  it('makes no promise the store cannot keep', async () => {
+    renderLayout();
+    await waitFor(() => expect(document.querySelector('.lm-promise')).toBeTruthy());
+
+    const strip = Array.from(document.querySelectorAll('a.lm-promise')).map(a => a.textContent).join(' ');
+    expect(strip).not.toMatch(/nationwide|hassle-free|exchanges/i);
+  });
 });
