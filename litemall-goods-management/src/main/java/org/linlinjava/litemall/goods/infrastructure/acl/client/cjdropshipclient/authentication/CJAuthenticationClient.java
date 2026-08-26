@@ -3,6 +3,8 @@ package org.linlinjava.litemall.goods.infrastructure.acl.client.cjdropshipclient
 
 import org.linlinjava.litemall.goods.infrastructure.acl.dto.cjdropshipdto.authentication.CJAuthenticationResponse;
 import org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,8 @@ import java.util.Objects;
 
 @Component
 public class CJAuthenticationClient {
+
+    private static final Logger log = LoggerFactory.getLogger(CJAuthenticationClient.class);
 
     private final RestTemplate restTemplate;
 
@@ -34,7 +38,18 @@ public class CJAuthenticationClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         if(!Objects.equals(email, config.getCjEmail()) || !Objects.equals(password, config.getCjApiKey())){
-            System.out.println("the email and password are: " + email + " " + password + " " + config.getCjEmail() + " " + config.getCjApiKey()  + " " + config.getAccessUrl() + "");
+            // Name the field that differs, never the values. This previously printed the
+            // supplied AND configured email + API key to stdout — and goods-management is
+            // the one service with file logging (/app/logs), so a single bad call wrote
+            // the live CJ credential to disk. Whether each half is merely absent is safe
+            // to say and is the thing that actually diagnoses this: the usual cause is one
+            // of CJ_EMAIL / CJ_API_KEY being unset.
+            log.warn("CJ auth refused before calling the provider: email {}, api key {}. "
+                            + "Configured email {}, configured api key {}.",
+                    Objects.equals(email, config.getCjEmail()) ? "matches" : "differs",
+                    Objects.equals(password, config.getCjApiKey()) ? "matches" : "differs",
+                    isBlank(config.getCjEmail()) ? "is NOT set" : "is set",
+                    isBlank(config.getCjApiKey()) ? "is NOT set" : "is set");
             throw new RuntimeException("Invalid email or password. Provide valid email or password ");
         }
 
@@ -48,6 +63,11 @@ public class CJAuthenticationClient {
         } else {
             throw new RuntimeException("Authentication failed: " + response.getStatusCode());
         }
+    }
+
+    /** Whether a configured credential half is absent — said without saying its value. */
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     /**

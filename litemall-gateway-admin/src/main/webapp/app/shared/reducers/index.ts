@@ -27,6 +27,7 @@ import { adminSocialApi } from './private/services/adminSocialApi';
 import { adminStatApi } from './private/services/adminStatApi';
 import { adminSysApi } from './private/services/adminSysApi';
 import { adminUsersApi } from './private/services/adminUsersApi';
+import { adminSeoApi } from './private/services/adminSeoApi';
 import { insightApi } from './private/services/insightApi';
 import { postizApi } from './private/services/postizApi';
 
@@ -55,6 +56,7 @@ const rootReducer: ReducersMapObject = {
   [adminDealApi.reducerPath]: adminDealApi.reducer,
   [adminParityApi.reducerPath]: adminParityApi.reducer,
   [insightApi.reducerPath]: insightApi.reducer,
+  [adminSeoApi.reducerPath]: adminSeoApi.reducer,
   [postizApi.reducerPath]: postizApi.reducer,
   [adminAffiliateApi.reducerPath]: adminAffiliateApi.reducer,
   [affiliateApi.reducerPath]: affiliateApi.reducer,
