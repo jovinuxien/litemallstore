@@ -35,10 +35,10 @@ public class SmtpCustomerMailSender implements CustomerMailSender {
         sender.setHost(config.getHost());
         sender.setPort(config.getPort());
         // Explicit UTF-8: without it JavaMail falls back to the platform default and the
-        // PLAIN-TEXT sends below (SimpleMailMessage — admin paid-notice, refund-approved,
-        // pickup code) ship a non-ASCII currency symbol undeclared, so a EUR amount can
-        // arrive mojibaked. The HTML path already forces UTF-8 via MimeMessageHelper;
-        // this makes the two paths agree.
+        // PLAIN-TEXT sends below (SimpleMailMessage — rows with no body_html, today the
+        // admin paid-notice and the CJ ops alerts) ship a non-ASCII currency symbol
+        // undeclared, so a EUR amount can arrive mojibaked. The HTML path already forces
+        // UTF-8 via MimeMessageHelper; this makes the two paths agree.
         sender.setDefaultEncoding("UTF-8");
         Properties props = new Properties();
         if (config.getUsername() != null && !config.getUsername().isBlank()) {
