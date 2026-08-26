@@ -2090,9 +2090,79 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — storefront audit fixes SHIPPED + DEPLOYED
+### Worktree: `gateway-api` — footer audit fixes + EU stock MERGED (deploy pending)
 - **No active assignment.** Launch with FRESH=1 only after a new wave is
   commissioned and this block is rewritten.
+- **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED to master `d2f76c418`
+  + pushed. NOT YET DEPLOYED** (gateway-api container only; no migration, no
+  backend change, no reindex). jest 40 suites / 274 tests (was 35/237), tsc 0
+  errors, prod build clean. Commits `b5e8d7004` (copy/nav) + `0469129b8`
+  (EU stock + empty facets).
+  User-commissioned: check the footer links, then track what is missing.
+  **All 24 footer links resolve** — no dead links, no 404s, no placeholder
+  pages, and the Wave-26 availability gating correctly hides Topics/Articles/
+  Group buys. The defects were one level down. Full tracked list (20 numbered
+  items, live-verified, with owners): the artifact published 2026-08-26, and
+  the six items below are the ones that were mine.
+  1. **The footer promised what /help contradicts.** "Fast, tracked delivery /
+     on every order, nationwide" (we sell cross-border in the EU, and the FAQ
+     already says delivery "can be longer than domestic shipping");
+     "Hassle-free refunds & exchanges" (buyer pays return shipping on remorse;
+     replacement only for defects); "Customer care, every day" (it is Mon–Fri).
+     The blurb still sold a 17k-product general store with "trusted brands".
+     ⚠ **The hours disagreed because footer and /service each hardcoded their
+     own** — `SUPPORT_HOURS` now sits beside `SUPPORT_EMAIL` in `faqData.ts`,
+     which exists precisely to stop /help and /service drifting.
+  2. **/service advertised "Online support"** with hours, a headset icon, no
+     chat, no phone and no link, directly above the only real channel. That
+     page's own comment forbids exactly this; it was written when the fake
+     phone number was removed and this row survived it.
+  3. **"Today's Deals" named TWO pages** — header strip → `/deals`, drawer →
+     `/hot`, and `/hot`'s own heading agreed with the drawer. `/hot` ranks by
+     `listed_num`: it is **"Best sellers"** now, at all three sites. ⚠ An
+     existing drawer spec asserted the old label — it was pinning the bug.
+  4. **"Send feedback"** sat in the help column behind a login wall, three
+     lines under the Returns link whose comment forbids that. Signed-in only.
+  5. **The cookie policy described the Meta Pixel** while `metaPixelId` is
+     null in prod, documenting a tracker that never loads. Config-driven now,
+     matching what `CookiePreferences` beside it always did.
+  6. **eu_flag badge + filter** (the Wave-27 half that was never started):
+     `/srv/search?eu_flag=1` returns **921 of 4,135** live. Chip on cards +
+     "In EU stock" toggle under a **Delivery** heading + `?eu_flag=1` deep
+     link. ⚠ **The badge deliberately does NOT join the overlay priority
+     chain** (deal > discount > coupon > group buy, one badge max) — EU stock
+     is a fulfilment fact, not an offer, so it rides the logistics line and
+     displaces no deal. ⚠ **Copy states a measurement, never a delivery
+     window**: `eu_flag=0` lumps "probed, none" with "never probed", so a
+     positive is a fact and a negative is an unknown — there is no inverse
+     badge and none should be added. The hit carries **no country** (verified
+     live), so the PDP's "Ships from Germany" phrasing cannot be reused.
+  **Also fixed, raised by the goods-management session against its own
+  change:** the filter rail rendered a heading for any facet the backend
+  NAMED, never checking it had values — so after the next full reindex empties
+  the brand facet, `<h3>Brand</h3>` would stand over nothing. `shouldShowFacet`
+  now answers it for EVERY facet with the nav probe's own policy: pending
+  hides, empty hides, **a FAILED probe SHOWS** (an outage must not amputate
+  the rail), and a refined facet always shows or a `?brand=` deep link could
+  not be cleared. Interval groups count as populated when named — RangeInput
+  takes bounds from `facets_stats` and never lists buckets.
+  ⚠ **Test gotchas:** this repo has **no jest-dom** — assert `toBeTruthy()`/
+  `toBeNull()`, not `toBeInTheDocument()`. A `useSyncExternalStore` mock must
+  return a **referentially stable** snapshot or the component re-renders
+  forever. `jest.resetModules()` + dynamic `import()` hands the subtree a
+  SECOND React instance (null hook dispatcher) — mock the module instead.
+  ⚠ **Verify built strings by CHUNK, not main.js**: the badge ships in all 13
+  ProductCard chunks and the toggle in the search chunk; main.js has neither.
+  **STILL OPEN, needs the user:** VAT number, GPSR responsible person, and a
+  return address for `/returns` (the policy explains the window, who pays and
+  how refunds are paid, then never says where to send the goods). Deliberately
+  NOT written as plausible placeholders.
+  **RAISED, not worked around:** three supplier stores are display-enabled but
+  never renamed — `dbjjj` (251 products), `DVLL` (278), `EVERGREEN SHOP LLC`
+  (30) — so 559 PDPs say "Sold by dbjjj" and the footer's "Shop by brand" link
+  exists ONLY because of them (admin rename-or-hide). The single public coupon
+  is a test worth 11 cents whose scope matches 0 indexed products. The active
+  season page is named "Autumns Deal". All admin-side, no deploy.
 - **Status 2026-08-24 — STOREFRONT AUDIT: findings + fixes, DEPLOYED to
   trovemo.com** (master `3b636211d`, bundle `main.519ecc3d…`, gateway-api
   container only; no migration, no backend change, no reindex).
