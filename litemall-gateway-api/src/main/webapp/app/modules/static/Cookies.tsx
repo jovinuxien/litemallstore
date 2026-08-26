@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 
+import { loadSiteConfig, siteConfigSnapshot, subscribeSiteConfig } from 'app/shared/config/siteConfig';
 import CookiePreferences from 'app/shared/tracking/CookiePreferences';
 
 /**
@@ -8,7 +9,41 @@ import CookiePreferences from 'app/shared/tracking/CookiePreferences';
  * control. The preferences control is embedded rather than linked: a policy
  * that describes a choice but makes you hunt for where to exercise it is the
  * pattern this page exists to remove.
+ *
+ * The Marketing section is CONFIG-DRIVEN for the same reason: no pixel is
+ * configured in production, so the page was describing, in detail, a tracker
+ * that never loads. Over-disclosure is the harmless direction to be wrong in,
+ * but it is still wrong, and it misleads the next person auditing consent.
+ * The control right above it has always branched on this ("no analytics or
+ * marketing tools configured"); the prose simply never did. Configuring a
+ * pixel brings the section back with no rebuild — the SocialLinks contract.
  */
+const MarketingSection: React.FC = () => {
+  const { config } = useSyncExternalStore(subscribeSiteConfig, siteConfigSnapshot);
+
+  useEffect(() => {
+    loadSiteConfig(); // shared, deduped — a no-op once MatomoTracker has loaded it
+  }, []);
+
+  if (!config.metaPixelId) return null;
+
+  return (
+    <>
+      <h2 className='h6 mt-4'>Marketing — optional, off by default</h2>
+      <p className='text-muted small'>
+        If you accept, the Meta (Facebook) Pixel measures how our advertising performs: it reports page views
+        and shopping events (product views, add-to-cart, purchases) to Meta, which sets its own cookie. It is
+        covered by the same single choice above — nothing from Meta is loaded before you accept, and withdrawing
+        stops all further reporting. Meta&apos;s own processing is described in{' '}
+        <a href='https://www.facebook.com/privacy/policy/' target='_blank' rel='noreferrer'>
+          Meta&apos;s privacy policy
+        </a>
+        .
+      </p>
+    </>
+  );
+};
+
 const Cookies: React.FC = () => (
   <div className='container my-4' style={{ maxWidth: 720 }}>
     <h1 className='h4 mb-3'>Cookie Policy</h1>
@@ -41,17 +76,7 @@ const Cookies: React.FC = () => (
       device type. Declining or withdrawing deletes both cookies immediately and stops all collection.
     </p>
 
-    <h2 className='h6 mt-4'>Marketing — optional, off by default</h2>
-    <p className='text-muted small'>
-      If you accept, the Meta (Facebook) Pixel measures how our advertising performs: it reports page views
-      and shopping events (product views, add-to-cart, purchases) to Meta, which sets its own cookie. It is
-      covered by the same single choice above — nothing from Meta is loaded before you accept, and withdrawing
-      stops all further reporting. Meta&apos;s own processing is described in{' '}
-      <a href='https://www.facebook.com/privacy/policy/' target='_blank' rel='noreferrer'>
-        Meta&apos;s privacy policy
-      </a>
-      .
-    </p>
+    <MarketingSection />
 
     <h2 className='h6 mt-4'>Do Not Track</h2>
     <p className='text-muted small'>

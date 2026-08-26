@@ -20,8 +20,12 @@ interface Props {
   mode: 'hot' | 'new';
 }
 
+// `hot` is ranked by listed_num — popularity, not markdown. It was titled
+// "Today's Deals", which is what the header strip calls /deals (the real
+// deal_flag surface), so two different pages answered to one name. Naming it
+// for what it ranks keeps "Today's Deals" meaning exactly one thing.
 const MODES: Record<Props['mode'], { title: string; params: Record<string, string> }> = {
-  hot: { title: 'Today’s Deals', params: { q: '', sort: '-listed_num' } },
+  hot: { title: 'Best sellers', params: { q: '', sort: '-listed_num' } },
   new: { title: 'New Arrivals', params: { q: '', sort: '-created_epoch' } },
 };
 

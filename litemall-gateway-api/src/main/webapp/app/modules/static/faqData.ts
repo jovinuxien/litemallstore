@@ -14,6 +14,14 @@
 
 export const SUPPORT_EMAIL = 'support@trovemo.com';
 
+/**
+ * When email is actually answered — ONE definition, because the footer's
+ * customer-promise strip and /service each carried their own and disagreed:
+ * the footer claimed "Customer care, every day" while /service said Mon–Fri.
+ * Anything that states support hours reads this.
+ */
+export const SUPPORT_HOURS = 'Mon–Fri, 9:00–18:00';
+
 export interface FaqLink {
   label: string;
   /** In-app route (react-router `to`). */
