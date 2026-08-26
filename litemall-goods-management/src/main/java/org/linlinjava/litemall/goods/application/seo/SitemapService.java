@@ -4,6 +4,8 @@ import org.linlinjava.litemall.db.domain.LitemallCategory;
 import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
+import org.linlinjava.litemall.db.domain.LitemallPage;
+import org.linlinjava.litemall.goods.application.content.PageService;
 import org.linlinjava.litemall.goods.application.goods.CatalogGoodsCountService;
 import org.linlinjava.litemall.goods.infrastructure.configuration.PublicSiteProperties;
 import org.slf4j.Logger;
@@ -19,9 +21,13 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Cached sitemaps.org XML for {@code GET /srv/goods/sitemap.xml} (Wave 13): homepage, on-sale
- * L1 category landings ({@code /category/<id>}), and every on-sale product at its slugged
- * canonical URL with {@code lastmod} = update_time. Absolute URLs are minted from
+ * category landings ({@code /category/<id>} — L1 roots AND their subcategories since
+ * 2026-08-26), the active season page, and every on-sale product at its slugged canonical URL
+ * with {@code lastmod} = update_time. Absolute URLs are minted from
  * {@code litemall.public-base-url}.
+ *
+ * <p>A category or page with nothing on sale behind it is never listed: submitting a URL that
+ * renders empty spends crawl budget to earn a soft 404.
  *
  * <p>Serving is a snapshot read (HomeBannerService-style volatile + tryLock — no
  * per-request DB sweep). Regeneration: unconditionally after the nightly catalog refresh
@@ -45,6 +51,7 @@ public class SitemapService {
     private final LitemallGoodsService goodsService;
     private final LitemallCategoryService categoryService;
     private final CatalogGoodsCountService goodsCountService;
+    private final PageService pageService;
     private final PublicSiteProperties siteProperties;
 
     private record Snapshot(byte[] xml, long builtAt) {
@@ -56,10 +63,12 @@ public class SitemapService {
     public SitemapService(LitemallGoodsService goodsService,
                           LitemallCategoryService categoryService,
                           CatalogGoodsCountService goodsCountService,
+                          PageService pageService,
                           PublicSiteProperties siteProperties) {
         this.goodsService = goodsService;
         this.categoryService = categoryService;
         this.goodsCountService = goodsCountService;
+        this.pageService = pageService;
         this.siteProperties = siteProperties;
     }
 
@@ -128,10 +137,37 @@ public class SitemapService {
         Map<Integer, Long> counts = goodsCountService.countsByRoot();
         for (LitemallCategory root : categoryService.queryL1()) {
             Long count = root.getId() != null ? counts.get(root.getId()) : null;
-            if (count != null && count > 0) {
-                appendUrl(xml, base + "/category/" + root.getId(), null);
-                urls++;
+            if (count == null || count <= 0) {
+                continue;
             }
+            appendUrl(xml, base + "/category/" + root.getId(), null);
+            urls++;
+            // Subcategory landings (2026-08-26). Before this the sitemap offered two category
+            // URLs for 4,055 products — the whole catalogue behind "Home & Garden" and
+            // "Hardware". The subcategory names ARE the phrases shoppers search ("outdoor
+            // lighting", "home storage", "tools"), each page already renders with a real
+            // injected title, and a product page made of supplier copy has almost no chance of
+            // ranking while a category page does. Same emptiness rule as the roots: a category
+            // with nothing on sale is never submitted.
+            for (LitemallCategory child : categoryService.queryByPid(root.getId())) {
+                if (child.getId() == null || Boolean.TRUE.equals(child.getDeleted())) {
+                    continue;
+                }
+                if (goodsCountService.countOnSaleInSubtree(child.getId()) > 0) {
+                    appendUrl(xml, base + "/category/" + child.getId(), null);
+                    urls++;
+                }
+            }
+        }
+
+        // The active season collection (Wave 27). It is a real, curated, indexable landing page
+        // and it was missing entirely — /page/* never appeared in the sitemap. Only the ACTIVE
+        // one is listed: drafts and templates are not customer-visible, and listing a page that
+        // 404s for shoppers would spend crawl budget to earn a soft-404.
+        Integer seasonPageId = activeSeasonPageId();
+        if (seasonPageId != null) {
+            appendUrl(xml, base + "/page/" + seasonPageId, null);
+            urls++;
         }
 
         int page = 1;
@@ -178,6 +214,24 @@ public class SitemapService {
         return new StringBuilder(64 * 1024)
                 .append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
                 .append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
+    }
+
+    /**
+     * Id of the active season page, or null when no season is running.
+     *
+     * <p>Fail-soft: content resolution must never break the sitemap for the whole catalogue, so
+     * an unreadable page row costs one URL rather than the build.
+     */
+    private Integer activeSeasonPageId() {
+        try {
+            Map<String, Object> page = pageService.activeByCategory(LitemallPage.CATEGORY_SEASON);
+            Object id = page == null ? null : page.get("id");
+            return id instanceof Integer i ? i : null;
+        } catch (RuntimeException ex) {
+            logger.warn("sitemap: active season page unreadable, omitted from this build: {}",
+                    ex.getMessage());
+            return null;
+        }
     }
 
     private static void appendUrl(StringBuilder xml, String loc, String lastmod) {

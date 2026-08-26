@@ -54,6 +54,38 @@ public class LitemallGoodsProperties {
     }
 
     /**
+     * Maximum retail price a good may carry and stay on sale. 0 = OFF (default, dev-safe and
+     * byte-identical to pre-ceiling behaviour); prod sets LITEMALL_GOODS_PRICE_CEILING.
+     *
+     * <p>The mirror image of {@link #priceFloor}, and off-sale for the same reason: retail is
+     * cost × the category's effective margin, so a good priced out of the band is a data problem
+     * (an outlier CJ cost, a per-unit price quoted for a pallet), not something to silently
+     * rewrite. Bending the price here would break the invariant the margin guard, deal floors
+     * and coupon guard all compute against. Reversible: clear the ceiling and the next cycle
+     * puts the row back on sale.
+     *
+     * <p>Context: the live feed on 2026-08-26 carried 97 items above EUR 500, topping out at a
+     * EUR 32,819 sideboard and a EUR 12,011 garage. Nobody dropships a EUR 32k sideboard; on a
+     * young merchant account those rows read as a pricing fault and invite a misrepresentation
+     * review, which suspends the whole account rather than the offending item.
+     */
+    private BigDecimal priceCeiling = BigDecimal.ZERO;
+
+    public BigDecimal getPriceCeiling() {
+        return priceCeiling;
+    }
+
+    public void setPriceCeiling(BigDecimal priceCeiling) {
+        this.priceCeiling = priceCeiling;
+    }
+
+    /** True when a ceiling is configured AND this retail exceeds it. Null retail never trips it. */
+    public boolean isAbovePriceCeiling(BigDecimal retail) {
+        return priceCeiling != null && priceCeiling.signum() > 0
+                && retail != null && retail.compareTo(priceCeiling) > 0;
+    }
+
+    /**
      * Wave 26 Phase 2: L1 root category ids the storefront is narrowed to. EMPTY = OFF (default,
      * byte-identical to pre-Wave-26 behaviour); prod sets LITEMALL_GOODS_ANCHOR_CATEGORY_IDS.
      *

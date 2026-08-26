@@ -306,6 +306,16 @@ public class CjProductPromotionService {
             log.info("CJ promote pid={}: retail {} below price floor {} — off sale (reversible)",
                     row.getPid(), goods.getRetailPrice(), goodsProperties.getPriceFloor());
         }
+        // The ceiling is evaluated at the same point and for the same reason as the floor: after
+        // repricing, against the retail a customer would actually see (so a live flash deal is
+        // judged on its landed price). Both ends of the band gate on-sale identically below.
+        boolean aboveCeiling = goodsProperties != null
+                && goodsProperties.isAbovePriceCeiling(goods.getRetailPrice());
+        if (aboveCeiling) {
+            log.info("CJ promote pid={}: retail {} above price ceiling {} — off sale (reversible)",
+                    row.getPid(), goods.getRetailPrice(), goodsProperties.getPriceCeiling());
+        }
+        boolean outsidePriceBand = belowFloor || aboveCeiling;
 
         Integer existingId = linkageMapper.findAnyGoodsIdByCjPid(goods.getCjPid());
         // Wave 12 (unparked a82a19e0e): while a flash deal is LIVE (price_swapped=1) the deal
@@ -328,12 +338,12 @@ public class CjProductPromotionService {
             // not resurrect retired (off-sale) goods back to on-sale, so the flag is withheld on
             // updates (selective skips nulls). New inserts still land on-sale below.
             goods.setIsOnSale(null);
-            // Wave 26 Phase 2 price floor: policy OVERRIDES that withhold. A sub-floor good is
-            // taken off sale every cycle for as long as it stays sub-floor — deliberately, so the
-            // floor is a standing rule and not a one-shot sweep an admin can silently undo into a
-            // loss-making listing. Reversible: raise the margin or lower the floor and the next
-            // cycle puts it back.
-            if (belowFloor) {
+            // Wave 26 Phase 2 price band: policy OVERRIDES that withhold. A good priced outside
+            // the band is taken off sale every cycle for as long as it stays outside —
+            // deliberately, so the band is a standing rule and not a one-shot sweep an admin can
+            // silently undo into a loss-making (or review-tripping) listing. Reversible: change
+            // the margin, the floor or the ceiling and the next cycle puts it back.
+            if (outsidePriceBand) {
                 goods.setIsOnSale(false);
             }
             // Manual-wins: a source='manual' admin brand assignment is never overwritten by a
@@ -347,8 +357,8 @@ public class CjProductPromotionService {
             if (goods.getBrandId() == null) {
                 goods.setBrandId(0); // unattributed sentinel, matches the pre-V60 convention
             }
-            if (belowFloor) {
-                goods.setIsOnSale(false);   // a new sub-floor good never goes on sale at all
+            if (outsidePriceBand) {
+                goods.setIsOnSale(false);   // a new out-of-band good never goes on sale at all
             }
             // Wave 26 Phase 2: while the storefront is narrowed to an anchor, a NEW good outside
             // it must not land on sale. Without this the narrowing erodes nightly — the CJ

@@ -437,8 +437,27 @@ services:
       # button (/auth/google answers 707), no Meta Pixel, plain address fields.
       # Activation = set in .env + recreate this container, NO rebuild.
       LITEMALL_GOOGLE_CLIENT_ID: ${LITEMALL_GOOGLE_CLIENT_ID:-}
+      # ⚠ Leave BLANK while the Meta Business account is restricted (2026-08-26). The pixel
+      # is consent-gated and harmless on its own, but it is Meta traffic from this origin and
+      # this is not the moment to add more of it.
       LITEMALL_META_PIXEL_ID: ${LITEMALL_META_PIXEL_ID:-}
       LITEMALL_PLACES_API_KEY: ${LITEMALL_PLACES_API_KEY:-}
+      # Matomo, the self-hosted analytics. BLANK = OFF, which is what prod has been running
+      # since launch — the store has had NO page/click analytics at all, so a flat dashboard
+      # meant "nothing is counting", not "nobody visited". Only the first-party event log
+      # (litemall_user_event) collects today, and it has no report screen.
+      #
+      # These two lines are the passthrough the config needs; without them .env.prod can
+      # carry the values while the container runs blank and every surface reports it as
+      # configured — the LITEMALL_GOODS_PRICE_FLOOR failure mode, again.
+      #
+      # To switch on: bring up the marketing stack's matomo container
+      # (docker-compose.marketing.yml — matomo + matomo-db already defined), expose it on a
+      # public hostname, run its web installer once, then set both values and recreate this
+      # container. NO rebuild. BASE_URL must be the browser-reachable public URL WITH a
+      # trailing slash; SITE_ID is the numeric id Matomo assigns.
+      LITEMALL_TRACKING_MATOMO_BASE_URL: ${LITEMALL_TRACKING_MATOMO_BASE_URL:-}
+      LITEMALL_TRACKING_MATOMO_SITE_ID: ${LITEMALL_TRACKING_MATOMO_SITE_ID:-}
       # Edge-local password-reset mail (Wave 6). Reads the SAME .env values as
       # order's customer-mail block, but the edge sender's property keys are
       # `user`/`pass` (not username/password) — mapped here so one .env set
@@ -615,6 +634,15 @@ services:
       # or the floor judges anchor goods at their old 1.25x prices and off-sales
       # roughly twice as many. See runbook-wave26-phase2-anchor.md.
       LITEMALL_GOODS_PRICE_FLOOR: ${LITEMALL_GOODS_PRICE_FLOOR:-0}
+      # Maximum retail to stay on sale (0 = OFF). Same off-sale semantics as the floor, and the
+      # same passthrough trap: without this line .env.prod can carry the value while the
+      # container runs at 0 and every surface reports it as configured.
+      # Guards the other end of the band — outlier CJ costs put a EUR 32,819 sideboard and a
+      # EUR 12,011 garage in the live merchant feed, the shape of listing that triggers an
+      # account-level misrepresentation review. 97 rows sat above 500 on 2026-08-26.
+      # Unlike the floor this has NO ordering dependency on the margin: raising the margin can
+      # only push more rows over a ceiling, and off-sale is reversible either way.
+      LITEMALL_GOODS_PRICE_CEILING: ${LITEMALL_GOODS_PRICE_CEILING:-0}
       # L1 root ids the storefront is narrowed to (comma-separated; empty = OFF). Narrowing
       # off-sales today's goods, but the CJ pipeline keeps mirroring all 14 L1s and the nightly
       # promote lands every NEW product on sale — one night after narrowing, 328 new non-anchor
