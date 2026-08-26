@@ -49,10 +49,6 @@ public class CatalogHygieneService {
     private static final int PAGE_SIZE = 200;
     private static final int NAME_MAX = 127;
 
-    /** Leading supplier logistics note; ASCII or fullwidth (U+FF1A) colon, optional. */
-    private static final Pattern SUPPLIER_PREFIX =
-            Pattern.compile("^\\s*Support\\s+Pan\\s+European\\s*[:\\uFF1A]?\\s*", Pattern.CASE_INSENSITIVE);
-
     private static final Pattern WORD = Pattern.compile("[\\p{L}]+");
 
     /**
@@ -253,17 +249,15 @@ public class CatalogHygieneService {
      * reads as an unfinished listing. The colon may be ASCII or the CJK fullwidth form (U+FF1A),
      * which is what CJ actually sends.
      *
+     * <p>Delegates to {@link SupplierTitle}, which the CJ adapter applies at promote time. This
+     * pass exists only to repair rows written BEFORE that rule was in place — on a catalogue the
+     * promote has already run over, it is a no-op.
+     *
      * @return the title without the prefix; the input unchanged when no prefix is present, or
      *         null for a null input
      */
     static String stripSupplierPrefix(String name) {
-        if (name == null) {
-            return null;
-        }
-        String out = SUPPLIER_PREFIX.matcher(name).replaceFirst("").trim();
-        // Never trade a bad title for an empty one: a name that is ONLY the prefix keeps it,
-        // and the language check below then sends it down the rename-or-retire path.
-        return out.isEmpty() ? name : out;
+        return SupplierTitle.strip(name);
     }
 
     /**

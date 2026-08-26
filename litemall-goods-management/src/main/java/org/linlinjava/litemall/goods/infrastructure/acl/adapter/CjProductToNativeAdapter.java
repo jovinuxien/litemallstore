@@ -7,6 +7,7 @@ import org.linlinjava.litemall.db.domain.LitemallGoods;
 import org.linlinjava.litemall.db.domain.LitemallGoodsAttribute;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsSpecification;
+import org.linlinjava.litemall.goods.application.search.SupplierTitle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -89,7 +90,15 @@ public class CjProductToNativeAdapter {
         goods.setSource(SOURCE_CJ);
         goods.setCjPid(pid);
         goods.setGoodsSn(GOODS_SN_PREFIX + pid);
-        goods.setName(trim(row.getTitle(), NAME_MAX));
+        // Supplier bookkeeping is stripped HERE, where the customer-facing name is derived,
+        // not in a cleanup pass over litemall_goods. Cleaning the goods row alone is undone by
+        // the very next promote — which is what happened on 2026-08-26, when a full promote run
+        // for an unrelated price change silently restored all 68 prefixes an hour after they
+        // were removed.
+        goods.setName(trim(SupplierTitle.strip(row.getTitle()), NAME_MAX));
+        // keywords keeps the RAW title on purpose: it is the search column
+        // (LitemallGoodsService.querySelective LIKE-matches it), so a shopper who searches the
+        // untrimmed supplier string still finds the product.
         goods.setKeywords(trim(row.getTitle(), VARCHAR_MAX));
         goods.setBrief(trim(row.getDescription(), VARCHAR_MAX));
         goods.setDetail(row.getDetailHtml());
