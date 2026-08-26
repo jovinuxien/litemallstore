@@ -30,9 +30,28 @@ import reactor.core.publisher.Mono;
 @Profile("!dev")
 public class SpaWebFilter implements WebFilter {
 
-    /** Prefixes owned by the backend (gateway routes, auth, actuator, docs). */
+    /**
+     * Prefixes owned by the backend (gateway routes, auth, actuator, docs).
+     *
+     * <p><b>{@code /admin} is deliberately NOT here.</b> It was, and that broke every deep
+     * link into the admin console: the React router is mounted at {@code /admin/*}, so
+     * {@code /admin/goods/123/edit} is a CLIENT route, but listing the prefix here meant it
+     * was never rewritten to {@code /index.html}. The request fell through to the gateway,
+     * matched no route, and the browser got a bare 401 with no HTML — so a bookmark, an F5,
+     * or any link opened in a new tab landed on a login screen instead of the page.
+     *
+     * <p>Nothing backend answers on bare {@code /admin}: every admin API path is
+     * {@code /srv/private/admin/**} (see the gateway routes in application.yml), and no
+     * controller in this service maps {@code /admin}. The prefix was a leftover from the
+     * legacy admin-api decommissioned in Wave 4.
+     *
+     * <p>Serving the shell here leaks nothing: {@code index.html} is public by design, the
+     * SPA's PrivateRoute still guards what renders, and every byte of data still comes from
+     * an authenticated {@code /srv/**} call. This is exactly how the storefront edge treats
+     * its own routes.
+     */
     private static final String[] BACKEND_PREFIXES = {
-            "/srv", "/admin", "/auth", "/api", "/management",
+            "/srv", "/auth", "/api", "/management",
             "/actuator", "/fallback", "/v3/api-docs", "/swagger-ui",
             "/login", "/oauth2", "/services"
     };

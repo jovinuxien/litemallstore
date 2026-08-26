@@ -3,7 +3,8 @@ import {
   useApplySeoTitleMutation,
   useGetSeoTitlesQuery,
 } from 'app/shared/reducers/private/services/adminSeoApi';
-import { errnoMessage, PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import { mutationError } from './applyResult';
+import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 
 // On-page SEO: product titles Google will truncate (/srv/private/admin/seo/titles).
@@ -51,7 +52,7 @@ const SeoTitleList: React.FC = () => {
       return;
     }
     const res = await applyTitle({ goodsId: row.goodsId, title });
-    const msg = errnoMessage(res);
+    const msg = mutationError(res);
     if (msg) {
       setActionError(msg);
       return;
