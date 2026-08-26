@@ -151,6 +151,13 @@ services:
     environment:
       SHOP_DOMAIN: ${SHOP_DOMAIN:?set SHOP_DOMAIN in .env (use localhost for a local/staging run)}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in .env}
+      # Matomo's hostname. Defaults to a .localhost name ON PURPOSE rather than
+      # being required or blank: Caddy serves *.localhost from its internal CA,
+      # so an unset value yields an unreachable site and NO public certificate
+      # request. Blank would be worse than either — an empty site address fails
+      # `caddy validate`, which is the edge's healthcheck, so forgetting this
+      # variable would take the whole edge down instead of just Matomo.
+      ANALYTICS_DOMAIN: ${ANALYTICS_DOMAIN:-analytics.localhost}
       ACME_EMAIL: ${ACME_EMAIL:-}
       # Whole `acme_dns cloudflare <token>` directive, injected into the
       # Caddyfile's global options (empty ⇒ the line vanishes and staging runs
@@ -737,6 +744,60 @@ services:
   # it would hijack the real service's registrations. Excluded from the reactor
   # in pom.xml; re-add here only once both are fixed.
 
+  # ---------------------------------------------------------------------------
+  # Matomo — self-hosted storefront analytics (2026-08-26)
+  #
+  # Lives here rather than in docker-compose.marketing.yml because that stack is
+  # an opt-in DEV convenience (its own compose project, its own network, a host
+  # port published, no memory limits). Production needs the opposite on all four:
+  # the same network Caddy is on, a memory cap, and NO published host port — the
+  # only way in is through the edge, which terminates TLS and is the single
+  # audited entry point.
+  #
+  # Reached at ${ANALYTICS_DOMAIN} via the Caddyfile block of the same name.
+  # ---------------------------------------------------------------------------
+  matomo-db:
+    image: mariadb:10.11
+    restart: unless-stopped
+    # Matomo's archiving queries build large rows; the default 16MB packet trips
+    # them once a site has real traffic.
+    command: --max-allowed-packet=64MB
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MATOMO_DB_ROOT_PASSWORD:?set MATOMO_DB_ROOT_PASSWORD in .env}
+      MARIADB_DATABASE: ${MATOMO_DB_NAME:-matomo}
+      MARIADB_USER: ${MATOMO_DB_USER:-matomo}
+      MARIADB_PASSWORD: ${MATOMO_DB_PASSWORD:?set MATOMO_DB_PASSWORD in .env}
+    volumes:
+      - matomo-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    mem_limit: 768m
+    networks: [litemall]
+
+  matomo:
+    image: matomo:5
+    restart: unless-stopped
+    depends_on:
+      matomo-db: {condition: service_healthy}
+    environment:
+      # Pre-fills the installer's database step so that screen is a formality.
+      MATOMO_DATABASE_HOST: matomo-db
+      MATOMO_DATABASE_ADAPTER: mysqli
+      MATOMO_DATABASE_DBNAME: ${MATOMO_DB_NAME:-matomo}
+      MATOMO_DATABASE_USERNAME: ${MATOMO_DB_USER:-matomo}
+      MATOMO_DATABASE_PASSWORD: ${MATOMO_DB_PASSWORD:?set MATOMO_DB_PASSWORD in .env}
+    volumes:
+      - matomo-data:/var/www/html
+    # No `ports:` on purpose — Caddy proxies to matomo:80 over the internal
+    # network. Publishing 8095 on the host would put the admin UI on the public
+    # internet on plain HTTP, bypassing the edge entirely.
+    mem_limit: 768m
+    networks: [litemall]
+
 networks:
   litemall:
     driver: bridge
@@ -751,3 +812,5 @@ volumes:
   kafka-data:
   zookeeper-data:
   zookeeper-log:
+  matomo-data:     # Matomo's config.ini.php lives here — losing it means reinstalling
+  matomo-db-data:

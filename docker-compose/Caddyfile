@@ -163,5 +163,34 @@ www.{$SHOP_DOMAIN} {
 	}
 }
 
+# ---------------------------------------------------------------------------
+# Matomo — self-hosted analytics (2026-08-26)
+#
+# The container publishes no host port, so this block is the ONLY way in.
+# ---------------------------------------------------------------------------
+{$ANALYTICS_DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Deliberately NO X-Frame-Options DENY here, unlike the shop and the admin
+	# console: Matomo's own UI embeds its widgets in iframes and DENY breaks the
+	# dashboard. Matomo ships its own frame policy per-response instead.
+
+	# Matomo needs the real client IP to attribute a visit to a country, and the
+	# real scheme to build correct URLs. Cloudflare fronts this host, so
+	# CF-Connecting-IP is the true client; {remote_host} would be a Cloudflare
+	# edge address and every visit would land in the wrong country.
+	reverse_proxy matomo:80 {
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+		header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
 # HTTP->HTTPS is automatic in Caddy: any site defined with a hostname gets a
 # port-80 redirect for free. No explicit block needed, and no way to forget it.
