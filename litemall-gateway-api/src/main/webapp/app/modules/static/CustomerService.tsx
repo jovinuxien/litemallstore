@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-import { SUPPORT_EMAIL, topFaqEntries } from 'app/modules/static/faqData';
+import { SUPPORT_EMAIL, SUPPORT_HOURS, topFaqEntries } from 'app/modules/static/faqData';
 import SocialLinks from 'app/shared/config/SocialLinks';
 
 /**
@@ -16,21 +16,20 @@ const CustomerService: React.FC = () => (
     <h1 className='h4 mb-3'>Customer service</h1>
 
     <ul className='list-group'>
-      <li className='list-group-item d-flex align-items-center gap-3'>
-        <i className='bi bi-headset fs-4 text-primary' />
-        <div>
-          <div className='fw-semibold'>Online support</div>
-          <div className='text-muted small'>Mon–Fri, 9:00–18:00</div>
-        </div>
-      </li>
+      {/* ONE row, because there is ONE channel. This list previously opened with
+          an "Online support" entry carrying these hours and no way to reach it —
+          no chat, no phone, not even a link — directly above the email row that
+          is the only thing a customer can actually use. Hours belong to the
+          channel that answers them. */}
       <li className='list-group-item d-flex align-items-center gap-3'>
         <i className='bi bi-envelope fs-4 text-primary' />
         <div>
-          <div className='fw-semibold'>Email</div>
+          <div className='fw-semibold'>Email support</div>
           <div className='text-muted small'>
             <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> — include your order number if
             it concerns an order.
           </div>
+          <div className='text-muted small'>Answered {SUPPORT_HOURS}.</div>
         </div>
       </li>
     </ul>

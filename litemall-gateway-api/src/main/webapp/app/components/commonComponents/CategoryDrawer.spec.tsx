@@ -108,9 +108,19 @@ describe('CategoryDrawer content entries', () => {
   it('never hides the sections that always have somewhere to go', async () => {
     wire();
     renderDrawer();
-    expect(await screen.findByText('Today’s Deals')).toBeTruthy();
+    // Was "Today’s Deals", which is the header strip's label for /deals — this
+    // link goes to /hot, a different page. The drawer now says what /hot is.
+    expect(await screen.findByText('Best sellers')).toBeTruthy();
     expect(screen.getByText('New Arrivals')).toBeTruthy();
     expect(screen.getByText('Customer service')).toBeTruthy();
+  });
+
+  it('does not claim the name the header gives /deals', async () => {
+    wire();
+    renderDrawer();
+    await screen.findByText('Best sellers');
+    expect(screen.queryByText(/Today.s Deals/i)).toBeNull();
+    expect(document.querySelector('a[href="/hot"]')?.textContent).toBe('Best sellers');
   });
 });
 

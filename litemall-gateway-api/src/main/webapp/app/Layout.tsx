@@ -11,6 +11,7 @@ import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
+import { SUPPORT_HOURS } from 'app/modules/static/faqData';
 import SocialLinks from 'app/shared/config/SocialLinks';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 import { seasonLabel, seasonPath } from 'app/shared/util/season';
@@ -483,15 +484,22 @@ const Layout: React.FC = () => {
           Back to top
         </button>
 
-        {/* Customer-promise strip. */}
+        {/* Customer-promise strip — every claim here must be one the store can
+            keep. It previously promised "Fast, tracked delivery / On every
+            order, nationwide" (we sell across EU borders, so no single nation,
+            and most stock ships from a supplier warehouse — /help says so in
+            plain words), "Hassle-free refunds & exchanges" (the policy has the
+            buyer pay return shipping on a change of mind, and offers a
+            replacement only for faulty goods) and "every day" support (it is
+            weekdays). Each line below now matches the page that governs it. */}
         <div className='bg-dark text-light border-bottom border-secondary'>
           <Container>
             <div className='row text-center py-4 g-3'>
               <div className='col-6 col-md-3'>
                 <i className='bi bi-truck fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>Fast, tracked delivery</div>
+                <div className='fw-semibold small'>Tracked delivery</div>
                 <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  On every order, nationwide
+                  Follow every order to your door
                 </div>
               </div>
               <div className='col-6 col-md-3'>
@@ -503,16 +511,16 @@ const Layout: React.FC = () => {
               </div>
               <div className='col-6 col-md-3'>
                 <i className='bi bi-arrow-repeat fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>Easy returns</div>
+                <div className='fw-semibold small'>30-day returns</div>
                 <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  Hassle-free refunds &amp; exchanges
+                  Change your mind within 30 days
                 </div>
               </div>
               <div className='col-6 col-md-3'>
                 <i className='bi bi-headset fs-3 d-block mb-1' />
                 <div className='fw-semibold small'>Here to help</div>
                 <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  Customer care, every day
+                  {SUPPORT_HOURS}
                 </div>
               </div>
             </div>
@@ -527,10 +535,16 @@ const Layout: React.FC = () => {
                 <div className='mb-2 text-white'>
                   <TrovemoWordmark height={26} />
                 </div>
+                {/* Written for the 17k-product general store this used to be.
+                    The catalogue is now deliberately narrowed to the home,
+                    garden and tools cluster, and brand attribution is absent on
+                    nearly every product — so "thousands of products across home,
+                    lifestyle, and more" and "trusted brands" both described a
+                    shop that no longer exists. Focus is worth saying out loud. */}
                 <p className='text-muted small mb-3'>
-                  Your everyday marketplace — thousands of products across home, lifestyle, and
-                  more, brought together with curated deals, trusted brands, and a checkout that
-                  just works. Shop with confidence; we stand behind every order.
+                  Everything for the home, garden and workshop — chosen, not scraped. Real prices,
+                  a checkout that just works, and 30 days to change your mind. We stand behind
+                  every order.
                 </p>
                 <SocialLinks />
               </div>
@@ -544,8 +558,13 @@ const Layout: React.FC = () => {
                   <Link to='/deals' className='link-light text-decoration-none small'>
                     Today&rsquo;s deals
                   </Link>
+                  {/* /hot ranks by listed_num — it is a best-seller list, not a
+                      discount surface. It was labelled "Hot deals" here and
+                      "Today's Deals" in the drawer and on its own heading, which
+                      is the header strip's name for /deals: one label, two
+                      destinations. "Today's Deals" now means /deals, only. */}
                   <Link to='/hot' className='link-light text-decoration-none small'>
-                    Hot deals
+                    Best sellers
                   </Link>
                   <Link to='/new' className='link-light text-decoration-none small'>
                     New arrivals
@@ -614,9 +633,16 @@ const Layout: React.FC = () => {
                   <Link to='/returns' className='link-light text-decoration-none small'>
                     Returns &amp; refunds
                   </Link>
-                  <Link to='/user/feedback' className='link-light text-decoration-none small'>
-                    Send feedback
-                  </Link>
+                  {/* Signed-in only. This sits in the help column, and the
+                      Returns link above it exists in its policy form precisely
+                      so a logged-out visitor following a help link does not hit
+                      a login wall — this link walked them straight into one.
+                      Customer service carries the logged-out route (email). */}
+                  {isAuthenticated && (
+                    <Link to='/user/feedback' className='link-light text-decoration-none small'>
+                      Send feedback
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>

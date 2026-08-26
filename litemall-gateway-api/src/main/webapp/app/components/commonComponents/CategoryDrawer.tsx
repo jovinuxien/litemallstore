@@ -86,8 +86,11 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
         })}
 
         <div className='lm-drawer__section-title'>Trending</div>
+        {/* This said "Today's Deals" while pointing at /hot — the header strip
+            uses that exact label for /deals, so the same words took a shopper to
+            two different pages. /hot is the best-seller ranking. */}
         <Link to='/hot' className='lm-drawer__link d-block' onClick={onHide}>
-          Today&rsquo;s Deals
+          Best sellers
         </Link>
         {season && seasonLabel(season) && (
           <Link to={seasonPath(season)} className='lm-drawer__link d-block' onClick={onHide}>
