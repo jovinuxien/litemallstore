@@ -1667,7 +1667,52 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (brand-facet leak SHIPPED + DEPLOYED)
+### Worktree: `goods-management` — spec archived, awaiting build approval
+- **NEXT TASK (planned, NOT started): seasonal candidacy as an indexed signal.** FROZEN
+  contract: `litemall-goods-management/docs/spec-seasonal-candidacy.md` (commit
+  `0c9f74ed4`) — read it in full; the block below is only an index.
+  User commissioned 2026-08-26 after an OCS ecosystem review. **Origin:** the live
+  season page ("Autumns Deal", `litemall_page` id 5, active) carries ONE rail —
+  `mode=byIds` with **24 hardcoded ids, the validator's maximum**. The list is frozen:
+  a better new arrival cannot enter, a sold-out product cannot leave.
+  **The user's generalisation is the design:** score EVERY season continuously, not
+  just the running one. Hence the index field is **`seasons`, MULTI-VALUED**
+  (mirroring `category_names`) — a single `season_flag` could not say WHICH season,
+  would force a rescore+reindex every time the year turned, and could never prepare
+  next season in advance. Membership is indexed; **the score deliberately is not** (one
+  scalar cannot hold two seasons' scores; ranking uses existing sorts, as the deals
+  page does).
+  Decisions TAKEN (do not relitigate): auto-publish with per-season cap + minimum tier
+  + env kill-switch + permanent admin veto; server-side rail resolution in
+  `PageService.toPageView` (stored `mode=season` → served `mode=byIds` + `goodsIds` +
+  `resolvedFrom`) so TODAY's storefront renders it with NO gateway-api dependency.
+  Three load-bearing corrections to the user's criteria are in the spec:
+  **uncosted goods FAIL CLOSED** (`marginPct` is null, never 0 — the Wave-18 lesson);
+  the `UNIQUE (season, goods, day)` key makes collisions LOUD, not safe, so it needs an
+  upsert that skips admin-decided rows or a plain INSERT kills the batch; freshness is
+  a **bonus in [1.0, 1.25], not a decay toward zero** (the formula is multiplicative,
+  so any factor reaching 0 zeroes the score). Also: read the price floor from config,
+  never hardcode €5 (env-configurable, already changed once in prod); snapshot the
+  effective weights beside the config hash (a hash alone resolves to nothing); bound
+  the OCS sweep with a LOGGED cap.
+  ⚠ **Migration V64** — check `flyway_schema_history` immediately before first boot
+  (V63 is the repo's highest, Wave 27; prod recorded at V60 — confirm, never assume).
+  ⚠ **Deploy order is load-bearing:** indexer config (`seasons` field + facet + **BOTH**
+  dynamic-field regexes) → recreate indexer → goods-management → **run the scorer** (so
+  index members exist before the mapping materialises — an empty array may behave like
+  an absent field) → **full reindex** → **searcher restart AFTER it**.
+  Out of scope: gateway-admin UI (endpoints are the contract, raise it) and gateway-api
+  native `mode=season` (a STATED follow-up, not a silent compromise).
+- **Status 2026-08-26 — OCS ecosystem review.** 16 capabilities built on the index, 2 of
+  them dark (`SearchTrendingService`, `/srv/search/helper`). Consumer map:
+  **OCS is a two-party system** — goods-management owns/serves it, gateway-api renders
+  it, and NOTHING else touches the index. gateway-admin reads the DATABASE (its
+  search-analytics panel consumes rolled-up stats), so no admin screen can show what the
+  index thinks of a product. promotion and order never touch OCS; the relationship runs
+  the other way (goods-management reads THEIR tables at index time to compute
+  `coupon_flag`/`groupon_flag`). Related-goods is DB-backed, NOT OCS. Stack =
+  elasticsearch + indexer + searcher.
+- **Previously: brand-facet leak SHIPPED + DEPLOYED**
 - **No active assignment.**
 - **Status 2026-08-26 — SEARCH BRAND FACET: raw CJ supplier legal names no longer
   indexed.** MERGED to master `a44540e69`; module suite 515 run / 0 failures / 8
