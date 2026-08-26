@@ -12,6 +12,7 @@ import org.linlinjava.litemall.db.service.LitemallCategoryService;
 import org.linlinjava.litemall.db.service.LitemallGoodsAttributeService;
 import org.linlinjava.litemall.db.service.LitemallGoodsProductService;
 import org.linlinjava.litemall.db.service.LitemallSeckillService;
+import org.linlinjava.litemall.goods.domain.brand.BrandDisplayPolicy;
 import org.linlinjava.litemall.goods.domain.deals.DealMath;
 import org.linlinjava.litemall.goods.domain.model.valueobjects.elastic.ProductDocument;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
@@ -124,9 +125,13 @@ public class LitemallProductIndexingService {
             doc.setDealUrgency(0); // ln2p(0) = the uniform ~0.69 baseline — scoring unchanged
         }
 
+        // Only a curated CONSUMER brand may be indexed: the SPA renders this field as a facet
+        // headed "Brand", which leaves no room for a "Sold by" qualifier, so an uncurated CJ
+        // supplier legal entity here is a mislabel (and leaks into autocomplete, which sources
+        // this same field). See BrandDisplayPolicy for why the rule is not inline.
         if (goods.getBrandId() != null) {
             LitemallBrand brand = brandService.findById(goods.getBrandId());
-            if (brand != null) {
+            if (BrandDisplayPolicy.isConsumerBrand(brand)) {
                 doc.setBrand(brand.getName());
             }
         }
