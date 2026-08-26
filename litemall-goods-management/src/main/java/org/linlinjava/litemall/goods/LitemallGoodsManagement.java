@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSearchProperties;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSeoResearchProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -21,7 +22,8 @@ import java.util.*;
 
 @SpringBootApplication(scanBasePackages = {"org.linlinjava.litemall.db", "org.linlinjava.litemall.db.dao", "org.linlinjava.litemall.core", "org.linlinjava.litemall.goods"})
 @EnableDiscoveryClient
-@EnableConfigurationProperties({LitemallGoodsProperties.class, LitemallSearchProperties.class})
+@EnableConfigurationProperties({LitemallGoodsProperties.class, LitemallSearchProperties.class,
+		LitemallSeoResearchProperties.class})
 public class LitemallGoodsManagement {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger(LitemallGoodsManagement.class);
