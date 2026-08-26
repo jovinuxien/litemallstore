@@ -1622,8 +1622,45 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — idle (topic goodsCount MERGED)
-- **No active assignment.** Both Wave-27 items (season backend `bac29f144`, `eu_flag`
+### Worktree: `goods-management` — idle (brand-facet leak MERGED, awaiting reindex)
+- **No active assignment.**
+- **Status 2026-08-26 — SEARCH BRAND FACET: raw CJ supplier legal names no longer
+  indexed.** MERGED to master `a44540e69`; module suite 515 run / 0 failures / 8
+  skipped. User-commissioned 2026-08-24 (plan approved 2026-08-26; decisions: index
+  `brand` for **kind=0 only**, trending work is **spec only**).
+  Measured live before the fix: the SPA's `Brand` facet offered *Yiwu Ruijia Auto
+  Supplies Co., Ltd.* / *Sichuan Micro-entrepreneur E-commerce Co., Ltd.* / *Shenzhen
+  Kagu Technology Co., Ltd.*, and `q="co., ltd"` autocompleted eight supplier names
+  (the suggest index sources `brand`).
+  Root cause: Wave-25's curation gate was **three separate inline re-implementations**
+  (public brand read / PDP / merchant feed) and `LitemallProductIndexingService:127`
+  was a fourth site with **no check at all**. The rule now lives in
+  `domain/brand/BrandDisplayPolicy` and all four sites call it — `isDisplayable`
+  (PDP + public read, which label kind as "Brand" vs "Sold by") vs `isConsumerBrand`
+  (feed column + search facet, which carry a BARE brand claim). Both fail closed on
+  null.
+  ⚠ **DEPLOY NEEDS A FULL REINDEX** — the fix only changes what future documents
+  carry. Afterwards check whether the OCS suggest index still serves the old names
+  and recreate the suggest container if it caches. NO migration, no indexer-config
+  change, no searcher-restart-for-new-field (no new field).
+  ⚠ **The brand facet will go EMPTY after the reindex, by design.** The only
+  display-enabled rows with products are 3 suppliers (DVLL 278, dbjjj 251, EVERGREEN
+  SHOP LLC 30); the 49 display-enabled consumer brands are 2018 seed rows with
+  `goodsCount` 0. Reverses the moment an admin curates a real brand.
+  ⚠ **RAISED for gateway-api:** `Search.tsx:410-413` renders `<h3>Brand</h3>`
+  UNCONDITIONALLY, so an empty facet leaves a dangling heading — the exact thing
+  their own Wave-26 nav-honesty work forbids. Their module; not reached into.
+  Part 2 shipped as **design only**: `docs/spec-dynamic-hot-keywords.md`. The
+  storefront's sole hot keyword is still the Feb-2018 seed "Gift Pack Early Access"
+  (both `defaultKeyword` and the whole hot list). `SearchTrendingService` already
+  does the hard part correctly — including a zero-result guard — and is silent ONLY
+  because `trending-min-searches: 3` is never met at our traffic. ⚠ Honest finding:
+  **no free trending-keyword API exists** (Google Trends' feed is news-shaped; real
+  volume data is paid), so external trends can only be an env-gated optional input,
+  never the engine. ⚠ MAIN's worktree holds another session's uncommitted SEO
+  title/keyword-research work (`KeywordResearchProvider`, `TitleProposer`,
+  `AdminSeoController`) — adjacent to this spec; reconcile before building Part 2.
+- **History — Wave-27 items.** Both (season backend `bac29f144`, `eu_flag` (season backend `bac29f144`, `eu_flag`
   `9ee2f89d6`) are merged to master; the gateway-admin half shipped separately as
   `a336203a5`, the gateway-api half is still not started. Rewrite this block before
   launching new work here.
