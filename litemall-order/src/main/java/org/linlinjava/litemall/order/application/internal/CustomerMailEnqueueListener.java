@@ -58,10 +58,11 @@ public class CustomerMailEnqueueListener {
      * amount in a mail carries this symbol. Amounts arrive as plain decimals — the
      * symbol is presentation, exactly as the two SPAs treat it.
      *
-     * <p>The plain-text mails (admin paid-notice, refund-approved, pickup code) go out
+     * <p>Rows without a {@code body_html} (the admin paid-notice; CJ ops alerts) go out
      * as {@code SimpleMailMessage}; a non-ASCII symbol only survives that path because
-     * {@code SmtpCustomerMailSender} sets the sender's default encoding to UTF-8. The
-     * HTML mails already force UTF-8 via {@code MimeMessageHelper}.
+     * {@code SmtpCustomerMailSender} sets the sender's default encoding to UTF-8. Every
+     * customer-facing mail now carries an HTML body and forces UTF-8 via
+     * {@code MimeMessageHelper}.
      */
     private static final String CURRENCY_SYMBOL = "\u20ac";
 
@@ -206,7 +207,10 @@ public class CustomerMailEnqueueListener {
         // transaction, so it is committed and readable here).
         if (order.isPickup()) {
             insertRow(email, MailTemplates.pickupCode(order.getOrderSn(),
-                    pickupLocation(order), order.getVerifyCode()), null);
+                            pickupLocation(order), order.getVerifyCode()),
+                    safeHtml(order, "pickup-code", () -> MailHtmlTemplates.pickupCode(
+                            order.getOrderSn(), pickupLocation(order), order.getVerifyCode(),
+                            orderUrl(order), logoUrl())));
         }
     }
 
@@ -439,7 +443,10 @@ public class CustomerMailEnqueueListener {
         if (amount.isEmpty()) {
             amount = money(order.getActualPrice());
         }
-        insertRow(email, MailTemplates.refundApproved(order.getOrderSn(), amount), null);
+        String refundAmount = amount;
+        insertRow(email, MailTemplates.refundApproved(order.getOrderSn(), refundAmount),
+                safeHtml(order, "refund-approved", () -> MailHtmlTemplates.refundApproved(
+                        order.getOrderSn(), refundAmount, orderUrl(order), logoUrl())));
     }
 
     /** Pickup orders store {@code "PICKUP: <store name>"} in the address column. */
@@ -453,6 +460,22 @@ public class CustomerMailEnqueueListener {
 
     private static String money(LitemallMoney value) {
         return value == null || value.getAmount() == null ? "" : CURRENCY_SYMBOL + value.getAmount().toPlainString();
+    }
+
+    /**
+     * Renders an HTML body that is allowed to fail: any throwable degrades the row to
+     * plain-text-only (bodyHtml null) instead of losing the mail. Same contract as
+     * {@link #renderConfirmationHtml}, shared by the templates that need no extra
+     * DB read.
+     */
+    private String safeHtml(LitemallOrderAggregate order, String templateKey, java.util.function.Supplier<String> render) {
+        try {
+            return render.get();
+        } catch (Throwable t) {
+            log.warn("HTML {} build failed for order {} — plain-text only: {}",
+                    templateKey, order.getOrderId().getId(), t.toString());
+            return null;
+        }
     }
 
     private void insertRow(String recipient, MailTemplates.RenderedMail mail, String bodyHtml) {

@@ -594,6 +594,13 @@ services:
     # the tmpfs wall instead of being caught by its own cap.
     tmpfs:
       - /app/logs:size=256m
+    volumes:
+      # Keyword export, read-only. The default source is `file`, and the path in
+      # application.yml resolves against ${user.home} — which inside this container
+      # is NOT the host's home, so without this mount the provider finds nothing and
+      # serves no keywords (fail-soft: it warns once, it does not break the service).
+      # Host path is overridable so the export can live anywhere.
+      - ${LITEMALL_SEO_EXPORT_DIR:-./seo-export}:/app/seo-export:ro
     image: litemall/goods-management:${LITEMALL_TAG:-latest}
     depends_on:
       mysql: {condition: service_healthy}
@@ -624,6 +631,30 @@ services:
       # Both blank ⇒ enrichment fails soft exactly as before.
       CJ_API_KEY: ${CJ_CATALOG_API_KEY:-}
       CJ_EMAIL: ${CJ_CATALOG_EMAIL:-}
+      # seo_plateform keyword research, read through infrastructure/acl/seo.
+      # DARK BY DEFAULT and it must stay dark until two things are true, because
+      # the platform behind it BUYS this data per seed from a pay-as-you-go
+      # provider — switching it on is what starts spending:
+      #   1. seo_plateform is reachable FROM THIS CONTAINER. The base/token URLs
+      #      below default to localhost, which inside a container means the
+      #      container itself, not the host. Pointing them at a host-run platform
+      #      needs the host address (172.17.0.1, or host.docker.internal with an
+      #      extra_hosts entry — this file has none today).
+      #   2. The provider account has credit. It ran dry mid-pull on 2026-08-24
+      #      after $0.64, and the platform surfaces that as 502 wrapping the
+      #      provider's 402 — not as a clean payment error.
+      # `file` reads the mounted export — costs nothing, needs no network and no
+      # identity provider, and is what makes the data already bought usable here.
+      # `platform` buys live and is what ENABLED below gates.
+      LITEMALL_SEO_RESEARCH_SOURCE: ${LITEMALL_SEO_RESEARCH_SOURCE:-file}
+      LITEMALL_SEO_RESEARCH_FILE: /app/seo-export/category-keywords-clean.csv
+      LITEMALL_SEO_RESEARCH_ENABLED: ${LITEMALL_SEO_RESEARCH_ENABLED:-false}
+      LITEMALL_SEO_RESEARCH_BASE_URL: ${LITEMALL_SEO_RESEARCH_BASE_URL:-}
+      LITEMALL_SEO_RESEARCH_TOKEN_URI: ${LITEMALL_SEO_RESEARCH_TOKEN_URI:-}
+      LITEMALL_SEO_RESEARCH_CLIENT_ID: ${LITEMALL_SEO_RESEARCH_CLIENT_ID:-litemall-goods}
+      LITEMALL_SEO_RESEARCH_CLIENT_SECRET: ${LITEMALL_SEO_RESEARCH_CLIENT_SECRET:-}
+      LITEMALL_SEO_RESEARCH_LOCATION: ${LITEMALL_SEO_RESEARCH_LOCATION:-2826}
+      LITEMALL_SEO_RESEARCH_LANGUAGE: ${LITEMALL_SEO_RESEARCH_LANGUAGE:-en}
       # Wave 24 (EUR storefront) — the flip trio's goods half. currency feeds
       # /srv/goods/meta JSON-LD + meta-catalog.csv (litemall.goods.currency,
       # env-bound since Wave 13); fx is the CONTRACT-frozen shared rate the

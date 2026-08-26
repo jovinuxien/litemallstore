@@ -95,6 +95,8 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/goods/promo-candidates', title: 'Promo suggestions', wired: true },
       // Wave 22: search demand analytics (goods-management insight backend).
       { path: '/admin/goods/search-stats', title: 'Search analytics', wired: true },
+      // On-page SEO: over-length product titles (goods-management seo backend).
+      { path: '/admin/goods/seo-titles', title: 'SEO titles', wired: true },
       // Wave 14: inventory governance (goods-management insight backend).
       { path: '/admin/goods/retire', title: 'Retirement', wired: true },
       { path: '/admin/goods/arrivals', title: 'New arrivals', wired: true },
