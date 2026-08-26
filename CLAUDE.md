@@ -2191,14 +2191,36 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — footer audit fixes + EU stock MERGED (deploy pending)
+### Worktree: `gateway-api` — footer audit fixes + EU stock SHIPPED + LIVE
 - **No active assignment.** Launch with FRESH=1 only after a new wave is
   commissioned and this block is rewritten.
-- **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED to master `d2f76c418`
-  + pushed. NOT YET DEPLOYED** (gateway-api container only; no migration, no
-  backend change, no reindex). jest 40 suites / 274 tests (was 35/237), tsc 0
-  errors, prod build clean. Commits `b5e8d7004` (copy/nav) + `0469129b8`
-  (EU stock + empty facets).
+- **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED + LIVE on
+  trovemo.com.** Commits `b5e8d7004` (copy/nav) + `0469129b8` (EU stock +
+  empty facets), merged `0bba2e553`, pushed. jest 40 suites / 274 tests (was
+  35/237), tsc 0 errors, prod build clean. No migration, no backend change,
+  no reindex.
+  ⚠ **I did NOT build the container — it was already deployed when I went to
+  do it.** Another session recreated gateway-api at 13:32 UTC from a master
+  that had merged mine underneath (`311db0256`, an admin fix, is a descendant
+  of `0bba2e553`), so my code shipped inside their build. **Always check the
+  live bundle for your own strings BEFORE building** — the container being
+  "Up 3 hours" says nothing about which commit is in it. Verified live by
+  content: `main.8859a4fc…` carries "Best sellers" and none of the removed
+  copy; the EU chip is in 12 ProductCard chunks; chunk 1643 carries `eu_flag`,
+  "In EU stock", "Delivery", "last stock check", plus `entryCount`/`fieldName`
+  from facetVisibility. Smoke: 15 routes + robots/sitemap/meta-catalog all
+  200, `eu_flag=1` → 921 of 4,239 through the edge, deal_flag → 12, PDP
+  JSON-LD intact, container healthy with 0 errors in 3h of log.
+  ⚠ **The brand facet went EMPTY live during this session** — the peer's
+  reindex (4,214 docs) landed and `brand` is now ABSENT from `filters[]`
+  entirely, not merely empty. That is exactly the case `shouldShowFacet`
+  hides, and it was hiding nothing before this shipped.
+  ⚠ **Disk: I pruned ALL 18 G of build cache** (`docker builder prune -af`,
+  the script's own remedy) because the host was at **13 G free against
+  `litemall-prod.sh`'s `MIN_DISK_GB=30`** — the guard exists because "a build
+  filled the disk to 100% once and OOM-killed half the containers". Host is
+  now 33 G free. Cost: the next build on this host is cold. The audit's
+  "a few more single-service builds and this needs a real decision" arrived.
   User-commissioned: check the footer links, then track what is missing.
   **All 24 footer links resolve** — no dead links, no 404s, no placeholder
   pages, and the Wave-26 availability gating correctly hides Topics/Articles/

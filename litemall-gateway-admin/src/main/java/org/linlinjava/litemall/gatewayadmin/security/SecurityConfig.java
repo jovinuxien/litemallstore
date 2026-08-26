@@ -88,7 +88,22 @@ public class SecurityConfig {
                         // admin dashboard). Gated to ADMIN so the validated identity
                         // is relayed downstream; the order service owns the logic.
                         .pathMatchers("/srv/order/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
-                        .pathMatchers("/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
+                        // /admin/** are the React router's CLIENT routes, not an API. The only
+                        // thing served there is the SPA shell (SpaWebFilter rewrites them to
+                        // /index.html), which is the same public HTML already served at "/".
+                        //
+                        // This used to require ADMIN, and that broke every deep link into the
+                        // console: a browser navigation carries no Authorization header — the
+                        // SPA attaches the JWT to API calls from JS — so a bookmark, an F5, or
+                        // a link opened in a new tab got a bare 401 with a Basic-auth challenge
+                        // and the user saw a login prompt. Security also runs BEFORE
+                        // SpaWebFilter, so no rewrite could rescue it.
+                        //
+                        // Nothing is exposed by permitting it: every byte of admin DATA lives
+                        // under /srv/private/admin/**, still ADMIN-gated two lines above, and
+                        // the SPA's PrivateRoute still decides what renders. Same model the
+                        // storefront edge already uses for its own routes.
+                        .pathMatchers("/admin/**").permitAll()
                         .pathMatchers("/srv/private/**").authenticated()
                         // Wallet ops (balance/debit/recharge/extract) are
                         // identity-sensitive: require a valid JWT so
