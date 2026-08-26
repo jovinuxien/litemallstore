@@ -1705,6 +1705,39 @@
   (`LitemallProductIndexingService` 2 / `SupplierTitle` 2 / `BrandDisplayPolicy` 0).
   ⚠ `pgrep -f "compose.*build goods-management"` **self-matches the polling loop's
   own command line** — it reported "still building" after the image was done.
+  **PEER MERGE `19b3d496d` DEPLOYED TOO 2026-08-26** (user asked for it after the
+  brand fix landed): goods-management + gateway-admin rebuilt at that commit and
+  recreated, both healthy in ~30s, 0 errors. Ships the peer's SEO keyword-research
+  backend (`TitleProposer`/`SeoPlatformKeywordClient`/`AdminSeoController`), the
+  admin "SEO titles" worklist, and a real **CJ credential-leak fix**
+  (`CJAuthenticationClient` was `System.out.println`-ing the supplied AND configured
+  CJ email + API key on a mismatch — and goods-management is the one service with
+  file logging). Prod check before deploying: **0 occurrences** of the leak marker in
+  `/app/logs` or the json-file logs — and `/app/logs` is a tmpfs, so nothing
+  historical survives a recreate. No rotation appears necessary.
+  Tests at `19b3d496d`: **543 run / 0 failures / 8 skipped** (my 515 + their 28).
+  The SEO feature is **DARK BY DEFAULT** and was deployed that way: `SOURCE=file`,
+  `ENABLED=false`, and `.env.prod` has **no `LITEMALL_SEO_*` keys at all**, so
+  defaults apply. The new `${LITEMALL_SEO_EXPORT_DIR:-./seo-export}` bind mount
+  landed read-only and the host dir is EMPTY — the provider warns once and serves
+  nothing, which is the designed fail-soft. Turning it on is a USER decision: the
+  platform behind it BUYS each uncached seed pay-as-you-go.
+  My brand fix re-verified AFTER the rebuild: facet still ABSENT, autocomplete still
+  `[]`. NO second reindex needed (indexing logic identical between the two commits).
+  Peer SEO admin endpoints answer 401 through the edge (routed + auth-gated), and the
+  live admin bundle `main.2d4638f1.js` carries `seo-titles`.
+  ⚠ **`/opt/litemall` is SHARED MUTABLE STATE.** A peer ran `git pull --ff-only`
+  on it twice DURING this work, moving detached HEAD 663ac54e9 → 19b3d496d →
+  179ababb9; my own `git checkout 19b3d496d` was a silent no-op because HEAD was
+  already there. Harmless here only because `19b3d496d..179ababb9` has ZERO diff in
+  goods-management, gateway-admin and the compose file — checked, not assumed.
+  Verify a deploy by IMAGE CONTENT and live behaviour, never by what the checkout
+  says now.
+  ⚠ **Grepping a jar proves different things for different targets.** Class names sit
+  uncompressed in the zip central directory, so `grep -c <ClassName> app.jar` works;
+  strings INSIDE a minified JS asset are DEFLATE-compressed, so a 0 there is
+  INCONCLUSIVE, not absence. The admin UI had to be verified from the live bundle.
+  ⚠ Disk fell 25G → 16G across the two builds (79% used). Prune before the next one.
   ⚠ Pre-existing, NOT from this deploy: `promotion-service` has now been unhealthy
   for ~2.5 weeks. Still untouched; still needs its own look.
   ⚠ **DEPLOY NEEDED A FULL REINDEX** — the fix only changes what future documents
