@@ -19,12 +19,13 @@ const RESERVED_KEYS = new Set(['q', 'sort', 'page']);
 // An InstantSearch range refinement serialises as "min:max" (either side open).
 const RANGE_SHAPE = /^-?\d*(?:\.\d+)?:-?\d*(?:\.\d+)?$/;
 // Facets driven by a <ToggleRefinement> widget (uiState `toggle` slice, NOT
-// `refinementList`) — routed as `<attr>=1` so `/search?coupon_flag=1` and
-// `/search?groupon_flag=1` (Wave-21 "Group buy") are shareable deep-links
-// (the /coupons center's "find couponed products" preset pattern).
+// `refinementList`) — routed as `<attr>=1` so `/search?coupon_flag=1`,
+// `/search?groupon_flag=1` (Wave-21 "Group buy") and `/search?eu_flag=1`
+// (Wave-27 EU stock) are shareable deep-links (the /coupons center's "find
+// couponed products" preset pattern).
 // Without this mapping the param would land in refinementList, which no
 // mounted widget consumes, and InstantSearch would silently drop it.
-const TOGGLE_FACETS = new Set(['coupon_flag', 'groupon_flag']);
+const TOGGLE_FACETS = new Set(['coupon_flag', 'groupon_flag', 'eu_flag']);
 
 export const searchRouting = {
   router: historyRouter<Route>(),

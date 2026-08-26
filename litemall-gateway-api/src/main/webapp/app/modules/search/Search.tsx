@@ -25,6 +25,7 @@ import 'app/components/userComponents/card/product-card.scss';
 
 import CategoryTree from './instantsearch/CategoryTree';
 import { emptyStateCopy, hasRefinements } from './instantsearch/emptyStateCopy';
+import { FacetGroupMeta, FacetProbeStatus, readFacetGroups, shouldShowFacet } from './instantsearch/facetVisibility';
 import CatalogTreeNav from './instantsearch/CatalogTreeNav';
 import ProductHit from './instantsearch/ProductHit';
 import SearchUnavailableState from './instantsearch/SearchUnavailableState';
@@ -89,8 +90,17 @@ const prettySortLabel = (label: string): string => {
 // Facets rendered explicitly (with custom labels / a range control) above, plus
 // `category_names` which is the same data as the explicit `category_ids` facet
 // (by name instead of id) — showing both would duplicate the Category filter.
-// `coupon_flag` / `groupon_flag` have their own toggles in the Offers section.
-const KNOWN_FACETS = new Set(['category_ids', 'category_names', 'brand', 'price', 'coupon_flag', 'groupon_flag']);
+// `coupon_flag` / `groupon_flag` have their own toggles in the Offers section,
+// `eu_flag` its own toggle under Delivery.
+const KNOWN_FACETS = new Set([
+  'category_ids',
+  'category_names',
+  'brand',
+  'price',
+  'coupon_flag',
+  'groupon_flag',
+  'eu_flag',
+]);
 
 // "attr_material" / "screen_size" -> "Material" / "Screen Size" for facet headers.
 const humanizeFacet = (field: string): string =>
@@ -101,7 +111,64 @@ const humanizeFacet = (field: string): string =>
     .replace(/\b\w/g, c => c.toUpperCase())
     .trim() || field;
 
-type FacetGroupMeta = { field: string; type: string };
+/**
+ * ONE probe of the backend's facet groups, shared by the explicit Brand section
+ * and the dynamic ones so they cannot disagree about what the index holds.
+ *
+ * Scoped on /category/:id so only groups that actually occur in this category
+ * are offered (no dead "Material" list on a furniture category).
+ */
+const useFacetGroups = (categoryId?: string): { groups: FacetGroupMeta[]; status: FacetProbeStatus } => {
+  const [groups, setGroups] = useState<FacetGroupMeta[]>([]);
+  const [status, setStatus] = useState<FacetProbeStatus>('pending');
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus('pending');
+    baseAxios
+      .get(`${BASE_URL_CONTEXT}/search?q=&page=1&size=1${categoryId ? `&category_ids=${encodeURIComponent(categoryId)}` : ''}`)
+      .then(res => {
+        if (cancelled) return;
+        setGroups(readFacetGroups(res.data?.data ?? res.data ?? {}));
+        setStatus('ready');
+      })
+      .catch(() => {
+        // Fail OPEN: an unreachable probe leaves the rail as it was rather than
+        // stripping filters the index may well still have.
+        if (!cancelled) setStatus('failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [categoryId]);
+
+  return { groups, status };
+};
+
+/** True when the user has a refinement on `attribute` right now. */
+const useIsRefined = (attribute: string): boolean => {
+  const { indexUiState } = useInstantSearch();
+  const list = (indexUiState.refinementList ?? {})[attribute];
+  return Array.isArray(list) && list.length > 0;
+};
+
+/**
+ * The Brand section, rendered only when the brand facet has values (or the
+ * probe failed, or a brand refinement is active). See facetVisibility.ts —
+ * goods-management now excludes uncurated supplier names from the facet, so
+ * this heading is the one most likely to end up standing over nothing.
+ */
+const BrandFacet: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
+  const { groups, status } = useFacetGroups(categoryId);
+  const refined = useIsRefined('brand');
+  if (!shouldShowFacet({ status, groups, field: 'brand', refined })) return null;
+  return (
+    <section className="lm-isearch__facet">
+      <h3>Brand</h3>
+      <RefinementList attribute="brand" limit={8} showMore />
+    </section>
+  );
+};
 
 /**
  * Renders one refinement per facet group the backend returns BEYOND the three
@@ -119,30 +186,13 @@ type FacetGroupMeta = { field: string; type: string };
  * RefinementList.
  */
 const DynamicExtraFacets: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
-  const [groups, setGroups] = useState<FacetGroupMeta[]>([]);
+  const { groups, status } = useFacetGroups(categoryId);
 
-  useEffect(() => {
-    let cancelled = false;
-    baseAxios
-      // Scope the probe on /category/:id so only facet groups that actually
-      // occur in this category are offered (no dead "Material" list on, say,
-      // a furniture category).
-      .get(`${BASE_URL_CONTEXT}/search?q=&page=1&size=1${categoryId ? `&category_ids=${encodeURIComponent(categoryId)}` : ''}`)
-      .then(res => {
-        const d = res.data?.data ?? res.data ?? {};
-        const raw: any[] = Array.isArray(d.filters) ? d.filters : Array.isArray(d.facetGroups) ? d.facetGroups : [];
-        const metas = raw.map(g => ({ field: g.field ?? g.fieldName ?? '', type: g.type ?? 'term' })).filter(g => g.field);
-        if (!cancelled) setGroups(metas);
-      })
-      .catch(() => {
-        /* leave the dynamic section empty; the explicit facets still render */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [categoryId]);
-
-  const extra = groups.filter(g => !KNOWN_FACETS.has(g.field));
+  // A group with no buckets used to render a heading over an empty list: the
+  // old filter checked only that the backend NAMED the field. `status` is
+  // irrelevant here — a failed probe yields no groups at all, so there is
+  // nothing to render either way.
+  const extra = groups.filter(g => !KNOWN_FACETS.has(g.field) && shouldShowFacet({ status, groups, field: g.field }));
   if (!extra.length) return null;
   return (
     <>
@@ -349,7 +399,9 @@ const SearchView: React.FC = () => {
             ? 'Category'
             : item.attribute === 'coupon_flag' || item.attribute === 'groupon_flag'
               ? 'Offers'
-              : item.label,
+              : item.attribute === 'eu_flag'
+                ? 'Delivery'
+                : item.label,
         refinements: item.refinements.map((r: any) => ({
           ...r,
           label:
@@ -359,7 +411,9 @@ const SearchView: React.FC = () => {
                 ? 'Has coupon'
                 : item.attribute === 'groupon_flag'
                   ? 'Group buy'
-                  : r.label,
+                  : item.attribute === 'eu_flag'
+                    ? 'In EU stock'
+                    : r.label,
         })),
       })),
     [categoryNames]
@@ -407,10 +461,7 @@ const SearchView: React.FC = () => {
               </>
             )}
 
-            <section className="lm-isearch__facet">
-              <h3>Brand</h3>
-              <RefinementList attribute="brand" limit={8} showMore />
-            </section>
+            <BrandFacet categoryId={params.id} />
 
             <section className="lm-isearch__facet">
               <h3>Price</h3>
@@ -426,6 +477,16 @@ const SearchView: React.FC = () => {
               <h3>Offers</h3>
               <ToggleRefinement attribute="coupon_flag" on={1} label="Has coupon" />
               <ToggleRefinement attribute="groupon_flag" on={1} label="Group buy" />
+            </section>
+
+            {/* Wave-27 eu_flag. Its own section, NOT "Offers": EU stock is where
+                the goods are, not a price. The label states the measurement —
+                the flag records what the last inventory probe found, and 0 means
+                "not known to hold EU stock" (unprobed and probed-empty are
+                indistinguishable), so there is deliberately no inverse toggle. */}
+            <section className="lm-isearch__facet">
+              <h3>Delivery</h3>
+              <ToggleRefinement attribute="eu_flag" on={1} label="In EU stock" />
             </section>
 
             {/* Every other facet group the backend returns (attributes, variant

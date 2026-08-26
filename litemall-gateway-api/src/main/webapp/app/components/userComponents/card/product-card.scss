@@ -276,6 +276,27 @@
     color: var(--lm-success);
   }
 
+  // Wave 27: measured EU-warehouse stock. A logistics line, not a badge — it
+  // sits with free shipping rather than in the offer chips, because it is a
+  // fact about where the goods are and must never displace a deal. Same green
+  // family as the PDP's eustock pill, at card scale.
+  &__eustock {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1b5e20;
+  }
+
+  &__eustock-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #2e7d32;
+    flex: none;
+  }
+
   // Footer: single CTA pinned to the card bottom so footers align across a
   // grid row regardless of title/meta height. Layered above the stretched
   // title link so the button, not navigation, wins the click.
