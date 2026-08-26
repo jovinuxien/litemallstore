@@ -6,6 +6,8 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.linlinjava.litemall.db.dao.PageMapper;
 import org.linlinjava.litemall.db.domain.LitemallPage;
+import org.linlinjava.litemall.goods.domain.service.elastic.SeasonSignalResolver;
+import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallSeasonProperties;
 import org.linlinjava.litemall.goods.domain.content.PageConfigValidator;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -36,9 +38,15 @@ public class PageService {
 
     private final PageMapper pageMapper;
     private final ObjectMapper objectMapper;
+    private final SeasonSignalResolver seasonSignalResolver;
+    private final LitemallSeasonProperties seasonProperties;
     private final PageConfigValidator validator;
 
-    public PageService(PageMapper pageMapper, ObjectMapper objectMapper) {
+    public PageService(PageMapper pageMapper, ObjectMapper objectMapper,
+                       SeasonSignalResolver seasonSignalResolver,
+                       LitemallSeasonProperties seasonProperties) {
+        this.seasonSignalResolver = seasonSignalResolver;
+        this.seasonProperties = seasonProperties;
         this.pageMapper = pageMapper;
         this.objectMapper = objectMapper;
         this.validator = new PageConfigValidator(objectMapper);
@@ -227,9 +235,72 @@ public class PageService {
         // Wave-20: promotion's Postiz page-source reads this to refuse groupon-category
         // pages until Phase 3 (priced submit); additive for the SPA renderer.
         vo.put("category", page.getCategory());
-        vo.put("components", parseConfig(page).getOrDefault("components", List.of()));
+        vo.put("components", resolveSeasonRails(
+                parseConfig(page).getOrDefault("components", List.of())));
         vo.put("updateTime", page.getUpdateTime());
         return vo;
+    }
+
+
+    /**
+     * Resolves any {@code mode=season} goods rail into the {@code byIds} shape the storefront
+     * already renders.
+     *
+     * <p><b>Why the payload is rewritten here.</b> Rail modes are resolved by the storefront, so a
+     * new mode would normally need a matching change in gateway-api before anything appeared. This
+     * seam is the single assembly point for every page payload, so resolving here lights the
+     * feature up with today's storefront build and no cross-module dependency. The served rail
+     * carries {@code resolvedFrom: "season"} so the payload is honest about the rewrite instead of
+     * pretending an admin typed those ids.
+     *
+     * <p>A stated follow-up, not a silent compromise: gateway-api should eventually render
+     * {@code mode=season} natively by querying {@code seasons=<key>}, which would also let the
+     * storefront sort and paginate a season itself.
+     *
+     * <p><b>An unresolvable rail is DROPPED, not emptied.</b> A season with no members must leave
+     * no trace on the page — the storefront's own degrade rule is that a season shows a strip or
+     * nothing, never an empty grid.
+     */
+    @SuppressWarnings("unchecked")
+    private Object resolveSeasonRails(Object components) {
+        if (!(components instanceof List<?> list) || seasonSignalResolver == null) {
+            return components;
+        }
+        List<Object> out = new ArrayList<>(list.size());
+        for (Object component : list) {
+            if (!(component instanceof Map<?, ?> raw)) {
+                out.add(component);
+                continue;
+            }
+            Map<String, Object> map = (Map<String, Object>) raw;
+            Object config = map.get("config");
+            if (!"goods-list".equals(map.get("type")) || !(config instanceof Map<?, ?> cfgRaw)) {
+                out.add(component);
+                continue;
+            }
+            Map<String, Object> cfg = (Map<String, Object>) cfgRaw;
+            if (!"season".equals(cfg.get("mode"))) {
+                out.add(component);
+                continue;
+            }
+            String seasonKey = cfg.get("seasonKey") == null ? null : String.valueOf(cfg.get("seasonKey"));
+            int limit = cfg.get("maxItems") instanceof Number n
+                    ? Math.max(1, n.intValue())
+                    : seasonProperties.getPerSeasonCap();
+            List<Integer> ids = seasonSignalResolver.publishedGoodsIds(seasonKey, limit);
+            if (ids.isEmpty()) {
+                // Dropped on purpose — see the degrade rule above.
+                continue;
+            }
+            Map<String, Object> resolvedCfg = new LinkedHashMap<>(cfg);
+            resolvedCfg.put("mode", "byIds");
+            resolvedCfg.put("goodsIds", ids);
+            resolvedCfg.put("resolvedFrom", "season");
+            Map<String, Object> resolved = new LinkedHashMap<>(map);
+            resolved.put("config", resolvedCfg);
+            out.add(resolved);
+        }
+        return out;
     }
 
     /** Config was validated at write time; a parse failure here is logged, never a 5xx. */

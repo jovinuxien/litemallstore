@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.linlinjava.litemall.db.dao.LitemallSeasonRuleMapper">
+
+  <resultMap id="BaseResultMap" type="org.linlinjava.litemall.db.domain.LitemallSeasonRule">
+    <id column="id" jdbcType="INTEGER" property="id"/>
+    <result column="season_key" jdbcType="VARCHAR" property="seasonKey"/>
+    <result column="name" jdbcType="VARCHAR" property="name"/>
+    <result column="window_start_md" jdbcType="VARCHAR" property="windowStartMd"/>
+    <result column="window_end_md" jdbcType="VARCHAR" property="windowEndMd"/>
+    <result column="terms" jdbcType="VARCHAR" property="terms"/>
+    <result column="category_ids" jdbcType="VARCHAR" property="categoryIds"/>
+    <result column="price_min" jdbcType="DECIMAL" property="priceMin"/>
+    <result column="price_max" jdbcType="DECIMAL" property="priceMax"/>
+    <result column="weights" jdbcType="VARCHAR" property="weights"/>
+    <result column="enabled" jdbcType="BIT" property="enabled"/>
+    <result column="add_time" jdbcType="TIMESTAMP" property="addTime"/>
+    <result column="update_time" jdbcType="TIMESTAMP" property="updateTime"/>
+    <result column="deleted" jdbcType="BIT" property="deleted"/>
+  </resultMap>
+
+  <sql id="Base_Column_List">
+    id, season_key, name, window_start_md, window_end_md, terms, category_ids,
+    price_min, price_max, weights, enabled, add_time, update_time, deleted
+  </sql>
+
+  <select id="selectAll" resultMap="BaseResultMap">
+    select <include refid="Base_Column_List"/>
+    from litemall_season_rule
+    where deleted = 0
+    <if test="enabledOnly">
+      and enabled = 1
+    </if>
+    order by enabled desc, season_key asc
+  </select>
+
+  <select id="selectByKey" resultMap="BaseResultMap">
+    select <include refid="Base_Column_List"/>
+    from litemall_season_rule
+    where season_key = #{seasonKey} and deleted = 0
+    limit 1
+  </select>
+
+  <!-- season_key is identity and never moves; only the tunable fields are patched. -->
+  <update id="updateByKey" parameterType="org.linlinjava.litemall.db.domain.LitemallSeasonRule">
+    update litemall_season_rule
+    <set>
+      <if test="name != null">name = #{name},</if>
+      <if test="windowStartMd != null">window_start_md = #{windowStartMd},</if>
+      <if test="windowEndMd != null">window_end_md = #{windowEndMd},</if>
+      <if test="terms != null">terms = #{terms},</if>
+      <if test="categoryIds != null">category_ids = #{categoryIds},</if>
+      <if test="priceMin != null">price_min = #{priceMin},</if>
+      <if test="priceMax != null">price_max = #{priceMax},</if>
+      <if test="weights != null">weights = #{weights},</if>
+      <if test="enabled != null">enabled = #{enabled},</if>
+      update_time = now()
+    </set>
+    where season_key = #{seasonKey} and deleted = 0
+  </update>
+
+</mapper>

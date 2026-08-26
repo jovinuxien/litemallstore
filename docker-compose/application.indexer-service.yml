@@ -176,6 +176,23 @@ ocs:
               - Result
               - Filter
 
+          # Seasonal membership: which seasons publish this product, e.g. ["autumn","winter"].
+          # MULTI-VALUED (like category_names), not a flag: a product can belong to more than one
+          # season, and a page needs to know WHICH season rather than that some season applies.
+          # Facet powers `?seasons=autumn`, the query a season rail resolves against; Result lets a
+          # card badge the season it came from.
+          # NOTE: unlike the 0/1 flags there is no "always-emit" value to fall back on — an empty
+          # list is the common case. OCS materialises a field's mapping only once a document has
+          # held it, so the deploy runs the scorer BEFORE the full reindex; a sentinel value would
+          # guarantee materialisation but pollute this facet with a junk entry.
+          seasons:
+            name: seasons
+            type: string
+            usage:
+              - Result
+              - Facet
+              - Filter
+
           # Live flash-deal signals (price-swap lifecycle) — emitted only while a deal is live.
           # deal_active: Filter (deal_active=1 scopes "live deals only"); deal_end_epoch: Sort
           # (sort=deal_end_epoch = "ending soon") + Result (card countdown); deal_claimed_pct:
@@ -241,14 +258,14 @@ ocs:
           - name: attribute_string
             type: string
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|eu_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|eu_flag|seasons|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result
           - name: attribute_number
             type: number
             source-names:
-              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|eu_flag|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
+              - '^(?!(product_id|title|price|discount_price|description|image_url|brand|category_names|category_ids|source|listed_num|review_count|rating|created_epoch|discount_pct|deal_flag|coupon_flag|groupon_flag|eu_flag|seasons|deal_active|deal_end_epoch|deal_claimed_pct|deal_urgency)$).*$'
             usage:
               - Facet
               - Result

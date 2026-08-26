@@ -32,12 +32,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 public class FlywayMigrationTest {
 
-    // Hand-maintained floor: V63 (season page template, Wave 27; previously V62
+    // Hand-maintained floor: V64 (season candidacy — the season_rule + season_candidate
+    // tables; previously V63, season page template, Wave 27
     // CJ delisting strikes, Wave 26) is the latest known migration ON THIS
     // BRANCH; numbering contiguous, so the SCRIPT COUNT equals the version: 63.
     // Being a floor it still passes when it drifts, so it only asserts what it
     // is raised to — bump it when you add a migration.
-    private static final int MIN_EXPECTED_MIGRATIONS = 63;
+    private static final int MIN_EXPECTED_MIGRATIONS = 64;
 
     @SuppressWarnings("resource")
     private static final MySQLContainer<?> MYSQL =
@@ -155,6 +156,12 @@ public class FlywayMigrationTest {
             {"litemall_cj_product",   "warehouse_countries"},
             // V62: authoritative delisting evidence (Wave 26)
             {"litemall_cj_product",   "delisted_strikes"},
+            // V64: season candidacy. The candidate row carries BOTH the config hash and the
+            // weights snapshot — the hash alone would resolve to nothing once a rule is edited.
+            {"litemall_season_rule",      "season_key"},
+            {"litemall_season_rule",      "weights"},
+            {"litemall_season_candidate", "season_key"},
+            {"litemall_season_candidate", "config_snapshot"},
         };
 
         try (var conn = MYSQL.createConnection("")) {

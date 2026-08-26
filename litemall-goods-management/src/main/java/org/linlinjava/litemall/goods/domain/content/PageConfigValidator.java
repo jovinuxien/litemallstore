@@ -32,7 +32,11 @@ public final class PageConfigValidator {
     // "deals" (palette v1.1): renderer resolves /srv/search?deal_flag=1 — discounted goods,
     // deepest-and-most-popular first via the searcher's discount_pct scoring. Same degrade
     // rule R1 as every strip: no resolvable data ⇒ skip, never an error.
-    private static final Set<String> GOODS_LIST_MODES = Set.of("byIds", "byCategory", "hot", "new", "deals");
+    // "season" (season candidacy): the rail resolves server-side in PageService against the
+    // multi-valued `seasons` index field, so a season page keeps itself current instead of
+    // carrying a hand-typed id list that nothing can update.
+    private static final Set<String> GOODS_LIST_MODES =
+            Set.of("byIds", "byCategory", "hot", "new", "deals", "season");
     // "groupon-strip" (palette v1.1, Wave 20): renderer resolves
     // /srv/promotion/combination/active. Degrade rule R1 as every strip.
     private static final Set<String> KNOWN_TYPES = Set.of(
@@ -224,6 +228,12 @@ public final class PageConfigValidator {
                 }
             }
         }
+        if ("season".equals(mode)) {
+            JsonNode key = config.get("seasonKey");
+            if (key == null || !key.isTextual() || key.asText().isBlank()) {
+                return prefix(i, "goods-list") + "mode=season requires a seasonKey";
+            }
+        }
         if ("byCategory".equals(mode)) {
             JsonNode categoryId = config.get("categoryId");
             if (categoryId == null || !categoryId.isIntegralNumber() || categoryId.asLong() <= 0) {
@@ -376,8 +386,10 @@ public final class PageConfigValidator {
                                         "itemFields", List.of(
                                                 field("image", "string", true, Map.of()),
                                                 field("link", "string", false, Map.of())))))),
-                        component("goods-list", "Goods rail (byIds|byCategory|hot|new|deals)", List.of(
-                                field("mode", "enum", true, Map.of("values", List.of("byIds", "byCategory", "hot", "new", "deals"))),
+                        component("goods-list", "Goods rail (byIds|byCategory|hot|new|deals|season)", List.of(
+                                field("mode", "enum", true, Map.of("values", List.of("byIds", "byCategory", "hot", "new", "deals", "season"))),
+                                field("seasonKey", "string", false, Map.of("requiredWhen", "mode=season",
+                                        "description", "autumn | winter | spring | summer, or any configured season")),
                                 field("goodsIds", "int[]", false, Map.of(
                                         "requiredWhen", "mode=byIds", "minItems", 1, "maxItems", 24)),
                                 field("categoryId", "int", false, Map.of("requiredWhen", "mode=byCategory")),
