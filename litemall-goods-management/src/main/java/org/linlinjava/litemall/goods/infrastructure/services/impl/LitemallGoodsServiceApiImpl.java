@@ -3,6 +3,7 @@ package org.linlinjava.litemall.goods.infrastructure.services.impl;
 import org.linlinjava.litemall.core.qcode.QCodeService;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.db.service.LitemallCartService;
+import org.linlinjava.litemall.goods.domain.brand.BrandDisplayPolicy;
 import org.linlinjava.litemall.goods.domain.model.aggregates.*;
 import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsAllInOne;
 import org.linlinjava.litemall.goods.domain.model.repositories.*;
@@ -240,9 +241,7 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
                 return;
             }
             org.linlinjava.litemall.db.domain.LitemallBrand brand = brandRowService.findById(brandId);
-            if (brand == null
-                    || Boolean.TRUE.equals(brand.getDeleted())
-                    || !Boolean.TRUE.equals(brand.getDisplayEnabled())) {
+            if (!BrandDisplayPolicy.isDisplayable(brand)) {
                 return;
             }
             Map<String, Object> brandInfo = new HashMap<>();

@@ -7,6 +7,7 @@ import org.linlinjava.litemall.db.domain.LitemallGoodsProduct;
 import org.linlinjava.litemall.db.domain.LitemallGoodsProductExample;
 import org.linlinjava.litemall.db.service.LitemallBrandService;
 import org.linlinjava.litemall.db.service.LitemallGoodsService;
+import org.linlinjava.litemall.goods.domain.brand.BrandDisplayPolicy;
 import org.linlinjava.litemall.goods.infrastructure.configuration.LitemallGoodsProperties;
 import org.linlinjava.litemall.goods.infrastructure.configuration.PublicSiteProperties;
 import org.slf4j.Logger;
@@ -263,10 +264,7 @@ public class MetaCatalogFeedService {
         }
         return cache.computeIfAbsent(brandId, id -> {
             LitemallBrand brand = brandService.findById(id);
-            if (brand == null
-                    || Boolean.TRUE.equals(brand.getDeleted())
-                    || !Boolean.TRUE.equals(brand.getDisplayEnabled())
-                    || brand.getKind() == null || brand.getKind() != 0) {
+            if (!BrandDisplayPolicy.isConsumerBrand(brand)) {
                 return "";
             }
             return HtmlText.clean(brand.getName());

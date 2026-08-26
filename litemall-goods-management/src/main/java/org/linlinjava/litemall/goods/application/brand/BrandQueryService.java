@@ -2,6 +2,7 @@ package org.linlinjava.litemall.goods.application.brand;
 
 import org.linlinjava.litemall.db.domain.LitemallBrand;
 import org.linlinjava.litemall.db.service.LitemallBrandService;
+import org.linlinjava.litemall.goods.domain.brand.BrandDisplayPolicy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -45,9 +46,7 @@ public class BrandQueryService {
             return null;
         }
         LitemallBrand brand = brandService.findById(id);
-        if (brand == null
-                || Boolean.TRUE.equals(brand.getDeleted())
-                || !Boolean.TRUE.equals(brand.getDisplayEnabled())) {
+        if (!BrandDisplayPolicy.isDisplayable(brand)) {
             return null;
         }
         brandService.attachGoodsCounts(List.of(brand));
