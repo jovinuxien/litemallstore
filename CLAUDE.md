@@ -1535,8 +1535,53 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (mail-currency fix SHIPPED 2026-08-18)
+### Worktree: `order` — idle (mail design refactor SHIPPED 2026-08-26)
 - **No active assignment.**
+- **Status 2026-08-26 — CUSTOMER MAIL DESIGN: every lifecycle mail wears the
+  storefront design.** Branch commit `66f0a1296`; module tests 291 run / 0
+  failures (was 279, +12 new). User-commissioned outside any wave.
+  Audit of the lifecycle found the real gap was NOT inside the two HTML
+  templates: of the four customer mails, only order-confirmation and shipped
+  had HTML at all — **pickup-code and refund-approved arrived as raw plain
+  text**, so half the lifecycle looked like a different company. Both now have
+  HTML twins built from the same shell, wired through a shared `safeHtml()`
+  that degrades to plain-text-only on any throwable (the contract
+  `renderConfirmationHtml` already had). Plain-text bodies are UNTOUCHED —
+  they stay the multipart fallback and the admin panel's view.
+  `MailHtmlTemplates` is now token-driven: the storefront's own `--lm-*`
+  values as constants (band `#0a5d65` — the site header is primary-DARK, the
+  mails were using primary; `#0e7c86` CTA, `#e3f2f3` soft, `#1f9d6b` success
+  for discounts, 10px card radius, the Amazon Ember stack) plus shared
+  builders. No style literal at a call site again — that is how the first two
+  templates drifted from the site and from each other.
+  ⚠ Three of the fixes are CORRECTNESS, not taste: every text node must name
+  its `font-family` (Outlook's Word engine does not inherit it from `<body>` —
+  headings were rendering in **Times**); each template opens with a hidden
+  preheader (else the inbox preview shows whatever copy fell first); the shell
+  declares `color-scheme: light` (Apple Mail / Outlook dark mode was free to
+  invert the card and the brand band). A test asserts the font invariant over
+  every sized node in all four templates, so a new call site cannot regress it.
+  Verified by rendering all six variants (4 templates + 2 degrade paths) to
+  HTML and screenshotting them headless — puppeteer-core + `/usr/bin/google-chrome`,
+  `NODE_PATH` pointed at the repo's node_modules, JDK 21 for the render harness
+  (`java` on PATH is 11 and cannot read core's class files). ⚠ puppeteer
+  `fullPage` stitches a SHORT page twice — the doubled screenshot is an
+  artifact, check the .html before believing it.
+  **DEPLOY = shared-module discipline** (litemall-core touched): `mvn install`
+  core, rebuild + restart EVERY dependent, verify the nested `BOOT-INF/lib`
+  copy. NO migration (schema stays V60), no reindex.
+  **RAISED, not touched (both outside this worktree's scope):**
+  1. `MailTemplates.passwordReset` is **dead code** — gateway-api's
+     `SmtpResetMailSender` sends its own hardcoded body, and the two disagree
+     (core's template says "open this link"; the live mail sends a 6-char
+     CODE). The reset mail is the one customer mail still arriving as raw
+     plain text, and restyling core's version would change nothing a customer
+     sees. Fix belongs to the gateway-api worktree, which deliberately takes
+     no code dependency on litemall-core.
+  2. The confirmation CTA points at `/order/:id`, a `CustomerProtectedRoute` —
+     Wave-16 guest buyers (password-less shadow accounts) are bounced to a
+     login wall from their own confirmation mail. The honest fix is a
+     tokenized guest order view = gateway-api work, not a template change.
 - **Status 2026-08-18 — MAIL CURRENCY HONESTY: order mails render EUR, not
   dollars.** MERGED to master `ec481fad8` + pushed (branch commit
   `f05238693`; module tests 279 run / 0 failures, +1 new). User-commissioned
