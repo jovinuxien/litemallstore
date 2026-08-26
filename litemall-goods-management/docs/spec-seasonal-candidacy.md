@@ -1,6 +1,7 @@
 # Spec — seasonal candidacy as an indexed signal (all four seasons)
 
-**STATUS: PLAN, awaiting approval. No code written.** Commissioned 2026-08-26 in the
+**STATUS: BUILT + MERGED (2026-08-26, `dcff54c67`). NOT YET DEPLOYED.**
+Approved and implemented as specified; the deviations are recorded in §14. Commissioned 2026-08-26 in the
 `goods-management` worktree. This is the contract a build codes to; it supersedes the looser
 proposal in the OCS review of the same day.
 
@@ -220,3 +221,23 @@ Order matters; two steps here have cost a deploy before.
 - gateway-api native `mode=season` rendering (§8 follow-up).
 - Southern-hemisphere windows.
 - Indexing a per-season score.
+
+## 14. As built — deviations from this plan
+
+Three details changed while building, all in the direction of removing a failure mode:
+
+1. **The cap moved to READ time.** The plan implied a publish step that capped as it wrote. That
+   has a re-run bug: rows already at `auto` do not re-enter the count, so a second run on the same
+   day publishes past the cap. `selectPublishedGoodsIds(season, cap)` ranks and caps on read, which
+   is idempotent however often the scorer runs. `SeasonSignalResolver` snapshots it on a 60s TTL,
+   the `EuStockSignalResolver` pattern.
+2. **A veto is carried forward explicitly.** The upsert guard only protects the row for the SAME
+   day, so a dismissal would have quietly expired on the next run. The scorer now checks
+   `countDismissed(season, goods)` across all days and re-writes the veto onto the new day's row.
+   Without this, "permanent" would have lasted until midnight.
+3. **Weights are clamped on parse** to `[1.0, 3.0]`. An admin editing a weight to 0 would otherwise
+   have zeroed every product in that season, because the score is multiplicative — the same reason
+   freshness is a bonus rather than a decay.
+
+Everything else shipped as written. Tests: module 574 run / 0 failures / 8 skipped;
+litemall-db 24/0 with V64 applied on a real MySQL container.
