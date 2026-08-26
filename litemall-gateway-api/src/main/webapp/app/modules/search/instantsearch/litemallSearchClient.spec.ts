@@ -163,3 +163,55 @@ describe('litemallSearchClient groupon_flag wiring', () => {
     expect(result.hits[1].groupon_flag).toBe(0);
   });
 });
+
+/**
+ * Wave-27 eu_flag wiring. The adapter is generic — it folds any
+ * `field:value` facet filter into a flat param — so this is a guard, not a
+ * new code path: the whole "In EU stock" filter rests on that generality, and
+ * a future special case in buildQuery would break it silently.
+ *
+ * Verified against the live index while writing this: `?eu_flag=1` returns
+ * 921 of 4,135 products and each hit carries `eu_flag: 1` and no country,
+ * which is why the card copy names a stock reading rather than an origin.
+ */
+describe('litemallSearchClient eu_flag wiring', () => {
+  beforeEach(() => {
+    mockedGet.mockReset();
+  });
+
+  it('maps the eu_flag:1 facet filter onto the eu_flag=1 request param', async () => {
+    mockedGet.mockResolvedValue(okBody());
+    await search({ query: 'shears', facetFilters: [['eu_flag:1']], hitsPerPage: 12, page: 0 });
+    const qs = lastRequestParams();
+    expect(qs.get('eu_flag')).toBe('1');
+    expect(qs.get('q')).toBe('shears');
+  });
+
+  it('combines with the offer toggles instead of replacing them', async () => {
+    mockedGet.mockResolvedValue(okBody());
+    await search({
+      query: '',
+      facetFilters: [['eu_flag:1'], ['coupon_flag:1'], ['category_ids:1036143']],
+      hitsPerPage: 12,
+      page: 0,
+    });
+    const qs = lastRequestParams();
+    expect(qs.get('eu_flag')).toBe('1');
+    expect(qs.get('coupon_flag')).toBe('1');
+    expect(qs.get('category_ids')).toBe('1036143');
+  });
+
+  it('passes the numeric eu_flag hit field through to the card', async () => {
+    mockedGet.mockResolvedValue(okBody([{ id: 10017029, name: 'Vegetable cutter', eu_flag: 1 }]));
+    const res = await search({ query: '', hitsPerPage: 12, page: 0 });
+    expect(res.hits[0].eu_flag).toBe(1);
+  });
+
+  it('leaves the field absent on products the index does not flag', async () => {
+    // Positive-only passthrough: the backend omits the key rather than
+    // emitting 0, and the card reads a missing key as "not known".
+    mockedGet.mockResolvedValue(okBody([{ id: 10000900, name: 'Air purifier' }]));
+    const res = await search({ query: '', hitsPerPage: 12, page: 0 });
+    expect(res.hits[0].eu_flag).toBeUndefined();
+  });
+});

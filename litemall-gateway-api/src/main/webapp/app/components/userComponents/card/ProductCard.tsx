@@ -92,6 +92,8 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
     couponFlag?: number | string;
     groupon_flag?: number | string;
     grouponFlag?: number | string;
+    eu_flag?: number | string;
+    euFlag?: number | string;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -118,6 +120,17 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   // source field `groupon_flag`, 1 = an ACTIVE combination campaign covers
   // this product; missing (old docs / non-search DTOs) means 0.
   const hasGroupon = Number(p.groupon_flag ?? p.grouponFlag ?? 0) === 1;
+  // Wave-27 EU stock: same always-present 0/1 OCS contract as the flags above,
+  // but NOT an offer — it says where the goods physically are, so it never
+  // competes for the single overlay slot and never displaces a deal. It renders
+  // on the logistics line beside free shipping.
+  //
+  // The flag answers "did the last probe find EU stock", and 0 lumps "probed,
+  // none" together with "never probed" — so a positive is a fact and a negative
+  // is an unknown. Hence a badge only ever appears, never a "ships from China"
+  // counterpart. The hit carries NO country (verified against the live index),
+  // which is why this cannot borrow the PDP's "Ships from Germany" phrasing.
+  const inEuStock = Number(p.eu_flag ?? p.euFlag ?? 0) === 1;
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
   const now = useNow(dealEnd != null);
   const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
@@ -231,6 +244,13 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         {remaining && claimedPct != null && claimedPct > 0 && (
           <div style={{ height: 4, borderRadius: 2, background: '#f1f3f5', overflow: 'hidden', margin: '2px 0 4px' }}>
             <div style={{ width: `${claimedPct}%`, height: '100%', background: '#CC0C39' }} />
+          </div>
+        )}
+
+        {inEuStock && (
+          <div className="lm-card__eustock" title="In an EU warehouse at our last stock check.">
+            <span aria-hidden="true" className="lm-card__eustock-dot" />
+            EU stock
           </div>
         )}
 

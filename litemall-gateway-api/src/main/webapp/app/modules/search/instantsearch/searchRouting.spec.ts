@@ -118,3 +118,46 @@ describe('searchRouting groupon_flag toggle mapping', () => {
     expect(roundTripped.toggle).toEqual({ coupon_flag: true, groupon_flag: true });
   });
 });
+
+/**
+ * Wave-27: the "In EU stock" toggle (eu_flag=1) is the third instance of the
+ * same mapping. Without an entry in TOGGLE_FACETS the param lands in
+ * refinementList, which no mounted widget consumes, and InstantSearch drops it
+ * silently — the deep link would look like it worked and filter nothing.
+ */
+describe('searchRouting eu_flag toggle mapping', () => {
+  const { stateToRoute, routeToState } = searchRouting.stateMapping;
+
+  it('serialises the toggled eu_flag facet as eu_flag=1', () => {
+    const route = stateToRoute({
+      [PRIMARY_INDEX]: { query: 'lamp', toggle: { eu_flag: true } },
+    } as any);
+    expect(route.eu_flag).toBe('1');
+  });
+
+  it('omits eu_flag from the route when the toggle is off', () => {
+    const route = stateToRoute({
+      [PRIMARY_INDEX]: { toggle: { eu_flag: false } },
+    } as any);
+    expect(route.eu_flag).toBeUndefined();
+  });
+
+  it('parses ?eu_flag=1 into the toggle slice, not refinementList', () => {
+    const state = routeToState({ q: 'lamp', eu_flag: '1' })[PRIMARY_INDEX] as any;
+    expect(state.toggle).toEqual({ eu_flag: true });
+    expect(state.refinementList).toBeUndefined();
+  });
+
+  it('ignores a non-"1" eu_flag value', () => {
+    const state = routeToState({ eu_flag: '0' })[PRIMARY_INDEX] as any;
+    expect(state.toggle).toBeUndefined();
+  });
+
+  it('round-trips alongside the offer toggles', () => {
+    const route = stateToRoute({
+      [PRIMARY_INDEX]: { toggle: { coupon_flag: true, eu_flag: true } },
+    } as any);
+    expect(route).toMatchObject({ coupon_flag: '1', eu_flag: '1' });
+    expect((routeToState(route)[PRIMARY_INDEX] as any).toggle).toEqual({ coupon_flag: true, eu_flag: true });
+  });
+});
