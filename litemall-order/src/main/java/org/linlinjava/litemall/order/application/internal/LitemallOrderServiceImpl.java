@@ -825,14 +825,22 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     public void autoCancelOrder(LitemallOrderId orderId, String reason) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
-        orderAggregate.autoCancel(); // validates CREATED→SYSTEM_CANCELED, records change + event
+        // The CAS runs FIRST and is the only status check. Validating on the aggregate
+        // before it (as this did until 2026-08-27) made the skip below unreachable:
+        // autoCancel() throws on any non-CREATED status, so a sweep that met an
+        // already-cancelled order threw instead of skipping, the sweep kept the row
+        // "for retry", and the pair looped every 60s forever.
         int updated = orderRepository.markSystemCanceledIfCreated(orderId);
         if (updated == 0) {
             // The order left CREATED between the sweep's selection and now (e.g. the
-            // customer paid). That is not an error for the sweep — just skip it.
+            // customer paid, or cancelled it themselves). Not an error — just skip it,
+            // and let the caller retire the task.
             log.info("Skipping auto-cancel of order {}: no longer in CREATED state", orderId.getId());
             return;
         }
+        // Safe by construction: the CAS just proved the row was CREATED, so this
+        // cannot throw. It records the status change + domain event for the steps below.
+        orderAggregate.autoCancel();
         restoreStockForOrder(orderId);
         cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "auto cancel (unpaid timeout)");
         releaseCouponOnCancelCommit(orderAggregate);

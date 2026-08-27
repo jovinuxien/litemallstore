@@ -75,6 +75,24 @@ class UnpaidOrderTaskSchedulerTest {
         verify(repo, never()).deleteByOrderId(any());
     }
 
+    /**
+     * A task whose order no longer exists can never succeed. Retrying it forever is
+     * the loop this fix closes, so the row is retired instead (INFO, not WARN).
+     */
+    @Test
+    void sweep_dropsTheTaskWhenTheOrderIsGone() {
+        LitemallUnpaidOrderTaskRepository repo = mock(LitemallUnpaidOrderTaskRepository.class);
+        LitemallOrderServiceImpl orderService = mock(LitemallOrderServiceImpl.class);
+        when(repo.claimDueBatch(any(LocalDateTime.class), anyInt())).thenReturn(List.of(task(8)));
+        doThrow(new java.util.NoSuchElementException("Order not found"))
+                .when(orderService).autoCancelOrder(any(), anyString());
+
+        UnpaidOrderTaskScheduler scheduler = new UnpaidOrderTaskScheduler(repo, orderService);
+        scheduler.sweep();
+
+        verify(repo).deleteByOrderId(argThat(id -> id.getId().equals(8)));
+    }
+
     @Test
     void sweep_noopOnEmpty() {
         LitemallUnpaidOrderTaskRepository repo = mock(LitemallUnpaidOrderTaskRepository.class);
