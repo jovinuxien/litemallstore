@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Component
 public class UnpaidOrderTaskScheduler {
@@ -63,7 +64,15 @@ public class UnpaidOrderTaskScheduler {
             try {
                 orderServiceImpl.autoCancelOrder(task.getOrderId(), "auto-cancelled: unpaid timeout");
                 repository.deleteByOrderId(task.getOrderId());
+            } catch (NoSuchElementException e) {
+                // The order is gone (soft-deleted/purged). There is nothing left to
+                // cancel and no future sweep can change that, so retrying would loop
+                // forever — retire the task instead.
+                log.info("Unpaid-order task for missing order {} dropped", task.getOrderId().getId());
+                repository.deleteByOrderId(task.getOrderId());
             } catch (RuntimeException e) {
+                // Kept for retry on purpose: this is for TRANSIENT failures. Anything
+                // permanent must be made non-throwing at the source, or it loops here.
                 log.warn("Failed to auto-cancel unpaid order {}; row left for retry", task.getOrderId().getId(), e);
             }
         }
