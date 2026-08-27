@@ -12,6 +12,8 @@
  * related in-app destinations ride along as typed links.
  */
 
+import { FREIGHT_FLAT, FREIGHT_FREE_MIN } from './shippingTerms';
+
 export const SUPPORT_EMAIL = 'support@trovemo.com';
 
 /**
@@ -73,6 +75,19 @@ export const FAQ_SECTIONS: FaqSection[] = [
         top: true,
       },
       {
+        id: 'shipping-cost',
+        q: 'How much is shipping, and when is it free?',
+        a: `Shipping is a flat €${FREIGHT_FLAT} per order, and free on orders of €${FREIGHT_FREE_MIN} or more — the discount comes off automatically, with no code to enter. Choosing a faster courier at checkout adds only the difference, shown before you pay.`,
+        links: [{ label: 'Shipping & delivery', to: '/delivery' }],
+        top: true,
+      },
+      {
+        id: 'eu-stock',
+        q: 'What does the “EU stock” label mean?',
+        a: 'It means our most recent stock check found that item in an EU warehouse, so it has less distance to travel. It is a stock reading rather than a delivery guarantee, and an item without the label is not necessarily slower — we simply have no recent reading for it.',
+        links: [{ label: 'Shipping & delivery', to: '/delivery' }],
+      },
+      {
         id: 'cancel-order',
         q: 'Can I cancel an order?',
         a: 'While an order can still be cancelled (typically before it is paid), a Cancel button is shown on it in My orders. After payment, use the order’s refund and after-sales options instead.',
@@ -99,6 +114,12 @@ export const FAQ_SECTIONS: FaqSection[] = [
         q: 'Which payment methods are supported?',
         a: 'Credit or debit card, processed securely by Stripe, and your wallet balance. Card details are entered in Stripe’s payment form and never touch our servers.',
         top: true,
+      },
+      {
+        id: 'card-safety',
+        q: 'Is my card safe?',
+        a: 'Your card details are entered into Stripe’s own payment form and go straight to Stripe — they never reach our servers, and we never see or store your card number. We also verify every payment with Stripe before accepting an order.',
+        links: [{ label: 'How payments work', to: '/payments' }],
       },
       {
         id: 'payment-failed',

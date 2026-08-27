@@ -19,6 +19,19 @@ import { useSeason } from 'app/shared/util/useSeason';
 import './layout-header.scss';
 
 /**
+ * The four customer promises in the footer strip. Each one LINKS to the page that
+ * governs it: a promise you can click into is one a shopper can check, and it is
+ * also what stops the strip drifting from the policy again — the pages are the
+ * source, the strip is a pointer to them.
+ */
+const PROMISES = [
+  { to: '/delivery', icon: 'bi-truck', title: 'Tracked delivery', detail: 'Follow every order to your door' },
+  { to: '/payments', icon: 'bi-shield-lock', title: 'Secure payments', detail: 'Handled by Stripe, verified by us' },
+  { to: '/returns', icon: 'bi-arrow-repeat', title: '30-day returns', detail: 'Change your mind within 30 days' },
+  { to: '/help', icon: 'bi-headset', title: 'Here to help', detail: SUPPORT_HOURS },
+] as const;
+
+/**
  * Customer storefront shell, laid out like Amazon's two-row header:
  *  - main bar: text brand, ONE flex-grow search bar (suggest-as-you-type via
  *    /srv/search/suggest, submit routes to /search?q= — the /search page has no
@@ -495,34 +508,17 @@ const Layout: React.FC = () => {
         <div className='bg-dark text-light border-bottom border-secondary'>
           <Container>
             <div className='row text-center py-4 g-3'>
-              <div className='col-6 col-md-3'>
-                <i className='bi bi-truck fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>Tracked delivery</div>
-                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  Follow every order to your door
+              {PROMISES.map(promise => (
+                <div className='col-6 col-md-3' key={promise.to}>
+                  <Link to={promise.to} className='link-light text-decoration-none d-block lm-promise'>
+                    <i className={`bi ${promise.icon} fs-3 d-block mb-1`} />
+                    <div className='fw-semibold small'>{promise.title}</div>
+                    <div className='text-muted' style={{ fontSize: '0.78rem' }}>
+                      {promise.detail}
+                    </div>
+                  </Link>
                 </div>
-              </div>
-              <div className='col-6 col-md-3'>
-                <i className='bi bi-shield-lock fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>Secure payments</div>
-                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  Card, Stripe &amp; wallet — encrypted
-                </div>
-              </div>
-              <div className='col-6 col-md-3'>
-                <i className='bi bi-arrow-repeat fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>30-day returns</div>
-                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  Change your mind within 30 days
-                </div>
-              </div>
-              <div className='col-6 col-md-3'>
-                <i className='bi bi-headset fs-3 d-block mb-1' />
-                <div className='fw-semibold small'>Here to help</div>
-                <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                  {SUPPORT_HOURS}
-                </div>
-              </div>
+              ))}
             </div>
           </Container>
         </div>

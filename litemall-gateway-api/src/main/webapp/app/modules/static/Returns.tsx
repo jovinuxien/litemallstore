@@ -47,8 +47,15 @@ const Returns: React.FC = () => (
 
     <h2 className='h6 mt-4'>How refunds are paid</h2>
     <p className='text-muted small'>
-      Approved refunds go back to how you paid: card payments are reversed via Stripe, wallet payments return
-      to your wallet balance. You can follow progress under <Link to='/refunds'>your refunds</Link>.
+      Approved refunds go back to how you paid, automatically: a card payment is reversed through Stripe, a
+      payment from your wallet balance is credited straight back to the balance. Your bank then usually takes
+      a few business days to post a card refund. You can follow progress under{' '}
+      <Link to='/refunds'>your refunds</Link>.
+    </p>
+    <p className='text-muted small'>
+      If the payment provider refuses the reversal, your request stays open and visible rather than being
+      quietly marked as refunded. We would rather show you an unfinished refund than a finished one where no
+      money moved. More on how payments are handled is on <Link to='/payments'>How payments work</Link>.
     </p>
 
     <h2 className='h6 mt-4'>Help</h2>
