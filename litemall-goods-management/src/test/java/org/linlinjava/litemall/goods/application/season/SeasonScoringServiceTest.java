@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -89,7 +90,7 @@ public class SeasonScoringServiceTest {
     /** A strong, profitable, in-stock product — scores well above the featured bar. */
     private void givenOneStrongHit(int goodsId) {
         Map<String, Object> row = new HashMap<>();
-        row.put("id", goodsId);
+        row.put("id", String.valueOf(goodsId));  // OCS ids are STRINGS — see goodsId()
         Map<String, Object> result = new HashMap<>();
         result.put("goodsList", List.of(row));
         result.put("total", 1);
@@ -204,5 +205,19 @@ public class SeasonScoringServiceTest {
         // report, with nothing found. The point is that scoreAll completes rather than throwing.
         assertEquals(2, results.size());
         verify(signalResolver).invalidate();
+    }
+
+    /**
+     * Pins the shape that actually broke this in production: OCS document ids are strings, so a
+     * hit carries {@code "10010060"}, not {@code 10010060}. Accepting only Number discarded every
+     * hit and the scorer reported "scanned 0" against thousands of real matches.
+     */
+    @Test
+    public void aSearchHitsIdIsReadWhetherItArrivesAsStringOrNumber() {
+        assertEquals(10010060, SeasonScoringService.goodsId("10010060"));
+        assertEquals(10010060, SeasonScoringService.goodsId(10010060));
+        assertNull(SeasonScoringService.goodsId("not-a-number"));
+        assertNull(SeasonScoringService.goodsId(null));
+        assertNull(SeasonScoringService.goodsId(""));
     }
 }

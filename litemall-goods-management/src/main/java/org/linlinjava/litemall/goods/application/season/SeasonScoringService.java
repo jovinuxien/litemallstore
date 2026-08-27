@@ -246,13 +246,36 @@ public class SeasonScoringService {
         }
         for (Object row : rows) {
             if (row instanceof Map<?, ?> map) {
-                Object id = ((Map<String, Object>) map).get("id");
-                if (id instanceof Number n) {
-                    ids.add(n.intValue());
+                Integer id = goodsId(((Map<String, Object>) map).get("id"));
+                if (id != null) {
+                    ids.add(id);
                 }
             }
         }
         return ids;
+    }
+
+    /**
+     * The goods id out of a search hit.
+     *
+     * <p>⚠ It arrives as a STRING. OCS document ids are strings, and {@code toGoodsListItem} puts
+     * {@code document.getId()} straight into the item, so {@code goodsList[].id} is
+     * {@code "10010060"} and not {@code 10010060}. Accepting only {@link Number} here silently
+     * discarded every hit — the search reported thousands of matches and the scorer scored none.
+     * Both forms are accepted so a future change to the item shape cannot re-break this quietly.
+     */
+    static Integer goodsId(Object raw) {
+        if (raw instanceof Number n) {
+            return n.intValue();
+        }
+        if (raw instanceof String str && !str.isBlank()) {
+            try {
+                return Integer.valueOf(str.trim());
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private int stockOf(Integer goodsId) {
