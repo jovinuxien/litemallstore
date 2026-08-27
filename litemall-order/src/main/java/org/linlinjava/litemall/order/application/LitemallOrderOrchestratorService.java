@@ -732,12 +732,19 @@ public class LitemallOrderOrchestratorService {
         walletService.debit(debitCommand);
     }
 
+    /**
+     * Post-cancellation cleanup. The unpaid-timeout task MUST die with the order:
+     * a CANCELED order can never transition to SYSTEM_CANCELED, so a surviving task
+     * row makes {@code UnpaidOrderTaskScheduler.sweep()} retry that order every 60s
+     * for as long as the service runs (one prod row did ~50k failed attempts over
+     * 35 days before this was fixed).
+     *
+     * <p>The two pay paths already cancel the task; this one never did. It has to
+     * live here rather than in {@code LitemallOrderServiceImpl.cancelOrder}, because
+     * the scheduler depends on that service — injecting it back would be a cycle.
+     */
     private void handlePostCancellation(LitemallOrderAggregate order) {
-        // Reuse inventory restoration logic from your service if needed
-        // This would be similar to your stock reduction but in reverse
-
-        // Notify relevant services about cancellation
-        //orderServiceImpl.getNotifyService().notifyMail("Order cancelled", order.toString());
+        unpaidOrderTaskScheduler.cancel(order.getOrderId());
     }
 
     private void updateGrouponAfterPayment(LitemallGrouponAggregate groupon,
