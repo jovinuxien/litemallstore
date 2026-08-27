@@ -1,6 +1,6 @@
 # Spec — seasonal candidacy as an indexed signal (all four seasons)
 
-**STATUS: BUILT + MERGED (2026-08-26, `dcff54c67`). NOT YET DEPLOYED.**
+**STATUS: SHIPPED + DEPLOYED to trovemo.com (2026-08-27, prod schema V64).**
 Approved and implemented as specified; the deviations are recorded in §14. Commissioned 2026-08-26 in the
 `goods-management` worktree. This is the contract a build codes to; it supersedes the looser
 proposal in the OCS review of the same day.
@@ -241,3 +241,45 @@ Three details changed while building, all in the direction of removing a failure
 
 Everything else shipped as written. Tests: module 574 run / 0 failures / 8 skipped;
 litemall-db 24/0 with V64 applied on a real MySQL container.
+
+## 15. Deploy record (2026-08-27)
+
+Sequence run exactly as §11: indexer recreate → goods-management (V64 applied, success=1, four
+seasons seeded, env verified INSIDE the container) → scorer → full reindex 4,239 → searcher
+restart → verify.
+
+**Live acceptance:** `?seasons=autumn|winter|spring|summer` each return exactly **24** — the
+read-time cap doing its job — and the field materialised, which was the risk §1 flagged. Scorer:
+autumn 1007 scanned / 1005 scored / 980 dropped by cap, with real gate rejections (1 UNCOSTED,
+1 UNAVAILABLE); spring 1324/1320, summer 951/948, winter 963/961. The hand-picked Autumn page is
+byte-identical (`mode=byIds`, 24 ids, no `resolvedFrom`), and the brand-facet gating from earlier
+in the day still holds.
+
+### ⚠ A bug the first production run caught
+
+The first run reported `scanned 0` for every season while the searches behind it reported
+thousands of matches. **OCS document ids are STRINGS** — `toGoodsListItem` puts
+`document.getId()` straight into the item, so `goodsList[].id` is `"10010060"`, not `10010060` —
+and the extractor accepted only `Number`, silently discarding every hit. Fixed in `55e4d1ebc`,
+pinned by a test using the real string form.
+
+The `considered X of Y hits` log line, written only to satisfy the no-silent-caps rule, is what
+made it diagnosable in one look. A bare `scanned 0` would have read as "nothing matched" —
+entirely plausible on a narrowed catalogue — and sent the investigation to the terms instead of
+the parsing.
+
+### ⚠ Two known limitations, neither blocking
+
+1. **The tiers do not discriminate.** 1003 of 1005 autumn candidates score `hot`: the thresholds
+   (hot ≥ 100, featured ≥ 70) were inherited from the deal scorer and are far too low for this
+   curve, whose live scores span roughly 0–1126. The mechanism is unharmed because the read-time
+   cap ranks by SCORE and takes the top 24 — the tier label is simply not earning its keep, and
+   `auto-tier: featured` is not really the bar the cap is. Recalibrating needs a judgement about
+   what counts as "hot" and now has a real distribution to use.
+2. **`seasons` is not passed through onto search hits.** The filter works (that is what the rail
+   needs) but a hit carries no `seasons` key, so a card cannot badge which season it came from —
+   the positive-only passthrough every previous flag needed. No consumer exists yet; the rail
+   resolves server-side from the database.
+
+**Nothing is customer-visible yet, by design:** the Autumn page still uses its hand-picked
+`byIds` rail. Switching it to `{"mode":"season","seasonKey":"autumn"}` is an admin edit.
