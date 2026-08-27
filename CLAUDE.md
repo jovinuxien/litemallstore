@@ -1565,6 +1565,22 @@
   column for a problem these three fixes close at source.
   **Production self-heals** on the first sweep after deploy (a graceful skip is
   followed by the row delete) — NO DB surgery was done or needed.
+  **DEPLOYED to trovemo.com 2026-08-27** (VPS tree detached at `4932c068f`,
+  order image rebuilt 01:45 UTC, ONLY the order container recreated, healthy).
+  Live proof: **zero** `cannot transition from CANCELED` throws since recreate
+  (was ~1/minute for 35 days), one INFO `Skipping auto-cancel of order 8: no
+  longer in CREATED state`, `litemall_unpaid_order_task` now **empty** — the row
+  retired itself with no DB surgery — and order 8 still reads status 102
+  (CANCELED), i.e. the skip did NOT rewrite the customer's own cancellation.
+  Storefront smoke 200s; `/srv/order/list` 401 (routed + auth-gated).
+  ⚠ Deploy notes: prod disk was 25 G, under the script's own 30 G threshold, but
+  the whole 8.6 G of builder cache was from the same day (nothing prunable) and a
+  SINGLE-service build fits easily — the threshold guards a full 9-service
+  reactor pass. ⚠ Launch long VPS builds with `setsid nohup … &` and poll: a
+  `timeout`-wrapped ssh returning 143 kills only the ssh, not the build. ⚠ The
+  build log is full of `[ERROR] <s> [webpack.Progress]` lines — that is webpack
+  writing progress to stderr, NOT failures; grep `^ERROR:|BUILD FAILURE|failed to
+  solve` instead.
   Incidental finding, not fixed: `LitemallOrderStatusQuery.canBeCanceled` claims
   CREATED||PAID, but the dispatcher uses `LitemallOrderHandleOption`, which gives
   PAID *refund* and not cancel. The two disagree on paper; the helper is unused
