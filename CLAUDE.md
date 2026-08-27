@@ -1535,8 +1535,40 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (mail design refactor SHIPPED 2026-08-26)
+### Worktree: `order` — idle (unpaid-sweep loop FIXED 2026-08-27)
 - **No active assignment.**
+- **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
+  retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
+  failures (was 291, +7 new). Found while verifying the mail deploy: prod had
+  been logging `IllegalStateException: Order status cannot transition from
+  CANCELED to SYSTEM_CANCELED` **every 60 s since 2026-07-23** — one row
+  (order 8, cancelled by the customer 50 s after placing it) at roughly
+  **50,000 failed attempts over 35 days**, with no end.
+  THREE defects compounded, and the fix touches all three:
+  1. **Nothing retired the task on cancel.** `unpaidOrderTaskScheduler.cancel()`
+     was called from exactly two sites, BOTH on the pay path;
+     `handlePostCancellation` was an empty stub. ⚠ It cannot live in
+     `LitemallOrderServiceImpl` — `UnpaidOrderTaskScheduler` depends on that
+     service, so injecting it back is a cycle. That is almost certainly why the
+     cancel path never got it. It now lives in the orchestrator.
+  2. **The graceful-skip branch was dead code.** `autoCancelOrder` validated on
+     the aggregate (`autoCancel()` throws on non-CREATED) BEFORE its own CAS, so
+     the CAS's `updated == 0` branch — commented *"That is not an error for the
+     sweep — just skip it"* — could never run. CAS now runs FIRST; safe because
+     it proves the row was CREATED, so the later `autoCancel()` cannot throw
+     (`persistStatusHistory` writes history only, never the order row).
+  3. **A missing order looped identically** (`NoSuchElementException` → retry).
+     Now retired with an INFO.
+  ⚠ **The sweep keeps rows "for retry" BY DESIGN** (transient failures). That is
+  correct only while every permanent failure is made non-throwing at the source —
+  otherwise it is an infinite loop. No retry cap was added: that needs a schema
+  column for a problem these three fixes close at source.
+  **Production self-heals** on the first sweep after deploy (a graceful skip is
+  followed by the row delete) — NO DB surgery was done or needed.
+  Incidental finding, not fixed: `LitemallOrderStatusQuery.canBeCanceled` claims
+  CREATED||PAID, but the dispatcher uses `LitemallOrderHandleOption`, which gives
+  PAID *refund* and not cancel. The two disagree on paper; the helper is unused
+  by the cancel path.
 - **Status 2026-08-26 — CUSTOMER MAIL DESIGN: every lifecycle mail wears the
   storefront design.** Branch commit `66f0a1296`; module tests 291 run / 0
   failures (was 279, +12 new). User-commissioned outside any wave.
