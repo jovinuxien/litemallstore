@@ -283,3 +283,33 @@ the parsing.
 
 **Nothing is customer-visible yet, by design:** the Autumn page still uses its hand-picked
 `byIds` rail. Switching it to `{"mode":"season","seasonKey":"autumn"}` is an admin edit.
+
+## 16. Autumn page switched to the season rail (2026-08-27)
+
+Applied through `POST /srv/private/admin/page/update` so it went through `PageConfigValidator`
+rather than editing the row behind it. Both rich-text blocks preserved; only the goods rail
+changed, from `mode=byIds` + 24 ids to `{"mode":"season","seasonKey":"autumn"}`.
+
+Reversible: the previous config is at `/root/autumn-page-backup-2026-08-27.json` on the VPS.
+
+Live: `/srv/page/season` serves the rail as `mode=byIds` + 24 resolved ids +
+`resolvedFrom: "season"` + the original `seasonKey`, and all 24 products resolve **anonymously**
+through `POST /srv/goods/batch` — the failure mode that once left every curated `byIds` rail
+empty for logged-out shoppers. ⚠ That endpoint takes a BARE ARRAY body, not `{"ids":[...]}`;
+the wrong shape answers errno 402, which reads like a permissions problem.
+
+### ⚠ The terms are now the weak link, and they are data
+
+Measured on the live 24: **20 contain an autumn term, 4 arrived through relaxed relevance**
+(All-Season Sofa Cover, Digital Cable Organizer, Peeping Sticker Wall Decal, Tiered Wooden
+Storage). Worse than the 4 misses, some *matches* are seasonally wrong — "Class A Cartoon-Printed
+**Summer Cooling** Air-Conditioning Blanket" matched on `blanket`, and generic terms like `lamp`
+pull ordinary desk lamps.
+
+The mechanism is behaving exactly as specified; the seeded term list is doing the damage. That is
+the design working — terms are configuration, so tightening them is
+`PUT /srv/private/admin/insight/season-rules/autumn` and a re-run, with no deploy. Options, in
+increasing order of intervention: drop the generic terms (`lamp`, `warm`), add the boosted
+`category_ids` (currently empty), or require the term to actually appear in the title instead of
+trusting relevance.
+

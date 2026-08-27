@@ -1737,7 +1737,24 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — spec archived, awaiting build approval
+### Worktree: `goods-management` — seasonal candidacy SHIPPED + DEPLOYED, Autumn page switched
+- **Status 2026-08-27 — SEASONAL CANDIDACY LIVE (prod schema V64).** Full contract + deploy
+  record + known limits: `litemall-goods-management/docs/spec-seasonal-candidacy.md`.
+  `seasons` is a MULTI-VALUED index field scored nightly (04:35) for EVERY season, so the winter
+  page is populated before anyone activates it. `?seasons=<key>` returns exactly 24 per season
+  (the read-time cap). **The Autumn page now runs on the season rail** — switched through the
+  validated admin API, previous config backed up at `/root/autumn-page-backup-2026-08-27.json`.
+  ⚠ **OCS document ids are STRINGS** (`goodsList[].id` = `"10010060"`); a Number-only extractor
+  discarded every hit and the first prod run reported `scanned 0` against thousands of matches
+  (fixed `55e4d1ebc`). ⚠ `POST /srv/goods/batch` takes a BARE ARRAY, not `{"ids":[…]}` — the
+  wrong shape answers errno 402, which reads like permissions. ⚠ Run the scorer BEFORE the
+  reindex; restart the searcher AFTER it. ⚠ Known limits, recorded not hidden: the tiers do not
+  discriminate (1003/1005 score `hot` — thresholds inherited from the deal scorer, far too low
+  for this curve) and `seasons` is not passed through onto search hits. ⚠ The seeded TERMS are
+  the weak link: 20 of the live 24 contain an autumn term, and some matches are seasonally wrong
+  ("Summer Cooling ... Blanket" matched `blanket`). Terms are data — tune via
+  `PUT /insight/season-rules/{key}`, no deploy.
+- **Previously: brand-facet leak SHIPPED + DEPLOYED**
 - **NEXT TASK (planned, NOT started): seasonal candidacy as an indexed signal.** FROZEN
   contract: `litemall-goods-management/docs/spec-seasonal-candidacy.md` (commit
   `0c9f74ed4`) — read it in full; the block below is only an index.
