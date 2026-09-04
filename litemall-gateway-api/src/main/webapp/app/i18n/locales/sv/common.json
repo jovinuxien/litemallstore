@@ -1,0 +1,132 @@
+{
+  "header": {
+    "hello": "Hej, {{name}}",
+    "helloSignIn": "Hej, logga in",
+    "search": {
+      "placeholderDefault": "Sök \"{{keyword}}\" och mer…",
+      "placeholder": "Sök produkter…",
+      "label": "Sök"
+    },
+    "suggest": {
+      "category": "Kategori",
+      "curated": "Populärt"
+    },
+    "recentSearches": "Senaste sökningar",
+    "clear": "Rensa",
+    "trending": "Populärt just nu",
+    "accountLists": "Konto & listor",
+    "myAccount": "Mitt konto",
+    "myOrders": "Mina ordrar",
+    "favorites": "Favoriter",
+    "myCoupons": "Mina rabattkoder",
+    "couponCenter": "Rabattkoder",
+    "addresses": "Adresser",
+    "signOut": "Logga ut",
+    "signIn": "Logga in",
+    "register": "Skapa konto",
+    "returns": "Returer",
+    "andOrders": "& ordrar",
+    "cart": "Varukorg",
+    "all": "Alla",
+    "todaysDeals": "Dagens erbjudanden",
+    "newArrivals": "Nyheter",
+    "allProducts": "Alla produkter",
+    "brands": "Varumärken",
+    "topics": "Teman",
+    "groupBuys": "Gruppköp",
+    "customerService": "Kundservice",
+    "shopper": "kund"
+  },
+  "drawer": {
+    "shopByCategory": "Handla per kategori",
+    "trending": "Populärt just nu",
+    "bestSellers": "Bästsäljare",
+    "newArrivals": "Nyheter",
+    "brands": "Varumärken",
+    "topicsGuides": "Teman & guider",
+    "helpSettings": "Hjälp & inställningar",
+    "yourAccount": "Ditt konto",
+    "yourOrders": "Dina ordrar",
+    "customerService": "Kundservice",
+    "signIn": "Logga in",
+    "expand": "Visa {{name}}",
+    "collapse": "Dölj {{name}}"
+  },
+  "errorPage": {
+    "title": "Sidan kunde inte visas",
+    "body": "Något gick fel när den skulle visas. Resten av butiken påverkas inte.",
+    "tryAgain": "Försök igen",
+    "home": "Gå till startsidan",
+    "browse": "Bläddra bland alla produkter"
+  },
+  "rootError": {
+    "title": "Trovemo laddar inte",
+    "body": "Något gick fel. Att ladda om sidan brukar lösa det.",
+    "reload": "Ladda om"
+  },
+  "language": {
+    "label": "Språk",
+    "englishOnlyNotice": "Den här sidan finns bara på engelska."
+  },
+  "submitBar": {
+    "total": "Totalt:"
+  },
+  "footer": {
+    "backToTop": "Till toppen",
+    "blurb": "Allt för hemmet, trädgården och verkstaden — utvalt, inte hopskrapat. Riktiga priser, en kassa som bara fungerar och 30 dagars öppet köp. Vi står bakom varje beställning.",
+    "shop": "Handla",
+    "allProducts": "Alla produkter",
+    "todaysDeals": "Dagens erbjudanden",
+    "bestSellers": "Bästsäljare",
+    "newArrivals": "Nyheter",
+    "shopByBrand": "Handla per varumärke",
+    "topicsGuides": "Teman & guider",
+    "articles": "Artiklar",
+    "groupBuys": "Gruppköp",
+    "couponsDeals": "Rabattkoder & erbjudanden",
+    "yourAccount": "Ditt konto",
+    "accountOverview": "Kontoöversikt",
+    "yourOrders": "Dina ordrar",
+    "wishList": "Önskelista",
+    "addresses": "Adresser",
+    "couponsRewards": "Rabattkoder & förmåner",
+    "letUsHelp": "Vi hjälper dig",
+    "helpCenter": "Hjälpcenter",
+    "customerService": "Kundservice",
+    "trackOrder": "Spåra en order",
+    "returnsRefunds": "Returer & återbetalningar",
+    "sendFeedback": "Skicka feedback",
+    "copyright": "© {{year}} Trovemo. Alla rättigheter förbehållna. Priser och tillgänglighet kan ändras.",
+    "conditions": "Användarvillkor",
+    "privacy": "Integritetspolicy",
+    "cookies": "Cookie-inställningar",
+    "contact": "Kontakta oss",
+    "promises": {
+      "delivery": {
+        "title": "Spårbar leverans",
+        "detail": "Följ varje beställning ända hem"
+      },
+      "payments": {
+        "title": "Säkra betalningar",
+        "detail": "Hanteras av Stripe, verifieras av oss"
+      },
+      "returns": {
+        "title": "30 dagars öppet köp",
+        "detail": "Ångra dig inom 30 dagar"
+      },
+      "help": {
+        "title": "Vi finns här för dig"
+      }
+    }
+  },
+  "notFound": {
+    "title": "Vi hittade inte den sidan",
+    "body": "Adressen <1>{{path}}</1> finns inte, eller så säljs produkten som fanns här inte längre.",
+    "searchLabel": "Sök produkter",
+    "searchPlaceholder": "Sök efter en produkt",
+    "search": "Sök",
+    "home": "Startsidan",
+    "allProducts": "Alla produkter",
+    "todaysDeals": "Dagens erbjudanden"
+  }
+}

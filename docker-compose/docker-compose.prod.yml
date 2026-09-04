@@ -449,6 +449,11 @@ services:
       # this is not the moment to add more of it.
       LITEMALL_META_PIXEL_ID: ${LITEMALL_META_PIXEL_ID:-}
       LITEMALL_PLACES_API_KEY: ${LITEMALL_PLACES_API_KEY:-}
+      # i18n foundation: storefront languages enabled for shoppers (comma-separated,
+      # `en` always on). The language switcher renders only when more than one is
+      # listed, so leave this at `en` until the sv/da translations are reviewed.
+      # Passthrough added WITH the feature (the LITEMALL_GOODS_PRICE_FLOOR lesson).
+      LITEMALL_I18N_LANGUAGES: ${LITEMALL_I18N_LANGUAGES:-en}
       # Matomo, the self-hosted analytics. BLANK = OFF, which is what prod has been running
       # since launch — the store has had NO page/click analytics at all, so a flat dashboard
       # meant "nothing is counting", not "nobody visited". Only the first-party event log

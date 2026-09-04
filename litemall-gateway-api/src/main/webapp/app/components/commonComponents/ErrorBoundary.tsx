@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { t } from 'app/i18n';
+
 /**
  * The storefront had no error boundary at all: `index.tsx` rendered
  * `<Provider><App/></Provider>` and nothing caught a render exception, so ONE
@@ -78,19 +80,19 @@ export const RouteErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ ch
       resetKey={`${location.pathname}${location.search}`}
       fallback={retry => (
         <div className='container my-5 text-center'>
-          <h1 className='h4 mb-3'>This page didn&rsquo;t load</h1>
-          <p className='text-muted mb-4'>
-            Something went wrong displaying it. The rest of the shop is unaffected.
-          </p>
+          {/* Plain t(): a boundary fallback must not depend on hooks or context that
+              may be what just threw. English is bundled, so this always renders. */}
+          <h1 className='h4 mb-3'>{t('errorPage.title')}</h1>
+          <p className='text-muted mb-4'>{t('errorPage.body')}</p>
           <div className='d-flex gap-2 justify-content-center flex-wrap'>
             <button type='button' className='btn btn-primary' onClick={retry}>
-              Try again
+              {t('errorPage.tryAgain')}
             </button>
             <Link to='/' className='btn btn-outline-secondary'>
-              Go to the home page
+              {t('errorPage.home')}
             </Link>
             <Link to='/search' className='btn btn-outline-secondary'>
-              Browse all products
+              {t('errorPage.browse')}
             </Link>
           </div>
         </div>
@@ -106,14 +108,14 @@ export const RootErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ chi
   <ErrorBoundary
     fallback={() => (
       <div style={{ maxWidth: 520, margin: '4rem auto', padding: '0 1rem', textAlign: 'center', fontFamily: 'system-ui, sans-serif' }}>
-        <h1 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>Trovemo isn&rsquo;t loading</h1>
-        <p style={{ color: '#555', marginBottom: '1.5rem' }}>Something went wrong. Reloading the page usually fixes it.</p>
+        <h1 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>{t('rootError.title')}</h1>
+        <p style={{ color: '#555', marginBottom: '1.5rem' }}>{t('rootError.body')}</p>
         <button
           type='button'
           onClick={() => window.location.reload()}
           style={{ padding: '0.5rem 1.25rem', border: '1px solid #0a5d65', background: '#0a5d65', color: '#fff', borderRadius: 4, cursor: 'pointer' }}
         >
-          Reload
+          {t('rootError.reload')}
         </button>
       </div>
     )}

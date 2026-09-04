@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { registerCustomerThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AuthShell from 'app/modules/login/AuthShell';
+import { Trans, useTranslation } from 'app/i18n';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fireRegisterGifts } from 'app/shared/util/couponFormat';
@@ -26,6 +27,7 @@ const Register: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { loading, errorMessage, errorNumber } = useAppSelector(state => state.customerAuth);
+  const { t } = useTranslation('auth');
 
   const [username, setUsername] = useState('');
   const [nickname, setNickname] = useState('');
@@ -51,19 +53,19 @@ const Register: React.FC = () => {
     e.preventDefault();
     setLocalError(null);
     if (password !== confirm) {
-      setLocalError('Passwords do not match.');
+      setLocalError(t('register.errors.mismatch'));
       return;
     }
     if (password.length < 8) {
-      setLocalError('Password must be at least 8 characters.');
+      setLocalError(t('register.errors.tooShort'));
       return;
     }
     if (password === username) {
-      setLocalError('Password must differ from the username.');
+      setLocalError(t('register.errors.sameAsUsername'));
       return;
     }
     if (mobile && !mobileValid) {
-      setLocalError('The mobile number does not match the selected country — check the digit count.');
+      setLocalError(t('register.errors.mobileInvalid'));
       return;
     }
     setSubmitted(true);
@@ -92,16 +94,16 @@ const Register: React.FC = () => {
   };
 
   return (
-    <AuthShell title='Create your account' sub='Shop faster, track orders, and keep your history.'>
+    <AuthShell title={t('register.title')} sub={t('register.sub')}>
       {inviteCode && (
         <Alert variant='info' dismissible onClose={dismissInvite} className='py-2'>
-          🎉 Invited by a friend
+          {t('register.invited')}
         </Alert>
       )}
       {generalError && <Alert variant='danger'>{generalError}</Alert>}
       <Form onSubmit={handleSubmit}>
         <Form.Group className='mb-3'>
-          <Form.Label>Username</Form.Label>
+          <Form.Label>{t('common.username')}</Form.Label>
           <Form.Control
             value={username}
             onChange={e => setUsername(e.target.value)}
@@ -109,46 +111,46 @@ const Register: React.FC = () => {
             required
             autoFocus
           />
-          <Form.Control.Feedback type='invalid'>This username is already registered.</Form.Control.Feedback>
+          <Form.Control.Feedback type='invalid'>{t('register.usernameTaken')}</Form.Control.Feedback>
         </Form.Group>
         <Form.Group className='mb-3'>
           <Form.Label>
-            Nickname <span className='text-muted'>(optional)</span>
+            {t('register.nickname')} <span className='text-muted'>{t('common.optional')}</span>
           </Form.Label>
           <Form.Control value={nickname} onChange={e => setNickname(e.target.value)} />
         </Form.Group>
         <Form.Group className='mb-3'>
           <Form.Label>
-            Email <span className='text-muted'>(optional)</span>
+            {t('register.email')} <span className='text-muted'>{t('common.optional')}</span>
           </Form.Label>
           <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} />
-          <Form.Text className='text-muted'>Order confirmations and shipping updates go here.</Form.Text>
+          <Form.Text className='text-muted'>{t('register.emailHelp')}</Form.Text>
         </Form.Group>
         <Form.Group className='mb-3'>
           <Form.Label>
-            Mobile <span className='text-muted'>(optional)</span>
+            {t('register.mobile')} <span className='text-muted'>{t('common.optional')}</span>
           </Form.Label>
           <PhoneInput onChange={setMobile} isInvalid={mobileTaken} onValidityChange={setMobileValid} />
-          {mobileTaken && <div className='invalid-feedback d-block'>This mobile number is already registered.</div>}
+          {mobileTaken && <div className='invalid-feedback d-block'>{t('register.mobileTaken')}</div>}
         </Form.Group>
         <Form.Group className='mb-3'>
-          <Form.Label>Password</Form.Label>
+          <Form.Label>{t('common.password')}</Form.Label>
           <Form.Control type='password' value={password} onChange={e => setPassword(e.target.value)} required />
-          <Form.Text className='text-muted'>At least 8 characters, different from your username.</Form.Text>
+          <Form.Text className='text-muted'>{t('register.passwordHelp')}</Form.Text>
         </Form.Group>
         <Form.Group className='mb-3'>
-          <Form.Label>Confirm password</Form.Label>
+          <Form.Label>{t('register.confirmPassword')}</Form.Label>
           <Form.Control type='password' value={confirm} onChange={e => setConfirm(e.target.value)} required />
         </Form.Group>
         <button type='submit' className='btn btn-lm-primary w-100' disabled={loading === 'pending'}>
-          {loading === 'pending' ? <Spinner animation='border' size='sm' /> : 'Create account'}
+          {loading === 'pending' ? <Spinner animation='border' size='sm' /> : t('register.submit')}
         </button>
       </Form>
-      <div className='lm-auth__divider'>or</div>
+      <div className='lm-auth__divider'>{t('common.or')}</div>
       <GoogleSignInButton onSuccess={() => navigate(from, { replace: true })} />
       <div className='text-center mt-3'>
         <small className='text-muted'>
-          Already have an account? <Link to='/login'>Sign in</Link>
+          <Trans t={t} i18nKey='register.haveAccount' components={{ 1: <Link to='/login' /> }} />
         </small>
       </div>
     </AuthShell>

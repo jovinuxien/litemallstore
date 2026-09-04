@@ -2278,9 +2278,72 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — footer audit fixes + EU stock SHIPPED + LIVE
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten.
+### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
+- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
+  rail; spec §5) — rewrite this block before launching it.
+- **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
+  with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
+  en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live
+  bundle `main.a0b81a9c…` + hashed sv/da chunks verified BY CONTENT; smoke 200s).
+  ⚠ **The deploy failed TWICE before it landed, neither time because of i18n:** the
+  image build has no root lockfile, so `npm install` floated the storefront onto
+  **webpack 5.110.3** (published 2026-08-27, one day after the previous gateway-api
+  image) whose new default `minimizer-webpack-plugin` crashes on html-webpack-plugin's
+  `index.html` ("reading 'syntax'"). Pinning webpack 5.107.2 in the storefront did NOT
+  help — npm hoists `webpack-cli` to the workspace root and it requires the ROOT
+  webpack. Fix that held: `webpack.config.prod.js` now sets an explicit JS-only Terser
+  minimizer (verified under 5.110.3 AND 5.107.2). ⚠ My first deploy script recreated
+  the container from the OLD image after the failed build (harmless, but wrong) —
+  the script now stops on `BUILD EXIT != 0`. Full record: spec §8.
+  ⚠ The sv/da strings had a second critical pass by ME, not a human native speaker
+  (spec §8 lists the idiom fixes). A human pass is still worth having; corrections are
+  JSON data + a container rebuild, nothing else.
+  Rollback of visibility = `LITEMALL_I18N_LANGUAGES=en` + recreate (no rebuild).
+- **Build detail (2026-09-04) — i18n FOUNDATION PHASE 1.** User-commissioned outside any wave ("lay the
+  architecture foundation for multi-language like the JHipster announceapp02
+  gateway: en default, sv, da"); plan approved same day. FROZEN spec + as-built
+  record: `litemall-gateway-api/docs/spec-i18n-foundation.md` (read §0 on
+  currency and §7 before touching this). jest 45 suites / 320 tests (was
+  40/274), tsc 0, mvn compile clean, `npm run i18n:check` green with a negative
+  control, prod build clean with 10 lazy `i18n-{sv,da}-*` chunks.
+  What it is: `i18next` + `react-i18next`, JHipster's folder-per-language /
+  file-per-feature layout under `app/i18n/locales/`, English BUNDLED and
+  registered synchronously (first paint never waits; a missing key falls back to
+  English, never a raw key), sv/da lazy-loaded per namespace via webpack
+  `import()`. Locale = an observable store (`app/i18n/locale.ts`, the siteConfig
+  pattern) readable outside React — `money.ts` reads it. Detection: `?lang=` →
+  cookie `lm_lang` → browser (sv/da only) → en. **ENV-GATED like every other
+  storefront feature:** `LITEMALL_I18N_LANGUAGES` (default `en`) via
+  `/auth/site-config` `i18nLanguages`; the switcher renders only when >1
+  language is enabled and a Swedish browser gets English until then. Prod compose
+  passthrough is IN (with the feature, the price-floor lesson). Server errors are
+  localised BY ERRNO on the client (`describeError`; unknown errno ⇒ server text
+  verbatim, the repo's typed-refusal acceptance behaviour preserved).
+  ⚠ **Language ≠ currency.** The user asked for kronor; the store CHARGES EUR
+  (Wave-24 decision). Phase 1 localises the WRITING of one currency
+  (`€1,234.56` / `1 234,56 €` / `1.234,56 €`), never the amount. Real SEK/DKK is a
+  money-path wave across four services, and an "≈ 139 kr (charged in EUR)"
+  indicative line is an OPEN user option, not built. `moneyParts` (card split) is
+  deliberately locale-stable.
+  Pilot migrated (every visitor sees these on every route): Layout header/strip/
+  footer, CategoryDrawer, Cart + SubmitBar, NotFound, both error-boundary
+  fallbacks (plain `t()`, not hooks — a fallback must not depend on what threw),
+  login/register/reset, Google button fallback, coupon-reason + courier labels.
+  ⚠ sv/da strings are MY DRAFTS — native review is USER-SIDE before enabling
+  them in prod. Legal pages stay English in every locale by design.
+  ⚠ Gotchas: `i18next-parser --fail-on-update` logs `[write]` but writes nothing,
+  and with `sort:true` a hand-ordered file counts as drift — config runs
+  `sort:false`/`keepRemoved:true`/`createOldCatalogs:false` so the check fails on
+  exactly one thing (a code key some language lacks). Components that render
+  `money()` without `useTranslation` update on their next render, not on the
+  switch — the reason the remaining ~200 string sites migrate FILE BY FILE
+  (batches 2–7 in the spec §5) rather than remounting the route tree (which would
+  wipe checkout state). `lang_key` on the user = phase 2 (V65, litemall-db,
+  shared-module discipline); URL prefixes/hreflang only if content is ever
+  translated.
+  Merged + deployed the same day (see status above); batch 2 (PDP + cards + search
+  rail) is the next task.
+- **Previous status (2026-08-26) — footer audit + EU stock SHIPPED + LIVE.**
 - **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED + LIVE on
   trovemo.com.** Commits `b5e8d7004` (copy/nav) + `0469129b8` (EU stock +
   empty facets), merged `0bba2e553`, pushed. jest 40 suites / 274 tests (was

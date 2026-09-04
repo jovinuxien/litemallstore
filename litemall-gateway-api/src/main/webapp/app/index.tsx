@@ -9,7 +9,13 @@ import 'app/sass/global.scss';
 
 import App from 'app/App';
 import store from 'app/config/store';
+import { initLocale } from 'app/i18n/locale';
 import { RootErrorBoundary } from 'app/components/commonComponents/ErrorBoundary';
+
+// i18n foundation: English is bundled and active synchronously; this applies an
+// earlier explicit choice (cookie / ?lang=) and, once site-config answers, the
+// operator's enabled list. Nothing here blocks the first render.
+void initLocale();
 
 const root = createRoot(document.getElementById('root') as HTMLElement);
 root.render(

@@ -1,0 +1,13 @@
+{
+  "coupon": {
+    "threshold": "Spend {{amount}} more to use this coupon",
+    "thresholdNoGap": "Order total is below this coupon’s minimum",
+    "scope": "Not valid for these items",
+    "expired": "Expired",
+    "exhausted": "Fully claimed",
+    "unusable": "Not usable for this order"
+  },
+  "courier": {
+    "included": "Included"
+  }
+}

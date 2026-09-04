@@ -1,0 +1,121 @@
+# Spec — i18n foundation for the storefront (en default, sv, da)
+
+Status: **PHASE 1 SHIPPED + DEPLOYED to trovemo.com (2026-09-04, master `4fca1ce06`, sv/da ENABLED)** — plan approved by the user the same day ("go ahead from 1"; then "merge and deploy after a native review"). §7 records what was built, §8 the review and the deploy.
+Scope: `litemall-gateway-api/` (customer SPA + edge). No migration in phase 1.
+
+## 0. Currency — language is not currency (user question, 2026-09-04)
+
+The user asked why a Swedish or Danish shopper would see `12,34 €` rather than an amount in kronor. Answer, and the decision it leads to:
+
+- **What the store charges is EUR, storewide** — a Wave-24 user decision (single currency, explicitly NOT multi-currency; Stripe charges `currency=eur`). A Swedish shopper's card is debited in euro and their bank converts at its own rate plus fees.
+- **Showing kronor while charging euro would be a false price.** The amount on screen would never equal the amount on the statement (bank fx + fees), and EU consumer-law expectations are that the displayed total is the charged total in the charged currency. A converted figure could only ever be *indicative* ("≈ 139 kr"), never the price.
+- **Real SEK/DKK pricing is a money-path wave, not an i18n one:** per-currency retail (`CjPricing` runs in EUR), Stripe presentment currency per order, refunds in the tender currency, coupon/deal/margin guards per currency, order history with a currency column. It reverses the Wave-24 decision and touches goods-management, order, promotion and both SPAs.
+- **Phase 1 therefore localises the WRITING of one currency**: `€1,234.56` (en) / `1 234,56 €` (sv) / `1.234,56 €` (da) — decimal comma, grouping and symbol position follow the language; the amount is identical to the cent. `money.ts` takes the currency from one constant so a later multi-currency wave changes ONE module, not 22 call sites.
+- **Open option, user decision:** an *indicative* kronor line beside the euro price ("≈ 139 kr, charged in EUR") using a daily ECB rate is a small, honest add-on (display only, no money-path change). Not built; say the word.
+
+
+## 1. What the reference does (JHipster `announceapp02/gateway`, react + en/sv)
+
+Audited 2026-09-04. The pieces, and what each one is *for*:
+
+| Piece | Reference implementation | Purpose |
+|---|---|---|
+| Message files | `src/main/webapp/i18n/<lang>/<namespace>.json` (27 files per language, same file set in `en` and `sv`) | Strings grouped by feature, one folder per language, key parity by construction |
+| Build step | `merge-jsons-webpack-plugin` merges each folder into one `i18n/<lang>.json` | One fetch per language |
+| Runtime | `react-jhipster`: `TranslatorContext`, `<Translate contentKey="home.title">Welcome…</Translate>`, `translate()` | Keys resolve at render; the JSX child is the English fallback in source |
+| Locale state | redux `locale` slice: `setLocale` thunk lazy-loads `i18n/<lang>.json?_=<hash>`, then `dayjs.locale()` + `TranslatorContext.setLocale()` | One switch updates strings AND date formatting |
+| Bootstrap | `registerLocale(store)` → `Storage.session.get('locale','en')`; after login `account.langKey` wins unless the session already chose | Guest choice persists per session; a signed-in user's stored preference wins |
+| Persistence | `langKey` column on the user, edited on the Settings page, sent by the account API | Server knows the language (mails, server-rendered errors) |
+| Server side | `LocaleResolver` reading cookie `NG_TRANSLATE_LANG_KEY`; `messages_<lang>.properties` + `MessageSource` | Server-side messages (mails, error pages) follow the user |
+| Switcher | `LocaleMenu` dropdown in the header, rendered only when >1 language | Discoverable, hidden when pointless |
+
+Two things the reference does that we should NOT copy literally: the `react-jhipster` dependency (a JHipster utility bundle; its translator is a global singleton with no React context, no plural rules, no lazy namespaces) and the `merge-jsons` webpack plugin (webpack 5 dynamic `import()` gives us per-language chunks with hashed names for free).
+
+## 2. What litemall has today (audited 2026-09-04)
+
+- **Zero i18n.** 113 tsx + 87 ts files, no i18n library, `index.html` hardcodes `lang="en"`, every string is an inline English literal. Rough count: ~210 JSX text literals + ~10 attribute strings by grep (an undercount — strings inside `{'…'}`, template literals and data files such as `faqData.ts` are not caught; realistic total 400–600 sites). Per module: static pages 65, user area 31, product 15, checkout 14, order 14, search 13, home 11, login 10, groupon 9, the rest ≤6 each.
+- **Money** is centralised already: `shared/util/money.ts` (`money`, `moneyAmount`, `moneyParts`) formats with `toLocaleString('en-US')`. This is the Wave-24 seam and the ideal place for locale-aware formatting.
+- **Dates:** only 2 `toLocaleString()` sites (rating counts, not dates). `dialCodes.ts` already uses `Intl.DisplayNames(['en'])` — a locale parameter away from localised country names.
+- **Server messages:** 85 `errmsg` render sites; every backend (order, goods-management, promotion, edge `/auth`) emits English `errmsg` strings through `ResponseUtil.fail(errno, errmsg)`; there is NO `MessageSource` anywhere in litemall. The typed errnos are stable (the repo's contracts pin them) — the *message* is not the contract, the *number* is.
+- **User entity** has no language column (`LitemallUser`: username, nickname, email, mobile, avatar, isGuest, googleSub, …). The Flyway ceiling in this worktree's tree is V63; master/prod are at **V64** (seasonal candidacy) — a user column would be **V65**, litemall-db scope, shared-module discipline.
+- **Runtime config seam:** `/auth/site-config` → `shared/config/siteConfig.ts` observable store (not redux — usable outside React). This is the pattern for the locale store.
+- **Edge:** `SpaHistoryFallbackFilter` + `SeoHeadRenderer` inject title/OG/JSON-LD for product/category/page routes, identical for bots and humans. It knows nothing about language.
+- **Content:** product names, briefs, categories, DIY pages and season names are CJ/admin data in English. Nothing in this plan translates catalogue content.
+
+## 3. Decisions (recommendations; each one is yours to overturn)
+
+1. **Library: `i18next` + `react-i18next`** (not `react-jhipster`, not `react-intl`).
+   Why: namespaces map 1:1 onto the JHipster per-file layout and lazy-load per route; `t('key', 'English default')` / `<Trans i18nKey>English</Trans>` reproduce the reference's "English in source, JSON overrides" style; plural rules come from the browser's `Intl.PluralRules` (Swedish and Danish covered, no rule tables shipped); `i18next-parser` extracts keys into the `en` files so the English JSON cannot drift from the source. ~12 KB gzipped. react-intl would work equally well; react-jhipster would drag JHipster utilities into a non-JHipster app.
+2. **Languages:** `en` (default + fallback), `sv`, `da`. Language codes only, no regions (formatting uses `en-IE`/`sv-SE`/`da-DK` internally so "€" and decimal comma come out right without a second dimension).
+3. **No language prefix in URLs in this phase** (`/product/123` stays `/product/123`; no `/sv/...`). The UI chrome is what changes; catalogue content stays English, so per-language URLs would create thousands of duplicate pages with identical indexable content and no `hreflang` value. The locale lives in ONE module, so a prefix can be added later (when content is translated) without touching call sites. `<html lang>` follows the choice at runtime; the edge head injection is untouched.
+4. **Detection order:** `?lang=` query (shareable/test hook) → cookie `lm_lang` (1 year, SameSite=Lax, NOT HttpOnly — the SPA sets it) → `navigator.languages` (first of `sv`/`da`; anything else → `en`) → `en`. Unknown values fall back to `en`, never to a raw key.
+5. **User persistence (`lang_key` on `litemall_user`) is PHASE 2, not phase 1.** It needs V65 in litemall-db, entity + mapper hand edit, `mvn install`, and a rebuild of every dependent — a cross-worktree deploy for a field nothing server-side consumes yet (order mails are English-only). Phase 1 designs the seam (`langKey` in the `/auth/profile` body and `/auth/me` payload, ignored server-side until phase 2) so the SPA code does not change when the column arrives.
+6. **Server error messages are translated by errno on the client**, never by asking four backends to localise. `describeError(errno, errmsg)` looks up `errors.<errno>` and falls back to the server text verbatim. This keeps the repo's "typed message surfaced verbatim" acceptance behaviour for unknown errnos and localises the known ones (on-sale refusal, stale group slot, coupon reasons, guest email taken, …). The catalogue of errnos to cover is built from the CONTRACT blocks, not guessed.
+7. **Money formatting becomes locale-aware inside `money.ts` only:** `Intl.NumberFormat(localeTag, {style:'currency', currency:'EUR'})` → en `€12.34`, sv `12,34 €`, da `12,34 €`. `moneyParts` (the card's big-int/superscript split) stays locale-stable by design — the card layout assumes a dot split; it is a visual component, not prose. Amounts remain plain decimals on the wire (Wave-24 rule unchanged).
+8. **Translation authorship:** I draft `sv` and `da` for everything migrated in phase 1 and mark the files `"_reviewed": false`. A native review before deploy is a user-side step; the switcher can ship with all three languages or with `sv`/`da` hidden behind `LITEMALL_I18N_LANGUAGES` (site-config, default `en`) until reviewed — recommendation: **ship env-gated**, exactly like every other feature flag in this app (absent = hidden, never broken).
+9. **Legal pages (Terms, Privacy, Returns, Cookies) stay English in all locales** with a one-line translated notice ("This page is available in English only") until you have reviewed translations. Machine-drafted binding legal copy is not something I should put live.
+10. **Admin SPA is out of scope.** It is a separate store/app with its own audience; nothing here is shared with it except the pattern.
+
+## 4. Phase 1 deliverables (this worktree, one PR)
+
+A. **Foundation**
+   - `app/i18n/index.ts` — i18next init: supported `['en','sv','da']`, `fallbackLng:'en'`, `returnNull:false`, `returnEmptyString:false`, `nsSeparator:':'`, detection per §3.4, lazy resources via `import(\`./\${lng}/\${ns}.json\`)` (webpack chunks per language+namespace; `en` common namespace bundled eagerly so first paint never waits on a fetch).
+   - `app/i18n/{en,sv,da}/*.json` — namespaces: `common` (header, footer, drawer, nav, buttons, empty states), `cart`, `checkout`, `account`, `auth`, `product`, `search`, `order`, `errors`, `static`. Same file set in all three folders.
+   - `app/shared/config/locale.ts` — the observable locale store (siteConfig pattern): `currentLocale()`, `subscribeLocale()`, `setLocale(lang)` which updates i18next, `document.documentElement.lang`, the cookie, and (when signed in) fires the profile update (no-op server-side until phase 2). Non-React callers (money.ts, tracking) read it from here.
+   - `money.ts` locale-aware per §3.7; new `formatNumber`/`formatDate` helpers beside it; `dialCodes.ts` takes the locale.
+   - `describeError()` per §3.6 wired at the shared http seam (`toReject`) so slices get a localised message without per-site edits; the 85 sites keep rendering `errmsg` — it just arrives translated when known.
+   - `LanguageSwitcher` in the header account strip and in the footer (names, not flags: "English · Svenska · Dansk"); rendered only when >1 language is enabled (§3.8).
+   - `SiteConfigController`: `i18nLanguages` from `litemall.i18n.languages` (env `LITEMALL_I18N_LANGUAGES`, explicit yml placeholder, default `en`) — the ONLY Java change; no new anonymous paths, no security change.
+B. **Pilot migration (proves the pattern on every page):** `Layout.tsx` (header, footer, account strip), `CategoryDrawer`, `Cart`, `NotFound`, `RouteErrorBoundary`/`RootErrorBoundary` fallbacks, login/register/reset (`AuthShell`), and the coupon reason strings from Wave 24.1. Everything a visitor sees on every route is translated; product/checkout/order/user pages are tracked batches (§5).
+C. **Tooling + tests**
+   - `i18next-parser.config.js` + `npm run i18n:extract` — regenerates `en/*.json` from source (defaults in code are the source of truth for English) and reports keys missing in `sv`/`da`.
+   - Jest: key-parity test (every `en` key exists in `sv` and `da`, no empty strings, no untranslated copies of the English value except an allowlist); detection-order test; `setLocale` updates `<html lang>` + cookie + i18next; money renders `€12.34` / `12,34 €` / `12,34 €`; `describeError` known-errno vs verbatim fallback; switcher hidden when one language is enabled.
+   - `tsc` stays at 0 errors; prod build clean; verify by CHUNK that `sv`/`da` JSON chunks are only fetched after a switch.
+D. **Docs:** this spec updated to "as built"; CLAUDE.md worktree block rewritten; batch tracker (§5) with per-module counts.
+
+## 5. Follow-on batches (tracked, not in the phase-1 PR)
+
+| Batch | Files | Approx. sites |
+|---|---|---|
+| 2 | product PDP + cards + search rail/facets | ~30 |
+| 3 | cart/checkout (`views/commonViews/cart`) + delivery chooser + coupon cell | ~25 |
+| 4 | order list/detail/tracking/aftersale | ~20 |
+| 5 | user area (address, profile, favorites, footprint, feedback) | ~35 |
+| 6 | home strips, season rail, groupon landing, DIY `PageRenderer` chrome | ~25 |
+| 7 | static help/service/FAQ (`faqData.ts` 235 lines) | ~65 |
+| 8 | **Phase 2:** V65 `lang_key` on `litemall_user` (litemall-db, shared-module discipline), `/auth/profile` persists it, order mails pick the template language from it (order worktree) | — |
+| 9 | Later, only if catalogue content is ever translated: `/sv` `/da` URL prefixes, `hreflang` in the edge head injection, per-language sitemap | — |
+
+## 6. Acceptance (dev, `:9000` → `:8090`)
+
+- Fresh browser, English OS: everything English, no switcher when `LITEMALL_I18N_LANGUAGES=en`.
+- With `LITEMALL_I18N_LANGUAGES=en,sv,da`: switcher shows three names; choosing Svenska translates header/footer/drawer/cart/auth/404 instantly, sets `<html lang="sv">`, sets cookie `lm_lang=sv`, survives reload and sign-in/out; `?lang=da` on any URL forces Danish for that visit; an unknown `?lang=xx` falls back to English.
+- Money: `€12.34` in en, `12,34 €` in sv and da, on every migrated surface; card price split unchanged.
+- A known typed refusal (e.g. the stale group slot) renders translated in sv; an unknown errno renders the server text verbatim.
+- Missing key ⇒ English text, never a raw `common:header.cart` string on screen.
+- Jest green with real counts; `tsc` 0; prod build clean; `sv`/`da` chunks absent from the initial network log and present after a switch.
+- No change to `/srv` traffic, no new anonymous paths, no migration, no reindex.
+
+## 7. As built — phase 1 (2026-09-04)
+
+- **Dependencies:** `i18next@23.16.8`, `react-i18next@14.1.3`, dev `i18next-parser@9` (installed via the npm workspace root; lockfile not committed per repo rule).
+- **Files:** `app/i18n/index.ts` (init; English bundled + registered synchronously; sv/da via a 15-line lazy backend over webpack `import()` — the merge plugin was not needed), `app/i18n/locale.ts` (observable locale store, detection, enabled-list gate, `setLocale`, `useLocale`, `initLocale`), `app/i18n/errors.ts` (`describeError` by errno), `app/i18n/locales/{en,sv,da}/{common,cart,checkout,auth,errors}.json` (identical key sets, 100% filled; sv/da are MY drafts, native review pending), `components/commonComponents/LanguageSwitcher.tsx` (header dropdown + footer row; endonyms, no flags; hidden below two enabled languages), `i18next-parser.config.js`, npm scripts `i18n:check` / `i18n:extract`.
+- **Seams changed:** `money.ts` (locale-aware `Intl.NumberFormat`, `CURRENCY='EUR'` constant; `moneyParts` deliberately locale-stable), `shared/api/http.ts` (`ApiError` message via `describeError`), `auth/customerAuthSlice.ts` (four fallbacks + errno mapping), `shared/config/siteConfig.ts` (`i18nLanguages`, default `['en']`), `index.tsx` (`initLocale()`), both tsconfigs (`resolveJsonModule`).
+- **Java/config:** `SiteConfigController` serves `i18nLanguages` from `litemall.i18n.languages` (explicit yml placeholder `${LITEMALL_I18N_LANGUAGES:en}`; prod compose passthrough added with the feature). `en` always first; CSV parsed, blanks/dupes dropped. No security change, no new anonymous path, no migration.
+- **Pilot migrated:** `Layout.tsx` (header, strip, footer incl. promise strip, copyright, legal bar), `CategoryDrawer`, `Cart`, `SubmitBar` default label, `NotFound`, both error-boundary fallbacks (plain `t()` on purpose — a fallback must not depend on hooks that may be what threw), `CustomerLogin`, `Register`, `ResetPassword`, `GoogleSignInButton` fallback, coupon-reason + courier "Included" labels in `checkoutHonesty.ts`. `SUPPORT_HOURS` stays a shared data constant (footer/help/service drift guard), not copy.
+- **Detection as built:** `?lang=` (persisted to the cookie) → cookie `lm_lang` (1y, Lax, Secure on https) → browser languages (sv/da only, waits for the enabled list, never pinned) → `en`. Cookie choice is applied at boot and pulled back to English if the operator disabled that language.
+- **Verification:** jest **45 suites / 320 tests** (was 40/274; +5 suites, +46 tests: parity incl. placeholder + `<n>` tag preservation, detection order, enabled gate, switching side effects, errno describer, switcher visibility, sv/da money shapes); `tsc` 0 errors; `mvn compile` clean; `npm run i18n:check` exit 0 with a negative control (a probe `t('probeMissingKey')` makes it exit 1); prod build clean with exactly 10 lazy chunks `i18n-{sv,da}-{ns}-json.<hash>.js` and no English duplicate. main.js 713 → 792 KB raw (i18next + react-i18next + bundled English); the pre-existing 244 KB budget warning is unchanged in kind.
+- **Gotchas found:** `i18next-parser --fail-on-update` logs `[write]` for every file but does not write; with `sort:true` a hand-ordered file counts as an "update" — the check now runs with `sort:false`, `keepRemoved:true`, `createOldCatalogs:false` so it fails on exactly one thing: a key used in code that some language lacks. `Layout.tsx` had a `const t = setTimeout(...)` that shadowed the translator inside one effect — renamed. React-i18next re-renders only components that call `useTranslation`; a component that renders `money()` without any `t` updates on its next render, which is why batches 2–7 add the hook file by file rather than remounting the route tree (that would wipe checkout form state).
+- **NOT done (deliberate, tracked in §5):** ~200 string sites outside the pilot; legal pages; `lang_key` on the user (phase 2, V65); URL prefixes / hreflang (only if content is ever translated); native review of sv/da.
+
+## 8. Review + deploy record (2026-09-04)
+
+- **String review.** The user asked for a native review before deploy. What happened: a second, critical pass by me (not a human native speaker — say so if it is ever quoted), re-reading every sv/da string against how Swedish and Danish shops word these. Fixed: "fri frakt" / "gratis fragt" (not "fri leverans" / "gratis levering"), "Populärt just nu" for the trending heading ("Trendar" is a verb form), "Vi finns här för dig" / "Vi er her for dig" for the calqued "here to help", Danish "Levering med track & trace", Swedish "ordrar" to match the Returns & Orders cluster, "Mobilnummer", Danish "Google-login". Commit `6446f4ba0`. A human native pass is still worth having; the JSON is data, so corrections need no deploy beyond the container rebuild.
+- **Merge:** `fix/gateway-api` fast-forwarded into master (`6446f4ba0` → `d3c0a3453` → `4fca1ce06`), pushed to GitHub and to the VPS bare repo.
+- **Deploy attempt 1 FAILED — and it was not the i18n code.** The image build's `npm run webapp:prod` died with `ERROR in index.html … Cannot read properties of undefined (reading 'syntax')` under **webpack 5.110.3**. The prod Docker build has no root lockfile, so `npm install` re-resolves every workspace on each image build; webpack 5.110.0 (published 2026-08-27, one day AFTER the last successful gateway-api image) made `minimizer-webpack-plugin` its default minimizer, which picks a minifier by asset type and crashes on html-webpack-plugin's `index.html`. ⚠ My deploy script then recreated the container from the OLD image with the new env — harmless (the old image has no binding for it, site stayed healthy on the previous code) but a gating bug; fixed in the script before run 2 (`BUILD EXIT != 0 ⇒ stop, container untouched`).
+- **Attempt 2 FAILED for the same error despite pinning webpack `5.107.2` (`d3c0a3453`).** Cause: npm hoists `webpack-cli` to the workspace root, and that binary `require('webpack')`s the ROOT webpack (resolved to 5.110.3 for another workspace member), not the 5.107.2 nested under the storefront. Reproduced locally by installing 5.110.3 (identical error).
+- **Fix that held (`4fca1ce06`):** `webpack.config.prod.js` sets `optimization.minimizer = [new TerserPlugin({ test: /\.m?js(\?.*)?$/i })]` — JavaScript only — so no minifier is ever chosen for `index.html`, whichever webpack hoisting hands the build. Verified locally under BOTH 5.110.3 and 5.107.2 (10 i18n chunks, `index.html` intact); `terser-webpack-plugin` declared explicitly. The pin stays as documentation of the proven version.
+- **Attempt 3 SUCCEEDED (01:09–01:18 UTC):** checkout `4fca1ce06`, `.env.prod` gained `LITEMALL_I18N_LANGUAGES=en,sv,da` (backup `.env.prod.bak-i18n-2026-09-04`), builder cache pruned (17 → 30 G free; 25 G after), image built with `OK: SPA present`, container recreated, **healthy in 13 s**, `Started GatewayApiApplication in 5.0 s`, 0 error/exception lines in the first 6 min of log. Edge smoke `/ /cart /login /product/10035068 /?lang=sv /robots.txt /sitemap.xml` all 200. `/auth/site-config` serves `"i18nLanguages":["en","sv","da"]`.
+- **Verified by CONTENT, not uptime:** live bundle `main.a0b81a9c…` carries `lm_lang`, `i18nLanguages`, `language-menu`, the bundled English (`Hello, sign in`, `englishOnlyNotice`) and the 10-entry lazy chunk map; the hashed sv/da chunks resolved through the webpack runtime map return 200 and carry the reviewed strings (`Varukorg`, `Populärt just nu`, `Vi finns här för dig` / `Kurv`, `Levering med track & trace`, `Vi er her for dig`).
+- **Rollback:** language visibility = env only (`LITEMALL_I18N_LANGUAGES=en` + container recreate hides the switcher and forces English; no rebuild). Code rollback = rebuild from `2ac8cf045`.
+- **Lessons worth keeping:** (1) a floating range on a build tool with no lockfile is a time bomb — the fuse here was one day; (2) a version pin inside one npm workspace does NOT bind the hoisted CLI that runs the build — fix the config seam, not the version; (3) a deploy script must gate every step after the build on the build's exit code; (4) verify a deploy by bundle CONTENT resolved through the runtime chunk map, never by `docker ps` uptime.

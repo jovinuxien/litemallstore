@@ -3,6 +3,7 @@ import { Offcanvas } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
 import { seasonLabel, seasonPath } from 'app/shared/util/season';
 import { useSeason } from 'app/shared/util/useSeason';
@@ -28,6 +29,7 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
   const nickName = useAppSelector(state => state.customerAuth.data.userInfo?.nickName);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const { t } = useTranslation();
   // Wave 26: same rule as the header/footer — a section is listed only while it
   // has something behind it (see shared/util/contentAvailability.ts).
   const hasBrands = useContentAvailability('brands');
@@ -45,11 +47,11 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
       <Offcanvas.Header closeButton closeVariant='white' className='lm-drawer__head'>
         <Offcanvas.Title>
           <i className='bi bi-person-circle me-2' />
-          Hello, {isAuthenticated ? nickName || 'shopper' : 'sign in'}
+          {isAuthenticated ? t('header.hello', { name: nickName || t('header.shopper') }) : t('header.helloSignIn')}
         </Offcanvas.Title>
       </Offcanvas.Header>
       <Offcanvas.Body className='p-0'>
-        <div className='lm-drawer__section-title'>Shop by category</div>
+        <div className='lm-drawer__section-title'>{t('drawer.shopByCategory')}</div>
         {categories.map(category => {
           const cid = catId(category);
           const subs = subTree[String(cid)] ?? [];
@@ -65,7 +67,7 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
                     type='button'
                     className='lm-drawer__expand'
                     aria-expanded={expanded}
-                    aria-label={`${expanded ? 'Collapse' : 'Expand'} ${catName(category)}`}
+                    aria-label={t(expanded ? 'drawer.collapse' : 'drawer.expand', { name: catName(category) })}
                     onClick={() => setExpandedId(expanded ? null : (cid ?? null))}
                   >
                     <i className={`bi bi-chevron-${expanded ? 'up' : 'down'}`} />
@@ -85,12 +87,12 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
           );
         })}
 
-        <div className='lm-drawer__section-title'>Trending</div>
+        <div className='lm-drawer__section-title'>{t('drawer.trending')}</div>
         {/* This said "Today's Deals" while pointing at /hot — the header strip
             uses that exact label for /deals, so the same words took a shopper to
             two different pages. /hot is the best-seller ranking. */}
         <Link to='/hot' className='lm-drawer__link d-block' onClick={onHide}>
-          Best sellers
+          {t('drawer.bestSellers')}
         </Link>
         {season && seasonLabel(season) && (
           <Link to={seasonPath(season)} className='lm-drawer__link d-block' onClick={onHide}>
@@ -98,32 +100,32 @@ const CategoryDrawer: React.FC<Props> = ({ show, onHide }) => {
           </Link>
         )}
         <Link to='/new' className='lm-drawer__link d-block' onClick={onHide}>
-          New Arrivals
+          {t('drawer.newArrivals')}
         </Link>
         {hasBrands && (
           <Link to='/brands' className='lm-drawer__link d-block' onClick={onHide}>
-            Brands
+            {t('drawer.brands')}
           </Link>
         )}
         {hasTopics && (
           <Link to='/topics' className='lm-drawer__link d-block' onClick={onHide}>
-            Topics &amp; guides
+            {t('drawer.topicsGuides')}
           </Link>
         )}
 
-        <div className='lm-drawer__section-title'>Help &amp; settings</div>
+        <div className='lm-drawer__section-title'>{t('drawer.helpSettings')}</div>
         <Link to='/user' className='lm-drawer__link d-block' onClick={onHide}>
-          Your account
+          {t('drawer.yourAccount')}
         </Link>
         <Link to='/orders' className='lm-drawer__link d-block' onClick={onHide}>
-          Your orders
+          {t('drawer.yourOrders')}
         </Link>
         <Link to='/service' className='lm-drawer__link d-block' onClick={onHide}>
-          Customer service
+          {t('drawer.customerService')}
         </Link>
         {!isAuthenticated && (
           <Link to='/login' className='lm-drawer__link d-block' onClick={onHide}>
-            Sign in
+            {t('drawer.signIn')}
           </Link>
         )}
       </Offcanvas.Body>
