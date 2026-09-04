@@ -2278,9 +2278,28 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) BUILT, not merged
-- **Status 2026-09-04 — i18n FOUNDATION PHASE 1 BUILT on `fix/gateway-api`, NOT
-  merged, NOT deployed.** User-commissioned outside any wave ("lay the
+### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
+- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
+  rail; spec §5) — rewrite this block before launching it.
+- **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
+  with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
+  en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live
+  bundle `main.a0b81a9c…` + hashed sv/da chunks verified BY CONTENT; smoke 200s).
+  ⚠ **The deploy failed TWICE before it landed, neither time because of i18n:** the
+  image build has no root lockfile, so `npm install` floated the storefront onto
+  **webpack 5.110.3** (published 2026-08-27, one day after the previous gateway-api
+  image) whose new default `minimizer-webpack-plugin` crashes on html-webpack-plugin's
+  `index.html` ("reading 'syntax'"). Pinning webpack 5.107.2 in the storefront did NOT
+  help — npm hoists `webpack-cli` to the workspace root and it requires the ROOT
+  webpack. Fix that held: `webpack.config.prod.js` now sets an explicit JS-only Terser
+  minimizer (verified under 5.110.3 AND 5.107.2). ⚠ My first deploy script recreated
+  the container from the OLD image after the failed build (harmless, but wrong) —
+  the script now stops on `BUILD EXIT != 0`. Full record: spec §8.
+  ⚠ The sv/da strings had a second critical pass by ME, not a human native speaker
+  (spec §8 lists the idiom fixes). A human pass is still worth having; corrections are
+  JSON data + a container rebuild, nothing else.
+  Rollback of visibility = `LITEMALL_I18N_LANGUAGES=en` + recreate (no rebuild).
+- **Build detail (2026-09-04) — i18n FOUNDATION PHASE 1.** User-commissioned outside any wave ("lay the
   architecture foundation for multi-language like the JHipster announceapp02
   gateway: en default, sv, da"); plan approved same day. FROZEN spec + as-built
   record: `litemall-gateway-api/docs/spec-i18n-foundation.md` (read §0 on
@@ -2322,9 +2341,8 @@
   wipe checkout state). `lang_key` on the user = phase 2 (V65, litemall-db,
   shared-module discipline); URL prefixes/hreflang only if content is ever
   translated.
-  NEXT: merge to master + deploy (gateway-api container only; no migration, no
-  reindex; `LITEMALL_I18N_LANGUAGES` stays `en` until sv/da are reviewed), then
-  batch 2 (PDP + cards + search rail).
+  Merged + deployed the same day (see status above); batch 2 (PDP + cards + search
+  rail) is the next task.
 - **Previous status (2026-08-26) — footer audit + EU stock SHIPPED + LIVE.**
 - **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED + LIVE on
   trovemo.com.** Commits `b5e8d7004` (copy/nav) + `0469129b8` (EU stock +
