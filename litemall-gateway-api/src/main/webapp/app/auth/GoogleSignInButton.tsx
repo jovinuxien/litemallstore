@@ -1,3 +1,4 @@
+import { t } from 'app/i18n';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { useAppDispatch } from 'app/config/store';
@@ -75,7 +76,7 @@ const GoogleSignInButton: React.FC<{ onSuccess?: () => void }> = ({ onSuccess })
                 fireRegisterGifts();
                 onSuccess?.();
               } else {
-                setError((result.payload as { errmsg?: string } | undefined)?.errmsg ?? 'Google sign-in failed');
+                setError((result.payload as { errmsg?: string } | undefined)?.errmsg ?? t('auth:google.failed'));
               }
             },
           });

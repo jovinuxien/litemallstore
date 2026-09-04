@@ -1,0 +1,132 @@
+{
+  "header": {
+    "hello": "Hej, {{name}}",
+    "helloSignIn": "Hej, log ind",
+    "search": {
+      "placeholderDefault": "Søg \"{{keyword}}\" og mere…",
+      "placeholder": "Søg efter produkter…",
+      "label": "Søg"
+    },
+    "suggest": {
+      "category": "Kategori",
+      "curated": "Populært"
+    },
+    "recentSearches": "Seneste søgninger",
+    "clear": "Ryd",
+    "trending": "Populært lige nu",
+    "accountLists": "Konto & lister",
+    "myAccount": "Min konto",
+    "myOrders": "Mine ordrer",
+    "favorites": "Favoritter",
+    "myCoupons": "Mine rabatkoder",
+    "couponCenter": "Rabatkoder",
+    "addresses": "Adresser",
+    "signOut": "Log ud",
+    "signIn": "Log ind",
+    "register": "Opret konto",
+    "returns": "Returneringer",
+    "andOrders": "& ordrer",
+    "cart": "Kurv",
+    "all": "Alle",
+    "todaysDeals": "Dagens tilbud",
+    "newArrivals": "Nyheder",
+    "allProducts": "Alle produkter",
+    "brands": "Mærker",
+    "topics": "Temaer",
+    "groupBuys": "Gruppekøb",
+    "customerService": "Kundeservice",
+    "shopper": "kunde"
+  },
+  "drawer": {
+    "shopByCategory": "Shop efter kategori",
+    "trending": "Populært lige nu",
+    "bestSellers": "Bestsellere",
+    "newArrivals": "Nyheder",
+    "brands": "Mærker",
+    "topicsGuides": "Temaer & guides",
+    "helpSettings": "Hjælp & indstillinger",
+    "yourAccount": "Din konto",
+    "yourOrders": "Dine ordrer",
+    "customerService": "Kundeservice",
+    "signIn": "Log ind",
+    "expand": "Vis {{name}}",
+    "collapse": "Skjul {{name}}"
+  },
+  "errorPage": {
+    "title": "Siden kunne ikke vises",
+    "body": "Noget gik galt, da den skulle vises. Resten af butikken er ikke påvirket.",
+    "tryAgain": "Prøv igen",
+    "home": "Gå til forsiden",
+    "browse": "Se alle produkter"
+  },
+  "rootError": {
+    "title": "Trovemo indlæses ikke",
+    "body": "Noget gik galt. Det hjælper som regel at genindlæse siden.",
+    "reload": "Genindlæs"
+  },
+  "language": {
+    "label": "Sprog",
+    "englishOnlyNotice": "Denne side findes kun på engelsk."
+  },
+  "submitBar": {
+    "total": "I alt:"
+  },
+  "footer": {
+    "backToTop": "Tilbage til toppen",
+    "blurb": "Alt til hjemmet, haven og værkstedet — udvalgt, ikke skrabet sammen. Ærlige priser, en kasse der bare virker, og 30 dage til at fortryde. Vi står bag hver eneste ordre.",
+    "shop": "Shop",
+    "allProducts": "Alle produkter",
+    "todaysDeals": "Dagens tilbud",
+    "bestSellers": "Bestsellere",
+    "newArrivals": "Nyheder",
+    "shopByBrand": "Shop efter mærke",
+    "topicsGuides": "Temaer & guides",
+    "articles": "Artikler",
+    "groupBuys": "Gruppekøb",
+    "couponsDeals": "Rabatkoder & tilbud",
+    "yourAccount": "Din konto",
+    "accountOverview": "Kontooversigt",
+    "yourOrders": "Dine ordrer",
+    "wishList": "Ønskeliste",
+    "addresses": "Adresser",
+    "couponsRewards": "Rabatkoder & fordele",
+    "letUsHelp": "Lad os hjælpe dig",
+    "helpCenter": "Hjælpecenter",
+    "customerService": "Kundeservice",
+    "trackOrder": "Spor en ordre",
+    "returnsRefunds": "Returnering & refusion",
+    "sendFeedback": "Send feedback",
+    "copyright": "© {{year}} Trovemo. Alle rettigheder forbeholdes. Priser og tilgængelighed kan ændre sig.",
+    "conditions": "Handelsbetingelser",
+    "privacy": "Privatlivspolitik",
+    "cookies": "Cookie-indstillinger",
+    "contact": "Kontakt os",
+    "promises": {
+      "delivery": {
+        "title": "Levering med sporing",
+        "detail": "Følg hver ordre helt til døren"
+      },
+      "payments": {
+        "title": "Sikre betalinger",
+        "detail": "Håndteres af Stripe, verificeres af os"
+      },
+      "returns": {
+        "title": "30 dages returret",
+        "detail": "Fortryd inden for 30 dage"
+      },
+      "help": {
+        "title": "Klar til at hjælpe"
+      }
+    }
+  },
+  "notFound": {
+    "title": "Vi kunne ikke finde den side",
+    "body": "Adressen <1>{{path}}</1> findes ikke, eller også sælges produktet, der lå her, ikke længere.",
+    "searchLabel": "Søg efter produkter",
+    "searchPlaceholder": "Søg efter et produkt",
+    "search": "Søg",
+    "home": "Forsiden",
+    "allProducts": "Alle produkter",
+    "todaysDeals": "Dagens tilbud"
+  }
+}

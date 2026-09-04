@@ -1,6 +1,9 @@
 package org.linlinjava.litemall.gatewayapi.web;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +49,13 @@ import org.springframework.web.bind.annotation.RestController;
  * by design, null ⇒ the SPA injects no pixel and makes no Meta request (and the
  * pixel is additionally consent-gated client-side either way). Goes live via
  * ENV ({@code LITEMALL_META_PIXEL_ID}) plus a container recreate.
+ *
+ * <p>i18n foundation adds {@code i18nLanguages}: the storefront languages the
+ * operator has enabled, from {@code litemall.i18n.languages} (ENV
+ * {@code LITEMALL_I18N_LANGUAGES}, comma-separated, default {@code en}). The SPA
+ * renders its language switcher only when more than one is listed and never
+ * auto-selects a language that is not; {@code en} is always present. Same
+ * activation story as everything else here: env + recreate, no rebuild.
  */
 @RestController
 @RequestMapping("/auth")
@@ -63,6 +73,7 @@ public class SiteConfigController {
     private final String socialTiktokUrl;
     private final String socialYoutubeUrl;
     private final String socialXUrl;
+    private final List<String> i18nLanguages;
 
     public SiteConfigController(
             @Value("${litemall.tracking.matomo.base-url:}") String matomoUrl,
@@ -76,7 +87,8 @@ public class SiteConfigController {
             @Value("${litemall.social.instagram-url:}") String socialInstagramUrl,
             @Value("${litemall.social.tiktok-url:}") String socialTiktokUrl,
             @Value("${litemall.social.youtube-url:}") String socialYoutubeUrl,
-            @Value("${litemall.social.x-url:}") String socialXUrl) {
+            @Value("${litemall.social.x-url:}") String socialXUrl,
+            @Value("${litemall.i18n.languages:en}") String i18nLanguages) {
         this.matomoUrl = blankToNull(matomoUrl);
         this.matomoSiteId = blankToNull(matomoSiteId);
         this.matomoGoodsDimension = matomoGoodsDimension;
@@ -89,6 +101,7 @@ public class SiteConfigController {
         this.socialTiktokUrl = blankToNull(socialTiktokUrl);
         this.socialYoutubeUrl = blankToNull(socialYoutubeUrl);
         this.socialXUrl = blankToNull(socialXUrl);
+        this.i18nLanguages = parseLanguages(i18nLanguages);
     }
 
     @GetMapping("/site-config")
@@ -109,7 +122,28 @@ public class SiteConfigController {
         data.put("socialTiktokUrl", socialTiktokUrl);
         data.put("socialYoutubeUrl", socialYoutubeUrl);
         data.put("socialXUrl", socialXUrl);
+        data.put("i18nLanguages", i18nLanguages);
         return ApiResponse.ok(data);
+    }
+
+    /**
+     * "en, sv,DA" → ["en","sv","da"]; blanks dropped, duplicates collapsed, and
+     * {@code en} (the bundled default + fallback) always first. Unknown codes are
+     * passed through — the SPA owns the supported set and ignores what it
+     * cannot serve, so a typo here is harmless rather than a boot failure.
+     */
+    static List<String> parseLanguages(String csv) {
+        List<String> out = new ArrayList<>();
+        out.add("en");
+        if (csv != null) {
+            for (String raw : csv.split(",")) {
+                String code = raw.trim().toLowerCase(Locale.ROOT);
+                if (!code.isEmpty() && !out.contains(code)) {
+                    out.add(code);
+                }
+            }
+        }
+        return List.copyOf(out);
     }
 
     private static String blankToNull(String s) {

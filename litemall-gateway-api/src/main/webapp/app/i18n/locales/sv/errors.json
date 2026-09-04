@@ -1,0 +1,17 @@
+{
+  "loginFailed": "Inloggningen misslyckades",
+  "registrationFailed": "Registreringen misslyckades",
+  "guestCheckoutFailed": "Gästkassan misslyckades",
+  "googleFailed": "Inloggning med Google misslyckades",
+  "requestFailed": "Begäran misslyckades",
+  "byCode": {
+    "700": "Det nuvarande lösenordet är fel.",
+    "701": "Återställning av lösenord via e-post är inte tillgänglig.",
+    "703": "Koden är ogiltig eller har gått ut.",
+    "704": "Användarnamnet är redan registrerat.",
+    "705": "Mobilnumret är redan registrerat.",
+    "706": "Det finns redan ett konto med den här e-postadressen — logga in.",
+    "707": "Inloggning med Google är inte tillgänglig.",
+    "708": "Inloggningen med Google kunde inte verifieras. Försök igen."
+  }
+}

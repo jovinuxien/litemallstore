@@ -33,6 +33,11 @@ export interface SiteConfig {
   socialTiktokUrl: string | null;
   socialYoutubeUrl: string | null;
   socialXUrl: string | null;
+  /**
+   * Storefront languages the operator has enabled (i18n foundation). Always includes
+   * 'en'; `LITEMALL_I18N_LANGUAGES` lists more. Missing/old edge ⇒ ['en'] ⇒ no switcher.
+   */
+  i18nLanguages: string[];
 }
 
 const EMPTY: SiteConfig = {
@@ -47,6 +52,7 @@ const EMPTY: SiteConfig = {
   socialTiktokUrl: null,
   socialYoutubeUrl: null,
   socialXUrl: null,
+  i18nLanguages: ['en'],
 };
 
 export interface SiteConfigState {

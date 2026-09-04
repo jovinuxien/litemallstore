@@ -1,0 +1,10 @@
+{
+  "title": "Shopping Cart",
+  "empty": "Your cart is empty.",
+  "continueShopping": "Continue shopping",
+  "itemCount_one": "You have {{count}} item in your cart",
+  "itemCount_other": "You have {{count}} items in your cart",
+  "remove": "Remove",
+  "freeDelivery": "Free delivery within 1–2 weeks",
+  "checkout": "Checkout"
+}

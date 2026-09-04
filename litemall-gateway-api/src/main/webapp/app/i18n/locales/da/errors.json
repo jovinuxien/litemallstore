@@ -1,0 +1,17 @@
+{
+  "loginFailed": "Login mislykkedes",
+  "registrationFailed": "Registreringen mislykkedes",
+  "guestCheckoutFailed": "Gæstekassen mislykkedes",
+  "googleFailed": "Login med Google mislykkedes",
+  "requestFailed": "Anmodningen mislykkedes",
+  "byCode": {
+    "700": "Den nuværende adgangskode er forkert.",
+    "701": "Nulstilling af adgangskode via e-mail er ikke tilgængelig.",
+    "703": "Koden er ugyldig eller udløbet.",
+    "704": "Dette brugernavn er allerede registreret.",
+    "705": "Dette mobilnummer er allerede registreret.",
+    "706": "Der findes allerede en konto med denne e-mail — log ind.",
+    "707": "Login med Google er ikke tilgængeligt.",
+    "708": "Login med Google kunne ikke verificeres. Prøv igen."
+  }
+}

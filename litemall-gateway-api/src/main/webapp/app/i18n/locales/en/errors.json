@@ -1,0 +1,17 @@
+{
+  "loginFailed": "Login failed",
+  "registrationFailed": "Registration failed",
+  "guestCheckoutFailed": "Guest checkout failed",
+  "googleFailed": "Google sign-in failed",
+  "requestFailed": "Request failed",
+  "byCode": {
+    "700": "The current password is incorrect.",
+    "701": "Password reset by email is not available.",
+    "703": "This code is invalid or has expired.",
+    "704": "This username is already registered.",
+    "705": "This mobile number is already registered.",
+    "706": "An account with this email already exists — please sign in.",
+    "707": "Google sign-in is not available.",
+    "708": "Google sign-in could not be verified. Please try again."
+  }
+}

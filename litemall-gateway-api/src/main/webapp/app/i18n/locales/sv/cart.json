@@ -1,0 +1,10 @@
+{
+  "title": "Varukorg",
+  "empty": "Din varukorg är tom.",
+  "continueShopping": "Fortsätt handla",
+  "itemCount_one": "Du har {{count}} vara i varukorgen",
+  "itemCount_other": "Du har {{count}} varor i varukorgen",
+  "remove": "Ta bort",
+  "freeDelivery": "Fri leverans inom 1–2 veckor",
+  "checkout": "Till kassan"
+}
