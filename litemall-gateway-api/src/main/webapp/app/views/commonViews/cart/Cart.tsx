@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { fetchCart, syncLocalCart, updateCartItem } from 'app/shared/reducers/cartSlice';
 import { CellGroup, EmptyState, GoodsLineCard, Page, PageHead, SubmitBar } from 'app/components/commonComponents/storefront';
 import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Shopping cart — litemall-vue `tabbar-cart` layout: a list of goods line-cards
@@ -15,6 +16,7 @@ import { fpTrack, numericGoodsId } from 'app/shared/tracking/firstParty';
 const CartView: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const { t } = useTranslation('cart');
 
   const { cartList } = useAppSelector(state => state.cart.data);
   const { isAuthenticated } = useAppSelector(state => state.customerAuth.data);
@@ -56,12 +58,12 @@ const CartView: React.FC = () => {
   if (cartList.length === 0) {
     return (
       <Page>
-        <PageHead title='Shopping Cart' />
+        <PageHead title={t('title')} />
         <div className='container'>
           <CellGroup>
-            <EmptyState icon='bi-cart-x' text='Your cart is empty.'>
+            <EmptyState icon='bi-cart-x' text={t('empty')}>
               <Link to='/' className='btn btn-lm-primary'>
-                Continue shopping
+                {t('continueShopping')}
               </Link>
             </EmptyState>
           </CellGroup>
@@ -72,7 +74,7 @@ const CartView: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Shopping Cart' sub={`You have ${cartList.length} item${cartList.length > 1 ? 's' : ''} in your cart`} />
+      <PageHead title={t('title')} sub={t('itemCount', { count: cartList.length })} />
       <div className='container'>
         <CellGroup>
           {cartList.map(item => {
@@ -98,7 +100,7 @@ const CartView: React.FC = () => {
                   </div>
                 }
                 trailing={
-                  <button className='btn btn-sm btn-lm-outline ms-2' onClick={() => removeItem(id)} aria-label='Remove'>
+                  <button className='btn btn-sm btn-lm-outline ms-2' onClick={() => removeItem(id)} aria-label={t('remove')}>
                     <i className='bi bi-trash' />
                   </button>
                 }
@@ -108,11 +110,11 @@ const CartView: React.FC = () => {
         </CellGroup>
 
         <div className='lm-amount--success small mb-2'>
-          <i className='bi bi-truck' /> Free delivery within 1–2 weeks
+          <i className='bi bi-truck' /> {t('freeDelivery')}
         </div>
       </div>
 
-      <SubmitBar total={total} buttonText='Checkout' onSubmit={() => navigate('/checkout')} />
+      <SubmitBar total={total} buttonText={t('checkout')} onSubmit={() => navigate('/checkout')} />
     </Page>
   );
 };

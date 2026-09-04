@@ -1,6 +1,8 @@
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult } from 'app/config/types';
+import { describeError } from 'app/i18n/errors';
+import { t } from 'app/i18n';
 
 /**
  * Customer-SPA api seam. Every `/srv` request the SPA makes lives in one of the
@@ -35,7 +37,8 @@ export async function unwrap<T>(p: Promise<{ data: ApiResult<T> | T }>): Promise
   const body = res.data as ApiResult<T> | T;
   if (body && typeof body === 'object' && 'errno' in (body as ApiResult<T>)) {
     const env = body as ApiResult<T>;
-    if (env.errno !== 0) throw new ApiError(env.errno, env.errmsg ?? 'Request failed');
+    // Localised by errno when we know the code; the server's text verbatim otherwise.
+    if (env.errno !== 0) throw new ApiError(env.errno, describeError(env.errno, env.errmsg));
     return env.data;
   }
   return body as T;
@@ -44,7 +47,7 @@ export async function unwrap<T>(p: Promise<{ data: ApiResult<T> | T }>): Promise
 /** Normalise any thrown error into the ApiResult<null> shape for rejectWithValue. */
 export function toReject(e: unknown): ApiResult<null> {
   if (e instanceof ApiError) return { errno: e.errno, errmsg: e.message, data: null };
-  const msg = (e as { message?: string })?.message ?? 'Request failed';
+  const msg = (e as { message?: string })?.message ?? t('errors:requestFailed');
   return { errno: 500, errmsg: msg, data: null };
 }
 

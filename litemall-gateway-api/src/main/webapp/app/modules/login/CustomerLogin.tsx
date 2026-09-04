@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { loginCustomerThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
 import AuthShell from 'app/modules/login/AuthShell';
+import { Trans, useTranslation } from 'app/i18n';
 
 /**
  * Customer sign-in against the gateway-api edge (/auth/login, customer realm).
@@ -19,6 +20,7 @@ const CustomerLogin: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { loading, errorMessage } = useAppSelector(state => state.customerAuth);
+  const { t } = useTranslation('auth');
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -34,31 +36,31 @@ const CustomerLogin: React.FC = () => {
   };
 
   return (
-    <AuthShell title='Sign in' sub='Welcome back to Trovemo.'>
+    <AuthShell title={t('login.title')} sub={t('login.sub')}>
       {errorMessage && <Alert variant='danger'>{errorMessage}</Alert>}
       <Form onSubmit={handleSubmit}>
         <Form.Group className='mb-3'>
-          <Form.Label>Username</Form.Label>
+          <Form.Label>{t('common.username')}</Form.Label>
           <Form.Control value={username} onChange={e => setUsername(e.target.value)} required autoFocus />
         </Form.Group>
         <Form.Group className='mb-3'>
-          <Form.Label>Password</Form.Label>
+          <Form.Label>{t('common.password')}</Form.Label>
           <Form.Control type='password' value={password} onChange={e => setPassword(e.target.value)} required />
           <div className='text-end mt-1'>
             <Link to='/reset' className='small'>
-              Forgot password?
+              {t('login.forgot')}
             </Link>
           </div>
         </Form.Group>
         <button type='submit' className='btn btn-lm-primary w-100' disabled={loading === 'pending'}>
-          {loading === 'pending' ? <Spinner animation='border' size='sm' /> : 'Sign in'}
+          {loading === 'pending' ? <Spinner animation='border' size='sm' /> : t('login.submit')}
         </button>
       </Form>
-      <div className='lm-auth__divider'>or</div>
+      <div className='lm-auth__divider'>{t('common.or')}</div>
       <GoogleSignInButton onSuccess={() => navigate(from, { replace: true })} />
       <div className='text-center mt-3'>
         <small className='text-muted'>
-          New here? <Link to='/register'>Create an account</Link>
+          <Trans t={t} i18nKey='login.newHere' components={{ 1: <Link to='/register' /> }} />
         </small>
       </div>
     </AuthShell>

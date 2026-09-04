@@ -1,0 +1,10 @@
+{
+  "title": "Indkøbskurv",
+  "empty": "Din kurv er tom.",
+  "continueShopping": "Fortsæt med at handle",
+  "itemCount_one": "Du har {{count}} vare i kurven",
+  "itemCount_other": "Du har {{count}} varer i kurven",
+  "remove": "Fjern",
+  "freeDelivery": "Gratis levering inden for 1–2 uger",
+  "checkout": "Gå til kassen"
+}
