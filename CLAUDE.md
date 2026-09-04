@@ -2807,68 +2807,89 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist (IN PROGRESS, uncommitted→committed here)
-- **Status 2026-08-24 — ON-PAGE SEO: over-length product titles.** Committed on
-  this branch, NOT merged, NOT run against a live stack. Backend compiles;
-  28 unit tests green (`TitleProposerTest` 10, `CsvKeywordResearchProviderTest`
-  10, `SeoPlatformKeywordClientTest` 8); admin `tsc` clean in `app/` (the only
-  6 errors are pre-existing `NoInfer` ones inside `node_modules/@reduxjs`).
-  **This branch deliberately carries goods-management files too** — the SPA page
-  is useless without its endpoint, so both halves are one commit here rather
-  than split across the `goods-management` worktree.
-- **The problem, measured against the live catalogue (not estimated):** 2,571 of
-  3,718 on-sale titles exceed 60 chars (median 85, max 127). Google renders ~60
-  and cuts the rest, so the end of a long title is invisible to a searcher.
-- **What was built.**
-  (1) `application/seo/KeywordResearchProvider` — the port, in goods-management's
-  own vocabulary (term / monthlySearches / competition / difficulty). No location
-  code, no tenant, no provider envelope.
-  (2) `infrastructure/acl/seo/` — the ACL. `CsvKeywordResearchProvider` (DEFAULT,
-  reads an export already paid for), `SeoPlatformKeywordClient` (live, buys),
-  `NoKeywordResearchProvider` (off), selected by `litemall.seo-research.source`
-  = `file` | `platform` | `none`.
-  (3) `application/seo/TitleProposer` + `TitleOptimisationService` — the first
-  consumer. Asks per CATEGORY, never per product (the live source bills per seed).
-  (4) `interfaces/rest/admin/AdminSeoController` — `GET /srv/private/admin/seo/
-  titles`, `POST /titles/apply` (errno 660). Rides gateway-admin's `/srv/**`
-  catch-all: **no gateway route change**.
-  (5) SPA `/admin/goods/seo-titles` — `adminSeoApi.ts` + `Insight/SeoTitleList.tsx`,
-  registered in `store.ts`, `reducers/index.ts`, `admin-routes.tsx`, `menu.config.ts`.
-- **Decisions that must not be silently reversed.**
-  * The proposal is a word-boundary truncation of the CURRENT title. It is NOT
-    generated from keyword data — the bought terms carry competitor brands and
-    homonyms ("friday night lights" under Night Lights), and rearranging supplier
-    wording around them produces copy that would ship under the shop's name.
-  * `HtmlText.truncateAtWord` HARD-cuts mid-word when no space precedes the limit
-    (`cut <= 0 -> cut = max`). It is shared with the merchant feed, so it was NOT
-    changed; `TitleProposer` detects the mid-word cut and keeps the original,
-    flagged `needsReview`. A test pins this.
-  * Apply reindexes the row (`reindexService.reindexGoods`) — the name lives in
-    the OCS document too. Precedent: `CatalogHygieneService`.
-  * `goods.keywords` is left alone ON PURPOSE. Despite the name it is a SEARCH
-    column (`LitemallGoodsService.querySelective` LIKE-matches it); the longer old
-    text there preserves recall the shortened title would lose.
-  * Nothing auto-applies. Every row is editable and `apply` writes exactly what
-    the administrator submitted.
-- **Honest limitation — do not oversell this.** Only 43 of 2,571 over-length
-  titles match a bought keyword, and 18 keep it after the cut. 28 of 81 categories
-  have terms at all. The truncation is the value; the keyword is evidence on ~2%
-  of rows. Raising it needs the remaining 50 category seeds bought.
-- **Data.** `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 1,368
-  servable, 28 categories) — bought 2026-08-24 for $0.6422 / 46 calls, UK
-  (locationCode 2826, `en`). The DataForSEO account then ran OUT OF CREDIT at
-  seed 31 of 81; it surfaces as 502 wrapping the provider's 402, not a clean
-  payment error. Finishing needs a top-up (~$50 min).
-- **Next steps (nothing here is done).**
-  1. Bring the stack up and exercise `/admin/goods/seo-titles` end to end — the
-     endpoint has NEVER served a live request.
-  2. Add jest coverage for `SeoTitleList` (the repo's admin suite is jest; none
-     was added).
-  3. Decide on a bulk-apply for the `needsReview == false` rows.
-  4. Rebase: this branch was 12 commits behind master when committed.
-- **Acceptance:** `/admin/goods/seo-titles` lists real over-length titles through
-  :8080, an Apply shortens one product's name AND the storefront's on-site search
-  reflects it (reindex proof), module tests green with real "Tests run:" counts.
+### Worktree: `gateway-admin` — SEO title worklist: bulk apply + honest reindex (BUILT 2026-09-04)
+- **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
+  The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
+  stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
+  trovemo.com on 2026-08-26 (goods-management + gateway-admin rebuilt at that commit),
+  DARK for keywords — `source=file` with an EMPTY export dir on the VPS, so it runs as
+  truncation-only. Its FIRST live use (prod goods 10000844) exposed that Apply said
+  "Request failed" on every call including successful ones; master fixed it as
+  `10ca91595` (`applyResult.ts` + 5 tests). This branch had 0 commits of its own and was
+  52 behind, so it was fast-forwarded (step 4 of the old list = done, nothing lost).
+- **Built here (one commit, both halves — the SPA is useless without its endpoint):**
+  1. **Honest reindex on apply.** `TitleOptimisationService.apply` wrote MySQL and THEN
+     called the indexer; `OcsProductIndexer.upsert` throws on any transport failure and
+     the controller caught only IllegalArgumentException, so an indexer outage turned a
+     SUCCESSFUL rename into a 500 — the same "worked but said it failed" shape as the
+     first live bug, one layer down. Now `apply` returns `Applied{goodsId, title, changed,
+     reindexed, reindexError}`; a reindex failure is logged and REPORTED (errno 0 with
+     `reindexed:false` + `warning`), never thrown. The SPA shows the caveat verbatim and
+     marks the row "saved, not reindexed" instead of inviting a retry of a write that
+     already landed.
+  2. **Bulk apply.** `POST /srv/private/admin/seo/titles/apply-batch` body
+     `{items:[{goodsId,title}]}` → `{applied, failed, results:[{goodsId, ok, title,
+     changed, reindexed, error}]}`, one entry per item IN ORDER. Each row goes through
+     `apply` on its own: a refused row (blank, >127, unknown goods) is reported IN PLACE
+     and the batch carries on — nothing already written can be taken back. Only an empty
+     or >100-row batch (`BATCH_LIMIT`) is refused wholesale (errno 660), and then nothing
+     was written. Same `/srv/**` catch-all, no gateway route change.
+  3. **SPA.** Checkbox per row; the HEADER checkbox selects ONLY `needsReview === false`
+     rows whose draft would actually change something (a flagged row can still be ticked
+     by hand after reading). "Apply selected (N)" → inline confirm line ("Rename N
+     products and reindex them…") → batch → a dismissible banner with the server's
+     per-row wording verbatim. Applied rows LEAVE the list on refetch (they are no longer
+     over-length), so the banner is the only record of what just happened — it stays
+     until dismissed. Refused rows stay ticked with their error in the Actions cell.
+     Selection logic lives in `Insight/seoTitleBatch.ts` (testable, promoFormat.ts
+     pattern); the component itself now has a testing-library spec
+     (`SeoTitleList.spec.tsx`, first component-render spec in the admin suite — the RTK
+     hooks are mocked at the module seam, no fetch).
+- **Tests (real counts):** goods-management module suite **582 run / 0 failures / 8
+  skipped** (+7 `TitleOptimisationServiceTest`, incl. reindex-failure-is-reported and
+  batch-reports-refusals-in-place); admin jest **153 passed / 14 suites** (was 130/12:
+  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`); `tsc` 0 errors in `app/`.
+- **NOT done — live acceptance on dev.** No litemall service JVM was running and the
+  four dev secrets (MYSQL_PASSWORD, the two authserver secrets, GATEWAY_ADMIN_CLIENT_
+  SECRET) are user-held and were not in this session's env, so the stack could not be
+  booted from here. ⚠ The old acceptance line said ":8080" — that port is JENKINS on
+  this box; the admin dev gateway is **:18080**. Dev MySQL is up with 9,642 on-sale
+  goods, 4,606 over 60 chars, so the worklist will render there once booted. What live
+  acceptance must prove: list renders through :18080; single Apply renames one product
+  (MySQL) AND `/srv/search?q=<new title>` returns it (reindex proof); a 3-row batch with
+  one deliberately blank draft reports 2 applied / 1 refused in place; with the OCS
+  indexer container stopped, Apply answers errno 0 + `reindexed:false` and the row shows
+  "saved, not reindexed" — NOT a 500.
+- **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
+  reporter ("Could not resolve a module for a custom reporter") — use
+  `--testPathPattern`. The global `jest` namespace is NOT typed here even with
+  `types:["jest"]`; import `jest` from `@jest/globals` and type mocks as
+  `Mock<any>` from `jest-mock` (the hoisted one is v29-shaped: ONE type argument).
+  `getByText` matches a controlled `<textarea>`'s text content, so a proposal equal to
+  the current title appears twice.
+- **Ops note for MAIN (no rebuild):** copying `~/trovemo-seo-export/category-keywords-
+  clean.csv` into the VPS `LITEMALL_SEO_EXPORT_DIR` lights up the evidence column
+  (28 of 81 categories have terms; the rest need ~$50 of DataForSEO credit). Deploy of
+  this pass = goods-management + gateway-admin container rebuild; no migration.
+- **Decisions carried forward unchanged from the 2026-08-24 block:** proposals are
+  word-boundary truncations of the CURRENT title, never generated from keyword data;
+  `HtmlText.truncateAtWord`'s mid-word hard cut is detected and flagged `needsReview`,
+  not changed (shared with the feed); `goods.keywords` is left alone (it is a SEARCH
+  column); nothing auto-applies — bulk apply is still an administrator's explicit,
+  confirmed selection.
+- **History — Status 2026-08-24 (original build).** The problem, measured live: 2,571 of
+  3,718 on-sale titles exceeded 60 chars (median 85, max 127). Built:
+  `application/seo/KeywordResearchProvider` (port), `infrastructure/acl/seo/` (ACL:
+  `CsvKeywordResearchProvider` DEFAULT / `SeoPlatformKeywordClient` buys / `No…` off,
+  selected by `litemall.seo-research.source` = file|platform|none),
+  `TitleProposer` + `TitleOptimisationService` (asks per CATEGORY, never per product —
+  the live source bills per seed), `AdminSeoController` (`GET /titles`, `POST
+  /titles/apply`, errno 660), SPA `/admin/goods/seo-titles`. Honest limitation: only 43
+  of 2,571 over-length titles matched a bought keyword and 18 kept it after the cut —
+  the truncation is the value, the keyword is evidence on ~2% of rows. Data:
+  `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 28 categories, UK
+  locationCode 2826) bought 2026-08-24 for $0.64; the DataForSEO account ran out of
+  credit at seed 31 of 81 (surfaces as 502 wrapping a 402).
 
 ### Worktree: `gateway-admin` — history (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**

@@ -49,6 +49,41 @@ export interface ISeoTitlesResponse {
   list: ISeoTitleRow[];
 }
 
+/** Data of a successful single apply. `reindexed:false` = saved in MySQL, OCS document stale. */
+export interface ISeoApplyResult {
+  goodsId: number;
+  title: string;
+  changed: boolean;
+  reindexed: boolean;
+  // Present only when reindexed is false; server-worded, shown verbatim.
+  warning?: string;
+}
+
+export interface ISeoBatchItem {
+  goodsId: number;
+  title: string;
+}
+
+/** One row of a batch response, in submission order. `ok:false` = refused, nothing written. */
+export interface ISeoBatchRow {
+  goodsId: number | null;
+  ok: boolean;
+  title: string | null;
+  changed: boolean;
+  reindexed: boolean;
+  // The refusal when !ok; the reindex failure when ok && !reindexed; null otherwise.
+  error: string | null;
+}
+
+export interface ISeoBatchResult {
+  applied: number;
+  failed: number;
+  results: ISeoBatchRow[];
+}
+
+/** Server-side cap on one batch (TitleOptimisationService.BATCH_LIMIT); the page never sends more. */
+export const SEO_BATCH_LIMIT = 100;
+
 export interface SeoTitlesParams {
   maxLength?: number;
   categoryId?: number;
@@ -84,11 +119,18 @@ export const adminSeoApi = createApi({
     // Applies EXACTLY the title passed in, which may be the editor's amendment rather
     // than the server's proposal — re-deriving it here would make the confirmation the
     // administrator read a lie.
-    applySeoTitle: builder.mutation<ApiEnvelope<unknown>, { goodsId: number; title: string }>({
+    applySeoTitle: builder.mutation<ApiEnvelope<ISeoApplyResult>, ISeoBatchItem>({
       query: body => ({ url: '/titles/apply', method: 'POST', body }),
+      invalidatesTags: ['SeoTitles'],
+    }),
+    // Same contract per row as applySeoTitle, one round trip for the lot. The server reports a
+    // refused row IN PLACE and carries on — the response is the only record of which rows
+    // landed, so the page keeps it until the administrator has read it.
+    applySeoTitles: builder.mutation<ApiEnvelope<ISeoBatchResult>, { items: ISeoBatchItem[] }>({
+      query: body => ({ url: '/titles/apply-batch', method: 'POST', body }),
       invalidatesTags: ['SeoTitles'],
     }),
   }),
 });
 
-export const { useGetSeoTitlesQuery, useApplySeoTitleMutation } = adminSeoApi;
+export const { useGetSeoTitlesQuery, useApplySeoTitleMutation, useApplySeoTitlesMutation } = adminSeoApi;

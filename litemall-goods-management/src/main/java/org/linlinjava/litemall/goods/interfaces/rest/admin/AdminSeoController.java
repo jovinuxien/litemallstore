@@ -106,21 +106,92 @@ public class AdminSeoController {
      * <p>Takes the title from the body rather than regenerating it: the SPA lets the editor
      * amend the proposal, and applying anything other than what they read and approved would
      * make the confirmation dialog a lie.
+     *
+     * <p>Response data: {@code {goodsId, title, changed, reindexed, warning?}}. {@code reindexed}
+     * is false when MySQL holds the new title but the OCS document could not be refreshed — the
+     * call is still errno 0, because the apply DID happen; the SPA shows the warning so the
+     * administrator knows on-site search is stale rather than retrying a write that already
+     * landed.
      */
     @PostMapping("/titles/apply")
     public Object applyTitle(@RequestBody @NotNull TitleUpdate body) {
         try {
-            String applied = titles.apply(body.goodsId(), body.title());
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("goodsId", body.goodsId());
-            data.put("title", applied);
-            return ResponseUtil.ok(data);
+            TitleOptimisationService.Applied applied = titles.apply(body.goodsId(), body.title());
+            return ResponseUtil.ok(appliedData(applied));
         } catch (IllegalArgumentException e) {
             log.warn("seo title apply refused for goods {}: {}", body.goodsId(), e.getMessage());
             return ResponseUtil.fail(ERRNO_BAD_TITLE, e.getMessage());
         }
     }
 
+    /**
+     * Apply up to {@link TitleOptimisationService#BATCH_LIMIT} titles in one call.
+     *
+     * <p>Body {@code {items:[{goodsId, title}]}}. Response data
+     * {@code {applied, failed, results:[{goodsId, ok, title?, changed, reindexed, error?}]}}
+     * — one entry per submitted item, in order. A refused row is reported in place; the rest of
+     * the batch still runs. Only an empty or over-limit batch is refused as a whole (errno 660),
+     * and in that case nothing has been written.
+     */
+    @PostMapping("/titles/apply-batch")
+    public Object applyTitles(@RequestBody @NotNull TitleBatch body) {
+        List<TitleOptimisationService.TitleChange> changes = new ArrayList<>();
+        if (body.items() != null) {
+            for (TitleUpdate item : body.items()) {
+                changes.add(new TitleOptimisationService.TitleChange(
+                        item == null ? null : item.goodsId(), item == null ? null : item.title()));
+            }
+        }
+        List<TitleOptimisationService.BatchResult> results;
+        try {
+            results = titles.applyBatch(changes);
+        } catch (IllegalArgumentException e) {
+            log.warn("seo title batch refused: {}", e.getMessage());
+            return ResponseUtil.fail(ERRNO_BAD_TITLE, e.getMessage());
+        }
+
+        int applied = 0;
+        int failed = 0;
+        List<Map<String, Object>> rows = new ArrayList<>(results.size());
+        for (TitleOptimisationService.BatchResult r : results) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("goodsId", r.goodsId());
+            row.put("ok", r.ok());
+            row.put("title", r.title());
+            row.put("changed", r.changed());
+            row.put("reindexed", r.reindexed());
+            row.put("error", r.error());
+            rows.add(row);
+            if (r.ok()) {
+                applied++;
+            } else {
+                failed++;
+            }
+        }
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("applied", applied);
+        data.put("failed", failed);
+        data.put("results", rows);
+        log.info("seo title batch: {} applied, {} refused of {}", applied, failed, results.size());
+        return ResponseUtil.ok(data);
+    }
+
+    private static Map<String, Object> appliedData(TitleOptimisationService.Applied applied) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("goodsId", applied.goodsId());
+        data.put("title", applied.title());
+        data.put("changed", applied.changed());
+        data.put("reindexed", applied.reindexed());
+        if (!applied.reindexed()) {
+            data.put("warning", "Saved, but on-site search still shows the old title"
+                    + (applied.reindexError() == null ? "" : ": " + applied.reindexError()));
+        }
+        return data;
+    }
+
     public record TitleUpdate(Integer goodsId, String title) {
+    }
+
+    public record TitleBatch(List<TitleUpdate> items) {
     }
 }
