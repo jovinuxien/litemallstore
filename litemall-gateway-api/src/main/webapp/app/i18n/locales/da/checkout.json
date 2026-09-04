@@ -1,0 +1,13 @@
+{
+  "coupon": {
+    "threshold": "Køb for {{amount}} mere for at bruge denne rabatkode",
+    "thresholdNoGap": "Ordrebeløbet er under rabatkodens minimum",
+    "scope": "Gælder ikke for disse varer",
+    "expired": "Udløbet",
+    "exhausted": "Opbrugt",
+    "unusable": "Kan ikke bruges til denne ordre"
+  },
+  "courier": {
+    "included": "Inkluderet"
+  }
+}
