@@ -13,10 +13,10 @@
     },
     "recentSearches": "Senaste sökningar",
     "clear": "Rensa",
-    "trending": "Trendar",
+    "trending": "Populärt just nu",
     "accountLists": "Konto & listor",
     "myAccount": "Mitt konto",
-    "myOrders": "Mina beställningar",
+    "myOrders": "Mina ordrar",
     "favorites": "Favoriter",
     "myCoupons": "Mina rabattkoder",
     "couponCenter": "Rabattkoder",
@@ -25,7 +25,7 @@
     "signIn": "Logga in",
     "register": "Skapa konto",
     "returns": "Returer",
-    "andOrders": "& beställningar",
+    "andOrders": "& ordrar",
     "cart": "Varukorg",
     "all": "Alla",
     "todaysDeals": "Dagens erbjudanden",
@@ -39,14 +39,14 @@
   },
   "drawer": {
     "shopByCategory": "Handla per kategori",
-    "trending": "Trendar",
+    "trending": "Populärt just nu",
     "bestSellers": "Bästsäljare",
     "newArrivals": "Nyheter",
     "brands": "Varumärken",
     "topicsGuides": "Teman & guider",
     "helpSettings": "Hjälp & inställningar",
     "yourAccount": "Ditt konto",
-    "yourOrders": "Dina beställningar",
+    "yourOrders": "Dina ordrar",
     "customerService": "Kundservice",
     "signIn": "Logga in",
     "expand": "Visa {{name}}",
@@ -72,7 +72,7 @@
     "total": "Totalt:"
   },
   "footer": {
-    "backToTop": "Tillbaka till toppen",
+    "backToTop": "Till toppen",
     "blurb": "Allt för hemmet, trädgården och verkstaden — utvalt, inte hopskrapat. Riktiga priser, en kassa som bara fungerar och 30 dagars öppet köp. Vi står bakom varje beställning.",
     "shop": "Handla",
     "allProducts": "Alla produkter",
@@ -86,14 +86,14 @@
     "couponsDeals": "Rabattkoder & erbjudanden",
     "yourAccount": "Ditt konto",
     "accountOverview": "Kontoöversikt",
-    "yourOrders": "Dina beställningar",
+    "yourOrders": "Dina ordrar",
     "wishList": "Önskelista",
     "addresses": "Adresser",
     "couponsRewards": "Rabattkoder & förmåner",
     "letUsHelp": "Vi hjälper dig",
     "helpCenter": "Hjälpcenter",
     "customerService": "Kundservice",
-    "trackOrder": "Spåra en beställning",
+    "trackOrder": "Spåra en order",
     "returnsRefunds": "Returer & återbetalningar",
     "sendFeedback": "Skicka feedback",
     "copyright": "© {{year}} Trovemo. Alla rättigheter förbehållna. Priser och tillgänglighet kan ändras.",
@@ -115,7 +115,7 @@
         "detail": "Ångra dig inom 30 dagar"
       },
       "help": {
-        "title": "Här för att hjälpa"
+        "title": "Vi finns här för dig"
       }
     }
   },

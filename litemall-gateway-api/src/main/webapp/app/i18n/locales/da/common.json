@@ -24,7 +24,7 @@
     "signOut": "Log ud",
     "signIn": "Log ind",
     "register": "Opret konto",
-    "returns": "Returneringer",
+    "returns": "Returnering",
     "andOrders": "& ordrer",
     "cart": "Kurv",
     "all": "Alle",
@@ -72,7 +72,7 @@
     "total": "I alt:"
   },
   "footer": {
-    "backToTop": "Tilbage til toppen",
+    "backToTop": "Til toppen",
     "blurb": "Alt til hjemmet, haven og værkstedet — udvalgt, ikke skrabet sammen. Ærlige priser, en kasse der bare virker, og 30 dage til at fortryde. Vi står bag hver eneste ordre.",
     "shop": "Shop",
     "allProducts": "Alle produkter",
@@ -103,7 +103,7 @@
     "contact": "Kontakt os",
     "promises": {
       "delivery": {
-        "title": "Levering med sporing",
+        "title": "Levering med track & trace",
         "detail": "Følg hver ordre helt til døren"
       },
       "payments": {
@@ -115,7 +115,7 @@
         "detail": "Fortryd inden for 30 dage"
       },
       "help": {
-        "title": "Klar til at hjælpe"
+        "title": "Vi er her for dig"
       }
     }
   },
