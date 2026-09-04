@@ -4,7 +4,7 @@
     "thresholdNoGap": "Ordersumman är under rabattkodens minimibelopp",
     "scope": "Gäller inte för dessa varor",
     "expired": "Utgången",
-    "exhausted": "Slut",
+    "exhausted": "Slut – alla har tagits",
     "unusable": "Kan inte användas för den här beställningen"
   },
   "courier": {

@@ -2,7 +2,7 @@
   "loginFailed": "Login mislykkedes",
   "registrationFailed": "Registreringen mislykkedes",
   "guestCheckoutFailed": "Gæstekassen mislykkedes",
-  "googleFailed": "Login med Google mislykkedes",
+  "googleFailed": "Google-login mislykkedes",
   "requestFailed": "Anmodningen mislykkedes",
   "byCode": {
     "700": "Den nuværende adgangskode er forkert.",
