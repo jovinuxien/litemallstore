@@ -323,6 +323,9 @@ litemall:
     auto-tier: ${LITEMALL_SEASONS_AUTO_TIER:featured}
     per-season-cap: ${LITEMALL_SEASONS_PER_SEASON_CAP:24}
     candidate-scan-limit: ${LITEMALL_SEASONS_SCAN_LIMIT:200}
+    # Tiers are quantiles of each run's own score curve: top 10% hot, top 35% featured-or-better.
+    hot-quantile: ${LITEMALL_SEASONS_HOT_QUANTILE:0.10}
+    featured-quantile: ${LITEMALL_SEASONS_FEATURED_QUANTILE:0.35}
     cron: "0 35 4 * * *"
   search-stats:
     enabled: ${LITEMALL_SEARCHSTATS_ENABLED:true}

@@ -87,19 +87,51 @@ public class SeasonScoringServiceTest {
         return rule;
     }
 
-    /** A strong, profitable, in-stock product — scores well above the featured bar. */
-    private void givenOneStrongHit(int goodsId) {
+    /** A search hit as {@code toGoodsListItem} shapes it: STRING id (see goodsId()) + title. */
+    private static Map<String, Object> hitRow(int goodsId, String title) {
         Map<String, Object> row = new HashMap<>();
-        row.put("id", String.valueOf(goodsId));  // OCS ids are STRINGS — see goodsId()
+        row.put("id", String.valueOf(goodsId));
+        row.put("name", title);
+        return row;
+    }
+
+    private static Map<String, Object> searchResult(boolean relaxed, Map<String, Object>... rows) {
         Map<String, Object> result = new HashMap<>();
-        result.put("goodsList", List.of(row));
-        result.put("total", 1);
+        result.put("goodsList", List.of(rows));
+        result.put("total", rows.length);
+        result.put("relaxed", relaxed);
+        result.put("queryStrategy", relaxed ? "relaxed-ngram-query" : "default-query");
+        return result;
+    }
+
+    /** A real product behind a hit: profitable, in stock, freshly arrived. */
+    private LitemallGoods givenGoods(int goodsId, String name, String retail, String cost, int stock) {
+        LitemallGoods goods = new LitemallGoods();
+        goods.setId(goodsId);
+        goods.setName(name);
+        goods.setRetailPrice(new BigDecimal(retail));
+        goods.setCost(new BigDecimal(cost));
+        goods.setIsOnSale(true);
+        goods.setDeleted(false);
+        goods.setRating(new BigDecimal("4.6"));
+        goods.setReviewCount(30);
+        goods.setAddTime(LocalDateTime.now().minusDays(3));
+        when(goodsService.findById(goodsId)).thenReturn(goods);
+
+        LitemallGoodsProduct product = new LitemallGoodsProduct();
+        product.setNumber(stock);
+        when(productService.queryByGid(goodsId)).thenReturn(List.of(product));
+        return goods;
+    }
+
+    /** A strong, profitable, in-stock product — the only candidate, so it is hot by quantile. */
+    private void givenOneStrongHit(int goodsId) {
         when(searchService.search(eq("blanket"), anyInt(), anyInt(), any(), any()))
-                .thenReturn(result);
+                .thenReturn(searchResult(false, hitRow(goodsId, "Chunky Knit Blanket")));
 
         LitemallGoods goods = new LitemallGoods();
         goods.setId(goodsId);
-        goods.setName("Chunky Knit Throw");
+        goods.setName("Chunky Knit Blanket");
         goods.setRetailPrice(new BigDecimal("40.00"));
         goods.setCost(new BigDecimal("16.00"));
         goods.setIsOnSale(true);
@@ -219,5 +251,101 @@ public class SeasonScoringServiceTest {
         assertNull(SeasonScoringService.goodsId("not-a-number"));
         assertNull(SeasonScoringService.goodsId(null));
         assertNull(SeasonScoringService.goodsId(""));
+    }
+    // ---- term-anchored discovery ------------------------------------------
+
+    /**
+     * The live miss: "All-Season Sofa Cover" reached the autumn rail because the exact query for
+     * a term found nothing and the searcher fell back to relaxed relevance. A relaxed result set
+     * is a set of guesses, so it contributes nothing — and says so in the run result.
+     */
+    @Test
+    public void aRelaxedResultSetContributesNothing() {
+        when(searchService.search(eq("blanket"), anyInt(), anyInt(), any(), any()))
+                .thenReturn(searchResult(true,
+                        hitRow(201, "All-Season Sofa Cover"),
+                        hitRow(202, "Chunky Knit Blanket")));
+        givenGoods(202, "Chunky Knit Blanket", "40.00", "16.00", 50);
+
+        SeasonScoringService.SeasonRunResult result = service.scoreSeason(autumn(), DAY);
+
+        verify(candidateMapper, never()).upsertProposal(any());
+        assertEquals(0, result.scanned());
+        assertEquals(2, result.discardedRelaxed(),
+                "even the on-title hit is dropped: the whole set came from a relaxed query");
+    }
+
+    /** The index also matches descriptions and category names; the rail wants the title. */
+    @Test
+    public void aHitWithoutTheTermInItsTitleIsDiscarded() {
+        when(searchService.search(eq("blanket"), anyInt(), anyInt(), any(), any()))
+                .thenReturn(searchResult(false,
+                        hitRow(301, "Digital Cable Organizer"),
+                        hitRow(302, "Chunky Knit Blanket"),
+                        hitRow(303, null)));
+        givenGoods(302, "Chunky Knit Blanket", "40.00", "16.00", 50);
+
+        SeasonScoringService.SeasonRunResult result = service.scoreSeason(autumn(), DAY);
+
+        assertEquals(302, captureUpsert().getGoodsId());
+        assertEquals(1, result.scanned());
+        assertEquals(2, result.discardedOffTitle(),
+                "an off-title hit and a title-less hit are both unverifiable");
+    }
+
+    /** The other live miss: a "Summer Cooling ... Blanket" matched autumn on the word blanket. */
+    @Test
+    public void anExclusionTermInTheTitleVetoesAnOtherwiseMatchingHit() {
+        LitemallSeasonRule rule = autumn();
+        rule.setTerms("[\"blanket\",\"-summer\"]");
+        when(searchService.search(eq("blanket"), anyInt(), anyInt(), any(), any()))
+                .thenReturn(searchResult(false,
+                        hitRow(401, "Cartoon-Printed Summer Cooling Air-Conditioning Blanket"),
+                        hitRow(402, "Chunky Knit Blanket")));
+        givenGoods(402, "Chunky Knit Blanket", "40.00", "16.00", 50);
+
+        SeasonScoringService.SeasonRunResult result = service.scoreSeason(rule, DAY);
+
+        assertEquals(402, captureUpsert().getGoodsId());
+        assertEquals(1, result.discardedExcluded());
+        // An exclusion term is never searched for: it would only ever find what it rejects.
+        verify(searchService, never()).search(eq("summer"), anyInt(), anyInt(), any(), any());
+    }
+
+    // ---- quantile tiers -----------------------------------------------------
+
+    /**
+     * Ten candidates with a spread of margins: with hot = top 10% and featured = top 35%, exactly
+     * one is hot and three more are featured, whatever the absolute scores happen to be. The
+     * cuts are reported so an operator can see where the bar fell.
+     */
+    @Test
+    public void tiersSplitTheRunByQuantileAndTheCutsAreReported() {
+        Map<String, Object>[] rows = new Map[10];
+        for (int i = 0; i < 10; i++) {
+            int id = 500 + i;
+            rows[i] = hitRow(id, "Wool Blanket " + i);
+            // margin rises with i: cost falls from 30 to 3 against a 40 retail (all clear the 15% markdown gate)
+            givenGoods(id, "Wool Blanket " + i, "40.00", String.valueOf(30 - 3 * i) + ".00", 50);
+        }
+        when(searchService.search(eq("blanket"), anyInt(), anyInt(), any(), any()))
+                .thenReturn(searchResult(false, rows));
+
+        SeasonScoringService.SeasonRunResult result = service.scoreSeason(autumn(), DAY);
+
+        ArgumentCaptor<LitemallSeasonCandidate> captor =
+                ArgumentCaptor.forClass(LitemallSeasonCandidate.class);
+        verify(candidateMapper, org.mockito.Mockito.times(10)).upsertProposal(captor.capture());
+        Map<String, Integer> byTier = new HashMap<>();
+        for (LitemallSeasonCandidate row : captor.getAllValues()) {
+            byTier.merge(row.getTier(), 1, Integer::sum);
+        }
+        assertEquals(1, byTier.get(LitemallSeasonCandidate.TIER_HOT));
+        assertEquals(3, byTier.get(LitemallSeasonCandidate.TIER_FEATURED));
+        assertEquals(6, byTier.get(LitemallSeasonCandidate.TIER_WATCH));
+        assertEquals(4, result.published(), "auto-tier featured = the top 35% publish");
+        assertNotNull(result.hotCut());
+        assertNotNull(result.featuredCut());
+        assertTrue(result.hotCut().compareTo(result.featuredCut()) >= 0);
     }
 }

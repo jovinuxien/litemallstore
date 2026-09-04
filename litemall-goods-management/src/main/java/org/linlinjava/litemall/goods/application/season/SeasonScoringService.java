@@ -83,13 +83,45 @@ public class SeasonScoringService {
         this.objectMapper = objectMapper;
     }
 
-    /** What one pass did, per season — returned so a manual run reports honestly. */
+    /**
+     * What one pass did, per season — returned so a manual run reports honestly.
+     *
+     * <p>The three {@code discarded*} counts are HITS, not products: a product can be discarded
+     * under two terms and counted twice. They exist so a rail that looks thin can be traced to the
+     * terms that failed it rather than read as "nothing matched".
+     *
+     * @param discardedRelaxed  hits whose term's whole result set came from a relaxed query
+     * @param discardedOffTitle hits whose title did not contain the term
+     * @param discardedExcluded hits whose title contained an exclusion term
+     * @param hotCut            lowest score that read {@code hot} this run (null when nothing scored)
+     * @param featuredCut       lowest score that read {@code featured} this run (null likewise)
+     */
     public record SeasonRunResult(String seasonKey,
                                   int scanned,
                                   int scored,
                                   int published,
                                   int dropped,
-                                  Map<String, Integer> rejections) {
+                                  Map<String, Integer> rejections,
+                                  int discardedRelaxed,
+                                  int discardedOffTitle,
+                                  int discardedExcluded,
+                                  BigDecimal hotCut,
+                                  BigDecimal featuredCut) {
+    }
+
+    /** What discovery found and what it threw away. */
+    record Discovery(Map<Integer, String> matched, int relaxed, int offTitle, int excluded) {
+    }
+
+    /** A candidate that passed the gates, held until the run's tier cuts are known. */
+    private record Scored(Integer goodsId,
+                          BigDecimal score,
+                          BigDecimal marginPct,
+                          int stock,
+                          boolean euStocked,
+                          boolean categoryMatched,
+                          long ageDays,
+                          String matchedTerm) {
     }
 
     /** Score every enabled season for today. */
@@ -126,14 +158,16 @@ public class SeasonScoringService {
         String hash = configHash(rule);
         String snapshot = weightsSnapshot(weights);
         Set<Integer> boostedCategories = parseIntSet(rule.getCategoryIds());
-        List<String> terms = parseStringList(rule.getTerms());
+        SeasonTerms terms = SeasonTerms.of(parseStringList(rule.getTerms()));
 
-        Map<Integer, String> matched = discover(rule.getSeasonKey(), terms);
+        Discovery discovery = discover(rule.getSeasonKey(), terms);
+        Map<Integer, String> matched = discovery.matched();
         int scanned = matched.size();
-        int scored = 0;
-        int published = 0;
         Map<String, Integer> rejections = new LinkedHashMap<>();
 
+        // Pass 1 — gate and score. Tiers are quantiles of THIS run's curve, so every score has to
+        // exist before any tier can be assigned; nothing is written until pass 2.
+        List<Scored> scoredRows = new ArrayList<>();
         for (Map.Entry<Integer, String> hit : matched.entrySet()) {
             Integer goodsId = hit.getKey();
             LitemallGoods goods = goodsService.findById(goodsId);
@@ -163,7 +197,23 @@ public class SeasonScoringService {
             BigDecimal score = SeasonCandidateScorer.score(
                     marginPct, stock, goods.getRating(), goods.getReviewCount(),
                     euStocked, categoryMatched, ageDays, weights);
-            String tier = SeasonCandidateScorer.tierOf(score);
+            scoredRows.add(new Scored(goodsId, score, marginPct, stock, euStocked,
+                    categoryMatched, ageDays, hit.getValue()));
+        }
+
+        List<BigDecimal> scores = new ArrayList<>(scoredRows.size());
+        for (Scored row : scoredRows) {
+            scores.add(row.score());
+        }
+        SeasonCandidateScorer.TierCuts cuts = SeasonCandidateScorer.cuts(
+                scores, properties.getHotQuantile(), properties.getFeaturedQuantile());
+
+        // Pass 2 — tier against the cuts, decide status, persist.
+        int scored = 0;
+        int published = 0;
+        for (Scored row : scoredRows) {
+            Integer goodsId = row.goodsId();
+            String tier = SeasonCandidateScorer.tierOf(row.score(), cuts);
 
             boolean vetoed = candidateMapper.countDismissed(rule.getSeasonKey(), goodsId) > 0;
             String status;
@@ -179,80 +229,123 @@ public class SeasonScoringService {
                 status = LitemallSeasonCandidate.STATUS_PROPOSED;
             }
 
-            LitemallSeasonCandidate row = new LitemallSeasonCandidate();
-            row.setSeasonKey(rule.getSeasonKey());
-            row.setGoodsId(goodsId);
-            row.setDay(day);
-            row.setTier(tier);
-            row.setScore(score);
-            row.setStatus(status);
-            row.setConfigVersionHash(hash);
-            row.setConfigSnapshot(snapshot);
-            row.setReasons(toJson(SeasonCandidateScorer.reasons(
-                    marginPct, stock, euStocked, categoryMatched, ageDays, hit.getValue())));
-            candidateMapper.upsertProposal(row);
+            LitemallSeasonCandidate candidate = new LitemallSeasonCandidate();
+            candidate.setSeasonKey(rule.getSeasonKey());
+            candidate.setGoodsId(goodsId);
+            candidate.setDay(day);
+            candidate.setTier(tier);
+            candidate.setScore(row.score());
+            candidate.setStatus(status);
+            candidate.setConfigVersionHash(hash);
+            candidate.setConfigSnapshot(snapshot);
+            candidate.setReasons(toJson(SeasonCandidateScorer.reasons(
+                    row.marginPct(), row.stock(), row.euStocked(), row.categoryMatched(),
+                    row.ageDays(), row.matchedTerm())));
+            candidateMapper.upsertProposal(candidate);
             scored++;
         }
 
         int cap = properties.getPerSeasonCap();
         int dropped = Math.max(0, published - cap);
-        log.info("season '{}' {}: scanned {}, scored {}, publishable {} (cap {}{}), rejected {}",
+        log.info("season '{}' {}: scanned {}, scored {}, publishable {} (cap {}{}), rejected {}, "
+                        + "tier cuts hot>={} featured>={}, discovery discarded relaxed {} / off-title {} "
+                        + "/ excluded {}",
                 rule.getSeasonKey(), day, scanned, scored, published, cap,
                 dropped > 0 ? ", " + dropped + " beyond the cap will not be shown" : "",
-                rejections);
-        return new SeasonRunResult(rule.getSeasonKey(), scanned, scored, published, dropped, rejections);
+                rejections, cuts.hot(), cuts.featured(),
+                discovery.relaxed(), discovery.offTitle(), discovery.excluded());
+        return new SeasonRunResult(rule.getSeasonKey(), scanned, scored, published, dropped,
+                rejections, discovery.relaxed(), discovery.offTitle(), discovery.excluded(),
+                cuts.hot(), cuts.featured());
     }
 
     /**
-     * Candidate discovery: run each term through the index, keep the first term that matched a
-     * product (that is what the reason line quotes).
+     * Candidate discovery: run each discovery term through the index and keep a hit only when the
+     * term is IN ITS TITLE and no exclusion term is. The first term that qualifies a product is the
+     * one the reason line quotes.
      *
-     * <p>The per-term scan is bounded by {@code candidateScanLimit} and whatever it drops is
-     * LOGGED — a silently truncated sweep reads as "we considered everything" when it did not.
+     * <p><b>Why the index alone is not enough.</b> It is tuned for shoppers: it matches descriptions
+     * and category names, tolerates typos, and when the exact query finds nothing it falls back to
+     * relaxed and n-gram strategies. That is how an "All-Season Sofa Cover" reached the autumn rail
+     * through relaxed relevance and a "Summer Cooling Blanket" reached it on the word {@code blanket}.
+     * So: a term whose result set the searcher reports as {@code relaxed} contributes NOTHING (the
+     * exact query found nothing, so every hit is a guess), every kept hit must carry the term in its
+     * title at a word boundary, and exclusion terms ({@code -summer}) veto on the title too.
+     *
+     * <p>The per-term scan is bounded by {@code candidateScanLimit}, and everything discarded —
+     * beyond the limit, relaxed, off-title, excluded — is LOGGED and returned. A silently truncated
+     * sweep reads as "we considered everything" when it did not.
      */
-    private Map<Integer, String> discover(String seasonKey, List<String> terms) {
+    private Discovery discover(String seasonKey, SeasonTerms terms) {
         Map<Integer, String> matched = new LinkedHashMap<>();
+        int relaxed = 0;
+        int offTitle = 0;
+        int excluded = 0;
         int limit = Math.max(1, properties.getCandidateScanLimit());
-        for (String term : terms) {
-            if (term == null || term.isBlank()) {
-                continue;
-            }
+        for (String term : terms.discoveryTerms()) {
             try {
                 Map<String, Object> result =
                         searchService.search(term, 1, limit, null, new HashMap<>());
-                List<Integer> ids = goodsIdsOf(result);
+                List<Map<String, Object>> rows = rowsOf(result);
                 Object total = result == null ? null : result.get("total");
-                if (total instanceof Number n && n.intValue() > ids.size()) {
+                if (total instanceof Number n && n.intValue() > rows.size()) {
                     log.info("season '{}' term '{}': considered {} of {} hits (scan limit {})",
-                            seasonKey, term, ids.size(), n.intValue(), limit);
+                            seasonKey, term, rows.size(), n.intValue(), limit);
                 }
-                for (Integer id : ids) {
-                    matched.putIfAbsent(id, term);
+                if (result != null && Boolean.TRUE.equals(result.get("relaxed"))) {
+                    relaxed += rows.size();
+                    log.info("season '{}' term '{}': {} hits came from a relaxed query ({}) — "
+                                    + "the exact term matched nothing, none kept",
+                            seasonKey, term, rows.size(), result.get("queryStrategy"));
+                    continue;
                 }
+                int keptForTerm = 0;
+                for (Map<String, Object> row : rows) {
+                    Integer id = goodsId(row.get("id"));
+                    if (id == null) {
+                        continue;
+                    }
+                    String title = row.get("name") instanceof String str ? str : null;
+                    if (!SeasonTerms.containsTerm(title, term)) {
+                        offTitle++;
+                        continue;
+                    }
+                    if (terms.excludes(title)) {
+                        excluded++;
+                        continue;
+                    }
+                    if (matched.putIfAbsent(id, term) == null) {
+                        keptForTerm++;
+                    }
+                }
+                log.debug("season '{}' term '{}': kept {} of {} hits", seasonKey, term, keptForTerm,
+                        rows.size());
             } catch (RuntimeException ex) {
                 // An OCS hiccup costs this term's candidates, not the whole season.
                 log.warn("season '{}' term '{}' lookup failed: {}", seasonKey, term, ex.toString());
             }
         }
-        return matched;
+        if (relaxed + offTitle + excluded > 0) {
+            log.info("season '{}' discovery: kept {} products; discarded {} relaxed-query hits, "
+                            + "{} off-title hits, {} excluded-term hits",
+                    seasonKey, matched.size(), relaxed, offTitle, excluded);
+        }
+        return new Discovery(matched, relaxed, offTitle, excluded);
     }
 
     @SuppressWarnings("unchecked")
-    private List<Integer> goodsIdsOf(Map<String, Object> result) {
-        List<Integer> ids = new ArrayList<>();
+    private static List<Map<String, Object>> rowsOf(Map<String, Object> result) {
+        List<Map<String, Object>> rows = new ArrayList<>();
         Object list = result == null ? null : result.get("goodsList");
-        if (!(list instanceof List<?> rows)) {
-            return ids;
+        if (!(list instanceof List<?> items)) {
+            return rows;
         }
-        for (Object row : rows) {
+        for (Object row : items) {
             if (row instanceof Map<?, ?> map) {
-                Integer id = goodsId(((Map<String, Object>) map).get("id"));
-                if (id != null) {
-                    ids.add(id);
-                }
+                rows.add((Map<String, Object>) map);
             }
         }
-        return ids;
+        return rows;
     }
 
     /**
