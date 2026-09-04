@@ -1,6 +1,8 @@
 package org.linlinjava.litemall.goods.application.season;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
@@ -131,14 +133,60 @@ public class SeasonCandidateScorerTest {
         assertTrue(plain.signum() > 0, "and never a filter — the un-boosted product still scores");
     }
 
+    /**
+     * Tiers are quantiles of the run's own curve. On the first live run the inherited absolute
+     * thresholds put 1003 of 1005 candidates in {@code hot}; a distribution-relative cut cannot
+     * do that whatever the scores are.
+     */
     @Test
-    public void tiersFollowTheDealScorerBands() {
+    public void tiersAreQuantilesOfTheRunsOwnScores() {
+        List<BigDecimal> scores = new ArrayList<>();
+        for (int i = 1; i <= 20; i++) {
+            scores.add(BigDecimal.valueOf(i * 50));  // 50 .. 1000
+        }
+        SeasonCandidateScorer.TierCuts cuts = SeasonCandidateScorer.cuts(scores, 0.10, 0.35);
+
+        assertEquals(new BigDecimal("950"), cuts.hot(), "top 10% of 20 = 2 rows: 1000 and 950");
+        assertEquals(new BigDecimal("700"), cuts.featured(), "top 35% of 20 = 7 rows, down to 700");
         assertEquals(LitemallSeasonCandidate.TIER_HOT,
-                SeasonCandidateScorer.tierOf(new BigDecimal("120")));
+                SeasonCandidateScorer.tierOf(new BigDecimal("1000"), cuts));
         assertEquals(LitemallSeasonCandidate.TIER_FEATURED,
-                SeasonCandidateScorer.tierOf(new BigDecimal("70")));
+                SeasonCandidateScorer.tierOf(new BigDecimal("700"), cuts));
         assertEquals(LitemallSeasonCandidate.TIER_WATCH,
-                SeasonCandidateScorer.tierOf(new BigDecimal("10")));
+                SeasonCandidateScorer.tierOf(new BigDecimal("650"), cuts));
+    }
+
+    @Test
+    public void quantileCutsRoundUpSoASmallRunStillHasAHotRow() {
+        SeasonCandidateScorer.TierCuts cuts = SeasonCandidateScorer.cuts(
+                List.of(new BigDecimal("12"), new BigDecimal("8")), 0.10, 0.35);
+
+        assertEquals(new BigDecimal("12"), cuts.hot());
+        assertEquals(new BigDecimal("12"), cuts.featured());
+        assertEquals(LitemallSeasonCandidate.TIER_HOT,
+                SeasonCandidateScorer.tierOf(new BigDecimal("12"), cuts));
+        assertEquals(LitemallSeasonCandidate.TIER_WATCH,
+                SeasonCandidateScorer.tierOf(new BigDecimal("8"), cuts));
+    }
+
+    @Test
+    public void nothingScoredMeansNoCutsAndEverythingIsWatch() {
+        assertEquals(SeasonCandidateScorer.TierCuts.NONE, SeasonCandidateScorer.cuts(List.of(), 0.10, 0.35));
+        assertEquals(LitemallSeasonCandidate.TIER_WATCH,
+                SeasonCandidateScorer.tierOf(new BigDecimal("999"), SeasonCandidateScorer.TierCuts.NONE));
+        assertEquals(LitemallSeasonCandidate.TIER_WATCH,
+                SeasonCandidateScorer.tierOf(BigDecimal.ZERO,
+                        new SeasonCandidateScorer.TierCuts(BigDecimal.ZERO, BigDecimal.ZERO)),
+                "a zero score is watch even when the whole curve is zero");
+    }
+
+    /** An inverted configuration collapses to featured == hot instead of an empty featured band. */
+    @Test
+    public void anInvertedQuantilePairCollapsesRatherThanEmptyingTheFeaturedBand() {
+        List<BigDecimal> scores = List.of(new BigDecimal("30"), new BigDecimal("20"), new BigDecimal("10"));
+        SeasonCandidateScorer.TierCuts cuts = SeasonCandidateScorer.cuts(scores, 0.70, 0.10);
+
+        assertEquals(cuts.hot(), cuts.featured());
     }
 
     @Test

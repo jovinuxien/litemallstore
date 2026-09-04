@@ -145,6 +145,18 @@ public class AdminSeasonController {
             view.put("published", result.published());
             view.put("droppedByCap", result.dropped());
             view.put("rejections", result.rejections());
+            // Discovery discards are HITS (a product can be discarded under two terms). They are
+            // what turns "the rail looks thin" into "these terms are failing it".
+            Map<String, Object> discovery = new LinkedHashMap<>();
+            discovery.put("discardedRelaxed", result.discardedRelaxed());
+            discovery.put("discardedOffTitle", result.discardedOffTitle());
+            discovery.put("discardedExcluded", result.discardedExcluded());
+            view.put("discovery", discovery);
+            // The run's own quantile cuts — null when nothing scored.
+            Map<String, Object> cuts = new LinkedHashMap<>();
+            cuts.put("hot", result.hotCut());
+            cuts.put("featured", result.featuredCut());
+            view.put("tierCuts", cuts);
             list.add(view);
         }
         return ResponseUtil.ok(Map.of("seasons", list));
