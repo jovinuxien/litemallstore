@@ -212,6 +212,48 @@ describe('SeoTitleList — bulk apply', () => {
     expect((screen.getByLabelText('Select goods 1') as HTMLInputElement).checked).toBe(false);
   });
 
+  it('a ticked row whose draft was blanked is refused in place and counted, not silently dropped', async () => {
+    wire(three());
+    applyBatchFn.mockImplementation(() =>
+      Promise.resolve(
+        ok({
+          applied: 1,
+          failed: 0,
+          results: [{ goodsId: 1, ok: true, title: 'A', changed: true, reindexed: true, error: null }],
+        }),
+      ),
+    );
+    render(<SeoTitleList />);
+    fireEvent.click(screen.getByLabelText('Select goods 1'));
+    fireEvent.click(screen.getByLabelText('Select goods 3'));
+    fireEvent.change(screen.getByLabelText('Proposed title for goods 3'), { target: { value: '   ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply selected (2)' }));
+    // The confirm count and the reported count must agree: 2 confirmed, 2 accounted for.
+    expect(screen.getByText('Rename 2 products and reindex them for on-site search?', { exact: false })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(screen.getByText('Applied 1 of 2 titles.')).toBeTruthy());
+    // Only the non-blank row reached the server.
+    expect(applyBatchFn).toHaveBeenCalledWith({ items: [{ goodsId: 1, title: 'Rechargeable Cordless Garden Hedge Trimmer With Two' }] });
+    expect(screen.getByText('#3: title must not be blank')).toBeTruthy();
+    // The blank row shows its refusal in place and stays ticked for a retry after editing.
+    expect(screen.getByText('title must not be blank')).toBeTruthy();
+    expect((screen.getByLabelText('Select goods 3') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('a blank-only selection is refused on screen without calling the server', async () => {
+    wire(three());
+    render(<SeoTitleList />);
+    fireEvent.click(screen.getByLabelText('Select goods 2'));
+    fireEvent.change(screen.getByLabelText('Proposed title for goods 2'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply selected (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+
+    await waitFor(() => expect(screen.getByText('Applied 0 of 1 titles.')).toBeTruthy());
+    expect(applyBatchFn).not.toHaveBeenCalled();
+    expect(screen.getByText('#2: title must not be blank')).toBeTruthy();
+  });
+
   it('Cancel on the confirm line sends nothing', () => {
     wire(three());
     render(<SeoTitleList />);
