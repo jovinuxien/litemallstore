@@ -12,6 +12,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { Trans, useTranslation } from 'app/i18n';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
@@ -154,14 +155,16 @@ const StepSection: React.FC<{
   onChange?: () => void;
   changeDisabled?: boolean;
   children?: React.ReactNode;
-}> = ({ index, title, state, summary, onChange, changeDisabled, children }) => (
+}> = ({ index, title, state, summary, onChange, changeDisabled, children }) => {
+  const { t } = useTranslation('checkout');
+  return (
   <section id={`lm-step-${index}`} className={`lm-step lm-step--${state}`}>
     <header className='lm-step__head'>
       <span className='lm-step__badge'>{state === 'complete' ? <i className='bi bi-check-lg' /> : index}</span>
       <span className='lm-step__title'>{title}</span>
       {state === 'complete' && onChange && !changeDisabled && (
         <button type='button' className='lm-step__change' onClick={onChange}>
-          Change
+          {t('steps.change')}
         </button>
       )}
     </header>
@@ -170,7 +173,8 @@ const StepSection: React.FC<{
       {children}
     </div>
   </section>
-);
+  );
+};
 
 /**
  * Customer checkout — a SINGLE order-confirm screen modelled on litemall-vue's
@@ -182,6 +186,7 @@ const StepSection: React.FC<{
  * destination country + phone; paying a CJ order also places it at CJ server-side.
  */
 const CheckoutView: React.FC = () => {
+  const { t } = useTranslation('checkout');
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   // Wave-21 group-buy: `?pinkId=<own slot id>` rides the URL (refresh-safe)
@@ -527,7 +532,7 @@ const CheckoutView: React.FC = () => {
         setTotalsBlocked(
           error instanceof TaxUnavailableError
             ? error.message
-            : "We can't total your cart right now — please try again.",
+            : t('errors.totals'),
         );
       } finally {
         if (!cancelled) setTotalsLoading(false);
@@ -643,13 +648,13 @@ const CheckoutView: React.FC = () => {
       if (claimed && (claimed.min ?? 0) <= cartLinesSubtotal) {
         setSelectedCouponId(claimed.id ?? null);
         setCouponError(null);
-        setPromoNotice({ ok: true, text: 'Code applied — the coupon has been added to this order.' });
+        setPromoNotice({ ok: true, text: t('coupon.codeApplied') });
       } else {
-        setPromoNotice({ ok: true, text: 'Code redeemed — the coupon is in your account, but it does not apply to this cart.' });
+        setPromoNotice({ ok: true, text: t('coupon.codeNotApplicable') });
       }
       setPromoCode('');
     } catch (error) {
-      setPromoNotice({ ok: false, text: messageOf(error, "That code couldn't be redeemed.") });
+      setPromoNotice({ ok: false, text: messageOf(error, t('coupon.codeFailed')) });
     } finally {
       setPromoBusy(false);
     }
@@ -740,8 +745,8 @@ const CheckoutView: React.FC = () => {
     (totals?.couponPrice ?? 0) > 0
       ? `−${fmtMoney(totals!.couponPrice)}`
       : coupons.length > 0
-        ? `${coupons.length} available`
-        : 'None available';
+        ? t('coupon.available', { count: coupons.length })
+        : t('coupon.noneAvailable');
 
   // Place each cart group (once) then pay, so a retry never creates a second order.
   const handlePlaceOrder = async () => {
@@ -753,7 +758,7 @@ const CheckoutView: React.FC = () => {
     // 0. Tax fails CLOSED: without a server total there is no number we are allowed to
     //    charge, so the order is not placed at all.
     if (totalsBlocked || !totals) {
-      setCardError(totalsBlocked ?? "We can't total your cart right now — please try again.");
+      setCardError(totalsBlocked ?? t('errors.totals'));
       return;
     }
 
@@ -779,7 +784,7 @@ const CheckoutView: React.FC = () => {
         if (!addressId) throw new Error('no id');
         setSelectedAddressId(addressId);
       } catch {
-        setAddrError('Could not save the delivery address. Check the required fields and try again.');
+        setAddrError(t('errors.saveAddress'));
         setOpenStep(1);
         return;
       }
@@ -796,7 +801,7 @@ const CheckoutView: React.FC = () => {
         await userApi.addressSave({ ...selectedSavedAddress, tel });
         setAddresses(prev => prev.map(a => (a.id === selectedSavedAddress.id ? { ...a, tel } : a)));
       } catch {
-        setAddrError('Could not save the phone number to your delivery address — please try again.');
+        setAddrError(t('errors.savePhone'));
         setOpenStep(1);
         return;
       }
@@ -814,10 +819,10 @@ const CheckoutView: React.FC = () => {
           setAccountEmail(email);
           setEmailNotice(null);
         } else {
-          setEmailNotice(env.errmsg ?? 'Could not save this email to your account — the order will still be placed.');
+          setEmailNotice(env.errmsg ?? t('errors.saveEmail'));
         }
       } catch {
-        setEmailNotice('Could not save this email to your account — the order will still be placed.');
+        setEmailNotice(t('errors.saveEmail'));
       }
     }
 
@@ -904,7 +909,7 @@ const CheckoutView: React.FC = () => {
           setGroupError(errmsg);
         }
         if (couponRides && errno !== 400 && errno !== 401) {
-          setCouponError(/coupon/i.test(errmsg) ? errmsg : `The selected coupon may not be usable for this order${errmsg ? ` (${errmsg})` : ''}.`);
+          setCouponError(/coupon/i.test(errmsg) ? errmsg : t('coupon.maybeUnusable', { detail: errmsg ? ` (${errmsg})` : '' }));
         }
         setPlaced(next); // keep what was placed so a retry skips those groups
         return; // stock/validation error shown from order state
@@ -936,7 +941,7 @@ const CheckoutView: React.FC = () => {
           // Stripe disabled or failing ⇒ a typed error. The order stays placed and
           // unpaid, and the customer is told — we do not invent a payment.
           setCardError(
-            messageOf(error, 'Card payment is unavailable right now. Your order is saved but not paid.'),
+            messageOf(error, t('errors.cardUnavailable')),
           );
           setPlaced(next);
           setOpenStep(2);
@@ -970,12 +975,12 @@ const CheckoutView: React.FC = () => {
   if (cartList.length === 0) {
     return (
       <Page>
-        <PageHead title='Checkout' />
+        <PageHead title={t('title')} />
         <div className='container'>
           <CellGroup>
-            <EmptyState icon='bi-cart-x' text='Your cart is empty.'>
+            <EmptyState icon='bi-cart-x' text={t('emptyCart')}>
               <Link to='/' className='btn btn-lm-primary'>
-                Continue shopping
+                {t('continueShopping')}
               </Link>
             </EmptyState>
           </CellGroup>
@@ -996,9 +1001,9 @@ const CheckoutView: React.FC = () => {
   // Collapsed-step recaps (Amazon's "Deliver to / Paying with" rows).
   const deliverySummary = isPickup ? (
     <>
-      <div className='fw-semibold'>{pickupName || 'Store pickup'}</div>
+      <div className='fw-semibold'>{pickupName || t('delivery.storePickup')}</div>
       <div className='small text-muted'>
-        Pickup at {selectedStore?.name}
+        {t('delivery.pickupAt', { store: selectedStore?.name ?? '' })}
         {selectedStore?.address ? ` — ${selectedStore.address}` : ''}
       </div>
     </>
@@ -1034,13 +1039,13 @@ const CheckoutView: React.FC = () => {
       <div className='d-flex align-items-center gap-2'>
         {paymentMethod === 'CARD' ? (
           <>
-            Credit / debit card <PaymentBrandIcons />
+            {t('payment.card')} <PaymentBrandIcons />
           </>
         ) : (
-          'Digital wallet (balance)'
+          t('payment.wallet')
         )}
       </div>
-      {(totals?.couponPrice ?? 0) > 0 && <div className='small text-success'>Coupon applied — −{fmtMoney(totals!.couponPrice)}</div>}
+      {(totals?.couponPrice ?? 0) > 0 && <div className='small text-success'>{t('coupon.applied', { amount: fmtMoney(totals!.couponPrice) })}</div>}
     </>
   );
 
@@ -1060,10 +1065,10 @@ const CheckoutView: React.FC = () => {
 
   // Money rows — rendered once, in the sticky aside (desktop) / stacked summary (mobile).
   const summaryRows = [
-    { label: 'Goods total', value: money(totals?.goodsTotalPrice) },
+    { label: t('summary.goodsTotal'), value: money(totals?.goodsTotalPrice) },
     {
-      label: 'Shipping',
-      value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : 'Free',
+      label: t('summary.shipping'),
+      value: totalsLoading || !totals ? '…' : totals.freightPrice > 0 ? money(totals.freightPrice) : t('summary.free'),
       // Brand-teal highlight: shipping is the one summary line the customer can act
       // on (the delivery-option chooser below edits it), so it must not read as muted.
       variant: 'primary' as const,
@@ -1072,7 +1077,7 @@ const CheckoutView: React.FC = () => {
     // stays freightPrice (combine-mode max, not the breakdown sum).
     ...(!quoteLoading && !isPickup
       ? [...(quotes.local?.breakdown ?? []), ...(quotes.cj?.breakdown ?? [])].map(b => ({
-          label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? 'Standard shipping' : b.source ?? 'Shipping')}`,
+          label: `· ${b.templateName ?? (b.source === 'SYSTEM_FLAT' ? t('summary.standardShipping') : b.source ?? t('summary.shipping'))}`,
           value: `${fmtMoney(b.amount)}${b.note ? ` — ${b.note}` : ''}`,
           variant: 'muted' as const,
         }))
@@ -1080,15 +1085,15 @@ const CheckoutView: React.FC = () => {
     ...(shippingFee > 0 && (quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold ?? 0) > 0
       ? [
           {
-            label: 'Free shipping',
-            value: `on orders over ${fmtMoney(quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold)}`,
+            label: t('summary.freeShipping'),
+            value: t('summary.freeOver', { amount: fmtMoney(quotes.local?.freeShippingThreshold ?? quotes.cj?.freeShippingThreshold) }),
             variant: 'muted' as const,
           },
         ]
       : []),
-    ...((totals?.taxPrice ?? 0) > 0 ? [{ label: 'Tax', value: money(totals?.taxPrice) }] : []),
+    ...((totals?.taxPrice ?? 0) > 0 ? [{ label: t('summary.tax'), value: money(totals?.taxPrice) }] : []),
     ...((totals?.couponPrice ?? 0) > 0
-      ? [{ label: 'Coupon', value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
+      ? [{ label: t('summary.coupon'), value: `−${money(totals?.couponPrice)}`, variant: 'success' as const }]
       : []),
     // Wave-21: the group price is applied by the ORDER SERVICE at submit — the
     // preview cannot reflect it, so the summary carries an honest note
@@ -1096,31 +1101,31 @@ const CheckoutView: React.FC = () => {
     ...(groupPinkId != null && groupSlot?.campaign?.combinationPrice != null
       ? [
           {
-            label: 'Group price',
-            value: `${fmtMoney(priceNum(groupSlot.campaign.combinationPrice))}/item at payment`,
+            label: t('summary.groupPrice'),
+            value: t('summary.groupPriceValue', { price: fmtMoney(priceNum(groupSlot.campaign.combinationPrice)) }),
             variant: 'success' as const,
           },
         ]
       : []),
-    { label: 'Total', value: money(totals?.actualPrice), variant: 'total' as const },
+    { label: t('summary.total'), value: money(totals?.actualPrice), variant: 'total' as const },
   ];
 
   const placeButtonText = submitting
     ? phase === 'paying'
       ? hasCjItems
-        ? 'Processing payment… (dropship orders can take up to 30 seconds)'
-        : 'Processing payment…'
-      : 'Placing order…'
+        ? t('place.processingCj')
+        : t('place.processing')
+      : t('place.placing')
     : anyPlaced
-      ? 'Retry payment'
-      : 'Place order';
+      ? t('place.retryPayment')
+      : t('place.placeOrder');
   // No server total ⇒ nothing we are allowed to charge (tax fails closed); the
   // review step must also have been reached before the order can be placed.
   const placeDisabled = !checkoutValid || !totals || !!totalsBlocked || totalsLoading || maxStep < 3;
 
   return (
     <Page>
-      <PageHead title='Checkout' />
+      <PageHead title={t('title')} />
       <div className='container lm-checkout'>
         <div className='row g-3'>
         <div className='col-lg-8'>
@@ -1131,20 +1136,23 @@ const CheckoutView: React.FC = () => {
         {groupPinkId != null && !groupError && (
           <Alert variant='info' className='d-flex justify-content-between align-items-center gap-2 flex-wrap'>
             <span>
-              <i className='bi bi-people-fill me-1' /> <strong>Group order</strong>
+              <i className='bi bi-people-fill me-1' /> <strong>{t('group.banner')}</strong>
               {groupSlot?.campaign?.combinationPrice != null ? (
-                <>
-                  {' '}
-                  — group price applied at payment: <strong>{fmtMoney(priceNum(groupSlot.campaign.combinationPrice))}</strong> per item
-                  {groupSlot.campaign.title ? <> ({groupSlot.campaign.title})</> : null}. The total below may show the regular price
-                  until then.
-                </>
+                <Trans
+                  t={t}
+                  i18nKey='group.priceApplied'
+                  values={{
+                    price: fmtMoney(priceNum(groupSlot.campaign.combinationPrice)),
+                    title: groupSlot.campaign.title ? ` (${groupSlot.campaign.title})` : '',
+                  }}
+                  components={{ 1: <strong /> }}
+                />
               ) : (
-                <> — the group price for your slot is applied at payment; the total below may show the regular price until then.</>
+                t('group.pricePending')
               )}
             </span>
             <button type='button' className='btn btn-sm btn-outline-secondary' onClick={dropGroupSlot} disabled={anyPlaced}>
-              Buy at regular price instead
+              {t('group.buyRegularInstead')}
             </button>
           </Alert>
         )}
@@ -1152,7 +1160,7 @@ const CheckoutView: React.FC = () => {
             frozen (no Change) while a placed order awaits a payment retry. */}
         <StepSection
           index={1}
-          title='Delivery'
+          title={t('steps.delivery')}
           state={stepState(1)}
           summary={deliverySummary}
           onChange={() => setOpenStep(1)}
@@ -1162,13 +1170,13 @@ const CheckoutView: React.FC = () => {
             has stores AND the cart is all-local; CJ lines always ship). */}
         {stores.length > 0 && !hasCjItems && (
           <div className='p-3 pb-0'>
-            <div className='small fw-semibold text-muted mb-2'>Delivery method</div>
+            <div className='small fw-semibold text-muted mb-2'>{t('delivery.method')}</div>
             <div className='d-flex gap-4'>
               <Form.Check
                 type='radio'
                 id='delivery-express'
                 name='deliveryType'
-                label='Ship to me'
+                label={t('delivery.shipToMe')}
                 checked={deliveryType === 'express'}
                 onChange={() => setDeliveryType('express')}
               />
@@ -1176,7 +1184,7 @@ const CheckoutView: React.FC = () => {
                 type='radio'
                 id='delivery-pickup'
                 name='deliveryType'
-                label='Store pickup (free)'
+                label={t('delivery.storePickupFree')}
                 checked={deliveryType === 'pickup'}
                 onChange={() => setDeliveryType('pickup')}
               />
@@ -1187,7 +1195,7 @@ const CheckoutView: React.FC = () => {
         {/* Pickup: store picker + pickup contact replace the address book. */}
         {isPickup && (
           <div>
-            <div className='small fw-semibold text-muted p-3 pb-0'>Pickup store</div>
+            <div className='small fw-semibold text-muted p-3 pb-0'>{t('delivery.pickupStore')}</div>
             <div className='p-2 d-grid gap-2'>
               {stores.map(s => (
                 <button
@@ -1217,11 +1225,11 @@ const CheckoutView: React.FC = () => {
             </div>
             <div className='row g-3 p-3 pt-0'>
               <div className='col-md-6'>
-                <Form.Label>Pickup name *</Form.Label>
+                <Form.Label>{t('delivery.pickupName')}</Form.Label>
                 <Form.Control value={pickupName} onChange={e => setPickupName(e.target.value)} required />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Pickup mobile *</Form.Label>
+                <Form.Label>{t('delivery.pickupMobile')}</Form.Label>
                 <Form.Control value={pickupMobile} onChange={e => setPickupMobile(e.target.value)} required />
               </div>
             </div>
@@ -1252,7 +1260,7 @@ const CheckoutView: React.FC = () => {
                   setShipping(EMPTY_SHIPPING);
                 }}
               >
-                <i className='bi bi-plus-lg me-1' /> Use a new address
+                <i className='bi bi-plus-lg me-1' /> {t('delivery.useNewAddress')}
               </button>
             </div>
           )}
@@ -1260,11 +1268,11 @@ const CheckoutView: React.FC = () => {
           {usingNewAddress && (
             <div className='row g-3 p-3'>
               <div className='col-md-6'>
-                <Form.Label>Full name *</Form.Label>
+                <Form.Label>{t('delivery.fullName')}</Form.Label>
                 <Form.Control name='name' value={shipping.name} onChange={handleInputChange} required />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Mobile{hasCjItems ? ' *' : ''}</Form.Label>
+                <Form.Label>{t('delivery.mobile')}{hasCjItems ? ' *' : ''}</Form.Label>
                 {/* THE phone field of this checkout: stored on the address
                     (litemall_address.tel), copied to the order server-side and
                     backfilled onto the profile at submit. Dial-code + E.164 so
@@ -1279,9 +1287,9 @@ const CheckoutView: React.FC = () => {
                 />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Country{hasCjItems ? ' *' : ''}</Form.Label>
+                <Form.Label>{t('delivery.country')}{hasCjItems ? ' *' : ''}</Form.Label>
                 <Form.Select value={country.code} onChange={handleCountryChange} required={hasCjItems}>
-                  <option value=''>-- Country --</option>
+                  <option value=''>{t('delivery.selectCountry')}</option>
                   {COUNTRIES.map(c => (
                     <option key={c.code} value={c.code}>
                       {c.name}
@@ -1290,7 +1298,7 @@ const CheckoutView: React.FC = () => {
                 </Form.Select>
               </div>
               <div className='col-12'>
-                <Form.Label>Address line 1 *</Form.Label>
+                <Form.Label>{t('delivery.address1')}</Form.Label>
                 {/* Wave 16: env-gated Places suggestions scoped to the
                     destination country when one is picked; unset key ⇒ the
                     same plain input as before. */}
@@ -1318,11 +1326,11 @@ const CheckoutView: React.FC = () => {
                 />
               </div>
               <div className='col-12'>
-                <Form.Label>Address line 2</Form.Label>
+                <Form.Label>{t('delivery.address2')}</Form.Label>
                 <Form.Control name='addressTwo' value={shipping.addressTwo} onChange={handleInputChange} />
               </div>
               <div className='col-md-4'>
-                <Form.Label>Region / State *</Form.Label>
+                <Form.Label>{t('delivery.region')}</Form.Label>
                 {/* Type-ahead over the selected country's regions (static data);
                     free text stays valid for anything outside the list. */}
                 <RegionInput
@@ -1330,16 +1338,16 @@ const CheckoutView: React.FC = () => {
                   value={shipping.region}
                   onChange={text => setShipping(prev => ({ ...prev, region: text }))}
                   suggestions={regionsFor(country.code)}
-                  placeholder={country.code ? 'Select or type a region' : 'Region'}
+                  placeholder={country.code ? t('delivery.regionPlaceholder') : t('delivery.regionShort')}
                   required
                 />
               </div>
               <div className='col-md-4'>
-                <Form.Label>City / Kommune</Form.Label>
-                <Form.Control name='kommune' value={shipping.kommune} onChange={handleInputChange} placeholder='City' />
+                <Form.Label>{t('delivery.city')}</Form.Label>
+                <Form.Control name='kommune' value={shipping.kommune} onChange={handleInputChange} placeholder={t('delivery.cityPlaceholder')} />
               </div>
               <div className='col-md-4'>
-                <Form.Label>Zip *</Form.Label>
+                <Form.Label>{t('delivery.zip')}</Form.Label>
                 <Form.Control name='zip' value={shipping.zip} onChange={handleInputChange} required />
               </div>
             </div>
@@ -1356,14 +1364,13 @@ const CheckoutView: React.FC = () => {
                   country + phone, which the carrier needs — is kept; per-item origin is
                   now stated on the lines themselves, from measurement. */}
               <Alert variant='info' className='mb-2'>
-                These items ship direct from the warehouse — please provide a <strong>country</strong> and a{' '}
-                <strong>phone number</strong> so the carrier can deliver.
+                <Trans t={t} i18nKey='delivery.warehouseNote' components={{ 1: <strong />, 2: <strong /> }} />
               </Alert>
               {!usingNewAddress && (
                 <>
-                  <Form.Label>Destination country *</Form.Label>
+                  <Form.Label>{t('delivery.destinationCountry')}</Form.Label>
                   <Form.Select value={country.code} onChange={handleCountryChange} required>
-                    <option value=''>-- Country --</option>
+                    <option value=''>{t('delivery.selectCountry')}</option>
                     {COUNTRIES.map(c => (
                       <option key={c.code} value={c.code}>
                         {c.name}
@@ -1376,13 +1383,13 @@ const CheckoutView: React.FC = () => {
               {country.code && (
                 <div className='mt-2 small'>
                   {quoteLoading ? (
-                    <span className='text-muted'>Checking logistics…</span>
+                    <span className='text-muted'>{t('delivery.checkingLogistics')}</span>
                   ) : effectiveCjLogistic ? (
                     <span>
                       <i className='bi bi-truck me-1' />
-                      Ships via <strong>{effectiveCjLogistic}</strong>
-                      {effectiveCjAging ? <> · estimated delivery {effectiveCjAging} days</> : null}
-                      {cjOptions.length > 1 && <span className='text-muted'> · more options in the order summary</span>}
+                      <Trans t={t} i18nKey='delivery.shipsVia' values={{ carrier: effectiveCjLogistic }} components={{ 1: <strong /> }} />
+                      {effectiveCjAging ? t('delivery.estimatedDays', { days: effectiveCjAging }) : null}
+                      {cjOptions.length > 1 && <span className='text-muted'>{t('delivery.moreOptions')}</span>}
                     </span>
                   ) : quotes.cj?.cjNote ? (
                     <span className='text-muted'>{quotes.cj.cjNote}</span>
@@ -1396,7 +1403,7 @@ const CheckoutView: React.FC = () => {
                   duplicate field silently discarded its edits. */}
               {!usingNewAddress && savedAddressNeedsPhone && (
                 <div className='mt-2'>
-                  <Form.Label>Phone *</Form.Label>
+                  <Form.Label>{t('delivery.phone')}</Form.Label>
                   <PhoneInput
                     key={selectedSavedAddress?.id ?? 'none'}
                     value={shipping.mobile}
@@ -1404,7 +1411,7 @@ const CheckoutView: React.FC = () => {
                     defaultIso2={country.code || undefined}
                     onValidityChange={setPhoneValid}
                   />
-                  <div className='form-text'>Your selected address has no phone number yet — we&apos;ll save this one to it.</div>
+                  <div className='form-text'>{t('delivery.phoneSaveNote')}</div>
                 </div>
               )}
             </div>
@@ -1418,16 +1425,16 @@ const CheckoutView: React.FC = () => {
         {accountEmail === null && (
           <div>
             <div className='p-3'>
-              <Form.Label>Email for order updates *</Form.Label>
+              <Form.Label>{t('delivery.emailLabel')}</Form.Label>
               <Form.Control
                 name='email'
                 type='email'
                 value={shipping.email}
                 onChange={handleInputChange}
-                placeholder='you@example.com'
+                placeholder={t('delivery.emailPlaceholder')}
                 required
               />
-              <div className='form-text'>We&apos;ll send your order confirmation and shipping updates here.</div>
+              <div className='form-text'>{t('delivery.emailNote')}</div>
               {emailNotice && (
                 <div className='small text-danger mt-1' role='status'>
                   {emailNotice}
@@ -1439,15 +1446,15 @@ const CheckoutView: React.FC = () => {
 
         <div className='lm-step__continue'>
           <button type='button' className='btn btn-lm-primary' disabled={!deliveryComplete} onClick={() => advanceTo(2)}>
-            Continue to payment
+            {t('steps.continueToPayment')}
           </button>
-          {!deliveryComplete && <div className='form-text mt-1'>Fill in the delivery details above to continue.</div>}
+          {!deliveryComplete && <div className='form-text mt-1'>{t('steps.fillDelivery')}</div>}
         </div>
         </StepSection>
 
         {/* STEP 2 — payment method + discounts. Locked until delivery completes,
             so the card form always mounts against a destination-priced total. */}
-        <StepSection index={2} title='Payment' state={stepState(2)} summary={paymentSummary} onChange={() => setOpenStep(2)}>
+        <StepSection index={2} title={t('steps.payment')} state={stepState(2)} summary={paymentSummary} onChange={() => setOpenStep(2)}>
           <Cell>
             <Form.Check
               type='radio'
@@ -1455,7 +1462,7 @@ const CheckoutView: React.FC = () => {
               name='paymentMethod'
               label={
                 <>
-                  Credit / debit card
+                  {t('payment.card')}
                   <PaymentBrandIcons muted={!cardAvailable} />
                 </>
               }
@@ -1467,7 +1474,7 @@ const CheckoutView: React.FC = () => {
               // No publishable key ⇒ card payment is honestly unavailable. It is NOT
               // stubbed, and the customer is not told a placeholder authorisation "runs".
               <div className='small text-muted ms-4'>
-                Card payment is temporarily unavailable — please check back soon.
+                {t('payment.cardUnavailable')}
               </div>
             )}
           </Cell>
@@ -1476,7 +1483,7 @@ const CheckoutView: React.FC = () => {
               type='radio'
               id='pay-wallet'
               name='paymentMethod'
-              label='Digital wallet (balance)'
+              label={t('payment.wallet')}
               checked={paymentMethod === 'WALLET'}
               onChange={() => setPaymentMethod('WALLET')}
             />
@@ -1488,12 +1495,11 @@ const CheckoutView: React.FC = () => {
               </Elements>
             )}
             {paymentMethod === 'CARD' && cardAvailable && !stripeElementsOptions && (
-              <div className='text-muted small'>Preparing secure card payment…</div>
+              <div className='text-muted small'>{t('payment.preparingCard')}</div>
             )}
             {paymentMethod === 'WALLET' && (
               <Alert variant='light' className='border mb-0'>
-                Your wallet balance is debited when the order is placed. An insufficient balance leaves the order unpaid and shows an
-                error — nothing is charged.
+                {t('payment.walletNote')}
               </Alert>
             )}
           </div>
@@ -1503,7 +1509,7 @@ const CheckoutView: React.FC = () => {
             coupons. */}
         <div>
             {coupons.length > 0 && (
-            <Cell title='Coupon'>
+            <Cell title={t('coupon.cell')}>
               <Form.Select
                 size='sm'
                 value={selectedCouponId ?? ''}
@@ -1512,7 +1518,7 @@ const CheckoutView: React.FC = () => {
                   setCouponError(null);
                 }}
               >
-                <option value=''>No coupon ({couponCellValue})</option>
+                <option value=''>{t('coupon.none', { status: couponCellValue })}</option>
                 {/* Wave 18: selectlist `discount` is the server-COMPUTED dollar
                     discount for this cart (percent coupons included) — the
                     label renders dollars plus the coupon kind. */}
@@ -1534,8 +1540,8 @@ const CheckoutView: React.FC = () => {
             <div className='px-3 py-2 d-flex gap-2'>
               <Form.Control
                 size='sm'
-                placeholder='Promo code'
-                aria-label='Promo code'
+                placeholder={t('coupon.promoPlaceholder')}
+                aria-label={t('coupon.promoPlaceholder')}
                 value={promoCode}
                 onChange={e => {
                   setPromoCode(e.target.value);
@@ -1554,7 +1560,7 @@ const CheckoutView: React.FC = () => {
                 disabled={!promoCode.trim() || promoBusy}
                 onClick={handleApplyPromo}
               >
-                {promoBusy ? 'Applying…' : 'Apply'}
+                {promoBusy ? t('coupon.applying') : t('coupon.apply')}
               </button>
             </div>
             {promoNotice && (
@@ -1573,7 +1579,7 @@ const CheckoutView: React.FC = () => {
                     setCouponError(null);
                   }}
                 >
-                  Remove coupon
+                  {t('coupon.remove')}
                 </button>
               </Alert>
             )}
@@ -1581,13 +1587,13 @@ const CheckoutView: React.FC = () => {
 
         <div className='lm-step__continue'>
           <button type='button' className='btn btn-lm-primary' onClick={continueToReview}>
-            Continue to review
+            {t('steps.continueToReview')}
           </button>
         </div>
         </StepSection>
 
         {/* STEP 3 — review the items and place the order. */}
-        <StepSection index={3} title={`Review items (${cartList.length})`} state={stepState(3)} onChange={() => setOpenStep(3)}>
+        <StepSection index={3} title={t('steps.review', { count: cartList.length })} state={stepState(3)} onChange={() => setOpenStep(3)}>
           <div>
           {cartList.map(item => (
             <GoodsLineCard
@@ -1605,12 +1611,12 @@ const CheckoutView: React.FC = () => {
 
           {/* Order note */}
           <div className='p-3'>
-            <Form.Label className='small text-muted mb-1'>Order note</Form.Label>
+            <Form.Label className='small text-muted mb-1'>{t('review.orderNote')}</Form.Label>
             <Form.Control
               as='textarea'
               rows={2}
               maxLength={50}
-              placeholder='Leave a note for this order (optional)'
+              placeholder={t('review.notePlaceholder')}
               value={message}
               onChange={e => setMessage(e.target.value)}
             />
@@ -1622,12 +1628,14 @@ const CheckoutView: React.FC = () => {
         {anyPlaced && (orderError || addrError) && (
           <Alert variant='info'>
             {paidOrder && unpaidOrders.length > 0 ? (
-              <>
-                Order <strong>#{paidOrder.orderId}</strong> is paid, but payment for <strong>#{unpaidOrders[0].orderId}</strong> did not
-                complete. “Retry payment” charges only the unpaid order.
-              </>
+              <Trans
+                t={t}
+                i18nKey='alerts.partialPaid'
+                values={{ paid: paidOrder.orderId, unpaid: unpaidOrders[0].orderId }}
+                components={{ 1: <strong />, 2: <strong /> }}
+              />
             ) : (
-              <>Your order was placed but payment did not complete. “Retry payment” will not create a new order.</>
+              t('alerts.notCompleted')
             )}
           </Alert>
         )}
@@ -1638,7 +1646,7 @@ const CheckoutView: React.FC = () => {
           <Alert variant='danger' className='d-flex justify-content-between align-items-center gap-2 flex-wrap'>
             <span>{groupError}</span>
             <button type='button' className='btn btn-sm btn-outline-light border' onClick={dropGroupSlot}>
-              Buy at regular price
+              {t('group.buyRegular')}
             </button>
           </Alert>
         )}
@@ -1651,7 +1659,7 @@ const CheckoutView: React.FC = () => {
           <Alert variant='warning'>
             {totalsBlocked}{' '}
             <button type='button' className='btn btn-link p-0 align-baseline' onClick={() => dispatch(fetchCart())}>
-              Retry
+              {t('errors.retry')}
             </button>
           </Alert>
         )}
@@ -1662,17 +1670,17 @@ const CheckoutView: React.FC = () => {
             carries the button instead. */}
         <div className='col-lg-4'>
           <aside className='lm-checkout__aside'>
-            <div className='lm-checkout__aside-title'>Order summary</div>
+            <div className='lm-checkout__aside-title'>{t('summary.title')}</div>
             <OrderSummary rows={summaryRows} />
             {/* Delivery option (V52) — the chosen option highlighted in the brand
                 teal; CJ carts pick among every carrier CJ offers (more offerings
                 appear here automatically as they become available). */}
             <div className='lm-delivery'>
               <div className='lm-delivery__head'>
-                <span>Delivery option</span>
+                <span>{t('summary.deliveryOption')}</span>
                 {!anyPlaced && (
                   <button type='button' className='btn btn-link btn-sm p-0' onClick={() => setOpenStep(1)}>
-                    Edit
+                    {t('summary.edit')}
                   </button>
                 )}
               </div>
@@ -1680,25 +1688,25 @@ const CheckoutView: React.FC = () => {
                 <div className='lm-delivery__option lm-delivery__option--selected'>
                   <i className='bi bi-shop' />
                   <div>
-                    <div className='lm-delivery__name'>Store pickup</div>
-                    <div className='lm-delivery__meta'>Free — collect at the selected store</div>
+                    <div className='lm-delivery__name'>{t('delivery.storePickup')}</div>
+                    <div className='lm-delivery__meta'>{t('summary.pickupFree')}</div>
                   </div>
                   <i className='bi bi-check-circle-fill lm-delivery__check' />
                 </div>
               ) : quoteLoading ? (
-                <div className='lm-delivery__meta py-1'>Checking delivery options…</div>
+                <div className='lm-delivery__meta py-1'>{t('summary.checkingOptions')}</div>
               ) : (
                 <>
                   {hasLocalItems && (
                     <div className='lm-delivery__option lm-delivery__option--selected'>
                       <i className='bi bi-box-seam' />
                       <div>
-                        <div className='lm-delivery__name'>Standard shipping</div>
+                        <div className='lm-delivery__name'>{t('summary.standardShipping')}</div>
                         <div className='lm-delivery__meta'>
                           {(quotes.local?.freightPrice ?? 0) > 0
                             ? fmtMoney(quotes.local?.freightPrice)
-                            : 'Free'}
-                          {hasCjItems ? ' — items shipped from our store' : ''}
+                            : t('summary.free')}
+                          {hasCjItems ? t('summary.fromStore') : ''}
                         </div>
                       </div>
                       {!hasCjItems && <i className='bi bi-check-circle-fill lm-delivery__check' />}
@@ -1712,6 +1720,8 @@ const CheckoutView: React.FC = () => {
                         // ("Included" / "+€x.xx"); null/absent ⇒ no label
                         // (unpriceable line, or the pre-24.1 order half).
                         const deltaLabel = courierDeltaLabel(o.upgradeDelta);
+                        // "Included" is the zero-delta case; test the number, not the (localised) label.
+                        const deltaIncluded = deltaLabel != null && !(Number(o.upgradeDelta) > 0.004);
                         return (
                           <button
                             type='button'
@@ -1729,13 +1739,13 @@ const CheckoutView: React.FC = () => {
                                     Non-EU lines get no counter-label — the absence is the
                                     signal, same as upgradeDelta's null. */}
                                 {originCountryName(o.originCountry) && (
-                                  <span className='lm-delivery__origin'>EU · {originCountryName(o.originCountry)}</span>
+                                  <span className='lm-delivery__origin'>{t('summary.euOrigin', { country: originCountryName(o.originCountry) })}</span>
                                 )}
                               </div>
-                              {o.logisticAging && <div className='lm-delivery__meta'>Estimated delivery {o.logisticAging} days</div>}
+                              {o.logisticAging && <div className='lm-delivery__meta'>{t('summary.estimated', { days: o.logisticAging })}</div>}
                             </div>
                             {deltaLabel && (
-                              <span className={`lm-delivery__delta${deltaLabel === 'Included' ? ' lm-delivery__delta--included' : ''}`}>
+                              <span className={`lm-delivery__delta${deltaIncluded ? ' lm-delivery__delta--included' : ''}`}>
                                 {deltaLabel}
                               </span>
                             )}
@@ -1746,8 +1756,8 @@ const CheckoutView: React.FC = () => {
                     ) : (
                       <div className='lm-delivery__meta py-1'>
                         {country.code
-                          ? (quotes.cj?.cjNote ?? 'Delivery options appear once we can quote your destination.')
-                          : 'Pick a destination country to see delivery options.'}
+                          ? (quotes.cj?.cjNote ?? t('summary.optionsAfterDestination'))
+                          : t('summary.pickDestination')}
                       </div>
                     ))}
                 </>
@@ -1764,7 +1774,7 @@ const CheckoutView: React.FC = () => {
             </button>
             <div className='lm-checkout__aside-note d-none d-lg-block'>
               <i className='bi bi-lock-fill me-1' />
-              Secure checkout — nothing is charged until you place the order.
+              {t('summary.secureNote')}
             </div>
           </aside>
         </div>
@@ -1790,6 +1800,7 @@ const CheckoutView: React.FC = () => {
  * run with the new session). The local cart survives in redux either way.
  */
 const GuestCheckoutGate: React.FC = () => {
+  const { t } = useTranslation('checkout');
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { cartList } = useAppSelector(state => state.cart.data);
@@ -1808,7 +1819,7 @@ const GuestCheckoutGate: React.FC = () => {
       const { errno = -1, errmsg = '' } = (result.payload as { errno?: number; errmsg?: string } | undefined) ?? {};
       setGateError({
         hasAccount: errno === 706,
-        text: errno === 706 ? 'This email already has an account — please sign in to continue.' : errmsg || 'Guest checkout failed — please try again.',
+        text: errno === 706 ? t('guest.hasAccount') : errmsg || t('guest.failed'),
       });
       setBusy(false);
     }
@@ -1818,16 +1829,16 @@ const GuestCheckoutGate: React.FC = () => {
   return (
     <Page>
       <div className='container my-4' style={{ maxWidth: 480 }}>
-        <h1 className='h4 mb-3'>Checkout</h1>
+        <h1 className='h4 mb-3'>{t('title')}</h1>
         {cartList.length === 0 && (
           <Alert variant='light' className='border'>
-            Your cart is empty. <Link to='/'>Continue shopping</Link>
+            <Trans t={t} i18nKey='guest.emptyCart' components={{ 1: <Link to='/' /> }} />
           </Alert>
         )}
         <CellGroup>
           <div className='p-3'>
-            <div className='fw-semibold mb-2'>Continue as guest</div>
-            <Form.Label>Email *</Form.Label>
+            <div className='fw-semibold mb-2'>{t('guest.continueAsGuest')}</div>
+            <Form.Label>{t('guest.email')}</Form.Label>
             <Form.Control
               type='email'
               value={email}
@@ -1841,33 +1852,33 @@ const GuestCheckoutGate: React.FC = () => {
                   continueAsGuest();
                 }
               }}
-              placeholder='you@example.com'
+              placeholder={t('delivery.emailPlaceholder')}
               autoFocus
             />
-            <div className='form-text'>Your order confirmation goes here. No password needed — you can create one after buying.</div>
+            <div className='form-text'>{t('guest.note')}</div>
             {gateError && (
               <div className='small text-danger mt-1' role='status'>
                 {gateError.text}{' '}
                 {gateError.hasAccount && (
                   <Link to='/login' state={{ from: { pathname: '/checkout' } }}>
-                    Sign in
+                    {t('guest.signIn')}
                   </Link>
                 )}
               </div>
             )}
             <button type='button' className='btn btn-lm-primary w-100 mt-2' disabled={!emailOk || busy} onClick={continueAsGuest}>
-              {busy ? 'One moment…' : 'Continue as guest'}
+              {busy ? t('guest.oneMoment') : t('guest.continueAsGuest')}
             </button>
           </div>
           <div className='px-3 pb-3'>
-            <div className='text-center text-muted small my-2'>— or —</div>
+            <div className='text-center text-muted small my-2'>{t('guest.or')}</div>
             <GoogleSignInButton />
             <button
               type='button'
               className='btn btn-lm-outline w-100'
               onClick={() => navigate('/login', { state: { from: { pathname: '/checkout' } } })}
             >
-              Sign in to your account
+              {t('guest.signInAccount')}
             </button>
           </div>
         </CellGroup>
