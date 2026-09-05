@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { t } from 'app/i18n';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
 
@@ -139,7 +140,7 @@ const productDetailSlice = createSlice({
       })
       .addCase(getProductDetail.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Failed to load product';
+        state.errorMessage = action.payload?.errmsg ?? t('errors:product.loadFailed');
         state.errorNumber = action.payload?.errno ?? 500;
       });
   },

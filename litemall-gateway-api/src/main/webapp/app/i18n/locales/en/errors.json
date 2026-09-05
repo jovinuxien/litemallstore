@@ -3,7 +3,21 @@
   "registrationFailed": "Registration failed",
   "guestCheckoutFailed": "Guest checkout failed",
   "googleFailed": "Google sign-in failed",
+  "product": {
+    "loadFailed": "Failed to load product"
+  },
   "requestFailed": "Request failed",
+  "cart": {
+    "loadFailed": "Failed to load cart",
+    "updateFailed": "Failed to update cart item"
+  },
+  "order": {
+    "signIn": "Please sign in to place an order",
+    "staleItems": "These items can no longer be ordered — remove them and re-add from the product page.",
+    "placementFailed": "Order placement failed",
+    "cardNotCompleted": "Card payment was not completed — please try again.",
+    "paymentSlow": "Payment is taking longer than expected. Check My Orders before retrying — the order may already be paid."
+  },
   "byCode": {
     "700": "The current password is incorrect.",
     "701": "Password reset by email is not available.",
