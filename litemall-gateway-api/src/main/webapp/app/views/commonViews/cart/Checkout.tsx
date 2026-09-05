@@ -15,6 +15,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { Trans, useTranslation } from 'app/i18n';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
+import { classifyIntentRefusal } from 'app/shared/payment/paymentOutcome';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
 import GoogleSignInButton from 'app/auth/GoogleSignInButton';
@@ -91,7 +92,10 @@ const money = (v?: number): string => (v == null ? '—' : fmtMoney(v));
 /** Pull a readable message out of an axios/envelope error. */
 const messageOf = (error: unknown, fallback: string): string => {
   const data = (error as { response?: { data?: { message?: string; errmsg?: string } } })?.response?.data;
-  return data?.message ?? data?.errmsg ?? (error as { errmsg?: string })?.errmsg ?? fallback;
+  // `unwrap` rethrows an errno envelope as ApiError, whose text is on `.message` — the
+  // server's own wording (or its errno translation), which the contract says to show.
+  const apiError = (error as { name?: string; message?: string })?.name === 'ApiError' ? (error as { message?: string }).message : undefined;
+  return data?.message ?? data?.errmsg ?? (error as { errmsg?: string })?.errmsg ?? apiError ?? fallback;
 };
 
 const EMPTY_SHIPPING: ShippingInfo = {
@@ -938,25 +942,47 @@ const CheckoutView: React.FC = () => {
           // eslint-disable-next-line no-await-in-loop
           intent = await orderApi.paymentIntent(ord.orderId);
         } catch (error) {
+          const message = messageOf(error, '');
+          const refusal = classifyIntentRefusal(message);
+          if (refusal === 'already-paid') {
+            // The webhook (or another tab / a redirect this SPA never followed) settled
+            // this order first. That is success, not an error: carry on to the next group.
+            next[group] = { ...ord, paid: true };
+            setPlaced({ ...next });
+            continue;
+          }
+          if (refusal === 'processing') {
+            // A bank debit for this order is still in flight — the server refuses a second
+            // intent. Hand over to the status page, which waits for the webhook. The order
+            // exists, so the cart must not be re-checked out.
+            dispatch(clearCart());
+            navigate(`/pay/${ord.orderId}/status?status=processing`);
+            return;
+          }
           // Stripe disabled or failing ⇒ a typed error. The order stays placed and
           // unpaid, and the customer is told — we do not invent a payment.
-          setCardError(
-            messageOf(error, t('errors.cardUnavailable')),
-          );
+          setCardError(message || t('errors.cardUnavailable'));
           setPlaced(next);
           setOpenStep(2);
           return;
         }
         // eslint-disable-next-line no-await-in-loop
-        const confirmedId = await cardRef.current?.confirm(intent.clientSecret);
-        // null ⇒ StripeCardForm has rendered the reason inline; the order stays unpaid
+        const outcome = (await cardRef.current?.confirm(intent.clientSecret, ord.orderId)) ?? { kind: 'failed' as const };
+        if (outcome.kind === 'processing') {
+          // SEPA/bank debit: in flight for days, WILL settle, webhook marks the order paid.
+          // Not a failure and not a retry — the status page shows the honest copy and polls.
+          dispatch(clearCart());
+          navigate(`/pay/${ord.orderId}/status?status=processing`);
+          return;
+        }
+        // failed ⇒ StripeCardForm has rendered the reason inline; the order stays unpaid
         // and the customer can retry, which pays this same order rather than re-placing.
-        if (!confirmedId) {
+        if (outcome.kind !== 'succeeded') {
           setPlaced(next);
           setOpenStep(2); // the decline reason renders inline in the card form
           return;
         }
-        paymentIntentId = confirmedId;
+        paymentIntentId = outcome.paymentIntentId;
       }
 
       // eslint-disable-next-line no-await-in-loop

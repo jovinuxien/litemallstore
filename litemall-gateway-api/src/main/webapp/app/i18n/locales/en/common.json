@@ -84,6 +84,7 @@
       "loading": "Card payment is still loading — please try again in a moment.",
       "checkDetails": "Please check your card details.",
       "notCharged": "Your card could not be charged.",
+      "processing": "Your bank is processing this payment. We will email you when it is confirmed — do not pay again.",
       "notCompleted": "Your payment was not completed. Please try another card."
     }
   },

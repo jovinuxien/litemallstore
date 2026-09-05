@@ -84,6 +84,7 @@
       "loading": "Kortbetalningen laddas fortfarande – försök igen om en stund.",
       "checkDetails": "Kontrollera dina kortuppgifter.",
       "notCharged": "Ditt kort kunde inte debiteras.",
+      "processing": "Din bank behandlar betalningen. Vi mejlar dig när den är bekräftad – betala inte igen.",
       "notCompleted": "Betalningen slutfördes inte. Prova ett annat kort."
     }
   },
