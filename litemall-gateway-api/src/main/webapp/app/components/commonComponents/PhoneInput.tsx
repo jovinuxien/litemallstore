@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -53,6 +54,7 @@ const PhoneInput: React.FC<Props> = ({
   isInvalid,
   placeholder,
 }) => {
+  const { t } = useTranslation();
   const [initial] = useState(() => parseInitial(value));
   const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? localeIso2());
   const [national, setNational] = useState(initial.national);
@@ -88,11 +90,16 @@ const PhoneInput: React.FC<Props> = ({
   }, [valid]);
 
   const lengthMessage = unknownCode
-    ? 'Unknown country code — check the digits after "+".'
+    ? t('common:forms.phone.unknownCode')
     : lengthCheck.ok
       ? null
-      : `${lengthCheck.kind === 'short' ? 'Too short' : 'Too long'} for ${selected.name} (+${selected.dial}) — ` +
-        `${lengthCheck.min === lengthCheck.max ? `${lengthCheck.min}` : `${lengthCheck.min}–${lengthCheck.max}`} digits expected, you entered ${lengthCheck.count}.`;
+      : t('common:forms.phone.lengthDetail', {
+          kind: lengthCheck.kind === 'short' ? t('common:forms.phone.tooShort') : t('common:forms.phone.tooLong'),
+          country: selected.name,
+          dial: selected.dial,
+          expected: lengthCheck.min === lengthCheck.max ? `${lengthCheck.min}` : `${lengthCheck.min}–${lengthCheck.max}`,
+          entered: lengthCheck.count,
+        });
   const showError = touched && !valid;
 
   const filtered = useMemo(() => {
@@ -142,7 +149,7 @@ const PhoneInput: React.FC<Props> = ({
         <button
           type='button'
           className='btn btn-outline-secondary d-flex align-items-center gap-1'
-          aria-label='Select country code'
+          aria-label={t('common:forms.phone.selectCode')}
           aria-expanded={open}
           onClick={() => setOpen(o => !o)}
         >
@@ -154,7 +161,7 @@ const PhoneInput: React.FC<Props> = ({
           type='tel'
           className={`form-control${isInvalid || showError ? ' is-invalid' : ''}`}
           value={national}
-          placeholder={placeholder ?? 'Phone number'}
+          placeholder={placeholder ?? t('common:forms.phone.placeholder')}
           onChange={e => handleText(e.target.value)}
           onBlur={handleBlur}
         />
@@ -170,7 +177,7 @@ const PhoneInput: React.FC<Props> = ({
             <input
               type='text'
               className='form-control form-control-sm'
-              placeholder='Search country…'
+              placeholder={t('common:forms.phone.search')}
               value={filter}
               onChange={e => setFilter(e.target.value)}
               autoFocus
@@ -190,7 +197,7 @@ const PhoneInput: React.FC<Props> = ({
               <span className='text-muted small'>+{c.dial}</span>
             </button>
           ))}
-          {filtered.length === 0 && <div className='text-muted small p-2'>No match</div>}
+          {filtered.length === 0 && <div className='text-muted small p-2'>{t('common:forms.phone.noMatch')}</div>}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { t } from 'app/i18n';
 import React, { useImperativeHandle, useState } from 'react';
 import { Alert } from 'react-bootstrap';
 
@@ -38,13 +39,13 @@ const StripeCardForm = React.forwardRef<StripeCardHandle, { disabled?: boolean }
   useImperativeHandle(ref, () => ({
     validate: async () => {
       if (!stripe || !elements) {
-        setError('Card payment is still loading — please try again in a moment.');
+        setError(t('common:forms.card.loading'));
         return false;
       }
       setError(null);
       const { error: submitError } = await elements.submit();
       if (submitError) {
-        setError(submitError.message ?? 'Please check your card details.');
+        setError(submitError.message ?? t('common:forms.card.checkDetails'));
         return false;
       }
       return true;
@@ -52,7 +53,7 @@ const StripeCardForm = React.forwardRef<StripeCardHandle, { disabled?: boolean }
 
     confirm: async (clientSecret: string) => {
       if (!stripe || !elements) {
-        setError('Card payment is still loading — please try again in a moment.');
+        setError(t('common:forms.card.loading'));
         return null;
       }
       setError(null);
@@ -65,14 +66,14 @@ const StripeCardForm = React.forwardRef<StripeCardHandle, { disabled?: boolean }
         confirmParams: { return_url: `${window.location.origin}/orders` },
       });
       if (confirmError) {
-        setError(confirmError.message ?? 'Your card could not be charged.');
+        setError(confirmError.message ?? t('common:forms.card.notCharged'));
         return null;
       }
       if (paymentIntent?.status !== 'succeeded') {
         // Never report an unsucceeded intent as payment. The server re-retrieves the
         // intent and asserts status/amount/currency/metadata.orderId, so it would reject
         // this anyway — and claiming success here is exactly the lie the stub told.
-        setError('Your payment was not completed. Please try another card.');
+        setError(t('common:forms.card.notCompleted'));
         return null;
       }
       return paymentIntent.id;

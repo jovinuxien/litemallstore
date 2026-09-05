@@ -64,12 +64,39 @@
     "body": "Noget gik galt. Det hjælper som regel at genindlæse siden.",
     "reload": "Genindlæs"
   },
+  "forms": {
+    "upload": {
+      "noUrl": "Upload returnerede ingen URL.",
+      "failed": "Upload af billede mislykkedes (maks. 5 MB, kun billeder).",
+      "remove": "Fjern billede"
+    },
+    "phone": {
+      "unknownCode": "Ukendt landekode – tjek cifrene efter \"+\".",
+      "lengthDetail": "{{kind}} for {{country}} (+{{dial}}) – {{expected}} cifre forventes, du indtastede {{entered}}.",
+      "selectCode": "Vælg landekode",
+      "placeholder": "Telefonnummer",
+      "search": "Søg land…",
+      "noMatch": "Ingen match",
+      "tooShort": "For kort",
+      "tooLong": "For langt"
+    },
+    "card": {
+      "loading": "Kortbetalingen indlæses stadig – prøv igen om lidt.",
+      "checkDetails": "Tjek dine kortoplysninger.",
+      "notCharged": "Dit kort kunne ikke trækkes.",
+      "notCompleted": "Betalingen blev ikke gennemført. Prøv et andet kort."
+    }
+  },
   "language": {
     "label": "Sprog",
     "englishOnlyNotice": "Denne side findes kun på engelsk."
   },
   "submitBar": {
     "total": "I alt:"
+  },
+  "kit": {
+    "acceptedCards": "Accepterede kort: Visa, Mastercard, American Express",
+    "defaultAddress": "Standard"
   },
   "footer": {
     "backToTop": "Til toppen",
@@ -152,5 +179,12 @@
     "country": {
       "DE": "Tyskland"
     }
+  },
+  "social": {
+    "facebook": "Trovemo på Facebook",
+    "instagram": "Trovemo på Instagram",
+    "tiktok": "Trovemo på TikTok",
+    "x": "Trovemo på X",
+    "youtube": "Trovemo på YouTube"
   }
 }

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import './user.scss';
 
 interface CollectItem {
@@ -23,6 +24,7 @@ interface CollectItem {
  * `/srv/collect/list`.
  */
 const Favorites: React.FC = () => {
+  const { t } = useTranslation('user');
   const [items, setItems] = useState<CollectItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,13 +56,13 @@ const Favorites: React.FC = () => {
 
   return (
     <div className='container my-4 lm-user'>
-      <h1 className='h4 mb-3'>Favorites</h1>
+      <h1 className='h4 mb-3'>{t('favorites.title')}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
       ) : items.length === 0 ? (
-        <p className='text-muted text-center my-5'>You haven’t saved any products yet.</p>
+        <p className='text-muted text-center my-5'>{t('favorites.empty')}</p>
       ) : (
         <div className='lm-fav-grid'>
           {items.map(it => {
@@ -73,7 +75,7 @@ const Favorites: React.FC = () => {
                 </Link>
                 <div className='lm-fav-card__foot'>
                   <span className='lm-fav-card__price'>{money(priceNum(it.retailPrice ?? it.price))}</span>
-                  <button type='button' className='lm-fav-card__remove' onClick={() => remove(pid)} aria-label='Remove'>
+                  <button type='button' className='lm-fav-card__remove' onClick={() => remove(pid)} aria-label={t('favorites.remove')}>
                     <i className='bi bi-heart-fill' />
                   </button>
                 </div>

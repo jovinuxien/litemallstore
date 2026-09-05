@@ -236,7 +236,7 @@ export const EmptyState: React.FC<{ icon?: string; text: React.ReactNode; childr
 export const PaymentBrandIcons: React.FC<{ muted?: boolean; className?: string }> = ({ muted, className }) => (
   <span
     className={`lm-paybrands${muted ? ' lm-paybrands--muted' : ''}${className ? ` ${className}` : ''}`}
-    aria-label='Accepted cards: Visa, Mastercard, American Express'
+    aria-label={t('common:kit.acceptedCards')}
   >
     {/* Visa */}
     <svg width='38' height='24' viewBox='0 0 38 24' role='img' aria-label='Visa'>
@@ -279,7 +279,7 @@ export const AddressCard: React.FC<AddressCardProps> = ({ name, tel, detail, isD
     <div className='lm-address-card__head'>
       <span className='lm-address-card__name'>{name}</span>
       <span className='lm-address-card__tel'>{tel}</span>
-      {isDefault && <span className='badge bg-lm-primary ms-1'>Default</span>}
+      {isDefault && <span className='badge bg-lm-primary ms-1'>{t('common:kit.defaultAddress')}</span>}
       {trailing && <span className='ms-auto'>{trailing}</span>}
     </div>
     <div className='lm-address-card__detail'>{detail}</div>

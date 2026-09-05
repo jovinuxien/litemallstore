@@ -1,0 +1,88 @@
+{
+  "addressEdit": {
+    "loadFailed": "Could not load this address.",
+    "phoneMismatch": "The phone number does not match the selected country — check the digit count.",
+    "saveFailed": "Save failed.",
+    "deleteFailed": "Delete failed.",
+    "title": "Edit address",
+    "recipient": "Recipient *",
+    "phone": "Phone *",
+    "country": "Country",
+    "selectCountry": "-- Country --",
+    "cascade": "Pick region from list (China addresses)",
+    "province": "Province / Region",
+    "select": "Select…",
+    "city": "City",
+    "district": "District",
+    "detail": "Address detail *",
+    "postalCode": "Postal code",
+    "setDefault": "Set as default",
+    "save": "Save",
+    "delete": "Delete"
+  },
+  "addresses": {
+    "title": "My Addresses",
+    "addNew": "Add new address",
+    "empty": "No saved addresses yet.",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "You haven’t saved any products yet.",
+    "remove": "Remove"
+  },
+  "feedback": {
+    "sendFailed": "Could not send feedback.",
+    "title": "Feedback",
+    "sub": "Tell us what you think — suggestions, complaints, or bugs.",
+    "sent": "Thanks — your feedback has been sent.",
+    "type": "Type",
+    "message": "Your message *",
+    "messagePlaceholder": "Share the details of your feedback",
+    "contact": "Contact (optional)",
+    "contactPlaceholder": "Phone or email",
+    "screenshots": "Screenshots (optional)",
+    "submit": "Submit feedback",
+    "types": {
+      "feedback": "Suggestion",
+      "complaint": "Complaint",
+      "bug": "Bug",
+      "other": "Other"
+    }
+  },
+  "footprint": {
+    "title": "Recently viewed",
+    "empty": "No browsing history yet."
+  },
+  "profile": {
+    "loadFailed": "Could not load your profile.",
+    "noUrl": "Upload succeeded but returned no URL.",
+    "avatarFailed": "Avatar upload failed.",
+    "updateFailed": "Profile update failed.",
+    "title": "Profile",
+    "updated": "Profile updated.",
+    "nickname": "Nickname",
+    "email": "Email",
+    "avatar": "Avatar",
+    "uploading": "Uploading…",
+    "mobile": "Mobile",
+    "mobileTaken": "This mobile number is already registered.",
+    "save": "Save changes",
+    "changePassword": "Change password"
+  },
+  "center": {
+    "myAccount": "My account",
+    "menu": {
+      "orders": "My orders",
+      "aftersales": "After-sales",
+      "favorites": "Favorites",
+      "footprint": "Footprint",
+      "coupons": "Coupons",
+      "addresses": "Addresses",
+      "profile": "Profile",
+      "password": "Change password",
+      "feedback": "Feedback"
+    }
+  }
+}
