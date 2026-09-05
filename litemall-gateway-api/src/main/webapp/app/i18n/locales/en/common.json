@@ -64,12 +64,39 @@
     "body": "Something went wrong. Reloading the page usually fixes it.",
     "reload": "Reload"
   },
+  "forms": {
+    "upload": {
+      "noUrl": "Upload returned no URL.",
+      "failed": "Image upload failed (max 5 MB, images only).",
+      "remove": "Remove image"
+    },
+    "phone": {
+      "unknownCode": "Unknown country code — check the digits after \"+\".",
+      "lengthDetail": "{{kind}} for {{country}} (+{{dial}}) — {{expected}} digits expected, you entered {{entered}}.",
+      "selectCode": "Select country code",
+      "placeholder": "Phone number",
+      "search": "Search country…",
+      "noMatch": "No match",
+      "tooShort": "Too short",
+      "tooLong": "Too long"
+    },
+    "card": {
+      "loading": "Card payment is still loading — please try again in a moment.",
+      "checkDetails": "Please check your card details.",
+      "notCharged": "Your card could not be charged.",
+      "notCompleted": "Your payment was not completed. Please try another card."
+    }
+  },
   "language": {
     "label": "Language",
     "englishOnlyNotice": "This page is available in English only."
   },
   "submitBar": {
     "total": "Total:"
+  },
+  "kit": {
+    "acceptedCards": "Accepted cards: Visa, Mastercard, American Express",
+    "defaultAddress": "Default"
   },
   "footer": {
     "backToTop": "Back to top",
@@ -152,5 +179,12 @@
     "country": {
       "DE": "Germany"
     }
+  },
+  "social": {
+    "facebook": "Trovemo on Facebook",
+    "instagram": "Trovemo on Instagram",
+    "tiktok": "Trovemo on TikTok",
+    "x": "Trovemo on X",
+    "youtube": "Trovemo on YouTube"
   }
 }

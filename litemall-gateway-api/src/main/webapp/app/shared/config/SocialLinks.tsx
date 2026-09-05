@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useSyncExternalStore } from 'react';
 
 import {
@@ -15,17 +16,18 @@ import {
  */
 
 const NETWORKS = [
-  { key: 'socialFacebookUrl', icon: 'bi-facebook', label: 'Trovemo on Facebook' },
-  { key: 'socialInstagramUrl', icon: 'bi-instagram', label: 'Trovemo on Instagram' },
-  { key: 'socialTiktokUrl', icon: 'bi-tiktok', label: 'Trovemo on TikTok' },
-  { key: 'socialXUrl', icon: 'bi-twitter-x', label: 'Trovemo on X' },
-  { key: 'socialYoutubeUrl', icon: 'bi-youtube', label: 'Trovemo on YouTube' },
+  { key: 'socialFacebookUrl', icon: 'bi-facebook', labelKey: 'social.facebook' },
+  { key: 'socialInstagramUrl', icon: 'bi-instagram', labelKey: 'social.instagram' },
+  { key: 'socialTiktokUrl', icon: 'bi-tiktok', labelKey: 'social.tiktok' },
+  { key: 'socialXUrl', icon: 'bi-twitter-x', labelKey: 'social.x' },
+  { key: 'socialYoutubeUrl', icon: 'bi-youtube', labelKey: 'social.youtube' },
 ] as const;
 
 const SocialLinks: React.FC<{ className?: string; linkClassName?: string }> = ({
   className = 'd-flex gap-3 fs-5',
   linkClassName = 'link-light',
 }) => {
+  const { t } = useTranslation();
   const { config } = useSyncExternalStore(subscribeSiteConfig, siteConfigSnapshot);
 
   useEffect(() => {
@@ -44,7 +46,7 @@ const SocialLinks: React.FC<{ className?: string; linkClassName?: string }> = ({
           href={config[n.key] as string}
           target='_blank'
           rel='noopener noreferrer'
-          aria-label={n.label}
+          aria-label={t(n.labelKey)}
           className={linkClassName}
         >
           <i className={`bi ${n.icon}`} aria-hidden='true' />

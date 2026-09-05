@@ -3,6 +3,7 @@ import { Alert, Button, Card, Container, Form, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { authApi, userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import './user.scss';
 
 /**
@@ -12,6 +13,7 @@ import './user.scss';
  * Wave 4).
  */
 const Profile: React.FC = () => {
+  const { t } = useTranslation('user');
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
   const [avatar, setAvatar] = useState('');
@@ -35,7 +37,7 @@ const Profile: React.FC = () => {
           setMobile(env.data.mobile ?? '');
         }
       })
-      .catch(() => setError('Could not load your profile.'))
+      .catch(() => setError(t('profile.loadFailed')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -50,10 +52,10 @@ const Profile: React.FC = () => {
       if (url) {
         setAvatar(url);
       } else {
-        setError('Upload succeeded but returned no URL.');
+        setError(t('profile.noUrl'));
       }
     } catch {
-      setError('Avatar upload failed.');
+      setError(t('profile.avatarFailed'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -79,10 +81,10 @@ const Profile: React.FC = () => {
       } else if (env.errno === 705) {
         setMobileTaken(true);
       } else {
-        setError(env.errmsg || 'Profile update failed.');
+        setError(env.errmsg || t('profile.updateFailed'));
       }
     } catch {
-      setError('Profile update failed.');
+      setError(t('profile.updateFailed'));
     } finally {
       setSaving(false);
     }
@@ -98,22 +100,22 @@ const Profile: React.FC = () => {
 
   return (
     <Container className='my-4' style={{ maxWidth: 480 }}>
-      <h1 className='h4 mb-3'>Profile</h1>
+      <h1 className='h4 mb-3'>{t('profile.title')}</h1>
       <Card>
         <Card.Body>
           {error && <Alert variant='danger'>{error}</Alert>}
-          {saved && <Alert variant='success'>Profile updated.</Alert>}
+          {saved && <Alert variant='success'>{t('profile.updated')}</Alert>}
           <Form onSubmit={save}>
             <Form.Group className='mb-3'>
-              <Form.Label>Nickname</Form.Label>
+              <Form.Label>{t('profile.nickname')}</Form.Label>
               <Form.Control value={nickname} onChange={e => setNickname(e.target.value)} />
             </Form.Group>
             <Form.Group className='mb-3'>
-              <Form.Label>Email</Form.Label>
+              <Form.Label>{t('profile.email')}</Form.Label>
               <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} />
             </Form.Group>
             <Form.Group className='mb-3'>
-              <Form.Label>Avatar</Form.Label>
+              <Form.Label>{t('profile.avatar')}</Form.Label>
               {avatar && (
                 <div className='mb-2'>
                   <img src={avatar} alt='avatar' style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: '50%' }} />
@@ -122,20 +124,20 @@ const Profile: React.FC = () => {
               <Form.Control ref={fileRef} type='file' accept='image/*' onChange={pickAvatar} disabled={uploading} />
               {uploading && (
                 <Form.Text className='text-muted'>
-                  <Spinner animation='border' size='sm' /> Uploading…
+                  <Spinner animation='border' size='sm' /> {t('profile.uploading')}
                 </Form.Text>
               )}
             </Form.Group>
             <Form.Group className='mb-3'>
-              <Form.Label>Mobile</Form.Label>
+              <Form.Label>{t('profile.mobile')}</Form.Label>
               <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} isInvalid={mobileTaken} />
-              <Form.Control.Feedback type='invalid'>This mobile number is already registered.</Form.Control.Feedback>
+              <Form.Control.Feedback type='invalid'>{t('profile.mobileTaken')}</Form.Control.Feedback>
             </Form.Group>
             <Button type='submit' variant='primary' disabled={saving || uploading}>
-              {saving ? <Spinner animation='border' size='sm' /> : 'Save changes'}
+              {saving ? <Spinner animation='border' size='sm' /> : t('profile.save')}
             </Button>
             <Link to='/reset' className='btn btn-outline-secondary ms-2'>
-              Change password
+              {t('profile.changePassword')}
             </Link>
           </Form>
         </Card.Body>

@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { IAddress, userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { AddressCard, CellGroup, EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
@@ -12,6 +13,7 @@ import './user.scss';
  * graceful empty when not live (follow-up: order/user worktree).
  */
 const AddressList: React.FC = () => {
+  const { t } = useTranslation('user');
   const [addresses, setAddresses] = useState<IAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +45,12 @@ const AddressList: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='My Addresses' />
+      <PageHead title={t('addresses.title')} />
       <div className='container'>
         <CellGroup>
           <div className='p-3 d-flex justify-content-end'>
             <Link to='/user/address/new' className='btn btn-lm-primary'>
-              <i className='bi bi-plus-lg me-1' /> Add new address
+              <i className='bi bi-plus-lg me-1' /> {t('addresses.addNew')}
             </Link>
           </div>
         </CellGroup>
@@ -59,9 +61,9 @@ const AddressList: React.FC = () => {
           </div>
         ) : addresses.length === 0 ? (
           <CellGroup>
-            <EmptyState icon='bi-geo-alt' text='No saved addresses yet.'>
+            <EmptyState icon='bi-geo-alt' text={t('addresses.empty')}>
               <Link to='/user/address/new' className='btn btn-lm-primary'>
-                Add new address
+                {t('addresses.addNew')}
               </Link>
             </EmptyState>
           </CellGroup>
@@ -78,10 +80,10 @@ const AddressList: React.FC = () => {
                   trailing={
                     <span className='d-inline-flex gap-2'>
                       <Link to={'/user/address/' + a.id} className='btn btn-sm btn-lm-outline'>
-                        Edit
+                        {t('addresses.edit')}
                       </Link>
                       <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => remove(a.id)}>
-                        Delete
+                        {t('addresses.delete')}
                       </button>
                     </span>
                   }

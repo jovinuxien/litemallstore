@@ -64,12 +64,39 @@
     "body": "Något gick fel. Att ladda om sidan brukar lösa det.",
     "reload": "Ladda om"
   },
+  "forms": {
+    "upload": {
+      "noUrl": "Uppladdningen returnerade ingen URL.",
+      "failed": "Bilduppladdningen misslyckades (max 5 MB, endast bilder).",
+      "remove": "Ta bort bild"
+    },
+    "phone": {
+      "unknownCode": "Okänd landskod – kontrollera siffrorna efter \"+\".",
+      "lengthDetail": "{{kind}} för {{country}} (+{{dial}}) – {{expected}} siffror förväntas, du angav {{entered}}.",
+      "selectCode": "Välj landskod",
+      "placeholder": "Telefonnummer",
+      "search": "Sök land…",
+      "noMatch": "Ingen träff",
+      "tooShort": "För kort",
+      "tooLong": "För långt"
+    },
+    "card": {
+      "loading": "Kortbetalningen laddas fortfarande – försök igen om en stund.",
+      "checkDetails": "Kontrollera dina kortuppgifter.",
+      "notCharged": "Ditt kort kunde inte debiteras.",
+      "notCompleted": "Betalningen slutfördes inte. Prova ett annat kort."
+    }
+  },
   "language": {
     "label": "Språk",
     "englishOnlyNotice": "Den här sidan finns bara på engelska."
   },
   "submitBar": {
     "total": "Totalt:"
+  },
+  "kit": {
+    "acceptedCards": "Accepterade kort: Visa, Mastercard, American Express",
+    "defaultAddress": "Standard"
   },
   "footer": {
     "backToTop": "Till toppen",
@@ -152,5 +179,12 @@
     "country": {
       "DE": "Tyskland"
     }
+  },
+  "social": {
+    "facebook": "Trovemo på Facebook",
+    "instagram": "Trovemo på Instagram",
+    "tiktok": "Trovemo på TikTok",
+    "x": "Trovemo på X",
+    "youtube": "Trovemo på YouTube"
   }
 }

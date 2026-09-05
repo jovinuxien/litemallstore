@@ -2,16 +2,12 @@ import React, { useState } from 'react';
 import { Alert, Form, Spinner } from 'react-bootstrap';
 
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import './user.scss';
 
-const FEEDBACK_TYPES = [
-  { value: 'feedback', label: 'Suggestion' },
-  { value: 'complaint', label: 'Complaint' },
-  { value: 'bug', label: 'Bug' },
-  { value: 'other', label: 'Other' },
-];
+const FEEDBACK_TYPES = ['feedback', 'complaint', 'bug', 'other'] as const;
 
 const CONTENT_MAX = 500;
 
@@ -20,6 +16,7 @@ const CONTENT_MAX = 500;
  * `/srv/feedback/submit`.
  */
 const Feedback: React.FC = () => {
+  const { t } = useTranslation('user');
   const [type, setType] = useState('feedback');
   const [content, setContent] = useState('');
   const [mobile, setMobile] = useState('');
@@ -41,7 +38,7 @@ const Feedback: React.FC = () => {
       setMobile('');
       setPicUrls([]);
     } catch (err) {
-      setError((err as { message?: string })?.message ?? 'Could not send feedback.');
+      setError((err as { message?: string })?.message ?? t('feedback.sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -49,31 +46,31 @@ const Feedback: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Feedback' sub='Tell us what you think — suggestions, complaints, or bugs.' />
+      <PageHead title={t('feedback.title')} sub={t('feedback.sub')} />
       <div className='container' style={{ maxWidth: 560 }}>
-        <CellGroup title='Feedback'>
+        <CellGroup title={t('feedback.title')}>
           <Form onSubmit={submit} className='p-3'>
-            {done && <Alert variant='success'>Thanks — your feedback has been sent.</Alert>}
+            {done && <Alert variant='success'>{t('feedback.sent')}</Alert>}
             {error && <Alert variant='warning'>{error}</Alert>}
 
             <Form.Group className='mb-3'>
-              <Form.Label className='small text-muted mb-1'>Type</Form.Label>
+              <Form.Label className='small text-muted mb-1'>{t('feedback.type')}</Form.Label>
               <Form.Select value={type} onChange={e => setType(e.target.value)}>
-                {FEEDBACK_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {FEEDBACK_TYPES.map(v => (
+                  <option key={v} value={v}>
+                    {t(`feedback.types.${v}`)}
                   </option>
                 ))}
               </Form.Select>
             </Form.Group>
 
             <Form.Group className='mb-3'>
-              <Form.Label className='small text-muted mb-1'>Your message *</Form.Label>
+              <Form.Label className='small text-muted mb-1'>{t('feedback.message')}</Form.Label>
               <Form.Control
                 as='textarea'
                 rows={5}
                 maxLength={CONTENT_MAX}
-                placeholder='Share the details of your feedback'
+                placeholder={t('feedback.messagePlaceholder')}
                 value={content}
                 onChange={e => setContent(e.target.value)}
                 required
@@ -84,17 +81,17 @@ const Feedback: React.FC = () => {
             </Form.Group>
 
             <Form.Group className='mb-3'>
-              <Form.Label className='small text-muted mb-1'>Contact (optional)</Form.Label>
-              <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} placeholder='Phone or email' />
+              <Form.Label className='small text-muted mb-1'>{t('feedback.contact')}</Form.Label>
+              <Form.Control value={mobile} onChange={e => setMobile(e.target.value)} placeholder={t('feedback.contactPlaceholder')} />
             </Form.Group>
 
             <Form.Group className='mb-3'>
-              <Form.Label className='small text-muted mb-1'>Screenshots (optional)</Form.Label>
+              <Form.Label className='small text-muted mb-1'>{t('feedback.screenshots')}</Form.Label>
               <ImageUploader value={picUrls} onChange={setPicUrls} max={3} disabled={busy} />
             </Form.Group>
 
             <button type='submit' className='btn btn-lm-primary' disabled={busy || !content.trim()}>
-              {busy ? <Spinner animation='border' size='sm' /> : 'Submit feedback'}
+              {busy ? <Spinner animation='border' size='sm' /> : t('feedback.submit')}
             </button>
           </Form>
         </CellGroup>
