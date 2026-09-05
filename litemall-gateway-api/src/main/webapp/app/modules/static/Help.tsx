@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
-import { FAQ_SECTIONS, FaqEntry, SUPPORT_EMAIL } from 'app/modules/static/faqData';
+import { Trans, useTranslation } from 'app/i18n';
+import { faqSections, FaqEntry, SUPPORT_EMAIL } from 'app/modules/static/faqData';
 
 /**
  * Help center (Wave-9.1): the 5-entry flat FAQ grew into a self-service hub.
@@ -35,6 +36,7 @@ const Entry: React.FC<{ entry: FaqEntry }> = ({ entry }) => (
 );
 
 const Help: React.FC = () => {
+  const { t, i18n } = useTranslation('help');
   const [filter, setFilter] = useState('');
   const { hash } = useLocation();
 
@@ -48,16 +50,20 @@ const Help: React.FC = () => {
   const needle = filter.trim().toLowerCase();
   const sections = useMemo(
     () =>
-      FAQ_SECTIONS.map(s => ({
-        ...s,
-        entries: needle ? s.entries.filter(e => matches(e, needle)) : s.entries,
-      })).filter(s => s.entries.length > 0),
-    [needle]
+      faqSections()
+        .map(s => ({
+          ...s,
+          entries: needle ? s.entries.filter(e => matches(e, needle)) : s.entries,
+        }))
+        .filter(s => s.entries.length > 0),
+    // i18n.language is a dependency on purpose: the FAQ text is resolved per locale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [needle, i18n.language]
   );
 
   return (
     <div className='container my-4 lm-doc' style={{ maxWidth: 720 }}>
-      <h1 className='mb-3'>Help center</h1>
+      <h1 className='mb-3'>{t('center.title')}</h1>
 
       <div className='input-group mb-4'>
         <span className='input-group-text'>
@@ -66,17 +72,15 @@ const Help: React.FC = () => {
         <input
           type='search'
           className='form-control'
-          placeholder='Search help topics, e.g. refund, coupon, delivery…'
-          aria-label='Search help topics'
+          placeholder={t('center.searchPlaceholder')}
+          aria-label={t('center.searchAria')}
           value={filter}
           onChange={e => setFilter(e.target.value)}
         />
       </div>
 
       {sections.length === 0 && (
-        <p>
-          No help entries match “{filter}”. Try another word, or use the contact options below.
-        </p>
+        <p>{t('center.noMatch', { query: filter })}</p>
       )}
 
       {sections.map(s => (
@@ -93,29 +97,29 @@ const Help: React.FC = () => {
 
       <div className='card mt-4'>
         <div className='card-body'>
-          <h2 className='mb-2'>Still stuck?</h2>
-          <p className='mb-2'>These pages solve most problems directly:</p>
+          <h2 className='mb-2'>{t('center.stuck')}</h2>
+          <p className='mb-2'>{t('center.solveMost')}</p>
           <ul className='small mb-3'>
             <li>
-              <Link to='/orders'>My orders</Link> — order status, timeline, tracking, cancel, and
-              after-sales requests.
+              <Trans t={t} i18nKey='center.li1' components={{ 1: <Link to='/orders' /> }} />
             </li>
             <li>
-              <Link to='/returns'>Returns &amp; Refunds</Link> — the return policy, and{' '}
-              <Link to='/refunds'>your refunds</Link> to follow a request.
+              <Trans t={t} i18nKey='center.li2' components={{ 1: <Link to='/returns' />, 2: <Link to='/refunds' /> }} />
             </li>
             <li>
-              <Link to='/login'>Sign in</Link> — includes password reset.
+              <Trans t={t} i18nKey='center.li3' components={{ 1: <Link to='/login' /> }} />
             </li>
             <li>
-              <Link to='/cookies'>Cookie Preferences</Link> — change your analytics-cookie choice.
+              <Trans t={t} i18nKey='center.li4' components={{ 1: <Link to='/cookies' /> }} />
             </li>
           </ul>
           <p className='text-muted small mb-0'>
-            Not solved? Email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> — include your
-            order number if it concerns an order — or{' '}
-            <Link to='/user/feedback'>send feedback</Link> from your account. Details on hours are
-            on the <Link to='/service'>customer service</Link> page.
+            <Trans
+              t={t}
+              i18nKey='center.footnote'
+              values={{ email: SUPPORT_EMAIL }}
+              components={{ 1: <a href={`mailto:${SUPPORT_EMAIL}`} />, 2: <Link to='/user/feedback' />, 3: <Link to='/service' /> }}
+            />
           </p>
         </div>
       </div>

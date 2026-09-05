@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+import { Trans, useTranslation } from 'app/i18n';
 import { SUPPORT_EMAIL, SUPPORT_HOURS, topFaqEntries } from 'app/modules/static/faqData';
 import SocialLinks from 'app/shared/config/SocialLinks';
 
@@ -11,9 +12,11 @@ import SocialLinks from 'app/shared/config/SocialLinks';
  * (faqData.ts) and deep-link into /help anchors, so /service and /help
  * cannot drift apart.
  */
-const CustomerService: React.FC = () => (
+const CustomerService: React.FC = () => {
+  const { t } = useTranslation('help');
+  return (
   <div className='container my-4 lm-doc' style={{ maxWidth: 640 }}>
-    <h1 className='mb-3'>Customer service</h1>
+    <h1 className='mb-3'>{t('service.title')}</h1>
 
     <ul className='list-group'>
       {/* ONE row, because there is ONE channel. This list previously opened with
@@ -24,17 +27,16 @@ const CustomerService: React.FC = () => (
       <li className='list-group-item d-flex align-items-center gap-3'>
         <i className='bi bi-envelope fs-4 text-primary' />
         <div>
-          <div className='fw-semibold'>Email support</div>
+          <div className='fw-semibold'>{t('service.emailSupport')}</div>
           <div className='small'>
-            <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> — include your order number if
-            it concerns an order.
+            <Trans t={t} i18nKey='service.emailLine' values={{ email: SUPPORT_EMAIL }} components={{ 1: <a href={`mailto:${SUPPORT_EMAIL}`} /> }} />
           </div>
-          <div className='text-muted small'>Answered {SUPPORT_HOURS}.</div>
+          <div className='text-muted small'>{t('service.answered', { hours: SUPPORT_HOURS })}</div>
         </div>
       </li>
     </ul>
 
-    <h2 className='mt-4'>Top questions</h2>
+    <h2 className='mt-4'>{t('service.topQuestions')}</h2>
     <div className='list-group'>
       {topFaqEntries().map(e => (
         <Link
@@ -48,19 +50,19 @@ const CustomerService: React.FC = () => (
       ))}
     </div>
     <p className='small mt-2'>
-      <Link to='/help'>Browse the full help center</Link>
+      <Link to='/help'>{t('service.browseAll')}</Link>
     </p>
 
     <p className='mt-4'>
-      Have a suggestion, or signed in and prefer not to email?{' '}
-      <Link to='/user/feedback'>Send us feedback</Link>.
+      <Trans t={t} i18nKey='service.feedback' components={{ 1: <Link to='/user/feedback' /> }} />
     </p>
 
     <div className='mt-4'>
-      <span className='text-uppercase small text-muted d-block mb-2'>Follow us</span>
+      <span className='text-uppercase small text-muted d-block mb-2'>{t('service.followUs')}</span>
       <SocialLinks linkClassName='link-secondary' />
     </div>
   </div>
-);
+  );
+};
 
 export default CustomerService;

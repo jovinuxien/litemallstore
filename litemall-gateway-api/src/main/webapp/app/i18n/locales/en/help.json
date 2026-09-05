@@ -1,0 +1,172 @@
+{
+  "service": {
+    "title": "Customer service",
+    "emailSupport": "Email support",
+    "emailLine": "<1>{{email}}</1> — include your order number if it concerns an order.",
+    "answered": "Answered {{hours}}.",
+    "topQuestions": "Top questions",
+    "browseAll": "Browse the full help center",
+    "feedback": "Have a suggestion, or signed in and prefer not to email? <1>Send us feedback</1>.",
+    "followUs": "Follow us"
+  },
+  "delivery": {
+    "title": "Shipping & delivery",
+    "costTitle": "What it costs",
+    "cost": "Shipping is a flat <1>{{flat}}</1> per order. Orders of <2>{{freeMin}}</2> or more ship <3>free</3> — it comes off automatically at checkout, with no code to enter.",
+    "courierTitle": "Choosing a courier",
+    "courier": "At checkout you will see the delivery options available for your basket. The standard option is included in the flat rate. A faster courier shows exactly what it adds — “+€3.20”, for instance — and nothing is added unless you choose it. The price you are shown is the price you pay: we recalculate it on our own servers when the order is placed, never from your browser.",
+    "fromTitle": "Where your order ships from",
+    "from1": "Most items ship from our supplier’s warehouse. Some are held in an EU warehouse, and those carry an <1>EU stock</1> label on the product card and the product page. That label reflects our most recent stock check rather than a promise about your particular parcel, and an item without it is not necessarily slower — we simply have no recent reading for it.",
+    "from2": "Everything else travels further, so allow more time than a domestic delivery. We would rather say that plainly than quote a delivery date we cannot stand behind.",
+    "followTitle": "Following your order",
+    "follow1": "When your order is dispatched we email you the carrier and tracking number.",
+    "follow2": "If the carrier has not issued a number yet, we tell you so and follow up — you will never get an email with a blank tracking line.",
+    "follow3": "Every order has a live status page under <1>Your orders</1>, showing tracking events as the carrier reports them.",
+    "follow4": "An order is marked as received automatically {{days}} days after dispatch. You can confirm sooner from the order page.",
+    "addressTitle": "Changing your address",
+    "address": "A delivery address cannot be edited once an order is placed. If the order can still be cancelled, cancel it under <1>Your orders</1> and place it again with the right address. Keeping your <2>address book</2> current is the easiest way to avoid this.",
+    "unpaidTitle": "Orders that are not paid",
+    "unpaid": "An order left unpaid for {{minutes}} minutes is released automatically and the items return to stock. Nothing is charged.",
+    "returnsTitle": "Returns",
+    "returns": "You have 30 days to change your mind — see <1>Returns & Refunds</1> for the full policy, including your statutory withdrawal right. Anything else, please <2>get in touch</2>."
+  },
+  "center": {
+    "title": "Help center",
+    "searchPlaceholder": "Search help topics, e.g. refund, coupon, delivery…",
+    "searchAria": "Search help topics",
+    "noMatch": "No help entries match “{{query}}”. Try another word, or use the contact options below.",
+    "stuck": "Still stuck?",
+    "solveMost": "These pages solve most problems directly:",
+    "li1": "<1>My orders</1> — order status, timeline, tracking, cancel, and after-sales requests.",
+    "li2": "<1>Returns & Refunds</1> — the return policy, and <2>your refunds</2> to follow a request.",
+    "li3": "<1>Sign in</1> — includes password reset.",
+    "li4": "<1>Cookie Preferences</1> — change your analytics-cookie choice.",
+    "footnote": "Not solved? Email <1>{{email}}</1> — include your order number if it concerns an order — or <2>send feedback</2> from your account. Details on hours are on the <3>customer service</3> page."
+  },
+  "payments": {
+    "title": "How payments work",
+    "whoTitle": "Who handles your card",
+    "who": "Payments are processed by <1>Stripe</1>. Your card details are entered into Stripe’s own payment form and go straight to Stripe — they never reach Trovemo’s servers, and we never see or store your card number.",
+    "bankTitle": "Your bank’s verification step",
+    "bank": "Where your bank requires it, Stripe runs the “confirm it’s you” check as part of the payment. That is a legal requirement for online card payments in the EU, and it protects you as much as us.",
+    "chargedTitle": "What you are charged",
+    "charged": "Everything on Trovemo is priced and charged in <1>euro</1>. The amount you approve is the amount taken — no fees appear at the end. Shipping, and any discount, are shown before you pay; see <2>Shipping & delivery</2>.",
+    "verifyTitle": "We verify the payment before accepting the order",
+    "verify": "When you pay, we do not take your browser’s word for it. Our server asks Stripe directly, and marks the order paid only if the payment genuinely succeeded, <1>the amount received matches the order to the cent</1>, and the payment belongs to that order. Anything else is refused. That is why confirmation can take a moment — we are checking the payment, not just displaying it.",
+    "balanceTitle": "Paying from your balance",
+    "balance": "If you hold a Trovemo balance you can pay with it instead of a card. Refunds on a balance-paid order go back to your balance.",
+    "refundsTitle": "Refunds",
+    "refunds": "Approved refunds go back the way you paid: card payments are reversed through Stripe automatically, balance payments are credited back. A card refund then takes a few business days to appear, depending on your bank. The full policy is on <1>Returns & Refunds</1>.",
+    "keepTitle": "What we keep",
+    "keep": "We store your order, what you bought, your delivery address, and a reference to the payment. Not your card number. What else we hold, and why, is set out in our <1>Privacy Policy</1>.",
+    "wrongTitle": "If something looks wrong",
+    "wrong": "A card that is declined is not charged, and a pending amount your bank shows against a declined attempt is an authorisation that clears on its own. If an amount looks wrong, or you see a charge for an order that was not accepted, email <1>customer service</1> with your order number — we can see exactly what was taken and put it right."
+  },
+  "sections": {
+    "orders": "Orders & Delivery",
+    "payments": "Payments & Pricing",
+    "returns": "Returns & Refunds",
+    "account": "Account & Security",
+    "coupons": "Coupons & Deals"
+  },
+  "links": {
+    "cart": "Your cart",
+    "orders": "My orders",
+    "delivery": "Shipping & delivery",
+    "addresses": "Your addresses",
+    "payments": "How payments work",
+    "returnsPolicy": "Returns & Refunds policy",
+    "refunds": "Your refunds",
+    "signIn": "Sign in",
+    "profile": "Profile",
+    "privacy": "Privacy Notice",
+    "cookies": "Cookie Preferences",
+    "couponCenter": "Coupon center",
+    "myCoupons": "Coupons & rewards",
+    "deals": "Today’s deals",
+    "hot": "Hot deals",
+    "groupBuys": "Group buys"
+  },
+  "faq": {
+    "place-order": {
+      "q": "How do I place an order?",
+      "a": "Add items to your cart, then go to checkout, choose a delivery address and a payment method, and place the order."
+    },
+    "track-order": {
+      "q": "How do I track my order?",
+      "a": "Open My orders from the account menu. Each order has a status timeline, and tracking details appear on the order page once it ships."
+    },
+    "delivery-time": {
+      "q": "How long does delivery take?",
+      "a": "Many of our products ship directly from our suppliers’ warehouses, which can be overseas, so delivery times vary by product and destination and can be longer than domestic shipping. Follow each order’s progress on its status timeline in My orders."
+    },
+    "shipping-cost": {
+      "q": "How much is shipping, and when is it free?",
+      "a": "Shipping is a flat €{{flat}} per order, and free on orders of €{{freeMin}} or more — the discount comes off automatically, with no code to enter. Choosing a faster courier at checkout adds only the difference, shown before you pay."
+    },
+    "eu-stock": {
+      "q": "What does the “EU stock” label mean?",
+      "a": "It means our most recent stock check found that item in an EU warehouse, so it has less distance to travel. It is a stock reading rather than a delivery guarantee, and an item without the label is not necessarily slower — we simply have no recent reading for it."
+    },
+    "cancel-order": {
+      "q": "Can I cancel an order?",
+      "a": "While an order can still be cancelled (typically before it is paid), a Cancel button is shown on it in My orders. After payment, use the order’s refund and after-sales options instead."
+    },
+    "change-address": {
+      "q": "Can I change the delivery address after ordering?",
+      "a": "An order’s delivery address cannot be edited after it is placed. If the order can still be cancelled, cancel it in My orders and place it again with the right address. Keep your address book up to date to avoid this."
+    },
+    "payment-methods": {
+      "q": "Which payment methods are supported?",
+      "a": "Credit or debit card, processed securely by Stripe, and your wallet balance. Card details are entered in Stripe’s payment form and never touch our servers."
+    },
+    "card-safety": {
+      "q": "Is my card safe?",
+      "a": "Your card details are entered into Stripe’s own payment form and go straight to Stripe — they never reach our servers, and we never see or store your card number. We also verify every payment with Stripe before accepting an order."
+    },
+    "payment-failed": {
+      "q": "My payment failed — what now?",
+      "a": "Nothing is lost: the order is kept as unpaid. Open it in My orders and use Pay to try again — you can retry the card or switch payment method."
+    },
+    "when-charged": {
+      "q": "When am I charged?",
+      "a": "When you complete payment for an order — either right at checkout or later from the order’s Pay button. Placing an order without paying does not charge you."
+    },
+    "return-window": {
+      "q": "What is the return policy?",
+      "a": "Most items can be returned within 30 days of delivery. Start a request from the order’s after-sales section in My orders. The full policy is on the Returns & Refunds page."
+    },
+    "refund-method": {
+      "q": "How are refunds paid?",
+      "a": "Back to how you paid: card payments are reversed via Stripe, wallet payments return to your wallet balance. Follow progress under Your refunds."
+    },
+    "refund-time": {
+      "q": "How long does a refund take?",
+      "a": "Wallet refunds show in your balance once the refund is approved. Card refunds are issued to Stripe on approval; your bank then usually takes a few business days to post the money."
+    },
+    "reset-password": {
+      "q": "I forgot my password — how do I reset it?",
+      "a": "Use the Forgot password option on the sign-in page to reset it by email. If that option is not shown, email us from the address on your account and we’ll help."
+    },
+    "update-profile": {
+      "q": "How do I update my profile or addresses?",
+      "a": "Your profile (name, password) lives under Account, and delivery addresses under Your addresses."
+    },
+    "privacy-cookies": {
+      "q": "How is my data used, and how do I manage cookies?",
+      "a": "The Privacy Notice explains what we collect and why. Optional analytics cookies are off unless you accept them, and you can change your choice any time under Cookie Preferences."
+    },
+    "use-coupon": {
+      "q": "How do I use a coupon?",
+      "a": "Browse claimable offers in the Coupon center and claim the ones you want — they then appear at checkout, where picking one applies the discount. Coupons you have collected are listed under Coupons & rewards."
+    },
+    "coupon-not-applying": {
+      "q": "Why isn’t my coupon applying?",
+      "a": "Coupons have a validity window, and many have a minimum spend or only apply to certain items or categories. Check the coupon’s conditions under Coupons & rewards and make sure the cart qualifies."
+    },
+    "find-deals": {
+      "q": "Where do I find current deals?",
+      "a": "Today’s deals collects time-limited offers, Hot deals shows what’s trending, and Group buys unlock a lower price when enough buyers join."
+    }
+  }
+}
