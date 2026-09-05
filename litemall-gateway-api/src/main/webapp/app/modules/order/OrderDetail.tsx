@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Spinner } from 'react-bootstrap';
+import { Alert, Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
-import { orderApi } from 'app/shared/api';
+import { actionErrorMessage, orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { orderAddressLines } from 'app/shared/util/address';
@@ -39,6 +39,8 @@ const OrderDetailView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
   const [pending, setPending] = useState(false);
+  // A refused action's reason, the server's words (lifecycle contract §3: verbatim).
+  const [actionError, setActionError] = useState<string | null>(null);
   // Which goods line has its review form open (handleOption.comment orders).
   const [reviewingGoodsId, setReviewingGoodsId] = useState<number | string | null>(null);
   // Pickup orders carry only storeId — the store card is fetched separately
@@ -76,11 +78,12 @@ const OrderDetailView: React.FC = () => {
   // Run an order action (cancel/confirm/refund/delete) then refresh the detail.
   const act = async (fn: () => Promise<unknown>) => {
     setPending(true);
+    setActionError(null);
     try {
       await fn();
       await fetchDetail();
-    } catch {
-      /* surfaced via reload; keep UI responsive */
+    } catch (e) {
+      setActionError(actionErrorMessage(e));
     } finally {
       setPending(false);
     }
@@ -241,8 +244,13 @@ const OrderDetailView: React.FC = () => {
         {order.source === 'cj' && order.cjOrderId != null && orderId != null && <DisputePanel orderId={orderId} />}
 
         {/* Actions */}
-        {opt && (opt.pay || opt.cancel || opt.confirm || opt.refund || opt.delete) && (
+        {opt && (opt.pay || opt.cancel || opt.confirm || opt.refund || opt.withdrawRefund || opt.delete) && (
           <CellGroup>
+            {actionError && (
+              <Alert variant='danger' className='m-3 mb-0 py-2 small' role='alert'>
+                {actionError}
+              </Alert>
+            )}
             <div className='p-3 d-flex flex-wrap gap-2 justify-content-end'>
               {opt.pay && orderId != null && (
                 <button type='button' className='btn btn-lm-primary btn-sm' disabled={pending} onClick={() => navigate(`/pay/${orderId}`)}>
@@ -262,6 +270,11 @@ const OrderDetailView: React.FC = () => {
               {opt.refund && orderId != null && (
                 <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.refund(orderId))}>
                   {t('actions.refund')}
+                </button>
+              )}
+              {opt.withdrawRefund && orderId != null && (
+                <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.withdrawRefund(orderId))}>
+                  {t('actions.withdrawRefund')}
                 </button>
               )}
               {opt.delete && orderId != null && (

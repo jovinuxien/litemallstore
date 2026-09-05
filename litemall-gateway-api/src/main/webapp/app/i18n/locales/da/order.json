@@ -63,10 +63,10 @@
     "orderTime": "Ordretidspunkt",
     "orderNo": "Ordrenummer",
     "fulfilment": "Levering via",
+    "fulfilmentStatus": "Leveringsstatus",
     "shipsVia": "Sendes med",
     "cjOrderNo": "CJ-ordrenummer",
-    "status": "Status",
-    "fulfilmentStatus": "Leveringsstatus"
+    "status": "Status"
   },
   "actions": {
     "backToOrders": "Tilbage til mine ordrer",
@@ -75,8 +75,11 @@
     "cancel": "Annullér",
     "confirmReceipt": "Bekræft modtagelse",
     "refund": "Refusion",
+    "withdrawRefund": "Træk refusionsanmodningen tilbage",
     "delete": "Slet",
-    "buyAgain": "Køb igen"
+    "buyAgain": "Køb igen",
+    "viewOrder": "Se ordre",
+    "failed": "Handlingen kunne ikke gennemføres. Prøv igen."
   },
   "list": {
     "dropship": "Dropship",
@@ -104,6 +107,7 @@
     "fetching": "Henter sporing…",
     "unavailable": "Sporing er midlertidigt utilgængelig.",
     "notShipped": "Ikke afsendt endnu – sporingen vises her, når ordren er afsendt.",
+    "pending": "Afsendt – sporingsnummeret er på vej",
     "carrier": "Fragtfirma",
     "trackingNo": "Sporingsnummer",
     "lastMile": "Sidste strækning",
@@ -112,7 +116,6 @@
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dage",
     "status": "Status",
-    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere.",
-    "pending": "Afsendt – sporingsnummeret er på vej"
+    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere."
   }
 }
