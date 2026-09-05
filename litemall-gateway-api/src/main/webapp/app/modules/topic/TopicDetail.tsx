@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -13,6 +14,7 @@ import 'app/shared/scss/content.scss';
  * Graceful when not live.
  */
 const TopicDetail: React.FC = () => {
+  const { t } = useTranslation('content');
   const { id } = useParams<{ id: string }>();
   const [topic, setTopic] = useState<ITopic | null>(null);
   const [goods, setGoods] = useState<IGood[]>([]);
@@ -50,9 +52,9 @@ const TopicDetail: React.FC = () => {
   if (missing || !topic) {
     return (
       <div className='container my-5 text-center text-muted'>
-        <p>This topic isn’t available right now.</p>
+        <p>{t('topic.unavailable')}</p>
         <Link to='/topics' className='btn btn-outline-primary btn-sm'>
-          All topics
+          {t('topic.all')}
         </Link>
       </div>
     );
@@ -61,7 +63,7 @@ const TopicDetail: React.FC = () => {
   return (
     <div className='container my-4' style={{ maxWidth: 860 }}>
       <Link to='/topics' className='btn btn-link px-0 mb-2'>
-        <i className='bi bi-chevron-left' /> All topics
+        <i className='bi bi-chevron-left' /> {t('topic.all')}
       </Link>
       <h1 className='h3'>{topic.title}</h1>
       {topic.subtitle && <p className='text-muted'>{topic.subtitle}</p>}
@@ -70,7 +72,7 @@ const TopicDetail: React.FC = () => {
 
       {goods.length > 0 && (
         <>
-          <h2 className='h5 mt-4 mb-3'>Featured products</h2>
+          <h2 className='h5 mt-4 mb-3'>{t('topic.featured')}</h2>
           <div className='lm-grid'>
             {goods.map((g, i) => (
               <ProductCard key={(g.id ?? i) as React.Key} product={g} />

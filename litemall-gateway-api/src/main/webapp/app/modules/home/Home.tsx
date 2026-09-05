@@ -3,6 +3,7 @@ import { Carousel } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { contentApi, IPageView } from 'app/shared/api';
 import { IBanner } from 'app/shared/model/home.models';
 import { couponValueShort } from 'app/shared/util/couponFormat';
@@ -81,6 +82,7 @@ const BannerSlide: React.FC<{ banner: IBanner; eager?: boolean }> = ({ banner, e
 
 // Small section wrapper with a title + optional "see more" link.
 const HomeView: React.FC = () => {
+  const { t } = useTranslation('content');
   const dispatch = useAppDispatch();
   const entities = useAppSelector(state => state.home.homeData);
   const { list } = useAppSelector(state => state.product.data);
@@ -145,7 +147,7 @@ const HomeView: React.FC = () => {
             (name overlays on hover), always full rows — the column count
             mirrors the .lm-grid product-grid breakpoints. */}
         {menuCategories.length > 0 && (
-          <nav className="lm-catnav" aria-label="Shop by category">
+          <nav className="lm-catnav" aria-label={t('home.shopByCategory')}>
             {menuCategories.slice(0, cols * 2).map(category => {
               const cid = catId(category);
               const cname = catName(category);
@@ -210,10 +212,10 @@ const HomeView: React.FC = () => {
               </Carousel>
             ) : (
               <div className="lm-hero__banner-empty">
-                <h3>Welcome to Trovemo</h3>
-                <p>Fresh finds across every category, shipped to your door.</p>
+                <h3>{t('home.welcome')}</h3>
+                <p>{t('home.tagline')}</p>
                 <Link to="/search" className="lm-hero__banner-empty-btn">
-                  Browse all products ›
+                  {t('home.browseAll')}
                 </Link>
               </div>
             )}
@@ -221,8 +223,8 @@ const HomeView: React.FC = () => {
 
           <div className="lm-hero__aside">
             <div className="lm-welcome">
-              <h4>Welcome to Trovemo</h4>
-              <p>Sign in for member prices, coupons and faster checkout.</p>
+              <h4>{t('home.welcome')}</h4>
+              <p>{t('home.signInPitch')}</p>
               {/* <Link to="/login" className="lm-welcome__btn">
                 Sign in / Register
               </Link> */}
@@ -232,7 +234,7 @@ const HomeView: React.FC = () => {
                 <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                 <div>
                   <div className="lm-coupon__name">{coupon.name}</div>
-                  {coupon.min != null && <div className="lm-coupon__min">Spend {EURO}{coupon.min}</div>}
+                  {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: `${EURO}${coupon.min}` })}</div>}
                 </div>
               </div>
             ))}
@@ -241,14 +243,14 @@ const HomeView: React.FC = () => {
 
         {/* Coupons strip */}
         {coupons.length > 0 && (
-          <Section title="Coupons & deals">
+          <Section title={t('home.couponsDeals')}>
             <div className="lm-coupons">
               {coupons.map(coupon => (
                 <div key={coupon.id} className="lm-coupon">
                   <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                   <div>
                     <div className="lm-coupon__name">{coupon.name}</div>
-                    {coupon.min != null && <div className="lm-coupon__min">Spend {EURO}{coupon.min}</div>}
+                    {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: `${EURO}${coupon.min}` })}</div>}
                   </div>
                 </div>
               ))}
@@ -258,7 +260,7 @@ const HomeView: React.FC = () => {
 
         {/* SuperDeals — horizontal rail of hot goods */}
         {hotGoods.length > 0 && (
-          <Section title="SuperDeals">
+          <Section title={t('home.superDeals')}>
             <div className="lm-rail">
               {hotGoods.map((product, i) => (
                 <ProductCard key={`hot-${goodId(product) ?? i}`} product={product} />
@@ -273,7 +275,7 @@ const HomeView: React.FC = () => {
 
         {/* New arrivals */}
         {newGoods.length > 0 && (
-          <Section title="New arrivals">
+          <Section title={t('home.newArrivals')}>
             <div className="lm-grid">
               {newGoods.slice(0, 12).map((product, i) => (
                 <ProductCard key={`new-${goodId(product) ?? i}`} product={product} />
@@ -284,7 +286,7 @@ const HomeView: React.FC = () => {
 
         {/* Brand zone */}
         {hasBrands && brands.length > 0 && (
-          <Section title="Brands">
+          <Section title={t('home.brands')}>
             <div className="lm-brands">
               {brands.map(brand => (
                 <Link key={brand.id} to={`/brand/${brand.id}`} className="lm-brand">
@@ -298,7 +300,7 @@ const HomeView: React.FC = () => {
 
         {/* Topics */}
         {hasTopics && topics.length > 0 && (
-          <Section title="Discover">
+          <Section title={t('home.discover')}>
             <div className="lm-topics">
               {topics.slice(0, 3).map(topic => (
                 <Link key={topic.id} to={`/topic/${topic.id}`} className="lm-topic">
@@ -319,7 +321,7 @@ const HomeView: React.FC = () => {
           if (goods.length === 0) return null;
           // Backend sends the floor title as `name`; the TS model calls it
           // `nameCategory`. Read whichever is present.
-          const title = (floor as { name?: string }).name ?? floor.nameCategory ?? 'Category';
+          const title = (floor as { name?: string }).name ?? floor.nameCategory ?? t('home.category');
           return (
             <Section key={`floor-${floor.id}`} title={title} moreTo={floor.id ? `/category/${floor.id}` : undefined}>
               <div className="lm-floor">
@@ -335,7 +337,7 @@ const HomeView: React.FC = () => {
 
         {/* More to love — infinite feed */}
         {/* {deals.length > 0 && (
-          <Section title="More to love">
+          <Section title={t('home.moreToLove')}>
             <InfiniteProductGrid items={deals} keyPrefix="deal" />
           </Section>
         )} */}

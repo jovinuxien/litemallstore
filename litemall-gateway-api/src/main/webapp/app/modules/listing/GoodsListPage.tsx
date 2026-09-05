@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
@@ -24,12 +25,13 @@ interface Props {
 // "Today's Deals", which is what the header strip calls /deals (the real
 // deal_flag surface), so two different pages answered to one name. Naming it
 // for what it ranks keeps "Today's Deals" meaning exactly one thing.
-const MODES: Record<Props['mode'], { title: string; params: Record<string, string> }> = {
-  hot: { title: 'Best sellers', params: { q: '', sort: '-listed_num' } },
-  new: { title: 'New Arrivals', params: { q: '', sort: '-created_epoch' } },
+const MODES: Record<Props['mode'], { titleKey: 'list.bestSellers' | 'list.newArrivals'; params: Record<string, string> }> = {
+  hot: { titleKey: 'list.bestSellers', params: { q: '', sort: '-listed_num' } },
+  new: { titleKey: 'list.newArrivals', params: { q: '', sort: '-created_epoch' } },
 };
 
 const GoodsListPage: React.FC<Props> = ({ mode }) => {
+  const { t } = useTranslation('content');
   const [goods, setGoods] = useState<IGood[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,13 +55,13 @@ const GoodsListPage: React.FC<Props> = ({ mode }) => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>{MODES[mode].title}</h1>
+      <h1 className='h4 mb-3'>{t(MODES[mode].titleKey)}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
       ) : goods.length === 0 ? (
-        <p className='text-muted text-center my-5'>Nothing to show here right now.</p>
+        <p className='text-muted text-center my-5'>{t('list.none')}</p>
       ) : (
         <div className='lm-grid'>
           {goods.map((g, i) => (

@@ -6,6 +6,7 @@ import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
 import { EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { useAppSelector } from 'app/config/store';
+import { Trans, useTranslation } from 'app/i18n';
 import { ICombination, ICombinationPink, promotionApi } from 'app/shared/api';
 import { productPath } from 'app/shared/util/slug';
 import { resetPageTitle, setPageTitle } from 'app/shared/util/pageTitle';
@@ -34,6 +35,7 @@ import 'app/shared/scss/content.scss';
  * the group price server-side (never computed client-side here).
  */
 const GrouponDetail: React.FC = () => {
+  const { t } = useTranslation('content');
   const { id } = useParams<{ id: string }>();
   const combinationId = Number(id);
   const navigate = useNavigate();
@@ -81,7 +83,7 @@ const GrouponDetail: React.FC = () => {
       .then(c => {
         if (cancelled) return;
         setCampaign(c ?? null);
-        if (c?.title) setPageTitle(`Group buy — ${c.title}`);
+        if (c?.title) setPageTitle(t('groupon.pageTitle', { title: c.title }));
       })
       .catch(() => !cancelled && setCampaign(null))
       .finally(() => !cancelled && setLoading(false));
@@ -135,7 +137,7 @@ const GrouponDetail: React.FC = () => {
       return Number.isFinite(pinkId) && pinkId > 0 ? pinkId : null;
     } catch (e) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setActionError(msg ?? 'The group action could not be completed.');
+      setActionError(msg ?? t('groupon.actionFailed'));
       return null;
     } finally {
       setActionBusy(false);
@@ -167,7 +169,7 @@ const GrouponDetail: React.FC = () => {
       setTimeout(() => setCopied(false), 1600);
     } catch {
       // Clipboard unavailable (http / permissions) — show the link itself.
-      window.prompt('Copy this invite link:', url);
+      window.prompt(t('groupon.copyPrompt'), url);
     }
   };
 
@@ -184,11 +186,11 @@ const GrouponDetail: React.FC = () => {
   if (!campaign) {
     return (
       <Page>
-        <PageHead title='Group deal' />
+        <PageHead title={t('groupon.deal')} />
         <div className='container'>
-          <EmptyState icon='bi-people' text='This group deal is no longer available.'>
+          <EmptyState icon='bi-people' text={t('groupon.gone')}>
             <Link to='/groupon' className='btn btn-sm btn-outline-primary mt-2'>
-              See current group deals
+              {t('groupon.seeCurrent')}
             </Link>
           </EmptyState>
         </div>
@@ -204,13 +206,8 @@ const GrouponDetail: React.FC = () => {
   return (
     <Page>
       <PageHead
-        title='Group deal'
-        sub={
-          <>
-            Team up to buy at the group price — the group completes when {required ?? 'enough'} people join.{' '}
-            <Link to='/groupon'>All group deals</Link>
-          </>
-        }
+        title={t('groupon.deal')}
+        sub={<Trans t={t} i18nKey='groupon.sub' values={{ required: required ?? t('groupon.enough') }} components={{ 1: <Link to='/groupon' /> }} />}
       />
       <div className='container my-3' style={{ maxWidth: 720 }}>
         {/* Campaign card */}
@@ -232,16 +229,16 @@ const GrouponDetail: React.FC = () => {
               </span>
               {originalPrice > groupPrice && (
                 <span className='text-muted'>
-                  <s>{money(originalPrice)}</s> regular
+                  <s>{money(originalPrice)}</s> {t('groupon.regular')}
                 </span>
               )}
             </div>
             <div className='small text-muted mt-1'>
-              {required != null && <>{required} people per group</>}
-              {endsIn && <> · campaign ends in {endsIn}</>}
+              {required != null && t('groupon.perGroup', { count: required })}
+              {endsIn && t('groupon.endsIn', { time: endsIn })}
             </div>
             <div className='small mt-1'>
-              <Link to={productTo}>View product details</Link>
+              <Link to={productTo}>{t('groupon.viewProduct')}</Link>
             </div>
           </div>
         </div>
@@ -257,8 +254,8 @@ const GrouponDetail: React.FC = () => {
           <div className='border rounded p-3 mt-3'>
             <div className='d-flex justify-content-between align-items-center flex-wrap gap-2'>
               <div>
-                <span className='fw-semibold'>Your group</span>
-                {mySlot.headId != null && mySlot.headId === mySlot.pinkId && <span className='badge text-bg-info ms-2'>Leader</span>}
+                <span className='fw-semibold'>{t('groupon.yourGroup')}</span>
+                {mySlot.headId != null && mySlot.headId === mySlot.pinkId && <span className='badge text-bg-info ms-2'>{t('groupon.leader')}</span>}
                 <span
                   className={`badge ms-2 ${
                     myCta === 'ordered' || mySlot.status === 'Success'
@@ -268,12 +265,12 @@ const GrouponDetail: React.FC = () => {
                         : 'text-bg-warning'
                   }`}
                 >
-                  {myCta === 'expired' ? 'Expired' : (mySlot.status ?? 'Pending')}
+                  {myCta === 'expired' ? t('groupon.expired') : (mySlot.status ?? t('groupon.pending'))}
                 </span>
               </div>
               <div className='small text-muted'>
                 {myCta !== 'expired' && mySlot.status === 'Pending' && mySlot.expireTime ? (
-                  <>expires {toDisplayTime(mySlot.expireTime)}</>
+                  t('groupon.expires', { time: toDisplayTime(mySlot.expireTime) })
                 ) : null}
               </div>
             </div>
@@ -283,32 +280,31 @@ const GrouponDetail: React.FC = () => {
                 <div style={{ width: `${progressPct}%`, height: '100%', background: 'var(--lm-primary, #0d7d80)' }} />
               </div>
               <span className='small text-nowrap'>
-                {memberCount}/{slotRequired ?? '?'} joined
+                {t('groupon.joined', { count: memberCount, required: slotRequired ?? '?' })}
               </span>
             </div>
 
             <div className='mt-3 d-flex gap-2 flex-wrap'>
               {myCta === 'checkout' && mySlot.pinkId != null && (
                 <Button size='sm' variant='primary' onClick={() => toProductWithSlot(mySlot.pinkId!)}>
-                  Buy now at {money(groupPrice)}
+                  {t('groupon.buyNowAt', { price: money(groupPrice) })}
                 </Button>
               )}
               {canInvite(mySlot, now) && myLeaderId != null && (
                 <Button size='sm' variant='outline-primary' onClick={() => void copyInvite(myLeaderId)}>
-                  {copied ? 'Link copied ✓' : 'Copy invite link'}
+                  {copied ? t('groupon.linkCopied') : t('groupon.copyInvite')}
                 </Button>
               )}
               {myCta === 'ordered' && (
                 <span className='small text-success align-self-center'>
-                  Order placed for this group — <Link to='/orders'>view your orders</Link>.
+                  <Trans t={t} i18nKey='groupon.orderPlaced' components={{ 1: <Link to='/orders' /> }} />
                 </span>
               )}
             </div>
 
             {myCta === 'expired' && (
               <Alert variant='secondary' className='mt-3 mb-0'>
-                This group has expired — start a new one below or{' '}
-                <Link to={productTo}>buy at the regular price</Link>.
+                <Trans t={t} i18nKey='groupon.groupExpired' components={{ 1: <Link to={productTo} /> }} />
               </Alert>
             )}
           </div>
@@ -317,17 +313,17 @@ const GrouponDetail: React.FC = () => {
         {/* Join deep-link: a friend arriving via a shared URL */}
         {hasJoinLink && myCta !== 'checkout' && myCta !== 'ordered' && (
           <div className='border rounded p-3 mt-3'>
-            <div className='fw-semibold'>You&apos;ve been invited to a group</div>
+            <div className='fw-semibold'>{t('groupon.invited')}</div>
             {joinTarget ? (
               <div className='small text-muted mt-1'>
-                {joinTarget.memberCount ?? 1}/{joinTarget.requiredMembers ?? required ?? '?'} joined
-                {joinTarget.expireTime && slotCta(joinTarget, now) !== 'expired' && <> · expires {toDisplayTime(joinTarget.expireTime)}</>}
+                {t('groupon.joined', { count: joinTarget.memberCount ?? 1, required: joinTarget.requiredMembers ?? required ?? '?' })}
+                {joinTarget.expireTime && slotCta(joinTarget, now) !== 'expired' && ` · ${t('groupon.expires', { time: toDisplayTime(joinTarget.expireTime) })}`}
               </div>
             ) : (
-              <div className='small text-muted mt-1'>Join to buy this product at the group price.</div>
+              <div className='small text-muted mt-1'>{t('groupon.joinPitch')}</div>
             )}
             <Button size='sm' variant='primary' className='mt-2' disabled={actionBusy} onClick={() => void joinGroup()}>
-              {isAuthenticated ? `Join this group — ${money(groupPrice)}` : 'Sign in to join'}
+              {isAuthenticated ? t('groupon.joinAt', { price: money(groupPrice) }) : t('groupon.signInToJoin')}
             </Button>
           </div>
         )}
@@ -336,10 +332,10 @@ const GrouponDetail: React.FC = () => {
         {myCta !== 'checkout' && myCta !== 'ordered' && (
           <div className='mt-3 d-flex gap-2 flex-wrap'>
             <Button variant={hasJoinLink ? 'outline-primary' : 'primary'} disabled={actionBusy} onClick={() => void startGroup()}>
-              {isAuthenticated ? 'Start a group' : 'Sign in to start a group'}
+              {isAuthenticated ? t('groupon.start') : t('groupon.signInToStart')}
             </Button>
             <Link to={productTo} className='btn btn-outline-secondary'>
-              Buy at regular price
+              {t('groupon.buyRegular')}
             </Link>
           </div>
         )}
