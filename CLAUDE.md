@@ -1850,7 +1850,45 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
+### Worktree: `goods-management` — Wave-28 origin endpoint + batch cap BUILT (2026-09-06)
+- **Status 2026-09-06 — WAVE 28 goods-management half BUILT: `GET /srv/goods/origin` + the
+  `/srv/goods/batch` cap.** No Task line was active when this session opened; the assignment was
+  picked from the raised items and user-approved (origin endpoint + batch cap). Coded to the FROZEN
+  contract `litemall-gateway-api/docs/spec-wave28-eu-origin-freight.md` §3.1 (as-built note added
+  there). The storefront has called this endpoint on every checkout load since 2026-08-19 and got a
+  404 (fail-open); it now answers `{list:[{goodsId, originCountry}]}` with a row ONLY for goods
+  whose last probe measured non-zero stock in a configured EU warehouse country (`DE` today) —
+  unprobed, probed-zero, local, unknown and off-sale goods are ABSENT, never `"CN"`, never null.
+  1. **One rule, two surfaces.** `application/goods/WarehouseOriginService` now holds the
+     measurement predicate; the PDP's `attachEuStock` badge (Wave 26 Phase 1b) reads the SAME
+     `measuredEuStock` so the PDP and the checkout can never disagree about one product. PDP
+     payload unchanged (`euStock:{units, countries}`). Reads are the two the PDP always did (goods
+     row, then snapshot by pid) — NO litemall-db change, NO migration, NO index field, NO reindex.
+  2. **Fail-closed and fail-soft, deliberately both:** a reading with units but no configured EU
+     country yields NO origin row (we cannot name an origin we did not measure); a lookup that
+     throws on one id drops that row only (an origin note must never break a checkout).
+  3. **Bounds:** `ids` parsed whitespace-tolerant, deduplicated, junk tokens dropped, empty ⇒
+     `{list:[]}`; more than 100 distinct ids ⇒ errno 402 typed refusal, never silent truncation.
+     The same 100 cap now guards `POST /srv/goods/batch` (raised by gateway-api 2026-08-22 as an
+     uncapped amplification surface; its callers are byIds rails the validator limits to 24) —
+     within the cap the raw `{goodsId: aggregate}` map is byte-identical.
+  4. **No security change needed** — verified, not assumed: goods-management `public-paths` lists
+     `/srv/goods/**` and the edge's `CATALOG_GET` lists `/srv/goods/**` for GET only, so the spec's
+     "needs a PublicPaths entry" was already satisfied.
+  Tests: `WarehouseOriginServiceTest` 9 + `LitemallGoodsControllerOriginTest` 6 (Mockito +
+  `ReflectionTestUtils` on the field-injected controller). ⚠ **Dev has ZERO measured rows**
+  (`eu_stock_num > 0` count = 0 on dev — no CJ creds, no enrichment), so dev can only prove the
+  empty/junk/cap paths live; the positive path is proven at the unit seam and its first live proof
+  is the prod checkout after deploy, where `eu_flag=1` covers ~24% of the catalogue (the Wave-24.1
+  precedent). **Live dev check PASSED 2026-09-06** (goods-management booted alone with JDK 21 —
+  Eureka absent is fine — and probed on :8082, which its `public-paths` serve anonymously): no
+  ids ⇒ `{list:[]}`; real ids + junk + duplicate ⇒ `{list:[]}` (dev has no measured rows); 100
+  ids ⇒ 200 / 101 ids ⇒ errno 402 verbatim; `POST /batch` 2 ids ⇒ the raw map keyed by id, 101
+  ids ⇒ 402; `GET /detail` still errno 0 with its usual keys. Module suite **611 run / 0
+  failures / 8 skipped** (was 596). Deploy = goods-management container only. Order's §3.2 half
+  (per-shipment DE quoting, `LITEMALL_ORDER_CJ_EU_ORIGIN_ENABLED`) stays UNSTARTED — `order`
+  worktree, not this one. ⚠ Boot gotcha: `exec mvn` inside a `setsid` launcher makes the
+  launcher pid vanish while the forked app JVM lives on — watch the PORT, not the pid.
 - **RAISED by order 2026-09-05 (lifecycle audit F17):** `POST /srv/comment/post`
   has no purchase check (any authenticated user, any goods, unlimited) and never
   marks `litemall_order_goods.comment` / `litemall_order.comments`, so the
