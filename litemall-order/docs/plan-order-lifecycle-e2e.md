@@ -2,9 +2,20 @@
 
 Status: **APPROVED 2026-09-05** (decisions D1–D6 all "yes, as recommended";
 D6 = prod `CJ_OPS_MAIL` is a MAIN-session deploy step). Worktree `order`.
-**Package A BUILT 2026-09-05** — module suite 342 run / 0 failures (baseline
-298, +44); design recorded in `adr-stripe-payments.md` §11. Packages B–D not
-started.
+**Package A BUILT + MERGED to master `c9ec31257` 2026-09-05** (suite 342/0,
+baseline 298; design in `adr-stripe-payments.md` §11).
+**Packages B + C BUILT 2026-09-05** — suite **387 run / 0 failures** (+45 over
+A). B: `CjFulfilmentIncidentService` (stall warn/park, lifecycle-failure
+alerts, CJ-cancelled customer mail), parked rows in the pending list +
+`POST …/cj-placement/requeue`, `[AFTERSALE_OPEN]`/`[PARKED]` refusals, sweep
+holds on open aftersale, TRACKING_PENDING, sync predicate retires 401/402,
+poller ships as `system`. C: `delivered` mail, auto-confirm days from the
+system setting, `POST …/actions/refund/withdraw` + `handleOption.withdrawRefund`,
+F18 helper clean-up. D: `handoff-gateway-admin-cj-requeue.md`,
+`handoff-gateway-api-lifecycle.md`; goods-management raise (review purchase
+check) recorded in CLAUDE.md. Dev boot verified after each package.
+Deploy = order container + EVERY litemall-core dependent (mail template
+classes changed) + prod env `CJ_OPS_MAIL` (D6). No migration.
 
 ## 0. Verdict
 

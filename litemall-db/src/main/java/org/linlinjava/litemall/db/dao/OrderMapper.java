@@ -58,6 +58,9 @@ public interface OrderMapper {
      */
     int stampCjPlacementApproval(@Param("id") Integer id, @Param("approvedBy") String approvedBy);
 
+    /** Requeue a parked placement: NULL the local park sentinel (CAS; 0 when not parked). */
+    int clearCjPlacementSentinel(@Param("id") Integer id);
+
     /**
      * Hand-maintained (V35): stamp a pickup write-off code at pay time, but only once —
      * the {@code verify_code is null} guard makes generation idempotent under replays.

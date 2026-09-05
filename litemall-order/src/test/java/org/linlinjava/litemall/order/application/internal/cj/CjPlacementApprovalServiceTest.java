@@ -128,10 +128,90 @@ class CjPlacementApprovalServiceTest {
         when(orderRepository.countCjPlacementPending()).thenReturn(1L);
         when(orderGoodsRepository.findByOId(ORDER_ID)).thenReturn(List.of());
 
+        when(statusHistoryRepository.findByOrderId(ORDER_ID)).thenReturn(List.of(
+                new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange(
+                        ORDER_ID, LitemallOrderStatus.PAID, LitemallOrderStatus.PAID,
+                        CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT_FAILED,
+                        "CJ rejected the fulfilment order: 7001: Please enter a IOSS number.",
+                        "system", java.time.LocalDateTime.now())));
+
         CjPlacementApprovalService.PendingOrder row = service(0).pending(1, 10).list().get(0);
 
         assertFalse(row.cjReady());
-        assertTrue(row.holdReason().contains("PLACEMENT_REJECTED"));
+        assertTrue(row.parked());
+        assertTrue(row.parkReason().contains("IOSS"));
+        assertTrue(row.holdReason().contains("Requeue"));
+        assertTrue(row.holdReason().contains("IOSS"));
+    }
+
+    // ------------------------------------------------------------------
+    // Lifecycle package B: refusals + requeue
+    // ------------------------------------------------------------------
+
+    @Test
+    void approve_openAftersale_isRefusedTyped() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setAfterSaleStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_REQUEST);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        CjPlacementApprovalService.ApproveResult result = service(0).approve(88, "1");
+
+        assertEquals(CjPlacementApprovalService.ApproveStatus.AFTERSALE_OPEN, result.status());
+        verify(orderRepository, never()).stampCjPlacementApproval(any(), anyString());
+    }
+
+    @Test
+    void approve_parkedOrder_isRefusedTyped_pointsAtRequeue() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setCjOrderStatus(CjFulfilmentIncidentService.STATUS_PLACEMENT_STALLED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        CjPlacementApprovalService.ApproveResult result = service(0).approve(88, "1");
+
+        assertEquals(CjPlacementApprovalService.ApproveStatus.PARKED, result.status());
+        assertTrue(result.message().contains("requeue"));
+    }
+
+    @Test
+    void requeue_parkedOrder_clearsSentinel_recordsHop_keepsApproval() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setCjOrderStatus(CjPlacementService.STATUS_PLACEMENT_REJECTED);
+        order.setCjPlacementApprovedTime(java.time.LocalDateTime.now().minusDays(1));
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.clearCjPlacementSentinel(ORDER_ID)).thenReturn(1);
+
+        CjPlacementApprovalService.RequeueResult result = service(0).requeue(88, "7");
+
+        assertEquals(CjPlacementApprovalService.RequeueStatus.REQUEUED, result.status());
+        ArgumentCaptor<org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange> hop =
+                ArgumentCaptor.forClass(org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange.class);
+        verify(statusHistoryRepository).record(hop.capture());
+        assertTrue(hop.getValue().getChangeMessage().startsWith(CjFulfilmentIncidentService.MSG_REQUEUED_PREFIX));
+        assertEquals("admin:7", hop.getValue().getOperator());
+        verify(orderRepository, never()).stampCjPlacementApproval(any(), anyString());
+    }
+
+    @Test
+    void requeue_notParked_isRefused_noWrite() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(paidUnplacedCjOrder()));
+
+        CjPlacementApprovalService.RequeueResult result = service(0).requeue(88, "7");
+
+        assertEquals(CjPlacementApprovalService.RequeueStatus.NOT_PARKED, result.status());
+        verify(orderRepository, never()).clearCjPlacementSentinel(any());
+    }
+
+    @Test
+    void requeue_lostCas_isNotParkedAnyMore() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setCjOrderStatus(CjPlacementService.STATUS_PLACEMENT_REJECTED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+        when(orderRepository.clearCjPlacementSentinel(ORDER_ID)).thenReturn(0);
+
+        CjPlacementApprovalService.RequeueResult result = service(0).requeue(88, "7");
+
+        assertEquals(CjPlacementApprovalService.RequeueStatus.NOT_PARKED, result.status());
+        verify(statusHistoryRepository, never()).record(any());
     }
 
     @Test
