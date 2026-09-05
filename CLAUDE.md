@@ -2445,11 +2445,33 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n BATCHES 3–7 COMPLETE + MERGED (deploy pending); theme hierarchy SHIPPED
-- **No active assignment.** The storefront UI i18n is now COMPLETE (every §5 UI batch
-  done; legal pages English by design). Candidate next tasks: i18n phase 2 `lang_key`
+### Worktree: `gateway-api` — ACTIVE: order lifecycle honesty (SPA half of the order packages A–C; plan approved 2026-09-05)
+- **Task — order lifecycle honesty (user-approved 2026-09-05).** Code to the FROZEN
+  contract `litemall-order/docs/handoff-gateway-api-lifecycle.md` (the order side is
+  MERGED `5cfe7b1d5` + DEPLOYED to prod 2026-09-05). SPA only, no migration, no backend,
+  no env. Four commits in order: (1) payment copy + redirect return — `processing`
+  intents (SEPA) are "your bank is processing this, do not pay again", never a retry;
+  `return_url` → `/pay/:orderId/status`, which POLLS the order until it leaves unpaid;
+  402 "already been paid" ⇒ success + reload; "refunded automatically" shown verbatim;
+  (2) fulfilment facts — `TRACKING_PENDING` renders "Shipped — tracking number on its
+  way"; the two new `fulfillmentStatus` phrases pass through verbatim; (3) refund
+  withdraw — button wherever a 202 order shows (`handleOption.withdrawRefund`), typed
+  refusals verbatim, Refunds page STOPS hiding 202; confirm-window copy stops naming
+  15 days; (4) `GET /srv/order/{id}/timeline` rendered as plain sentences on the order
+  page (help copy already promises it). Every new string lands in en/sv/da together.
+- **Acceptance:** jest + tsc green with real counts (baseline 50 suites / 360 tests);
+  headless render of order detail, Refunds and pay-status against captured payload
+  shapes in en + sv, 0 page errors; withdraw + processing-intent paths proven at the
+  unit seam (dev order stack only if bootable — say which). Deploy = MAIN.
+- ⚠ Payload facts (verified against litemall-order source 2026-09-05): the customer
+  detail is `GET /srv/order/detail?orderId=` and carries NO numeric `orderStatus` —
+  key 202 on `handleOption.withdrawRefund` and "left unpaid" on `handleOption.pay ===
+  false`; operation refusals arrive as a non-2xx `OrderOperationDtoResponse`
+  (`{success:false, message}`), not an errno envelope.
+- **Previously: No active assignment.** The storefront UI i18n is COMPLETE (every §5 UI
+  batch done; legal pages English by design). Other candidates: i18n phase 2 `lang_key`
   on the user (V65, litemall-db shared-module discipline, order mails in the buyer's
-  language); native sv/da review (user-side). Rewrite this block before launching.
+  language); native sv/da review (user-side).
 - **Status 2026-09-05 — i18n batches 3–7 + slice fallbacks MERGED to master.** Six
   commits (`57ea2abfe` checkout/coupons, `59dd8a42d` orders/cookies, `24d884d39` user
   area/shared forms, `f3571861d` home/content pages, `a59d6a439` help centre/FAQ,

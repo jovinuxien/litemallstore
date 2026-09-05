@@ -84,6 +84,7 @@
       "loading": "Kortbetalingen indlæses stadig – prøv igen om lidt.",
       "checkDetails": "Tjek dine kortoplysninger.",
       "notCharged": "Dit kort kunne ikke trækkes.",
+      "processing": "Din bank behandler betalingen. Vi sender dig en e-mail, når den er bekræftet – betal ikke igen.",
       "notCompleted": "Betalingen blev ikke gennemført. Prøv et andet kort."
     }
   },
