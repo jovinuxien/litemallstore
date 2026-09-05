@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Nav, Pagination, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -22,6 +23,7 @@ const fmtDate = (addTime?: string | number[]): string => {
  * still degrades to a friendly empty state.
  */
 const ArticleList: React.FC = () => {
+  const { t } = useTranslation('content');
   const [categories, setCategories] = useState<IArticleCategory[]>([]);
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined);
   const [articles, setArticles] = useState<IArticle[]>([]);
@@ -62,7 +64,7 @@ const ArticleList: React.FC = () => {
 
   return (
     <div className='container my-4' style={{ maxWidth: 860 }}>
-      <h1 className='h4 mb-3'>Articles</h1>
+      <h1 className='h4 mb-3'>{t('article.title')}</h1>
 
       {categories.length > 0 && (
         <Nav
@@ -75,7 +77,7 @@ const ArticleList: React.FC = () => {
           }}
         >
           <Nav.Item>
-            <Nav.Link eventKey='all'>All</Nav.Link>
+            <Nav.Link eventKey='all'>{t('article.all')}</Nav.Link>
           </Nav.Item>
           {categories.map(c => (
             <Nav.Item key={c.id}>
@@ -90,7 +92,7 @@ const ArticleList: React.FC = () => {
           <Spinner animation='border' />
         </div>
       ) : articles.length === 0 ? (
-        <p className='text-muted my-5 text-center'>No articles yet.</p>
+        <p className='text-muted my-5 text-center'>{t('article.none')}</p>
       ) : (
         <div className='list-group'>
           {articles.map(a => (
@@ -100,14 +102,14 @@ const ArticleList: React.FC = () => {
               )}
               <div className='flex-fill'>
                 <div className='fw-semibold'>
-                  {a.isHot && <span className='badge text-bg-danger me-2'>Hot</span>}
+                  {a.isHot && <span className='badge text-bg-danger me-2'>{t('article.hot')}</span>}
                   {a.title}
                 </div>
                 {a.summary && <div className='small text-muted'>{a.summary}</div>}
                 <div className='small text-muted'>
                   {a.categoryName && <span className='me-3'>{a.categoryName}</span>}
                   {fmtDate(a.addTime)}
-                  {a.viewCount != null && <span className='ms-3'>{a.viewCount} views</span>}
+                  {a.viewCount != null && <span className='ms-3'>{t('article.views', { count: a.viewCount })}</span>}
                 </div>
               </div>
             </Link>

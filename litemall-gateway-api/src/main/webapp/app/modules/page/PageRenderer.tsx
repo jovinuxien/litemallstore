@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { t } from 'app/i18n';
+
 import { baseAxios, contentApi, IArticle, ICombination, IPageComponent, IPageView, promotionApi, SRV, unwrap } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
@@ -196,7 +198,7 @@ const CouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config })
   const grid = config.style === 'grid';
   const headline = typeof config.headline === 'string' && config.headline ? config.headline : null;
   return (
-    <Section title={(config.title as string) ?? 'Coupons'}>
+    <Section title={(config.title as string) ?? t('content:page.coupons')}>
       {headline && <p className='lm-coupons__headline'>{headline}</p>}
       <div className={grid ? 'lm-coupons lm-coupons--grid' : 'lm-coupons'}>
         {coupons.map((c, i) => (
@@ -253,7 +255,7 @@ const GrouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
 
   if (campaigns.length === 0) return null;
   return (
-    <Section title={(config.title as string) ?? 'Group up & save'}>
+    <Section title={(config.title as string) ?? t('content:page.groupUp')}>
       <div className='lm-rail'>
         {campaigns.map((g, i) => {
           const card = (
@@ -266,8 +268,8 @@ const GrouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
                   <span className='small text-muted text-decoration-line-through ms-1'>{money(g.originalPrice)}</span>
                 )}
               </div>
-              {g.requiredMembers != null && <div className='small text-muted'>{g.requiredMembers}-person group</div>}
-              <div className='small fw-semibold lm-groupon-teaser'>Group up &amp; save</div>
+              {g.requiredMembers != null && <div className='small text-muted'>{t('content:page.personGroup', { count: g.requiredMembers })}</div>}
+              <div className='small fw-semibold lm-groupon-teaser'>{t('content:page.groupUp')}</div>
             </div>
           );
           return g.goodsId != null ? (
@@ -314,7 +316,7 @@ const SeckillStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
 
   if (items.length === 0) return null;
   return (
-    <Section title={(config.title as string) ?? 'Flash sale'}>
+    <Section title={(config.title as string) ?? t('content:page.flashSale')}>
       <div className='lm-rail'>
         {items.map((s, i) => {
           const body = (
@@ -360,7 +362,7 @@ const ArticleStripC: React.FC<{ config: Record<string, unknown> }> = ({ config }
 
   if (articles.length === 0) return null;
   return (
-    <Section title={(config.title as string) ?? 'Articles'}>
+    <Section title={(config.title as string) ?? t('content:page.articles')}>
       <div className='row g-3'>
         {articles.map(a => (
           <div key={a.id} className='col-md-4'>
