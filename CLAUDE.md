@@ -1737,10 +1737,14 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups BUILT on branch (not merged/deployed)
+### Worktree: `goods-management` — season follow-ups MERGED to master 2026-09-05 (deploy + autumn term tuning in progress)
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
-  `seasons` on hits.** Committed on `fix/goods-management`, NOT merged, NOT deployed. Module suite
-  **589 run / 0 failures / 8 skipped** (was 574). Spec §17 of
+  `seasons` on hits.** Built as `54912135c`; **MERGED to master 2026-09-05** (merge commit carries the
+  peer's SEO bulk-apply; suite on the merged tree **596 run / 0 failures / 8 skipped**, was 589 on the
+  branch alone). Deploy + the §17.4 autumn term PUT follow in the same session — see the status
+  entry above this one once it lands. Ops script for the data step: `docker-compose/season-tune.sh`
+  (`rules` backup / `terms <key> <file>` / `run` / `restore`), autumn list in
+  `docker-compose/season-terms-autumn-2026-09.json`. Spec §17 of
   `litemall-goods-management/docs/spec-seasonal-candidacy.md` is the record. Closes all three
   limits the 2026-08-27 deploy recorded:
   1. `SeasonScoringService.discover` used to keep EVERY hit for a term. The index matches
