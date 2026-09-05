@@ -25,12 +25,27 @@ export const isApplicable = (row: ISeoTitleRow, draft: string): boolean => {
 export const cleanRowIds = (rows: ISeoTitleRow[], drafts: Drafts): number[] =>
   rows.filter(r => !r.needsReview && isApplicable(r, draftOf(r, drafts))).map(r => r.goodsId);
 
-/** The batch body for the ticked rows on this page, skipping anything that became blank. */
-export const batchItems = (rows: ISeoTitleRow[], selected: ReadonlySet<number>, drafts: Drafts): ISeoBatchItem[] =>
-  rows
-    .filter(r => selected.has(r.goodsId))
-    .map(r => ({ goodsId: r.goodsId, title: draftOf(r, drafts).trim() }))
-    .filter(i => i.title.length > 0);
+/** The server's own wording for a blank title, so a local refusal reads like a server one. */
+export const BLANK_TITLE_ERROR = 'title must not be blank';
+
+export interface BatchPartition {
+  /** The batch body: trimmed drafts of the ticked rows on this page, in row order. */
+  items: ISeoBatchItem[];
+  /** Ticked rows whose draft is blank, in row order. They are NOT sent — they are refused here. */
+  blank: number[];
+}
+
+/**
+ * Splits the ticked rows into what goes to the server and what is refused locally. A blank
+ * draft is never silently dropped: the administrator confirmed N rows, so N rows are reported.
+ */
+export const partitionBatch = (rows: ISeoTitleRow[], selected: ReadonlySet<number>, drafts: Drafts): BatchPartition => {
+  const ticked = rows.filter(r => selected.has(r.goodsId)).map(r => ({ goodsId: r.goodsId, title: draftOf(r, drafts).trim() }));
+  return {
+    items: ticked.filter(i => i.title.length > 0),
+    blank: ticked.filter(i => i.title.length === 0).map(i => i.goodsId),
+  };
+};
 
 export interface BatchSummary {
   applied: number;
@@ -40,13 +55,18 @@ export interface BatchSummary {
   lines: string[];
 }
 
-/** Turns the server's per-row report into what the banner says. Never hides a failed row. */
-export const summarizeBatch = (data: ISeoBatchResult | undefined | null): BatchSummary => {
+/**
+ * Turns the server's per-row report — plus the rows refused locally for a blank draft — into
+ * what the banner says. Never hides a failed row, and the headline counts every row the
+ * administrator confirmed, not just the ones that reached the server.
+ */
+export const summarizeBatch = (data: ISeoBatchResult | undefined | null, blank: readonly number[] = []): BatchSummary => {
   const results = data?.results ?? [];
   const applied = results.filter(r => r.ok).length;
-  const failed = results.filter(r => !r.ok).length;
+  const failed = results.filter(r => !r.ok).length + blank.length;
   const notReindexed = results.filter(r => r.ok && !r.reindexed).length;
-  const lines: string[] = [`Applied ${applied} of ${results.length} titles.`];
+  const lines: string[] = [`Applied ${applied} of ${results.length + blank.length} titles.`];
+  blank.forEach(id => lines.push(`#${id}: ${BLANK_TITLE_ERROR}`));
   results
     .filter(r => !r.ok)
     .forEach(r => lines.push(`#${r.goodsId ?? '?'}: ${r.error || 'refused'}`));

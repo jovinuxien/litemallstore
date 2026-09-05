@@ -1624,6 +1624,32 @@
   never marks `order_goods.comment`, so "Unrated" never clears). NOT done:
   F15 (refund after CJ paid opens no CJ dispute — D5, separate decision), F16
   Refunds-page visibility (SPA), F17 (goods-management).
+  **PACKAGES A+B+C MERGED (master `5cfe7b1d5`) + DEPLOYED to trovemo.com
+  2026-09-05 02:39 UTC** (user "go ahead"): pushed to `/opt/litemall.git`
+  (VPS checkout was already at a peer's `d45511aa8`, which CONTAINS `5cfe7b1d5`
+  and adds only gateway-api theme work — no order/core/db diff), `CJ_OPS_MAIL=
+  contact@trovemo.com` appended to `.env.prod` (backup
+  `.env.prod.bak-lifecycle-20260905`; compose passthrough pre-existed), ONLY the
+  order image rebuilt (single-service build, 24 G free, no errors) and ONLY the
+  order container recreated: healthy in 20 s, boot "Stripe payments ENABLED
+  (currency=eur)" / "CJ dropshipping ENABLED (sandbox=false)" / "CJ placement
+  mode: MANUAL", Flyway validated 64 (no migration), env verified INSIDE the
+  container, running jar verified by zip listing (UnpaidOrderReconciler,
+  CjFulfilmentIncidentService, both new events) AND by the nested
+  litemall-core jar's MailTemplates bytes containing `payment-refunded` /
+  `fulfilment-cancelled` / `delivered`; edge routing 401 on the three new
+  paths; smoke 200s. Prod facts met by the new code: 3 paid CJ orders unplaced
+  — 7 + 10 unapproved (the user's pending test-purchase review), **11 = the F7
+  case live** (approved 2026-08-09, rejected by CJ 7001 "Please enter a IOSS
+  number", PLACEMENT_REJECTED, invisible in the pending list until this
+  deploy — now listed with parkReason; fix IOSS in the CJ dashboard, then
+  Requeue); order 9 sits at 202 (customer can withdraw once the SPA renders
+  the button); unpaid tasks 0; mail outbox STILL EMPTY (never fired in prod);
+  no CJ order has ever been placed in prod. ⚠ Only ERROR since boot = the
+  pre-existing `/app/storage` AccessDenied. ⚠ The order container logs MyBatis
+  SQL at DEBUG in prod (the goods-management OOM lesson of 2026-08-15 was
+  countered only in THAT module's application-prod.yml) — raise, not touched.
+  Real acceptance remains USER-SIDE: one small real EUR order end to end.
 - **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
   retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
   failures (was 291, +7 new). Found while verifying the mail deploy: prod had
@@ -3120,7 +3146,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: LIVE DEV ACCEPTANCE PASSED 2026-09-05 (one UI honesty gap found, unfixed)
+### Worktree: `gateway-admin` — SEO title worklist: live dev acceptance PASSED + blank-draft batch gap FIXED (2026-09-05)
 - **RAISED by order 2026-09-05:** code to
   `litemall-order/docs/handoff-gateway-admin-cj-requeue.md` — parked rows
   (`parked`, `parkReason`) in the pending tab, a **Requeue** action on
@@ -3196,17 +3222,23 @@
   All 4 renamed dev goods (10000032/160/177/179) were restored via apply itself; DB and
   ES titles byte-equal to the originals, worklist total back to 4604. `ocs_indexer`
   restarted; dev JVMs stopped afterwards.
-- ⚠ **FOUND, NOT FIXED (needs its own approval): the UI batch silently drops a blank
-  draft.** `seoTitleBatch.batchItems` filters `title.length === 0` CLIENT-side while the
-  confirm line counts every ticked row — the admin confirmed "Rename 3 products and
-  reindex them", the banner said **"Applied 2 of 2 titles."** in green, and the blank row
-  stayed ticked with a greyed Apply and NO error (screenshot-verified). This contradicts
-  the claim above that refused rows show their error in the Actions cell — true only for
-  SERVER refusals. Two honest fixes: drop the client filter so the server refuses it in
-  place (the documented behaviour; the `batchItems` jest spec pins the filter and must
-  change with it), or exclude blank drafts from the confirm count and say so ("1 skipped:
-  blank title"). Also "Apply selected (1)" stays ENABLED with only a blank row ticked →
-  an empty `items[]` → errno 660 for the admin.
+- **FOUND BY THE ACCEPTANCE, THEN FIXED (user-approved 2026-09-05): the UI batch silently
+  dropped a blank draft.** `seoTitleBatch.batchItems` filtered `title.length === 0`
+  CLIENT-side while the confirm line counted every ticked row — the admin confirmed "Rename
+  3 products and reindex them", the banner said **"Applied 2 of 2 titles."** in GREEN, and
+  the blank row stayed ticked with a greyed Apply and NO error (screenshot-verified). A
+  blank-only selection would have sent an empty `items[]` → errno 660. Fix (SPA only, no
+  backend): `partitionBatch` splits the ticked rows into `items` (sent) and `blank`
+  (refused HERE, in place, with the server's own wording `title must not be blank`), and
+  `summarizeBatch(body, blank)` counts them in the headline — the confirm count and the
+  reported count now agree by construction; a blank-only selection reports "Applied 0 of 1
+  titles." with NO request. **Live-proven on the rebuilt jar** (same headless flow): banner
+  "Applied 2 of 3 titles." + "#10000178: title must not be blank" (amber), the row tagged
+  in place and still ticked, the other two applied and restored afterwards. Tests: admin
+  jest **158 passed / 14 suites** (was 153; +2 helper, +2 component… +5 total), `tsc` 0
+  errors in `app/`. ⚠ Lesson: each half (confirm count, payload) passed its own spec and
+  they disagreed with each other — for any bulk action, assert confirm count == accounted
+  count in ONE test.
 - ⚠ **Build gotcha (dev; matches what `docker/Dockerfile` already does):** `mvn package`
   on gateway-admin FAILS in the `test` phase — the frontend plugin runs
   `npm run webapp:test` = `web-test-runner src/**/*.test.js`, a dead legacy script that
@@ -3218,9 +3250,8 @@
 - ⚠ `pkill -f <pattern>` from the Bash tool matches the tool's own `bash -c` line and
   kills the calling shell (exit 144, twice) — kill by pid from an ANCHORED
   `pgrep -f '^/usr/lib/jvm/…'`.
-- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration).
-  USER-SIDE: prod click-through. NEXT worktree task, if approved: the blank-draft batch
-  fix above (tiny; SPA + one spec).
+- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration; the
+  batch fix is admin-only). USER-SIDE: prod click-through. No active assignment after this.
 ot reindexed" — NOT a 500.
 - **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
   reporter ("Could not resolve a module for a custom reporter") — use

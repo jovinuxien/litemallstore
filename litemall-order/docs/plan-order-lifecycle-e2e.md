@@ -14,8 +14,11 @@ system setting, `POST …/actions/refund/withdraw` + `handleOption.withdrawRefun
 F18 helper clean-up. D: `handoff-gateway-admin-cj-requeue.md`,
 `handoff-gateway-api-lifecycle.md`; goods-management raise (review purchase
 check) recorded in CLAUDE.md. Dev boot verified after each package.
-Deploy = order container + EVERY litemall-core dependent (mail template
-classes changed) + prod env `CJ_OPS_MAIL` (D6). No migration.
+**DEPLOYED to trovemo.com 2026-09-05 02:39 UTC** — order container only (the
+changed core classes are referenced only by litemall-order), `CJ_OPS_MAIL`
+set, jar + env verified inside the container, smoke green. Live prod facts:
+order 11 = F7 (approved-then-rejected, IOSS) now visible + requeueable;
+orders 7/10 await the user's review; order 9 at 202. No migration.
 
 ## 0. Verdict
 
