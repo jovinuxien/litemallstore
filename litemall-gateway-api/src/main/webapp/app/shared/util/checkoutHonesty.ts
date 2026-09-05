@@ -1,4 +1,5 @@
 import { ICoupon } from 'app/shared/api';
+import { t } from 'app/i18n';
 import { money } from 'app/shared/util/money';
 
 /**
@@ -44,16 +45,16 @@ export const unusableReasonLabel = (reason?: string, minGap?: number): string =>
   switch (reason) {
     case 'threshold':
       return Number.isFinite(Number(minGap)) && Number(minGap) > 0
-        ? `Spend ${money(Number(minGap))} more to use this coupon`
-        : 'Order total is below this coupon’s minimum';
+        ? t('checkout:coupon.threshold', { amount: money(Number(minGap)) })
+        : t('checkout:coupon.thresholdNoGap');
     case 'scope':
-      return 'Not valid for these items';
+      return t('checkout:coupon.scope');
     case 'expired':
-      return 'Expired';
+      return t('checkout:coupon.expired');
     case 'exhausted':
-      return 'Fully claimed';
+      return t('checkout:coupon.exhausted');
     default:
-      return 'Not usable for this order';
+      return t('checkout:coupon.unusable');
   }
 };
 
@@ -67,5 +68,5 @@ export const courierDeltaLabel = (upgradeDelta?: number | null): string | null =
   if (upgradeDelta == null) return null;
   const delta = Number(upgradeDelta);
   if (!Number.isFinite(delta)) return null;
-  return delta > 0.004 ? `+${money(delta)}` : 'Included';
+  return delta > 0.004 ? `+${money(delta)}` : t('checkout:courier.included');
 };

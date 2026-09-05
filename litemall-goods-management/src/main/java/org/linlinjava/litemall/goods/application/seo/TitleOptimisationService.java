@@ -119,6 +119,9 @@ public class TitleOptimisationService {
         return new Page(hits.size(), scanned, max, List.copyOf(slice));
     }
 
+    /** A batch larger than this is refused outright; each row is a MySQL write plus an OCS call. */
+    public static final int BATCH_LIMIT = 100;
+
     /**
      * Write one administrator-chosen title.
      *
@@ -126,14 +129,21 @@ public class TitleOptimisationService {
      * the name lives in the OCS document too, and a title changed only in MySQL would leave the
      * storefront's search results quoting the old one.
      *
+     * <p>The reindex is reported, never thrown. The name is already written by the time the
+     * indexer is called, so an exception here would tell the administrator the apply FAILED
+     * while MySQL says it succeeded — the same "worked but said it failed" shape the first live
+     * use of this page hit one layer up. Instead {@link Applied#reindexed()} is false and the
+     * cause rides along, so the caller can say "saved; on-site search still shows the old
+     * title" and mean it.
+     *
      * <p>{@code goods.keywords} is deliberately left alone. Despite the name it is a SEARCH
      * column ({@code LitemallGoodsService.querySelective} LIKE-matches it), so the old longer
      * text sitting there keeps search recall the shorter title would otherwise lose.
      *
-     * @return the applied title
-     * @throws IllegalArgumentException on a missing goods or an unusable title
+     * @throws IllegalArgumentException on a missing goods or an unusable title; nothing has
+     *                                  been written when this is thrown
      */
-    public String apply(Integer goodsId, String newTitle) {
+    public Applied apply(Integer goodsId, String newTitle) {
         if (goodsId == null) {
             throw new IllegalArgumentException("goodsId is required");
         }
@@ -150,16 +160,78 @@ public class TitleOptimisationService {
             throw new IllegalArgumentException("no such goods: " + goodsId);
         }
         if (title.equals(goods.getName())) {
-            return title;
+            return new Applied(goodsId, title, false, true, null);
         }
 
         LitemallGoods patch = new LitemallGoods();
         patch.setId(goodsId);
         patch.setName(title);
         goodsService.updateById(patch);
-        reindexService.reindexGoods(goodsId);
         log.info("seo title: goods {} retitled ('{}' -> '{}')", goodsId, goods.getName(), title);
-        return title;
+        try {
+            reindexService.reindexGoods(goodsId);
+        } catch (RuntimeException e) {
+            log.warn("seo title: goods {} retitled in MySQL but NOT reindexed: {}",
+                    goodsId, e.toString());
+            return new Applied(goodsId, title, true, false, e.getMessage() == null
+                    ? e.getClass().getSimpleName() : e.getMessage());
+        }
+        return new Applied(goodsId, title, true, true, null);
+    }
+
+    /**
+     * Apply several administrator-chosen titles in one call.
+     *
+     * <p>Each row goes through {@link #apply} on its own: a refused or failed row is reported in
+     * its place and the batch carries on — one bad title must not hold the other ninety-nine
+     * hostage, and nothing already written can be taken back anyway. Rows are applied in the
+     * order given; a duplicate goodsId is applied twice, last title wins, which is what the
+     * caller asked for.
+     *
+     * @throws IllegalArgumentException when the batch is empty or over {@link #BATCH_LIMIT};
+     *                                  nothing has been written when this is thrown
+     */
+    public List<BatchResult> applyBatch(List<TitleChange> changes) {
+        if (changes == null || changes.isEmpty()) {
+            throw new IllegalArgumentException("nothing to apply");
+        }
+        if (changes.size() > BATCH_LIMIT) {
+            throw new IllegalArgumentException(
+                    "at most " + BATCH_LIMIT + " titles per batch (" + changes.size() + " sent)");
+        }
+        List<BatchResult> results = new ArrayList<>(changes.size());
+        for (TitleChange change : changes) {
+            Integer goodsId = change == null ? null : change.goodsId();
+            try {
+                Applied applied = apply(goodsId, change == null ? null : change.title());
+                results.add(new BatchResult(goodsId, true, applied.title(), applied.changed(),
+                        applied.reindexed(), applied.reindexError()));
+            } catch (IllegalArgumentException e) {
+                results.add(new BatchResult(goodsId, false, null, false, false, e.getMessage()));
+            }
+        }
+        return results;
+    }
+
+    /** One requested change: the title exactly as the administrator submitted it. */
+    public record TitleChange(Integer goodsId, String title) {
+    }
+
+    /**
+     * @param changed      false when the submitted title already was the live one (a no-op)
+     * @param reindexed    false when MySQL was written but the OCS document was not refreshed
+     * @param reindexError why, when {@code reindexed} is false; null otherwise
+     */
+    public record Applied(Integer goodsId, String title, boolean changed, boolean reindexed,
+                          String reindexError) {
+    }
+
+    /**
+     * @param ok    false when the row was refused (bad title, unknown goods) — nothing written
+     * @param error the refusal, or the reindex failure when {@code ok} but not {@code reindexed}
+     */
+    public record BatchResult(Integer goodsId, boolean ok, String title, boolean changed,
+                              boolean reindexed, String error) {
     }
 
     private String categoryName(Integer id) {

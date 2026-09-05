@@ -2313,9 +2313,72 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — footer audit fixes + EU stock SHIPPED + LIVE
-- **No active assignment.** Launch with FRESH=1 only after a new wave is
-  commissioned and this block is rewritten.
+### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
+- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
+  rail; spec §5) — rewrite this block before launching it.
+- **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
+  with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
+  en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live
+  bundle `main.a0b81a9c…` + hashed sv/da chunks verified BY CONTENT; smoke 200s).
+  ⚠ **The deploy failed TWICE before it landed, neither time because of i18n:** the
+  image build has no root lockfile, so `npm install` floated the storefront onto
+  **webpack 5.110.3** (published 2026-08-27, one day after the previous gateway-api
+  image) whose new default `minimizer-webpack-plugin` crashes on html-webpack-plugin's
+  `index.html` ("reading 'syntax'"). Pinning webpack 5.107.2 in the storefront did NOT
+  help — npm hoists `webpack-cli` to the workspace root and it requires the ROOT
+  webpack. Fix that held: `webpack.config.prod.js` now sets an explicit JS-only Terser
+  minimizer (verified under 5.110.3 AND 5.107.2). ⚠ My first deploy script recreated
+  the container from the OLD image after the failed build (harmless, but wrong) —
+  the script now stops on `BUILD EXIT != 0`. Full record: spec §8.
+  ⚠ The sv/da strings had a second critical pass by ME, not a human native speaker
+  (spec §8 lists the idiom fixes). A human pass is still worth having; corrections are
+  JSON data + a container rebuild, nothing else.
+  Rollback of visibility = `LITEMALL_I18N_LANGUAGES=en` + recreate (no rebuild).
+- **Build detail (2026-09-04) — i18n FOUNDATION PHASE 1.** User-commissioned outside any wave ("lay the
+  architecture foundation for multi-language like the JHipster announceapp02
+  gateway: en default, sv, da"); plan approved same day. FROZEN spec + as-built
+  record: `litemall-gateway-api/docs/spec-i18n-foundation.md` (read §0 on
+  currency and §7 before touching this). jest 45 suites / 320 tests (was
+  40/274), tsc 0, mvn compile clean, `npm run i18n:check` green with a negative
+  control, prod build clean with 10 lazy `i18n-{sv,da}-*` chunks.
+  What it is: `i18next` + `react-i18next`, JHipster's folder-per-language /
+  file-per-feature layout under `app/i18n/locales/`, English BUNDLED and
+  registered synchronously (first paint never waits; a missing key falls back to
+  English, never a raw key), sv/da lazy-loaded per namespace via webpack
+  `import()`. Locale = an observable store (`app/i18n/locale.ts`, the siteConfig
+  pattern) readable outside React — `money.ts` reads it. Detection: `?lang=` →
+  cookie `lm_lang` → browser (sv/da only) → en. **ENV-GATED like every other
+  storefront feature:** `LITEMALL_I18N_LANGUAGES` (default `en`) via
+  `/auth/site-config` `i18nLanguages`; the switcher renders only when >1
+  language is enabled and a Swedish browser gets English until then. Prod compose
+  passthrough is IN (with the feature, the price-floor lesson). Server errors are
+  localised BY ERRNO on the client (`describeError`; unknown errno ⇒ server text
+  verbatim, the repo's typed-refusal acceptance behaviour preserved).
+  ⚠ **Language ≠ currency.** The user asked for kronor; the store CHARGES EUR
+  (Wave-24 decision). Phase 1 localises the WRITING of one currency
+  (`€1,234.56` / `1 234,56 €` / `1.234,56 €`), never the amount. Real SEK/DKK is a
+  money-path wave across four services, and an "≈ 139 kr (charged in EUR)"
+  indicative line is an OPEN user option, not built. `moneyParts` (card split) is
+  deliberately locale-stable.
+  Pilot migrated (every visitor sees these on every route): Layout header/strip/
+  footer, CategoryDrawer, Cart + SubmitBar, NotFound, both error-boundary
+  fallbacks (plain `t()`, not hooks — a fallback must not depend on what threw),
+  login/register/reset, Google button fallback, coupon-reason + courier labels.
+  ⚠ sv/da strings are MY DRAFTS — native review is USER-SIDE before enabling
+  them in prod. Legal pages stay English in every locale by design.
+  ⚠ Gotchas: `i18next-parser --fail-on-update` logs `[write]` but writes nothing,
+  and with `sort:true` a hand-ordered file counts as drift — config runs
+  `sort:false`/`keepRemoved:true`/`createOldCatalogs:false` so the check fails on
+  exactly one thing (a code key some language lacks). Components that render
+  `money()` without `useTranslation` update on their next render, not on the
+  switch — the reason the remaining ~200 string sites migrate FILE BY FILE
+  (batches 2–7 in the spec §5) rather than remounting the route tree (which would
+  wipe checkout state). `lang_key` on the user = phase 2 (V65, litemall-db,
+  shared-module discipline); URL prefixes/hreflang only if content is ever
+  translated.
+  Merged + deployed the same day (see status above); batch 2 (PDP + cards + search
+  rail) is the next task.
+- **Previous status (2026-08-26) — footer audit + EU stock SHIPPED + LIVE.**
 - **Status 2026-08-26 — FOOTER AUDIT + EU STOCK: MERGED + LIVE on
   trovemo.com.** Commits `b5e8d7004` (copy/nav) + `0469129b8` (EU stock +
   empty facets), merged `0bba2e553`, pushed. jest 40 suites / 274 tests (was
@@ -2842,68 +2905,89 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist (IN PROGRESS, uncommitted→committed here)
-- **Status 2026-08-24 — ON-PAGE SEO: over-length product titles.** Committed on
-  this branch, NOT merged, NOT run against a live stack. Backend compiles;
-  28 unit tests green (`TitleProposerTest` 10, `CsvKeywordResearchProviderTest`
-  10, `SeoPlatformKeywordClientTest` 8); admin `tsc` clean in `app/` (the only
-  6 errors are pre-existing `NoInfer` ones inside `node_modules/@reduxjs`).
-  **This branch deliberately carries goods-management files too** — the SPA page
-  is useless without its endpoint, so both halves are one commit here rather
-  than split across the `goods-management` worktree.
-- **The problem, measured against the live catalogue (not estimated):** 2,571 of
-  3,718 on-sale titles exceed 60 chars (median 85, max 127). Google renders ~60
-  and cuts the rest, so the end of a long title is invisible to a searcher.
-- **What was built.**
-  (1) `application/seo/KeywordResearchProvider` — the port, in goods-management's
-  own vocabulary (term / monthlySearches / competition / difficulty). No location
-  code, no tenant, no provider envelope.
-  (2) `infrastructure/acl/seo/` — the ACL. `CsvKeywordResearchProvider` (DEFAULT,
-  reads an export already paid for), `SeoPlatformKeywordClient` (live, buys),
-  `NoKeywordResearchProvider` (off), selected by `litemall.seo-research.source`
-  = `file` | `platform` | `none`.
-  (3) `application/seo/TitleProposer` + `TitleOptimisationService` — the first
-  consumer. Asks per CATEGORY, never per product (the live source bills per seed).
-  (4) `interfaces/rest/admin/AdminSeoController` — `GET /srv/private/admin/seo/
-  titles`, `POST /titles/apply` (errno 660). Rides gateway-admin's `/srv/**`
-  catch-all: **no gateway route change**.
-  (5) SPA `/admin/goods/seo-titles` — `adminSeoApi.ts` + `Insight/SeoTitleList.tsx`,
-  registered in `store.ts`, `reducers/index.ts`, `admin-routes.tsx`, `menu.config.ts`.
-- **Decisions that must not be silently reversed.**
-  * The proposal is a word-boundary truncation of the CURRENT title. It is NOT
-    generated from keyword data — the bought terms carry competitor brands and
-    homonyms ("friday night lights" under Night Lights), and rearranging supplier
-    wording around them produces copy that would ship under the shop's name.
-  * `HtmlText.truncateAtWord` HARD-cuts mid-word when no space precedes the limit
-    (`cut <= 0 -> cut = max`). It is shared with the merchant feed, so it was NOT
-    changed; `TitleProposer` detects the mid-word cut and keeps the original,
-    flagged `needsReview`. A test pins this.
-  * Apply reindexes the row (`reindexService.reindexGoods`) — the name lives in
-    the OCS document too. Precedent: `CatalogHygieneService`.
-  * `goods.keywords` is left alone ON PURPOSE. Despite the name it is a SEARCH
-    column (`LitemallGoodsService.querySelective` LIKE-matches it); the longer old
-    text there preserves recall the shortened title would lose.
-  * Nothing auto-applies. Every row is editable and `apply` writes exactly what
-    the administrator submitted.
-- **Honest limitation — do not oversell this.** Only 43 of 2,571 over-length
-  titles match a bought keyword, and 18 keep it after the cut. 28 of 81 categories
-  have terms at all. The truncation is the value; the keyword is evidence on ~2%
-  of rows. Raising it needs the remaining 50 category seeds bought.
-- **Data.** `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 1,368
-  servable, 28 categories) — bought 2026-08-24 for $0.6422 / 46 calls, UK
-  (locationCode 2826, `en`). The DataForSEO account then ran OUT OF CREDIT at
-  seed 31 of 81; it surfaces as 502 wrapping the provider's 402, not a clean
-  payment error. Finishing needs a top-up (~$50 min).
-- **Next steps (nothing here is done).**
-  1. Bring the stack up and exercise `/admin/goods/seo-titles` end to end — the
-     endpoint has NEVER served a live request.
-  2. Add jest coverage for `SeoTitleList` (the repo's admin suite is jest; none
-     was added).
-  3. Decide on a bulk-apply for the `needsReview == false` rows.
-  4. Rebase: this branch was 12 commits behind master when committed.
-- **Acceptance:** `/admin/goods/seo-titles` lists real over-length titles through
-  :8080, an Apply shortens one product's name AND the storefront's on-site search
-  reflects it (reindex proof), module tests green with real "Tests run:" counts.
+### Worktree: `gateway-admin` — SEO title worklist: bulk apply + honest reindex (BUILT 2026-09-04)
+- **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
+  The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
+  stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
+  trovemo.com on 2026-08-26 (goods-management + gateway-admin rebuilt at that commit),
+  DARK for keywords — `source=file` with an EMPTY export dir on the VPS, so it runs as
+  truncation-only. Its FIRST live use (prod goods 10000844) exposed that Apply said
+  "Request failed" on every call including successful ones; master fixed it as
+  `10ca91595` (`applyResult.ts` + 5 tests). This branch had 0 commits of its own and was
+  52 behind, so it was fast-forwarded (step 4 of the old list = done, nothing lost).
+- **Built here (one commit, both halves — the SPA is useless without its endpoint):**
+  1. **Honest reindex on apply.** `TitleOptimisationService.apply` wrote MySQL and THEN
+     called the indexer; `OcsProductIndexer.upsert` throws on any transport failure and
+     the controller caught only IllegalArgumentException, so an indexer outage turned a
+     SUCCESSFUL rename into a 500 — the same "worked but said it failed" shape as the
+     first live bug, one layer down. Now `apply` returns `Applied{goodsId, title, changed,
+     reindexed, reindexError}`; a reindex failure is logged and REPORTED (errno 0 with
+     `reindexed:false` + `warning`), never thrown. The SPA shows the caveat verbatim and
+     marks the row "saved, not reindexed" instead of inviting a retry of a write that
+     already landed.
+  2. **Bulk apply.** `POST /srv/private/admin/seo/titles/apply-batch` body
+     `{items:[{goodsId,title}]}` → `{applied, failed, results:[{goodsId, ok, title,
+     changed, reindexed, error}]}`, one entry per item IN ORDER. Each row goes through
+     `apply` on its own: a refused row (blank, >127, unknown goods) is reported IN PLACE
+     and the batch carries on — nothing already written can be taken back. Only an empty
+     or >100-row batch (`BATCH_LIMIT`) is refused wholesale (errno 660), and then nothing
+     was written. Same `/srv/**` catch-all, no gateway route change.
+  3. **SPA.** Checkbox per row; the HEADER checkbox selects ONLY `needsReview === false`
+     rows whose draft would actually change something (a flagged row can still be ticked
+     by hand after reading). "Apply selected (N)" → inline confirm line ("Rename N
+     products and reindex them…") → batch → a dismissible banner with the server's
+     per-row wording verbatim. Applied rows LEAVE the list on refetch (they are no longer
+     over-length), so the banner is the only record of what just happened — it stays
+     until dismissed. Refused rows stay ticked with their error in the Actions cell.
+     Selection logic lives in `Insight/seoTitleBatch.ts` (testable, promoFormat.ts
+     pattern); the component itself now has a testing-library spec
+     (`SeoTitleList.spec.tsx`, first component-render spec in the admin suite — the RTK
+     hooks are mocked at the module seam, no fetch).
+- **Tests (real counts):** goods-management module suite **582 run / 0 failures / 8
+  skipped** (+7 `TitleOptimisationServiceTest`, incl. reindex-failure-is-reported and
+  batch-reports-refusals-in-place); admin jest **153 passed / 14 suites** (was 130/12:
+  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`); `tsc` 0 errors in `app/`.
+- **NOT done — live acceptance on dev.** No litemall service JVM was running and the
+  four dev secrets (MYSQL_PASSWORD, the two authserver secrets, GATEWAY_ADMIN_CLIENT_
+  SECRET) are user-held and were not in this session's env, so the stack could not be
+  booted from here. ⚠ The old acceptance line said ":8080" — that port is JENKINS on
+  this box; the admin dev gateway is **:18080**. Dev MySQL is up with 9,642 on-sale
+  goods, 4,606 over 60 chars, so the worklist will render there once booted. What live
+  acceptance must prove: list renders through :18080; single Apply renames one product
+  (MySQL) AND `/srv/search?q=<new title>` returns it (reindex proof); a 3-row batch with
+  one deliberately blank draft reports 2 applied / 1 refused in place; with the OCS
+  indexer container stopped, Apply answers errno 0 + `reindexed:false` and the row shows
+  "saved, not reindexed" — NOT a 500.
+- **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
+  reporter ("Could not resolve a module for a custom reporter") — use
+  `--testPathPattern`. The global `jest` namespace is NOT typed here even with
+  `types:["jest"]`; import `jest` from `@jest/globals` and type mocks as
+  `Mock<any>` from `jest-mock` (the hoisted one is v29-shaped: ONE type argument).
+  `getByText` matches a controlled `<textarea>`'s text content, so a proposal equal to
+  the current title appears twice.
+- **Ops note for MAIN (no rebuild):** copying `~/trovemo-seo-export/category-keywords-
+  clean.csv` into the VPS `LITEMALL_SEO_EXPORT_DIR` lights up the evidence column
+  (28 of 81 categories have terms; the rest need ~$50 of DataForSEO credit). Deploy of
+  this pass = goods-management + gateway-admin container rebuild; no migration.
+- **Decisions carried forward unchanged from the 2026-08-24 block:** proposals are
+  word-boundary truncations of the CURRENT title, never generated from keyword data;
+  `HtmlText.truncateAtWord`'s mid-word hard cut is detected and flagged `needsReview`,
+  not changed (shared with the feed); `goods.keywords` is left alone (it is a SEARCH
+  column); nothing auto-applies — bulk apply is still an administrator's explicit,
+  confirmed selection.
+- **History — Status 2026-08-24 (original build).** The problem, measured live: 2,571 of
+  3,718 on-sale titles exceeded 60 chars (median 85, max 127). Built:
+  `application/seo/KeywordResearchProvider` (port), `infrastructure/acl/seo/` (ACL:
+  `CsvKeywordResearchProvider` DEFAULT / `SeoPlatformKeywordClient` buys / `No…` off,
+  selected by `litemall.seo-research.source` = file|platform|none),
+  `TitleProposer` + `TitleOptimisationService` (asks per CATEGORY, never per product —
+  the live source bills per seed), `AdminSeoController` (`GET /titles`, `POST
+  /titles/apply`, errno 660), SPA `/admin/goods/seo-titles`. Honest limitation: only 43
+  of 2,571 over-length titles matched a bought keyword and 18 kept it after the cut —
+  the truncation is the value, the keyword is evidence on ~2% of rows. Data:
+  `~/trovemo-seo-export/category-keywords-clean.csv` (1,450 rows, 28 categories, UK
+  locationCode 2826) bought 2026-08-24 for $0.64; the DataForSEO account ran out of
+  credit at seed 31 of 81 (surfaces as 502 wrapping a 402).
 
 ### Worktree: `gateway-admin` — history (Wave 27 admin half + pending-approval dashboard SHIPPED)
 - **Status 2026-08-18 — PENDING CJ APPROVALS ON THE DASHBOARD, clickable.**

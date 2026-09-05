@@ -1,6 +1,8 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { ApiResult, BaseState, createApiClient } from '@litemall/shared';
 import { authApi, RegisterBody } from 'app/shared/api';
+import { t } from 'app/i18n';
+import { describeError } from 'app/i18n/errors';
 
 /**
  * Customer auth, split out of the former combined authSlice (no more
@@ -56,7 +58,7 @@ export const loginCustomerThunk = createAsyncThunk<
     }
     return body;
   } catch (e) {
-    return thunkApi.rejectWithValue({ errno: -1, errmsg: 'Login failed', data: null });
+    return thunkApi.rejectWithValue({ errno: -1, errmsg: t('errors:loginFailed'), data: null });
   }
 });
 
@@ -109,7 +111,7 @@ export const registerCustomerThunk = createAsyncThunk<
     }
     return env as ApiResult<{ token: string; refreshToken: string; userInfo: CustomerInfo }>;
   } catch (e) {
-    return thunkApi.rejectWithValue({ errno: -1, errmsg: 'Registration failed', data: null });
+    return thunkApi.rejectWithValue({ errno: -1, errmsg: t('errors:registrationFailed'), data: null });
   }
 });
 
@@ -181,7 +183,7 @@ const customerAuthSlice = createSlice({
       })
       .addCase(loginCustomerThunk.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Login failed';
+        state.errorMessage = describeError(action.payload?.errno, action.payload?.errmsg ?? t('errors:loginFailed'));
         state.errorNumber = action.payload?.errno ?? -1;
       })
       .addCase(registerCustomerThunk.pending, state => {
@@ -198,7 +200,7 @@ const customerAuthSlice = createSlice({
       })
       .addCase(registerCustomerThunk.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Registration failed';
+        state.errorMessage = describeError(action.payload?.errno, action.payload?.errmsg ?? t('errors:registrationFailed'));
         state.errorNumber = action.payload?.errno ?? -1;
       })
       .addCase(logoutCustomerThunk.fulfilled, state => {
@@ -217,7 +219,7 @@ const customerAuthSlice = createSlice({
       })
       .addCase(guestCheckoutThunk.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Guest checkout failed';
+        state.errorMessage = describeError(action.payload?.errno, action.payload?.errmsg ?? t('errors:guestCheckoutFailed'));
         state.errorNumber = action.payload?.errno ?? -1;
       })
       .addCase(googleSignInThunk.fulfilled, (state, action) => {
@@ -230,7 +232,7 @@ const customerAuthSlice = createSlice({
       })
       .addCase(googleSignInThunk.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Google sign-in failed';
+        state.errorMessage = describeError(action.payload?.errno, action.payload?.errmsg ?? t('errors:googleFailed'));
         state.errorNumber = action.payload?.errno ?? -1;
       });
   },
