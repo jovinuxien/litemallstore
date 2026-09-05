@@ -2419,9 +2419,31 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY SHIPPED + DEPLOYED
-- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout + delivery
-  chooser + coupon cell; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — i18n BATCHES 3–7 COMPLETE + MERGED (deploy pending); theme hierarchy SHIPPED
+- **No active assignment.** The storefront UI i18n is now COMPLETE (every §5 UI batch
+  done; legal pages English by design). Candidate next tasks: i18n phase 2 `lang_key`
+  on the user (V65, litemall-db shared-module discipline, order mails in the buyer's
+  language); native sv/da review (user-side). Rewrite this block before launching.
+- **Status 2026-09-05 — i18n batches 3–7 + slice fallbacks MERGED to master.** Six
+  commits (`57ea2abfe` checkout/coupons, `59dd8a42d` orders/cookies, `24d884d39` user
+  area/shared forms, `f3571861d` home/content pages, `a59d6a439` help centre/FAQ,
+  `70e060428` redux fallbacks): ~380 more string sites, 12 namespaces, **24 lazy sv/da
+  chunks**; jest 50 suites / 360 tests, tsc 0, `i18n:check` 0, prod build clean.
+  As-built record: `litemall-gateway-api/docs/spec-i18n-foundation.md` §10.
+  Every batch was rendered READ-ONLY against production data (built bundle + GET-only
+  proxy to trovemo.com, headless Chrome) in sv/da with 0 page errors; signed-in surfaces
+  (orders, user area) are proven at unit/type level only.
+  ⚠ `faqData.ts` now holds the FAQ STRUCTURE only — wording lives in `help.json` by id
+  (`faq.<id>.q/a`, `sections.<id>`, `links.<key>`); edit copy THERE, in all three
+  languages, or the parity spec fails. ⚠ The courier "Included" class tests the delta
+  NUMBER, never the label. ⚠ `count` is i18next's plural trigger — eight keys needed
+  `_one/_other`; a sentence that merely mentions a number uses another variable.
+  ⚠ Anchoring an import insert on `import React` glues it into the first line — anchor
+  on the full line. Also fixed on the way: the order-confirmation fallback total still
+  rendered `$` (missed by the Wave-24 € sweep).
+  **Deploy = gateway-api container rebuild only** (no migration, no backend, no env;
+  the Ubuntu-mirror gotcha below still applies). sv/da strings are MY drafts.
+- **Previously (2026-09-05): theme hierarchy SHIPPED + DEPLOYED, i18n batch 2 DEPLOYED.**
 - **DEPLOYED to trovemo.com 2026-09-05 02:32 UTC** from master `d45511aa8`: gateway-api
   container only (mirror-patched Dockerfile copy reused, cached runtime layer, build 2 min),
   healthy in 15 s, 0 errors, smoke 11/11 200s, live bundle `main.740efb7c…`. The SAME
