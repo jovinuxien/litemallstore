@@ -65,7 +65,8 @@
     "fulfilment": "Fulfilment",
     "shipsVia": "Ships via",
     "cjOrderNo": "CJ order no.",
-    "status": "Status"
+    "status": "Status",
+    "fulfilmentStatus": "Fulfilment status"
   },
   "actions": {
     "backToOrders": "Back to my orders",
@@ -111,6 +112,7 @@
     "days_one": "{{count}} day",
     "days_other": "{{count}} days",
     "status": "Status",
-    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later."
+    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later.",
+    "pending": "Shipped — tracking number on its way"
   }
 }

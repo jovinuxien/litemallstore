@@ -67,6 +67,21 @@ const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
             </span>
           }
         />
+      ) : tracking.status === 'TRACKING_PENDING' ? (
+        // Shipped, but the carrier has not issued a number yet (order lifecycle contract
+        // §2). Before this the payload said shipped:false here, and the page showed a
+        // "Shipped" badge next to "Not shipped yet".
+        <>
+          <Cell
+            title={
+              <span>
+                <i className='bi bi-truck me-2 text-lm-primary' />
+                {t('tracking.pending')}
+              </span>
+            }
+          />
+          {tracking.carrier && <Cell title={t('tracking.carrier')} value={tracking.carrier} />}
+        </>
       ) : (
         <>
           {tracking.carrier && <Cell title={t('tracking.carrier')} value={tracking.carrier} />}
