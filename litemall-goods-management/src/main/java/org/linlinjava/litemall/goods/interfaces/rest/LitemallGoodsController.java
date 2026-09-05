@@ -15,6 +15,7 @@ import org.linlinjava.litemall.db.service.LitemallCouponService;
 import org.linlinjava.litemall.db.service.LitemallGoodsRelatedService;
 import org.linlinjava.litemall.goods.application.comment.CommentStatsService;
 import org.linlinjava.litemall.goods.application.goods.LitemallGoodsManagementService;
+import org.linlinjava.litemall.goods.application.goods.WarehouseOriginService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsDetailService;
 import org.linlinjava.litemall.goods.application.goods.cj.CjGoodsVideoService;
 import org.linlinjava.litemall.goods.application.discovery.DiscoveryService;
@@ -107,6 +108,10 @@ public class LitemallGoodsController {
 
     @Autowired
     private MessageProducer messageProducer;
+
+    // Wave 28 §3.1: batched warehouse-origin read for the checkout (same measurement as the PDP badge).
+    @Autowired
+    private WarehouseOriginService warehouseOriginService;
 
     private static final ArrayBlockingQueue<Runnable> WORK_QUEUE = new ArrayBlockingQueue<>(9);
     private static final RejectedExecutionHandler HANDLER = new ThreadPoolExecutor.CallerRunsPolicy();
@@ -579,9 +584,49 @@ public class LitemallGoodsController {
      * strings ({@code LitemallGoodsId@3b488a9a}), which consumers cannot index.
      */
     @PostMapping("/batch")
-    public Map<Integer, LitemallGoodsAggregate> batchGoods(@RequestBody Set<Integer> goodsIds) {
+    public Object batchGoods(@RequestBody Set<Integer> goodsIds) {
+        // Public since Wave 27 (curated DIY rails resolve through it) and previously uncapped —
+        // an amplification surface raised by gateway-api 2026-08-22. Its callers are byIds rails
+        // the page validator limits to 24 ids; a typed refusal, never silent truncation.
+        if (goodsIds != null && goodsIds.size() > BATCH_MAX_IDS) {
+            return ResponseUtil.fail(402, "at most " + BATCH_MAX_IDS + " ids per request");
+        }
         List<LitemallGoodsAggregate> goodsList = goodsServiceApi.getAllGoodByIds(goodsIds.stream().map(LitemallGoodsId::new).toList());
         return goodsList.stream().collect(Collectors.toMap(g -> g.getGoodsId().getId(), Function.identity()));
+    }
+
+    /** Bound on {@code POST /batch} — same figure as the origin read; a rail is at most 24 ids. */
+    static final int BATCH_MAX_IDS = WarehouseOriginService.MAX_IDS;
+
+    /**
+     * Wave 28 §3.1 — {@code GET /srv/goods/origin?ids=1,2,3}: the EU warehouse country the last
+     * inventory probe found stock in, for a whole cart in one read. Public for the same reason the
+     * PDP's {@code euStock} key is public: it is the SAME measurement, already served anonymously
+     * by {@code /srv/goods/detail} — and the same rule, {@code WarehouseOriginService}.
+     *
+     * <p>{@code list} carries a row ONLY for goods with a measured, non-zero EU reading. Unprobed,
+     * probed-zero, local and unknown goods are absent — never {@code "CN"}, never null, so the
+     * storefront renders no note rather than a guess. Junk tokens in {@code ids} are dropped
+     * silently; more than {@link WarehouseOriginService#MAX_IDS} distinct ids is a typed refusal
+     * (the storefront treats any error as "no notes", so it is harmless and honest).
+     */
+    @GetMapping("/origin")
+    public Object origin(@RequestParam(required = false) String ids) {
+        List<Integer> parsed = WarehouseOriginService.parseIds(ids);
+        if (parsed.size() > WarehouseOriginService.MAX_IDS) {
+            return ResponseUtil.fail(402, "at most " + WarehouseOriginService.MAX_IDS + " ids per request");
+        }
+        List<Map<String, Object>> list = new java.util.ArrayList<>();
+        for (WarehouseOriginService.Origin o
+                : warehouseOriginService.originsOf(parsed)) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("goodsId", o.goodsId());
+            row.put("originCountry", o.originCountry());
+            list.add(row);
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", list);
+        return ResponseUtil.ok(data);
     }
 }
 

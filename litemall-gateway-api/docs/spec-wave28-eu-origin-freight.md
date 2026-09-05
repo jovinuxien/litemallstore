@@ -1,8 +1,9 @@
 # Wave 28 — EU origin on the buying surfaces, EU freight where stock allows
 
-**Status:** contract proposal. gateway-api's display half is built against this doc.
-The order and goods-management halves are NOT started and must be commissioned in
-their own worktrees. Code to THIS document, not to `fix/gateway-api`.
+**Status:** contract. gateway-api's display half is built against this doc (2026-08-19);
+the goods-management half (§3.1) is BUILT 2026-09-06 on `fix/goods-management` — see the
+as-built note under §3.1. The order half (§3.2) is NOT started and must be commissioned in
+its own worktree. Code to THIS document, not to any branch.
 
 **Origin:** user ask, 2026-08-18 — *"mention the EU country selling the product to
 appear on the checkout instead of Trovemo every time as it is now, and freight
@@ -65,6 +66,16 @@ the whole cart — the SPA has the precedent at `Checkout.tsx:545`, which collec
   `null` standing in for "we think China". `NULL` (never probed) and `0` (probed,
   none) collapse here exactly as they do on the PDP, and for the same reason: the
   two are indistinguishable to a customer-facing claim.
+
+**As built (goods-management, 2026-09-06):** `LitemallGoodsController.origin` →
+`WarehouseOriginService` (the PDP's `euStock` badge reads the same predicate, so the two
+surfaces cannot disagree). Response is the errno envelope, `data.list` as above. `ids` is
+whitespace-tolerant, deduplicated, junk tokens dropped; empty ⇒ `{list:[]}`; more than 100
+distinct ids ⇒ errno 402 typed refusal. `originCountry` = the first configured EU warehouse
+country (`spring.cjdropship.eu-warehouse-countries`, DE) present in the row's measured
+`warehouse_countries`; a reading with units but no configured EU country yields NO row. A
+lookup failure on one id drops that row only. No `PublicPaths` change was needed: both the
+service's `public-paths` and the edge's GET-only `CATALOG_GET` already cover `/srv/goods/**`.
 
 ### 3.2 order — per-shipment origin, and say which origin was quoted
 
