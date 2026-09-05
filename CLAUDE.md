@@ -1737,14 +1737,24 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups MERGED to master 2026-09-05 (deploy + autumn term tuning in progress)
+### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
-  `seasons` on hits.** Built as `54912135c`; **MERGED to master 2026-09-05** (merge commit carries the
-  peer's SEO bulk-apply; suite on the merged tree **596 run / 0 failures / 8 skipped**, was 589 on the
-  branch alone). Deploy + the §17.4 autumn term PUT follow in the same session — see the status
-  entry above this one once it lands. Ops script for the data step: `docker-compose/season-tune.sh`
-  (`rules` backup / `terms <key> <file>` / `run` / `restore`), autumn list in
-  `docker-compose/season-terms-autumn-2026-09.json`. Spec §17 of
+  `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
+  trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
+  suite on the merged tree **596 run / 0 failures / 8 skipped**; the merge also carries the peer's
+  SEO bulk-apply, so that is live too). **Autumn terms tuned on prod the same session** via
+  `docker-compose/season-tune.sh terms autumn season-terms-autumn-2026-09.json` (rules backup
+  `/root/season-rules-backup-20260905T001924Z.json` on the VPS; `restore` reverses it) + one manual
+  scorer run. Measured live, before → after: rail items on-term **14/24 → 24/24**, off-season
+  passengers 6 → 0, search hits carrying `seasons` **0/20 → 20/20**; autumn discovery discarded 914
+  off-title + 44 excluded hits, 0 relaxed sets; tier cuts hot 773.3 / featured 631.67 (the set
+  splits now). Full record spec §17.5. ⚠ The 200-hit scan limit is now the binding bound on broad
+  terms (`wool` 1,250 hits → 200 considered, logged). ⚠ Three "Air-conditioning Blanket" items
+  survive (title has neither `cooling` nor `summer`) — `-air-conditioning` is the one-line data fix
+  if wanted. Winter/spring/summer still on seed terms. ⚠ The MAIN checkout's index shows my three
+  files as staged reverse-changes (phantom from the ref move; its working CLAUDE.md is byte-identical
+  to old master) — `git checkout HEAD -- CLAUDE.md docker-compose/season-tune.sh
+  docker-compose/season-terms-autumn-2026-09.json` there clears it; touching MAIN was denied here. Spec §17 of
   `litemall-goods-management/docs/spec-seasonal-candidacy.md` is the record. Closes all three
   limits the 2026-08-27 deploy recorded:
   1. `SeasonScoringService.discover` used to keep EVERY hit for a term. The index matches
@@ -2935,7 +2945,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: bulk apply + honest reindex (BUILT 2026-09-04)
+### Worktree: `gateway-admin` — SEO title worklist: LIVE DEV ACCEPTANCE PASSED 2026-09-05 (one UI honesty gap found, unfixed)
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
@@ -2976,18 +2986,63 @@
 - **Tests (real counts):** goods-management module suite **582 run / 0 failures / 8
   skipped** (+7 `TitleOptimisationServiceTest`, incl. reindex-failure-is-reported and
   batch-reports-refusals-in-place); admin jest **153 passed / 14 suites** (was 130/12:
-  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`); `tsc` 0 errors in `app/`.
-- **NOT done — live acceptance on dev.** No litemall service JVM was running and the
-  four dev secrets (MYSQL_PASSWORD, the two authserver secrets, GATEWAY_ADMIN_CLIENT_
-  SECRET) are user-held and were not in this session's env, so the stack could not be
-  booted from here. ⚠ The old acceptance line said ":8080" — that port is JENKINS on
-  this box; the admin dev gateway is **:18080**. Dev MySQL is up with 9,642 on-sale
-  goods, 4,606 over 60 chars, so the worklist will render there once booted. What live
-  acceptance must prove: list renders through :18080; single Apply renames one product
-  (MySQL) AND `/srv/search?q=<new title>` returns it (reindex proof); a 3-row batch with
-  one deliberately blank draft reports 2 applied / 1 refused in place; with the OCS
-  indexer container stopped, Apply answers errno 0 + `reindexed:false` and the row shows
-  "saved, not reindexed" — NOT a 500.
+  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`);- **Status 2026-09-05 — LIVE DEV ACCEPTANCE PASSED through :18080** (branch == master
+  `8c674d368` at the time; NO code change this pass). The "user-held secrets" blocker was
+  STALE: `~/.litemall/dev.env` (mode 600) holds MYSQL_PASSWORD, and the authserver /
+  gateway-admin secrets are any MATCHING pair (`gateway-admin-dev-secret`, the way CI
+  uses `ci`). Built goods-management + gateway-admin from THIS worktree with `-am`
+  (reactor, no `~/.m2` install — the m2 litemall-db predated V64); booted eureka +
+  authserver (MAIN's July jars — both modules unchanged since 2026-07-17) +
+  goods-management :8082 + gateway-admin :18080 (JDK 21, `docker-compose/dc-local.sh`
+  for OCS/ES/rabbit/redis). ⚠ The local dev DB was at **V60**; goods-management applied
+  V61–V64 at boot (additive) — the "dev applied through V64" note elsewhere refers to a
+  different DB. Proven, each through the gateway with the admin JWT:
+  1. Worklist renders — 20 rows, header checkbox, blurb "4604 of 9642 live products are
+     over" (headless: puppeteer-core + google-chrome, `waitUntil:'load'` — `networkidle0`
+     never settles because the admin shell keeps polling; seed `admin-jwt`/`admin-refresh`/
+     `admin-role` at `/`, reload, then pushState to `/admin/goods/seo-titles`).
+  2. Single Apply on 10000032 with a marker word → MySQL renamed AND
+     `/srv/search?q=ACCPROOF7` returned exactly that product with the new name. ⚠ The
+     FIRST search, <5 s after the apply, returned `total 0, relaxed:true` — the served ES
+     index has `refresh_interval: 5s`; the doc WAS already in the index. Not a bug: never
+     assert search freshness inside 5 s of an upsert.
+  3. 3-row API batch with one blank draft → HTTP 200, `applied 2 / failed 1`, the refusal
+     IN PLACE (`title must not be blank`) and in order; DB confirmed 2 renamed, 1 untouched.
+  4. `docker stop ocs_indexer` → Apply → HTTP 200, errno 0, `reindexed:false`, warning
+     verbatim ("… No route to host"), MySQL renamed, index doc still the OLD title (the
+     warning tells the truth). Same case through the UI → cell "saved, not reindexed" +
+     alert "#10000179: Saved, but on-site search still shows the old title: …".
+  5. UI batch (header flow: tick 3 → "Apply selected (3)" → confirm → banner) — see the
+     finding below.
+  All 4 renamed dev goods (10000032/160/177/179) were restored via apply itself; DB and
+  ES titles byte-equal to the originals, worklist total back to 4604. `ocs_indexer`
+  restarted; dev JVMs stopped afterwards.
+- ⚠ **FOUND, NOT FIXED (needs its own approval): the UI batch silently drops a blank
+  draft.** `seoTitleBatch.batchItems` filters `title.length === 0` CLIENT-side while the
+  confirm line counts every ticked row — the admin confirmed "Rename 3 products and
+  reindex them", the banner said **"Applied 2 of 2 titles."** in green, and the blank row
+  stayed ticked with a greyed Apply and NO error (screenshot-verified). This contradicts
+  the claim above that refused rows show their error in the Actions cell — true only for
+  SERVER refusals. Two honest fixes: drop the client filter so the server refuses it in
+  place (the documented behaviour; the `batchItems` jest spec pins the filter and must
+  change with it), or exclude blank drafts from the confirm count and say so ("1 skipped:
+  blank title"). Also "Apply selected (1)" stays ENABLED with only a blank row ticked →
+  an empty `items[]` → errno 660 for the admin.
+- ⚠ **Build gotcha (dev; matches what `docker/Dockerfile` already does):** `mvn package`
+  on gateway-admin FAILS in the `test` phase — the frontend plugin runs
+  `npm run webapp:test` = `web-test-runner src/**/*.test.js`, a dead legacy script that
+  matches no files. `-Dmaven.test.skip=true` does NOT skip a frontend-plugin execution;
+  `-DskipTests` does (the plugin honours it for executions whose arguments contain
+  "test"). ⚠ A failed build leaves the PREVIOUS jar in `target/` — I booted a stale
+  August jar once; check `BUILD EXIT` and the jar mtime before booting, and grep the jar
+  for the feature string (`saved, not reindexed` sat in `static/main.<hash>.js`).
+- ⚠ `pkill -f <pattern>` from the Bash tool matches the tool's own `bash -c` line and
+  kills the calling shell (exit 144, twice) — kill by pid from an ANCHORED
+  `pgrep -f '^/usr/lib/jvm/…'`.
+- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration).
+  USER-SIDE: prod click-through. NEXT worktree task, if approved: the blank-draft batch
+  fix above (tiny; SPA + one spec).
+ot reindexed" — NOT a 500.
 - **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
   reporter ("Could not resolve a module for a custom reporter") — use
   `--testPathPattern`. The global `jest` namespace is NOT typed here even with
