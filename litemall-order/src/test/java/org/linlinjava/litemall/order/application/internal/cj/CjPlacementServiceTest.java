@@ -62,6 +62,8 @@ class CjPlacementServiceTest {
     private CjOpsNotifier opsNotifier;
     @Mock
     private CjPlacementMode placementMode; // isManual() defaults false = auto mode (pre-Wave-23 behavior)
+    @Mock
+    private CjFulfilmentIncidentService incidents;
 
     @InjectMocks
     private CjPlacementService service;
@@ -189,7 +191,7 @@ class CjPlacementServiceTest {
     }
 
     @Test
-    void retryableFailure_retainsTheOrder_noSentinel_noOpsMail_hopOnlyOnFirstAttempt() {
+    void retryableFailure_retainsTheOrder_noSentinel_noOpsMail_delegatesStallAccounting() {
         LitemallOrderAggregate order = paidUnplacedCjOrder();
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(cjFulfillmentService.placeForPaidOrder(eq(order), anyList()))
@@ -199,16 +201,14 @@ class CjPlacementServiceTest {
 
         verify(orderRepository, never()).updateCjOrderStatus(any(), anyString());
         verify(opsNotifier, never()).notify(anyString(), anyString());
-        // one customer-visible "deferred" hop on the first attempt
-        ArgumentCaptor<LitemallOrderStatusChange> hop =
-                ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
-        verify(statusHistoryRepository).record(hop.capture());
-        assertEquals(CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT, hop.getValue().getChangeType());
-        assertTrue(hop.getValue().getChangeMessage().contains("deferred"));
+        // The incident service owns the "deferred" hop, the warning and the park (F8) —
+        // and is told on EVERY failure, whichever path saw it.
+        verify(incidents).onRetryablePlacementFailure(eq(order), org.mockito.ArgumentMatchers.contains("CJ ACL disabled"));
+        verify(statusHistoryRepository, never()).record(any());
     }
 
     @Test
-    void retryableFailure_onSweepRetry_neverSpamsTheTimeline() {
+    void retryableFailure_onSweepRetry_isAlsoReported_neverWritesTheTimelineDirectly() {
         LitemallOrderAggregate order = paidUnplacedCjOrder();
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(cjOrderFacade.fetchOrderDetail(anyString())).thenReturn(Optional.empty());
@@ -217,7 +217,32 @@ class CjPlacementServiceTest {
 
         service.place(ORDER_ID, true, false);
 
+        verify(incidents).onRetryablePlacementFailure(eq(order), org.mockito.ArgumentMatchers.contains("still down"));
         verify(statusHistoryRepository, never()).record(any());
+    }
+
+    /** F9: the customer asked for their money back — do not ship the goods under them. */
+    @Test
+    void openAftersale_holdsPlacement_noCjTraffic() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setAfterSaleStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_REQUEST);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        service.place(ORDER_ID, false, true);
+
+        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
+        verify(cjOrderFacade, never()).fetchOrderDetail(anyString());
+    }
+
+    @Test
+    void parkedStalledOrder_isNotRetried() {
+        LitemallOrderAggregate order = paidUnplacedCjOrder();
+        order.setCjOrderStatus(CjFulfilmentIncidentService.STATUS_PLACEMENT_STALLED);
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(order));
+
+        service.place(ORDER_ID, false, true);
+
+        verify(cjFulfillmentService, never()).placeForPaidOrder(any(), anyList());
     }
 
     @Test

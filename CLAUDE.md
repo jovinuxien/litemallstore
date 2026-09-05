@@ -1581,6 +1581,49 @@
   /orders` never reconciles a redirect return — the backend now survives both,
   the SPA copy is still wrong. Deploy: order container + every litemall-core
   dependent (template classes changed); D6 `CJ_OPS_MAIL` env at the same time.
+  **Package A MERGED to master `c9ec31257` + pushed 2026-09-05.**
+- **Status 2026-09-05 — PACKAGES B + C BUILT (fulfilment visibility + closure).**
+  Suite **387 run / 0 failures** (+45). NO migration. B: new
+  `CjFulfilmentIncidentService` (@Transactional — the AFTER_COMMIT mail listener
+  drops events published outside a tx, the shipped-mail lesson) owns every
+  "CJ went wrong" signal, with STATE ON THE TIMELINE (no schema): retryable
+  placement failures write ONE "deferred" hop on the first failure (whichever
+  path), warn ops after `litemall.order.cj.stall-warn-minutes` (60), PARK under
+  the new `PLACEMENT_STALLED` sentinel after `stall-park-hours` (24); a placed
+  order CJ refuses to confirm/pay-from-balance (empty CJ balance) gets a
+  `cj_stall` hop + ops mail at most every `lifecycle-alert-hours` (24) — the
+  facade now returns `CjCallOutcome` with CJ's reason; CJ CANCELLED after payment
+  publishes `LitemallCjFulfilmentCancelledEvent` → customer mail
+  `fulfilment-cancelled` (D2) + ops mail, no money moves. Pending list now
+  INCLUDES parked rows regardless of the approval stamp (+`parked`,
+  `parkReason` = CJ's words from the last `cj_placement_failed` hop);
+  `POST /srv/private/admin/order/{id}/cj-placement/requeue` (CAS clears either
+  sentinel, keeps the approval) replaces the SQL-in-an-email; approve refuses
+  `[AFTERSALE_OPEN]` / `[PARKED]`; `place()` holds on an open aftersale; blank
+  CJ tracking stays NULL and `/tracking` answers `TRACKING_PENDING` for a
+  shipped order; sync predicate excludes 401/402; a CJ ship during a refund
+  review leaves a hop; the poller ships as operator `system`. C: `delivered`
+  mail on `LitemallOrderDeliveredEvent` (return window from
+  `litemall.order.return-window-days`, 30); auto-confirm window = system
+  setting `litemall_order_unconfirm` when set, yml fallback otherwise (was a
+  hidden 15-day code default vs the panel's 7); customer
+  `POST /srv/order/{id}/actions/refund/withdraw` (202 → PAID|SHIPPED, D4) +
+  `handleOption.withdrawRefund`; `canBeCanceled` now delegates to the
+  dispatcher, `getStatusesForShowType` deleted, dead paid-at-creation branch
+  removed, stale offline-pay javadoc corrected. Contracts:
+  `docs/handoff-gateway-admin-cj-requeue.md`, `docs/handoff-gateway-api-lifecycle.md`.
+  Dev boot on :18085 verified after EACH package (15–17 s, Flyway 65 validated).
+  ⚠ Gotchas: a Java record component named `ok` forbids a static factory
+  `ok()`; `LitemallCjRetryableException` wraps its message (match with
+  `contains`); `getOrderForUser` reads `findById` + filters, not
+  `findByIdAndUserId`. **RAISED (not built here):** gateway-api — SEPA
+  `processing` copy + redirect `return_url` reconciliation + withdraw button +
+  202 on the Refunds page + TRACKING_PENDING + timeline; gateway-admin — parked
+  rows + Requeue button + `[AFTERSALE_OPEN]`/`[PARKED]`; goods-management —
+  reviews have no purchase check (`POST /srv/comment/post` accepts any user,
+  never marks `order_goods.comment`, so "Unrated" never clears). NOT done:
+  F15 (refund after CJ paid opens no CJ dispute — D5, separate decision), F16
+  Refunds-page visibility (SPA), F17 (goods-management).
 - **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
   retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
   failures (was 291, +7 new). Found while verifying the mail deploy: prod had
@@ -1782,6 +1825,11 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
+- **RAISED by order 2026-09-05 (lifecycle audit F17):** `POST /srv/comment/post`
+  has no purchase check (any authenticated user, any goods, unlimited) and never
+  marks `litemall_order_goods.comment` / `litemall_order.comments`, so the
+  storefront's "Unrated" tab never clears. Needs an order-goods linkage
+  (goodsId + orderId from the buyer's own delivered order) before it is a review.
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
   `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
   trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
@@ -2372,6 +2420,11 @@
   `c5fdae86f`; live feed validated).
 
 ### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY (assigned 2026-09-05)
+- **RAISED by order 2026-09-05 (lifecycle packages A–C):** code to
+  `litemall-order/docs/handoff-gateway-api-lifecycle.md` — SEPA `processing`
+  is NOT "payment not completed"; redirect `return_url` must land on a page
+  that waits for the webhook; withdraw-refund button + 202 on the Refunds page;
+  `TRACKING_PENDING`; timeline rendering. Not blocking the current task.
 - **Task — make Help center / Returns / Customer service (and the other
   `app/modules/static/*` pages) follow the storefront theme hierarchy and a
   standard ecommerce type scale.** User-commissioned 2026-09-05 (no wave).
@@ -3049,6 +3102,10 @@
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
 ### Worktree: `gateway-admin` — SEO title worklist: LIVE DEV ACCEPTANCE PASSED 2026-09-05 (one UI honesty gap found, unfixed)
+- **RAISED by order 2026-09-05:** code to
+  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md` — parked rows
+  (`parked`, `parkReason`) in the pending tab, a **Requeue** action on
+  `POST …/cj-placement/requeue`, `[AFTERSALE_OPEN]`/`[PARKED]` approve refusals.
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to

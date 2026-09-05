@@ -304,7 +304,7 @@ public class LitemallOrderOrchestratorService {
             LitemallOrderOperationResult result = convertSubmitResultToOperationResult(submitResult, command);
 
             boolean paymentProcessed = !submitResult.isNeedsPayment();
-            publishOrderCreationEvents(submitResult.getOrderId(), paymentProcessed);
+            publishOrderCreationEvents(submitResult.getOrderId());
             if (!paymentProcessed) {
                 scheduleUnpaidOrderTask(new LitemallOrderId(submitResult.getOrderId()));
             }
@@ -1309,6 +1309,32 @@ public class LitemallOrderOrchestratorService {
     }
 
     /**
+     * Customer withdraws a pending refund request (lifecycle package C, decision D4):
+     * REFUND_REQUEST → back to PAID or SHIPPED. Owner-scoped. Not withdrawable once an admin
+     * decided (the order is then REFUNDED) or when the request belongs to a delivered-order
+     * aftersale (settled in one transaction, so a customer never sees that 202).
+     */
+    public LitemallOrderOperationResult withdrawRefundRequest(LitemallOrderId orderId, LitemallUserId userId) {
+        LitemallOrderAggregate order = getOrderForUser(userId, orderId);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!LitemallOrderHandleOption.forStatus(previous).isWithdrawRefund()) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+        }
+        LitemallOrderStatus backTo;
+        try {
+            backTo = orderServiceImpl.withdrawRefundRequest(orderId);
+        } catch (IllegalStateException notWithdrawable) {
+            return LitemallOrderOperationResult.refundFailed(orderId, notWithdrawable.getMessage());
+        }
+        return LitemallOrderOperationResult.updateSuccess(orderId, previous, backTo,
+                "refund request withdrawn", LitemallOrderHandleOption.forStatus(backTo));
+    }
+
+    /**
      * Admin approves a pending refund (REFUND_REQUEST → REFUNDED). Returns the money
      * to the tender that paid — capped at the captured amount — and flips the status
      * in ONE transaction, so the money return and REFUNDED are atomic.
@@ -1645,7 +1671,7 @@ public class LitemallOrderOrchestratorService {
     // DOMAIN EVENT PUBLISHING
     // =========================================================================
 
-    private void publishOrderCreationEvents(Integer orderId, boolean paymentProcessed) {
+    private void publishOrderCreationEvents(Integer orderId) {
         LitemallOrderId orderIdObj = new LitemallOrderId(orderId);
         LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(orderIdObj).orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -1658,13 +1684,8 @@ public class LitemallOrderOrchestratorService {
                 //LocalDateTime.now()
         ));
 
-        if (paymentProcessed) {
-            domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
-                    orderIdObj,
-                    order.getActualPrice(),
-                    LocalDateTime.now()
-            ));
-        }
+        // (a "paid at creation" branch used to live here — placeOrder always returns
+        // needsPayment=true, so it was unreachable; removed 2026-09-05)
     }
 
 }

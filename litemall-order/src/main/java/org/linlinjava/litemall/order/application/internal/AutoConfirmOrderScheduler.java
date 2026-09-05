@@ -30,9 +30,25 @@ public class AutoConfirmOrderScheduler {
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderServiceImpl orderServiceImpl;
 
-    /** Days a SHIPPED order waits for customer confirmation before auto-confirming. */
+    /**
+     * Fallback only. The admin-editable {@code litemall_order_unconfirm} system setting
+     * (litemall_system, exposed in the admin panel like the unpaid window) is the source of
+     * truth when it is set; until 2026-09-05 it was silently ignored while this code default
+     * (15) ran and the panel said 7 (plan-order-lifecycle-e2e.md, F14).
+     */
     @Value("${litemall.order.auto-confirm-days:15}")
-    private int autoConfirmDays;
+    private int autoConfirmDaysFallback;
+
+    /** The effective grace window: system setting when positive, else the yml/code fallback. */
+    int autoConfirmDays() {
+        Integer configured = null;
+        try {
+            configured = org.linlinjava.litemall.core.system.SystemConfig.getOrderUnconfirm();
+        } catch (RuntimeException ignored) {
+            // SystemConfig not loaded (tests, early boot): fall back
+        }
+        return configured != null && configured > 0 ? configured : Math.max(1, autoConfirmDaysFallback);
+    }
 
     public AutoConfirmOrderScheduler(LitemallOrderRepository orderRepository,
                                      LitemallOrderServiceImpl orderServiceImpl) {
@@ -42,6 +58,7 @@ public class AutoConfirmOrderScheduler {
 
     @Scheduled(fixedDelayString = "${litemall.order.auto-confirm-sweep-ms:3600000}")
     public void sweep() {
+        int autoConfirmDays = autoConfirmDays();
         List<LitemallOrderAggregate> due = orderRepository.queryUnconfirm(autoConfirmDays);
         if (due == null || due.isEmpty()) {
             return;

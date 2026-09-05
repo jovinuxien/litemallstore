@@ -44,14 +44,33 @@ class MailHtmlTemplateTest {
                 ORDER_URL, LOGO_URL);
     }
 
-    /** All five customer templates, rendered with realistic input. */
+    /** All seven customer templates, rendered with realistic input. */
     private static List<String> allTemplates() {
         return List.of(
                 MailHtmlTemplates.orderConfirmation(confirmation()),
                 MailHtmlTemplates.shipped("20260826000042", "CJPacket", "CJ123456789DE", ORDER_URL, LOGO_URL),
                 MailHtmlTemplates.pickupCode("20260826000042", "Trovemo Store, Paris", "482913", ORDER_URL, LOGO_URL),
                 MailHtmlTemplates.refundApproved("20260826000042", "€44.16", ORDER_URL, LOGO_URL),
-                MailHtmlTemplates.paymentRefunded("20260826000042", "€8.58", "https://trovemo.com", LOGO_URL));
+                MailHtmlTemplates.paymentRefunded("20260826000042", "€8.58", "https://trovemo.com", LOGO_URL),
+                MailHtmlTemplates.fulfilmentCancelled("20260826000042", ORDER_URL, LOGO_URL),
+                MailHtmlTemplates.delivered("20260826000042", "2026-09-05", true, 30, ORDER_URL, LOGO_URL));
+    }
+
+    @Test
+    void delivered_namesTheDateAndTheReturnWindow_andDistinguishesAutoFromConfirmed() {
+        String auto = MailHtmlTemplates.delivered("SN1", "2026-09-05", true, 30, ORDER_URL, LOGO_URL);
+        String confirmed = MailHtmlTemplates.delivered("SN1", "2026-09-05", false, 30, ORDER_URL, LOGO_URL);
+
+        assertThat(auto).contains("2026-09-05").contains("30 days").contains("did not hear otherwise");
+        assertThat(confirmed).contains("Thanks for confirming").doesNotContain("did not hear otherwise");
+    }
+
+    @Test
+    void fulfilmentCancelled_promisesContactNotARefundDate_andNeverSaysShipped() {
+        String html = MailHtmlTemplates.fulfilmentCancelled("SN1", ORDER_URL, LOGO_URL);
+
+        assertThat(html).contains("could not fulfil").contains("will contact you").contains("do not need to do anything");
+        assertThat(html).doesNotContain("has shipped").doesNotContain("refund has been issued");
     }
 
     @Test

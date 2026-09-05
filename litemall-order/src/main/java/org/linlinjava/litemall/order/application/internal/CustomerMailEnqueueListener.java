@@ -79,6 +79,8 @@ public class CustomerMailEnqueueListener {
      * NOT gated on the buyer having an email — the admin hears about every paid order.
      */
     private final String adminNotifyEmail;
+    /** Days after delivery a return may be requested — the number the delivered mail states. */
+    private final int returnWindowDays;
 
     /** 1 daemon worker, bounded queue: mail rendering never backs up payments. */
     private final ThreadPoolExecutor executor;
@@ -89,7 +91,10 @@ public class CustomerMailEnqueueListener {
                                        MailOutboxMapper mailOutboxMapper,
                                        CustomerMailProperties mailProperties,
                                        @org.springframework.beans.factory.annotation.Value(
-                                               "${litemall.customer-mail.admin-notify-email:}") String adminNotifyEmail) {
+                                               "${litemall.customer-mail.admin-notify-email:}") String adminNotifyEmail,
+                                       @org.springframework.beans.factory.annotation.Value(
+                                               "${litemall.order.return-window-days:30}") int returnWindowDays) {
+        this.returnWindowDays = returnWindowDays <= 0 ? 30 : returnWindowDays;
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.userMapper = userMapper;
@@ -157,6 +162,18 @@ public class CustomerMailEnqueueListener {
         // order row — the order's own refund_amount belongs to its real refund path.
         String amount = event.getAmount() == null ? "" : CURRENCY_SYMBOL + event.getAmount().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
         submit(event.getOrderId().getId(), (order, email) -> enqueuePaymentRefundedMail(order, email, amount));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
+    public void onOrderDelivered(org.linlinjava.litemall.order.domain.events.order.LitemallOrderDeliveredEvent event) {
+        boolean auto = event.isAutoConfirmed();
+        submit(event.getOrderId().getId(), (order, email) -> enqueueDeliveredMail(order, email, auto));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
+    public void onCjFulfilmentCancelled(
+            org.linlinjava.litemall.order.domain.events.cj.LitemallCjFulfilmentCancelledEvent event) {
+        submit(event.getOrderId().getId(), this::enqueueFulfilmentCancelledMail);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
@@ -467,6 +484,20 @@ public class CustomerMailEnqueueListener {
         insertRow(email, MailTemplates.paymentRefunded(order.getOrderSn(), amount),
                 safeHtml(order, MailTemplates.KEY_PAYMENT_REFUNDED, () -> MailHtmlTemplates.paymentRefunded(
                         order.getOrderSn(), amount, storeUrl(), logoUrl())));
+    }
+
+    private void enqueueDeliveredMail(LitemallOrderAggregate order, String email, boolean autoConfirmed) {
+        java.time.LocalDateTime at = order.getConfirmTime() == null ? LocalDateTime.now() : order.getConfirmTime();
+        String deliveredAt = at.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        insertRow(email, MailTemplates.delivered(order.getOrderSn(), deliveredAt, autoConfirmed, returnWindowDays),
+                safeHtml(order, MailTemplates.KEY_DELIVERED, () -> MailHtmlTemplates.delivered(
+                        order.getOrderSn(), deliveredAt, autoConfirmed, returnWindowDays, orderUrl(order), logoUrl())));
+    }
+
+    private void enqueueFulfilmentCancelledMail(LitemallOrderAggregate order, String email) {
+        insertRow(email, MailTemplates.fulfilmentCancelled(order.getOrderSn()),
+                safeHtml(order, MailTemplates.KEY_FULFILMENT_CANCELLED, () -> MailHtmlTemplates.fulfilmentCancelled(
+                        order.getOrderSn(), orderUrl(order), logoUrl())));
     }
 
     /** Pickup orders store {@code "PICKUP: <store name>"} in the address column. */

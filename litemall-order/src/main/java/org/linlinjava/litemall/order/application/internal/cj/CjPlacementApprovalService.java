@@ -78,7 +78,9 @@ public class CjPlacementApprovalService {
     public record PendingOrder(LitemallOrderAggregate order,
                                List<LitemallOrderGoodsAggregate> items,
                                boolean cjReady,
-                               String holdReason) {
+                               String holdReason,
+                               boolean parked,
+                               String parkReason) {
     }
 
     public record PendingPage(List<PendingOrder> list, long total) {
@@ -99,13 +101,18 @@ public class CjPlacementApprovalService {
         boolean cjReady = true;
         List<String> holds = new ArrayList<>();
 
-        // Earlier terminal CJ rejection: approving alone will NOT requeue it — the
-        // PLACEMENT_REJECTED sentinel must be cleared through ops (documented in the
-        // ops mail the rejection sent). Say so instead of letting an approval no-op.
-        if (CjPlacementService.STATUS_PLACEMENT_REJECTED.equals(order.getCjOrderStatus())) {
+        // Parked (terminal CJ rejection, or a day of failed retries): approving does
+        // nothing — the admin action is REQUEUE (F7). Say so, with CJ's own words.
+        boolean parked = CjPlacementService.isParked(order.getCjOrderStatus());
+        String parkReason = null;
+        if (parked) {
             cjReady = false;
-            holds.add("CJ terminally rejected an earlier placement attempt (see order timeline); "
-                    + "clear the PLACEMENT_REJECTED sentinel to requeue");
+            parkReason = lastParkMessage(order.getOrderId());
+            holds.add((CjPlacementService.STATUS_PLACEMENT_REJECTED.equals(order.getCjOrderStatus())
+                    ? "CJ rejected the placement"
+                    : "placement kept failing and was parked")
+                    + (parkReason == null ? "" : ": " + parkReason)
+                    + " — fix the cause and use Requeue (approval alone does nothing)");
         }
 
         // Variant resolution — the same LOCAL check the fulfilment path performs at
@@ -142,7 +149,22 @@ public class CjPlacementApprovalService {
         }
 
         return new PendingOrder(order, items, cjReady,
-                holds.isEmpty() ? null : String.join("; ", holds));
+                holds.isEmpty() ? null : String.join("; ", holds), parked, parkReason);
+    }
+
+    /** The message of the latest {@code cj_placement_failed} hop — CJ's reason, verbatim. */
+    private String lastParkMessage(LitemallOrderId orderId) {
+        try {
+            String last = null;
+            for (LitemallOrderStatusChange hop : statusHistoryRepository.findByOrderId(orderId)) {
+                if (CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT_FAILED.equals(hop.getChangeType())) {
+                    last = hop.getChangeMessage();
+                }
+            }
+            return last;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     // ------------------------------------------------------------------
@@ -157,7 +179,11 @@ public class CjPlacementApprovalService {
         NOT_FOUND,
         NOT_CJ,
         NOT_PAID,
-        ALREADY_PLACED
+        ALREADY_PLACED,
+        /** A refund/aftersale request is open — settle it first (F9). */
+        AFTERSALE_OPEN,
+        /** Parked under a placement sentinel — approval does nothing; use requeue (F7). */
+        PARKED
     }
 
     public record ApproveResult(ApproveStatus status, String message,
@@ -224,7 +250,65 @@ public class CjPlacementApprovalService {
                     "order " + order.getOrderId().getId() + " is not in the paid state (current: "
                             + order.getOrderStatus() + ")");
         }
+        LitemallAfterSaleStatus aftersale = order.getAfterSaleStatus();
+        if (aftersale == LitemallAfterSaleStatus.STATUS_REQUEST || aftersale == LitemallAfterSaleStatus.STATUS_RECEPT) {
+            return ApproveResult.refuse(ApproveStatus.AFTERSALE_OPEN,
+                    "order " + order.getOrderId().getId() + " has an open refund/aftersale request — "
+                            + "settle it before sending the order to fulfilment");
+        }
+        if (CjPlacementService.isParked(order.getCjOrderStatus())) {
+            return ApproveResult.refuse(ApproveStatus.PARKED,
+                    "order " + order.getOrderId().getId() + " is parked (" + order.getCjOrderStatus()
+                            + ") — approval does nothing; fix the cause and requeue it");
+        }
         return null;
+    }
+
+    // ------------------------------------------------------------------
+    // Requeue (F7)
+    // ------------------------------------------------------------------
+
+    public enum RequeueStatus { REQUEUED, NOT_FOUND, NOT_PARKED }
+
+    public record RequeueResult(RequeueStatus status, String message) {
+    }
+
+    /**
+     * Clear a placement park sentinel so the sweep picks the order up again. CAS on the
+     * sentinel, so a concurrent requeue or a placement that already happened answers
+     * NOT_PARKED instead of clobbering. Does NOT reset the approval stamp: an order that was
+     * approved stays approved. Replaces the hand-written {@code UPDATE ... SET cj_order_status
+     * = NULL} that used to travel by ops mail.
+     */
+    public RequeueResult requeue(Integer orderId, String adminUserId) {
+        LitemallOrderId id = new LitemallOrderId(orderId);
+        LitemallOrderAggregate order = orderRepository.findById(id).orElse(null);
+        if (order == null) {
+            return new RequeueResult(RequeueStatus.NOT_FOUND, "order " + orderId + " not found");
+        }
+        if (!CjPlacementService.isParked(order.getCjOrderStatus()) || StringUtils.hasText(order.getCjOrderId())
+                || order.getOrderStatus() != LitemallOrderStatus.PAID) {
+            return new RequeueResult(RequeueStatus.NOT_PARKED,
+                    "order " + orderId + " is not parked (cj status " + order.getCjOrderStatus()
+                            + ", order status " + order.getOrderStatus() + ")");
+        }
+        int cleared = orderRepository.clearCjPlacementSentinel(id);
+        if (cleared == 0) {
+            return new RequeueResult(RequeueStatus.NOT_PARKED, "order " + orderId + " is no longer parked");
+        }
+        String by = StringUtils.hasText(adminUserId) ? adminUserId.trim() : "admin";
+        try {
+            LitemallOrderStatus local = order.getOrderStatus();
+            statusHistoryRepository.record(new LitemallOrderStatusChange(id, local, local,
+                    CjPlacementService.CHANGE_TYPE_CJ_PLACEMENT,
+                    CjFulfilmentIncidentService.MSG_REQUEUED_PREFIX + " by admin " + by,
+                    "admin:" + by, LocalDateTime.now()));
+        } catch (RuntimeException e) {
+            log.warn("requeue timeline hop failed for order {} (sentinel is cleared): {}", orderId, e.getMessage());
+        }
+        log.info("CJ placement REQUEUED for order {} (sn {}) by admin {}", orderId, order.getOrderSn(), by);
+        return new RequeueResult(RequeueStatus.REQUEUED,
+                "requeued — the placement sweep will retry it on its next run");
     }
 
     private ApproveResult alreadyApproved(LitemallOrderAggregate order) {

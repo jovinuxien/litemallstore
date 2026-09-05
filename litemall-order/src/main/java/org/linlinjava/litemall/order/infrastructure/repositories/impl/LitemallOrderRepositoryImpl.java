@@ -429,6 +429,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int markRefundWithdrawnIfRequested(LitemallOrderId orderId, LitemallOrderStatus backTo) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(backTo.getCode());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.REFUND_REQUEST);
+    }
+
+    @Override
     public int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, LocalDateTime refundTime) {
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.REFUNDED.getCode());
@@ -464,6 +471,12 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         patch.setCjOrderStatus(cjOrderStatus);
         patch.setUpdateTime(LocalDateTime.now());
         return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
+    public int clearCjPlacementSentinel(LitemallOrderId orderId) {
+        // Hand-written statement: the generated selective update cannot write NULL.
+        return orderMapper.clearCjPlacementSentinel(orderId.getId());
     }
 
     @Override

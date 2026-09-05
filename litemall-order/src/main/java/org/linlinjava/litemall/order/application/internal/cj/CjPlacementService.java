@@ -43,8 +43,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *       parked with the local sentinel {@code cj_order_status='PLACEMENT_REJECTED'}, a
  *       {@code cj_placement_failed} timeline hop, and an ops mail. Money is NOT touched —
  *       refund stays a human decision through the existing refund path (user decision
- *       2026-07-20). Requeue by clearing the sentinel:
- *       {@code UPDATE litemall_order SET cj_order_status = NULL WHERE id = <id>;}</li>
+ *       2026-07-20). Requeue from the admin panel ({@code POST .../cj-placement/requeue},
+ *       which clears the sentinel — no SQL).</li>
+ *   <li>retryable failures that persist: {@link CjFulfilmentIncidentService} warns ops after
+ *       an hour and parks the order under {@code PLACEMENT_STALLED} after a day; same
+ *       requeue.</li>
  * </ul>
  *
  * <p>Double-placement defence, in depth: an in-JVM single-flight set (fast path vs sweep),
@@ -75,6 +78,7 @@ public class CjPlacementService {
     private final CjDropshipOrderFacade cjOrderFacade;
     private final CjOpsNotifier opsNotifier;
     private final CjPlacementMode placementMode;
+    private final CjFulfilmentIncidentService incidents;
 
     /** In-JVM single-flight: the pay fast path and the sweep never place the same order twice. */
     private final Set<Integer> inFlight = ConcurrentHashMap.newKeySet();
@@ -86,7 +90,8 @@ public class CjPlacementService {
                               CjLifecycleService cjLifecycleService,
                               CjDropshipOrderFacade cjOrderFacade,
                               CjOpsNotifier opsNotifier,
-                              CjPlacementMode placementMode) {
+                              CjPlacementMode placementMode,
+                              CjFulfilmentIncidentService incidents) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.statusHistoryRepository = statusHistoryRepository;
@@ -95,6 +100,13 @@ public class CjPlacementService {
         this.cjOrderFacade = cjOrderFacade;
         this.opsNotifier = opsNotifier;
         this.placementMode = placementMode;
+        this.incidents = incidents;
+    }
+
+    /** True for either local park sentinel (terminal rejection, or stalled retries). */
+    public static boolean isParked(String cjOrderStatus) {
+        return STATUS_PLACEMENT_REJECTED.equals(cjOrderStatus)
+                || CjFulfilmentIncidentService.STATUS_PLACEMENT_STALLED.equals(cjOrderStatus);
     }
 
     /**
@@ -132,8 +144,15 @@ public class CjPlacementService {
             if (order == null || !order.isCjFulfilled()
                     || order.getOrderStatus() != LitemallOrderStatus.PAID
                     || StringUtils.hasText(order.getCjOrderId())
-                    || STATUS_PLACEMENT_REJECTED.equals(order.getCjOrderStatus())) {
+                    || isParked(order.getCjOrderStatus())) {
                 return; // paid-and-unplaced only; anything else is not ours (or already parked)
+            }
+            // F9: a customer asking for their money back must not have the goods shipped
+            // under them. Approval refuses this too; the sweep re-checks because the
+            // aftersale can open between approval and placement.
+            if (hasOpenAftersale(order)) {
+                log.info("CJ placement held for order {}: aftersale/refund request open", orderId.getId());
+                return;
             }
             // Wave 23 (V59): in manual mode NOTHING places without an admin approval stamp.
             // This guards the pay-path fast placement too (placeAsync callers are unchanged);
@@ -154,10 +173,10 @@ public class CjPlacementService {
             } catch (LitemallCjRetryableException e) {
                 log.warn("CJ placement deferred for order {} (retained; sweep retries): {}",
                         orderId.getId(), e.getMessage());
-                if (firstAttempt) {
-                    recordHop(order, CHANGE_TYPE_CJ_PLACEMENT,
-                            "Fulfilment placement deferred — will be retried automatically");
-                }
+                // One customer-visible "deferred" hop on the FIRST failure (whichever path
+                // sees it), an ops warning after an hour, a park after a day (F8). The
+                // incident service keeps that state on the timeline.
+                incidents.onRetryablePlacementFailure(order, e.getMessage());
             } catch (LitemallCjOrderException e) {
                 log.error("CJ placement TERMINALLY rejected for order {}: {}",
                         orderId.getId(), e.getMessage());
@@ -168,10 +187,9 @@ public class CjPlacementService {
                         "CJ terminally rejected placement of PAID order " + orderId.getId()
                                 + " (sn " + order.getOrderSn() + ", "
                                 + money(order) + ").\n\nCJ said: " + e.getMessage()
-                                + "\n\nThe customer's payment is NOT touched. Fix the cause and requeue with:\n"
-                                + "UPDATE litemall_order SET cj_order_status = NULL WHERE id = "
-                                + orderId.getId() + ";\n"
-                                + "or refund through the normal refund path.");
+                                + "\n\nThe customer's payment is NOT touched. Fix the cause, then Requeue the "
+                                + "order in the admin panel (Orders → Pending CJ approval), or refund through "
+                                + "the normal refund path.");
             }
         } finally {
             inFlight.remove(orderId.getId());
@@ -224,6 +242,12 @@ public class CjPlacementService {
             log.warn("post-placement CJ lifecycle pass failed for order {} (sweep will retry): {}",
                     orderId.getId(), e.getMessage());
         }
+    }
+
+    private static boolean hasOpenAftersale(LitemallOrderAggregate order) {
+        var status = order.getAfterSaleStatus();
+        return status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_REQUEST
+                || status == org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallAfterSaleStatus.STATUS_RECEPT;
     }
 
     /** Same-status timeline hop (the order's local status never moves here). */
