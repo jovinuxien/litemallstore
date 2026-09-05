@@ -56,6 +56,23 @@ public interface CjDropshipOrderFacade {
     boolean payBalance(String cjOrderId);
 
     /**
+     * {@link #confirmOrder} with CJ's reason on failure. Default adapts the boolean form
+     * for implementations that never captured the message.
+     */
+    default org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome confirmOrderOutcome(String cjOrderId) {
+        return confirmOrder(cjOrderId)
+                ? org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.accepted()
+                : org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.rejected("confirmOrder rejected");
+    }
+
+    /** {@link #payBalance} with CJ's reason on failure (insufficient balance is the expected one). */
+    default org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome payBalanceOutcome(String cjOrderId) {
+        return payBalance(cjOrderId)
+                ? org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.accepted()
+                : org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.rejected("payBalance rejected");
+    }
+
+    /**
      * CJ-side order detail for the status-sync poll.
      *
      * @return the snapshot, or empty when CJ gave no usable answer — never throws

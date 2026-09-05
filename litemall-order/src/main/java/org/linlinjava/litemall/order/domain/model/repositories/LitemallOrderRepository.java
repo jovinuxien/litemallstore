@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
+
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.*;
 
@@ -130,6 +132,9 @@ public interface LitemallOrderRepository {
     /** REFUND_REQUEST → REFUNDED. */
     int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, java.time.LocalDateTime refundTime);
 
+    /** Customer withdrew the refund request (D4): REFUND_REQUEST → {@code backTo} (PAID or SHIPPED), CAS. */
+    int markRefundWithdrawnIfRequested(LitemallOrderId orderId, LitemallOrderStatus backTo);
+
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 
     /**
@@ -147,6 +152,13 @@ public interface LitemallOrderRepository {
      * write — local {@code order_status} moves only through the guarded transitions above.
      */
     int updateCjOrderStatus(LitemallOrderId orderId, String cjOrderStatus);
+
+    /**
+     * Requeue a parked placement (package B, F7): NULL the local park sentinel
+     * (PLACEMENT_REJECTED / PLACEMENT_STALLED) on a PAID, unplaced CJ order. CAS — 0 rows
+     * when the order is not parked any more.
+     */
+    int clearCjPlacementSentinel(LitemallOrderId orderId);
 
     /**
      * Ids of CJ-fulfilled orders the status-sync poll should visit: placed at CJ, CJ status

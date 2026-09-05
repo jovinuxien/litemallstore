@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.application.internal;
 
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
@@ -56,12 +57,19 @@ public class OrderTrackingService {
         return orderRepository.findById(orderId).map(this::build).orElse(null);
     }
 
+    static final String STATUS_TRACKING_PENDING = "TRACKING_PENDING";
+
     private TrackingDtoResponse build(LitemallOrderAggregate order) {
         String trackNumber = order.getShipSn();
         if (!StringUtils.hasText(trackNumber)) {
+            // F10: CJ can report SHIPPED before it assigns a number. The order IS shipped —
+            // saying "not shipped yet" next to a status of Shipped was the contradiction.
+            boolean shipped = order.getOrderStatus() == LitemallOrderStatus.SHIPPED
+                    || order.getOrderStatus() == LitemallOrderStatus.DELIVERED
+                    || order.getOrderStatus() == LitemallOrderStatus.AUTO_DELIVERED;
             return TrackingDtoResponse.builder()
-                    .shipped(false)
-                    .status("NOT_SHIPPED")
+                    .shipped(shipped)
+                    .status(shipped ? STATUS_TRACKING_PENDING : "NOT_SHIPPED")
                     .carrier(order.getShipChannel())
                     .events(List.of())
                     .build();
