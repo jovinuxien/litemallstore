@@ -65,7 +65,8 @@
     "fulfilment": "Levering via",
     "shipsVia": "Sendes med",
     "cjOrderNo": "CJ-ordrenummer",
-    "status": "Status"
+    "status": "Status",
+    "fulfilmentStatus": "Leveringsstatus"
   },
   "actions": {
     "backToOrders": "Tilbage til mine ordrer",
@@ -111,6 +112,7 @@
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dage",
     "status": "Status",
-    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere."
+    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere.",
+    "pending": "Afsendt – sporingsnummeret er på vej"
   }
 }

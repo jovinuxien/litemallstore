@@ -62,6 +62,13 @@ export interface IOrderDetail {
   /** Logistics line the order ships with (the CJ line chosen at placement). */
   shipChannel?: string;
   /**
+   * Customer-facing fulfilment phrase for CJ orders, server-rendered (Wave 8; two more
+   * phrases since the order lifecycle packages — "Processing — being reviewed by our
+   * team", "Could not be fulfilled — our support team will contact you"). A SERVER
+   * string: shown verbatim, never mapped to a client list. Null/absent on local orders.
+   */
+  fulfillmentStatus?: string | null;
+  /**
    * Wave 4 pickup fields (litemall-order/docs/handoff-gateway-api-pickup.md).
    * NON_NULL: express orders carry none of these. verifyCode appears only once
    * paid (owner-scoped read); verifyTime set = already collected. Store info is

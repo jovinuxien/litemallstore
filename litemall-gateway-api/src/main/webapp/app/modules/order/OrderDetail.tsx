@@ -224,6 +224,7 @@ const OrderDetailView: React.FC = () => {
           {order.addTime && <Cell title={t('detail.orderTime')} value={order.addTime} />}
           <Cell title={t('detail.orderNo')} value={order.orderSn ?? order.id} />
           {order.source === 'cj' && <Cell title={t('detail.fulfilment')} value={<span className='badge bg-lm-primary'>{t('list.dropship')}</span>} />}
+          {order.fulfillmentStatus && <Cell title={t('detail.fulfilmentStatus')} value={order.fulfillmentStatus} />}
           {order.shipChannel && <Cell title={t('detail.shipsVia')} value={order.shipChannel} />}
           {order.cjOrderNum && <Cell title={t('detail.cjOrderNo')} value={order.cjOrderNum} />}
           {order.orderStatusText && <Cell title={t('detail.status')} value={order.orderStatusText} />}

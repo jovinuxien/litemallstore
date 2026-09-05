@@ -65,7 +65,8 @@
     "fulfilment": "Leverans via",
     "shipsVia": "Skickas med",
     "cjOrderNo": "CJ-ordernummer",
-    "status": "Status"
+    "status": "Status",
+    "fulfilmentStatus": "Leveransstatus"
   },
   "actions": {
     "backToOrders": "Tillbaka till mina ordrar",
@@ -111,6 +112,7 @@
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dagar",
     "status": "Status",
-    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare."
+    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare.",
+    "pending": "Skickad – spårningsnumret är på väg"
   }
 }
