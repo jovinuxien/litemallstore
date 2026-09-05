@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import { money } from 'app/shared/util/money';
 import './order.scss';
@@ -16,6 +17,7 @@ import './order.scss';
  * empty when the order list endpoint isn't live.
  */
 const RefundList: React.FC = () => {
+  const { t } = useTranslation('order');
   const [orders, setOrders] = useState<IOrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,14 +41,14 @@ const RefundList: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Refunds' />
+      <PageHead title={t('refunds.title')} />
       <div className='container lm-orders'>
         {loading ? (
           <div className='text-center my-5'>
             <Spinner animation='border' />
           </div>
         ) : orders.length === 0 ? (
-          <EmptyState icon='bi-arrow-counterclockwise' text='No refund or after-sales requests.' />
+          <EmptyState icon='bi-arrow-counterclockwise' text={t('refunds.empty')} />
         ) : (
           orders.map(o => (
             <Link key={o.id} to={`/order/${o.id}`} className='lm-order-panel d-block text-decoration-none text-reset'>
@@ -65,7 +67,7 @@ const RefundList: React.FC = () => {
                 />
               ))}
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>Total: {money(priceNum(o.actualPrice))}</span>
+                <span className='lm-amount'>{t('list.total', { amount: money(priceNum(o.actualPrice)) })}</span>
               </div>
             </Link>
           ))

@@ -4,14 +4,11 @@ import { Alert, Button, Form, Spinner } from 'react-bootstrap';
 import { Cell, CellGroup } from 'app/components/commonComponents/storefront';
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { orderApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { IAftersale } from 'app/shared/model/order/order.model';
 import { money } from 'app/shared/util/money';
 
-const TYPE_LABELS: Record<number, string> = {
-  0: 'Refund (goods not received)',
-  1: 'Refund only (goods received)',
-  2: 'Return and refund',
-};
+const TYPE_KEYS = ['type0', 'type1', 'type2'] as const;
 
 /**
  * Aftersale / RMA on the order detail (Wave-2 vertical, live on master —
@@ -26,6 +23,8 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
   canApply,
   onChanged,
 }) => {
+  const { t } = useTranslation('order');
+  const typeLabel = (type?: number) => (type != null && TYPE_KEYS[type] ? t(`aftersale.${TYPE_KEYS[type]}`) : t('aftersale.generic'));
   const [applications, setApplications] = useState<IAftersale[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState(1);
@@ -72,19 +71,19 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
       refresh();
       onChanged?.();
     } catch (err) {
-      setError((err as Error)?.message || 'Could not submit the request.');
+      setError((err as Error)?.message || t('aftersale.failed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <CellGroup title='After-sales'>
+    <CellGroup title={t('aftersale.title')}>
       {applications.map(a => (
-        <Cell key={a.id} title={`${TYPE_LABELS[a.type ?? 1] ?? 'After-sales'} · ${a.statusText ?? ''}`}>
+        <Cell key={a.id} title={`${typeLabel(a.type ?? 1)} · ${a.statusText ?? ''}`}>
           <div className='small text-muted'>
             {a.reason}
-            {a.amount != null && <> · requested {money(a.amount)}</>}
+            {a.amount != null && t('aftersale.requested', { amount: money(a.amount) })}
             {a.addTime && <> · {a.addTime}</>}
           </div>
           {a.status === 1 && a.id != null && (
@@ -94,7 +93,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
               className='mt-1'
               onClick={() => orderApi.aftersaleCancel(orderId, a.id as number).then(refresh)}
             >
-              Cancel request
+              {t('aftersale.cancelRequest')}
             </Button>
           )}
         </Cell>
@@ -104,7 +103,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
         <div className='p-3'>
           <Button size='sm' variant='outline-secondary' onClick={() => setShowForm(true)}>
             <i className='bi bi-arrow-counterclockwise me-1' />
-            Request refund / return
+            {t('aftersale.request')}
           </Button>
         </div>
       )}
@@ -113,37 +112,37 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
         <Form onSubmit={submit} className='p-3 pt-2'>
           {error && <Alert variant='danger'>{error}</Alert>}
           <Form.Group className='mb-2'>
-            <Form.Label>Type</Form.Label>
+            <Form.Label>{t('aftersale.type')}</Form.Label>
             <Form.Select value={type} onChange={e => setType(Number(e.target.value))}>
-              {Object.entries(TYPE_LABELS).map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
+              {TYPE_KEYS.map((k, v) => (
+                <option key={k} value={v}>
+                  {t(`aftersale.${k}`)}
                 </option>
               ))}
             </Form.Select>
           </Form.Group>
           <Form.Group className='mb-2'>
-            <Form.Label>Reason *</Form.Label>
+            <Form.Label>{t('aftersale.reason')}</Form.Label>
             <Form.Control value={reason} onChange={e => setReason(e.target.value)} required />
           </Form.Group>
           <Form.Group className='mb-2'>
-            <Form.Label>Amount (blank = full refund)</Form.Label>
+            <Form.Label>{t('aftersale.amount')}</Form.Label>
             <Form.Control type='number' min='0' step='0.01' value={amount} onChange={e => setAmount(e.target.value)} />
           </Form.Group>
           <Form.Group className='mb-2'>
-            <Form.Label>Photos</Form.Label>
+            <Form.Label>{t('aftersale.photos')}</Form.Label>
             <ImageUploader value={pictures} onChange={setPictures} max={5} disabled={submitting} />
           </Form.Group>
           <Form.Group className='mb-3'>
-            <Form.Label>Note</Form.Label>
+            <Form.Label>{t('aftersale.note')}</Form.Label>
             <Form.Control as='textarea' rows={2} value={comment} onChange={e => setComment(e.target.value)} />
           </Form.Group>
           <div className='d-flex gap-2'>
             <Button type='submit' size='sm' variant='primary' disabled={submitting || !reason}>
-              {submitting ? <Spinner animation='border' size='sm' /> : 'Submit request'}
+              {submitting ? <Spinner animation='border' size='sm' /> : t('aftersale.submit')}
             </Button>
             <Button size='sm' variant='outline-secondary' onClick={() => setShowForm(false)} disabled={submitting}>
-              Cancel
+              {t('aftersale.cancel')}
             </Button>
           </div>
         </Form>
