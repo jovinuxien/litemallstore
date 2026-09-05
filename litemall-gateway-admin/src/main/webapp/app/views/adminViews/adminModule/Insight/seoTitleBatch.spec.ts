@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { ISeoTitleRow } from 'app/shared/reducers/private/services/adminSeoApi';
-import { applyWarning, batchItems, cleanRowIds, isApplicable, summarizeBatch } from './seoTitleBatch';
+import { BLANK_TITLE_ERROR, applyWarning, cleanRowIds, isApplicable, partitionBatch, summarizeBatch } from './seoTitleBatch';
 
 const row = (over: Partial<ISeoTitleRow> = {}): ISeoTitleRow => ({
   goodsId: 1,
@@ -50,14 +50,21 @@ describe('isApplicable', () => {
   });
 });
 
-describe('batchItems', () => {
-  it('sends the trimmed draft for ticked rows only, in row order, skipping blanks', () => {
+describe('partitionBatch — a blank draft is refused, never silently dropped', () => {
+  it('sends the trimmed draft for ticked rows only, in row order, and lists the blank ones', () => {
     const rows = [row({ goodsId: 1 }), row({ goodsId: 2 }), row({ goodsId: 3 })];
-    const items = batchItems(rows, new Set([3, 1, 2]), { 1: '  Edited one  ', 2: '   ' });
-    expect(items).toEqual([
+    const p = partitionBatch(rows, new Set([3, 1, 2]), { 1: '  Edited one  ', 2: '   ' });
+    expect(p.items).toEqual([
       { goodsId: 1, title: 'Edited one' },
       { goodsId: 3, title: row().proposedTitle },
     ]);
+    expect(p.blank).toEqual([2]);
+  });
+
+  it('accounts for every ticked row: items plus blank equals the selection on this page', () => {
+    const rows = [row({ goodsId: 1 }), row({ goodsId: 2 })];
+    const p = partitionBatch(rows, new Set([1, 2, 99]), { 2: '' });
+    expect(p.items.length + p.blank.length).toBe(2);
   });
 });
 
@@ -85,6 +92,20 @@ describe('summarizeBatch — the banner never hides a failed row', () => {
 
   it('copes with a missing body', () => {
     expect(summarizeBatch(undefined).lines).toEqual(['Applied 0 of 0 titles.']);
+  });
+
+  it('counts locally refused blank rows in the headline and lists them with the server wording', () => {
+    const s = summarizeBatch(
+      { applied: 1, failed: 0, results: [{ goodsId: 1, ok: true, title: 'A', changed: true, reindexed: true, error: null }] },
+      [7],
+    );
+    expect(s.applied).toBe(1);
+    expect(s.failed).toBe(1);
+    expect(s.lines).toEqual(['Applied 1 of 2 titles.', `#7: ${BLANK_TITLE_ERROR}`]);
+  });
+
+  it('reports a blank-only batch without a server body', () => {
+    expect(summarizeBatch(undefined, [4]).lines).toEqual(['Applied 0 of 1 titles.', `#4: ${BLANK_TITLE_ERROR}`]);
   });
 });
 

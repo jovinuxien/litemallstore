@@ -2919,7 +2919,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: LIVE DEV ACCEPTANCE PASSED 2026-09-05 (one UI honesty gap found, unfixed)
+### Worktree: `gateway-admin` — SEO title worklist: live dev acceptance PASSED + blank-draft batch gap FIXED (2026-09-05)
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
@@ -2991,17 +2991,23 @@
   All 4 renamed dev goods (10000032/160/177/179) were restored via apply itself; DB and
   ES titles byte-equal to the originals, worklist total back to 4604. `ocs_indexer`
   restarted; dev JVMs stopped afterwards.
-- ⚠ **FOUND, NOT FIXED (needs its own approval): the UI batch silently drops a blank
-  draft.** `seoTitleBatch.batchItems` filters `title.length === 0` CLIENT-side while the
-  confirm line counts every ticked row — the admin confirmed "Rename 3 products and
-  reindex them", the banner said **"Applied 2 of 2 titles."** in green, and the blank row
-  stayed ticked with a greyed Apply and NO error (screenshot-verified). This contradicts
-  the claim above that refused rows show their error in the Actions cell — true only for
-  SERVER refusals. Two honest fixes: drop the client filter so the server refuses it in
-  place (the documented behaviour; the `batchItems` jest spec pins the filter and must
-  change with it), or exclude blank drafts from the confirm count and say so ("1 skipped:
-  blank title"). Also "Apply selected (1)" stays ENABLED with only a blank row ticked →
-  an empty `items[]` → errno 660 for the admin.
+- **FOUND BY THE ACCEPTANCE, THEN FIXED (user-approved 2026-09-05): the UI batch silently
+  dropped a blank draft.** `seoTitleBatch.batchItems` filtered `title.length === 0`
+  CLIENT-side while the confirm line counted every ticked row — the admin confirmed "Rename
+  3 products and reindex them", the banner said **"Applied 2 of 2 titles."** in GREEN, and
+  the blank row stayed ticked with a greyed Apply and NO error (screenshot-verified). A
+  blank-only selection would have sent an empty `items[]` → errno 660. Fix (SPA only, no
+  backend): `partitionBatch` splits the ticked rows into `items` (sent) and `blank`
+  (refused HERE, in place, with the server's own wording `title must not be blank`), and
+  `summarizeBatch(body, blank)` counts them in the headline — the confirm count and the
+  reported count now agree by construction; a blank-only selection reports "Applied 0 of 1
+  titles." with NO request. **Live-proven on the rebuilt jar** (same headless flow): banner
+  "Applied 2 of 3 titles." + "#10000178: title must not be blank" (amber), the row tagged
+  in place and still ticked, the other two applied and restored afterwards. Tests: admin
+  jest **158 passed / 14 suites** (was 153; +2 helper, +2 component… +5 total), `tsc` 0
+  errors in `app/`. ⚠ Lesson: each half (confirm count, payload) passed its own spec and
+  they disagreed with each other — for any bulk action, assert confirm count == accounted
+  count in ONE test.
 - ⚠ **Build gotcha (dev; matches what `docker/Dockerfile` already does):** `mvn package`
   on gateway-admin FAILS in the `test` phase — the frontend plugin runs
   `npm run webapp:test` = `web-test-runner src/**/*.test.js`, a dead legacy script that
@@ -3013,9 +3019,8 @@
 - ⚠ `pkill -f <pattern>` from the Bash tool matches the tool's own `bash -c` line and
   kills the calling shell (exit 144, twice) — kill by pid from an ANCHORED
   `pgrep -f '^/usr/lib/jvm/…'`.
-- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration).
-  USER-SIDE: prod click-through. NEXT worktree task, if approved: the blank-draft batch
-  fix above (tiny; SPA + one spec).
+- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration; the
+  batch fix is admin-only). USER-SIDE: prod click-through. No active assignment after this.
 ot reindexed" — NOT a 500.
 - **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
   reporter ("Could not resolve a module for a custom reporter") — use

@@ -1,4 +1,5 @@
 import {
+  ISeoBatchResult,
   ISeoTitleRow,
   SEO_BATCH_LIMIT,
   useApplySeoTitleMutation,
@@ -6,7 +7,7 @@ import {
   useGetSeoTitlesQuery,
 } from 'app/shared/reducers/private/services/adminSeoApi';
 import { mutationError } from './applyResult';
-import { applyWarning, batchItems, cleanRowIds, draftOf, isApplicable, summarizeBatch } from './seoTitleBatch';
+import { BLANK_TITLE_ERROR, applyWarning, cleanRowIds, draftOf, isApplicable, partitionBatch, summarizeBatch } from './seoTitleBatch';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
 import * as React from 'react';
 
@@ -24,7 +25,9 @@ import * as React from 'react';
 // only `needsReview === false` rows, a flagged row has to be ticked by hand after reading.
 // The server reports each row of a batch in place, and that report stays on screen until
 // dismissed — after the list refreshes, the applied rows are gone from it, so the banner
-// is the only record of what just happened.
+// is the only record of what just happened. A ticked row whose draft is blank is refused
+// HERE, in place and in the banner's count, never silently left out of the batch: the
+// administrator confirmed N rows, so N rows are accounted for.
 
 const LENGTH_CHOICES = [50, 60, 70];
 
@@ -131,26 +134,34 @@ const SeoTitleList: React.FC = () => {
     setActionError(null);
     setNotice(null);
     setConfirming(false);
-    const items = batchItems(rows, selected, drafts).filter(i => !outcomes[i.goodsId]?.ok);
-    if (items.length === 0) {
-      setActionError('Nothing to apply — the selected rows are blank or unchanged.');
+    const partition = partitionBatch(rows, selected, drafts);
+    const items = partition.items.filter(i => !outcomes[i.goodsId]?.ok);
+    const blank = partition.blank.filter(id => !outcomes[id]?.ok);
+    if (items.length === 0 && blank.length === 0) {
+      setActionError('Nothing to apply — no ticked row is on this page.');
       return;
     }
     if (items.length > SEO_BATCH_LIMIT) {
       setActionError(`At most ${SEO_BATCH_LIMIT} titles per batch.`);
       return;
     }
-    const res = await applyTitles({ items });
-    const msg = mutationError(res);
-    if (msg) {
-      setActionError(msg);
-      return;
+    let body: ISeoBatchResult | undefined;
+    if (items.length > 0) {
+      const res = await applyTitles({ items });
+      const msg = mutationError(res);
+      if (msg) {
+        setActionError(msg);
+        return;
+      }
+      body = 'data' in res ? res.data?.data : undefined;
     }
-    const body = 'data' in res ? res.data?.data : undefined;
-    const summary = summarizeBatch(body);
+    const summary = summarizeBatch(body, blank);
     setBatchLines({ lines: summary.lines, failed: summary.failed, notReindexed: summary.notReindexed });
     setOutcomes(prev => {
       const next = { ...prev };
+      blank.forEach(id => {
+        next[id] = { ok: false, reindexed: false, error: BLANK_TITLE_ERROR };
+      });
       (body?.results ?? []).forEach(r => {
         if (r.goodsId != null) {
           next[r.goodsId] = { ok: r.ok, reindexed: r.reindexed, error: r.error };
