@@ -1624,6 +1624,32 @@
   never marks `order_goods.comment`, so "Unrated" never clears). NOT done:
   F15 (refund after CJ paid opens no CJ dispute — D5, separate decision), F16
   Refunds-page visibility (SPA), F17 (goods-management).
+  **PACKAGES A+B+C MERGED (master `5cfe7b1d5`) + DEPLOYED to trovemo.com
+  2026-09-05 02:39 UTC** (user "go ahead"): pushed to `/opt/litemall.git`
+  (VPS checkout was already at a peer's `d45511aa8`, which CONTAINS `5cfe7b1d5`
+  and adds only gateway-api theme work — no order/core/db diff), `CJ_OPS_MAIL=
+  contact@trovemo.com` appended to `.env.prod` (backup
+  `.env.prod.bak-lifecycle-20260905`; compose passthrough pre-existed), ONLY the
+  order image rebuilt (single-service build, 24 G free, no errors) and ONLY the
+  order container recreated: healthy in 20 s, boot "Stripe payments ENABLED
+  (currency=eur)" / "CJ dropshipping ENABLED (sandbox=false)" / "CJ placement
+  mode: MANUAL", Flyway validated 64 (no migration), env verified INSIDE the
+  container, running jar verified by zip listing (UnpaidOrderReconciler,
+  CjFulfilmentIncidentService, both new events) AND by the nested
+  litemall-core jar's MailTemplates bytes containing `payment-refunded` /
+  `fulfilment-cancelled` / `delivered`; edge routing 401 on the three new
+  paths; smoke 200s. Prod facts met by the new code: 3 paid CJ orders unplaced
+  — 7 + 10 unapproved (the user's pending test-purchase review), **11 = the F7
+  case live** (approved 2026-08-09, rejected by CJ 7001 "Please enter a IOSS
+  number", PLACEMENT_REJECTED, invisible in the pending list until this
+  deploy — now listed with parkReason; fix IOSS in the CJ dashboard, then
+  Requeue); order 9 sits at 202 (customer can withdraw once the SPA renders
+  the button); unpaid tasks 0; mail outbox STILL EMPTY (never fired in prod);
+  no CJ order has ever been placed in prod. ⚠ Only ERROR since boot = the
+  pre-existing `/app/storage` AccessDenied. ⚠ The order container logs MyBatis
+  SQL at DEBUG in prod (the goods-management OOM lesson of 2026-08-15 was
+  countered only in THAT module's application-prod.yml) — raise, not touched.
+  Real acceptance remains USER-SIDE: one small real EUR order end to end.
 - **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
   retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
   failures (was 291, +7 new). Found while verifying the mail deploy: prod had
