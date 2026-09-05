@@ -2419,70 +2419,41 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY (assigned 2026-09-05)
-- **RAISED by order 2026-09-05 (lifecycle packages A–C):** code to
-  `litemall-order/docs/handoff-gateway-api-lifecycle.md` — SEPA `processing`
-  is NOT "payment not completed"; redirect `return_url` must land on a page
-  that waits for the webhook; withdraw-refund button + 202 on the Refunds page;
-  `TRACKING_PENDING`; timeline rendering. Not blocking the current task.
-- **Task — make Help center / Returns / Customer service (and the other
-  `app/modules/static/*` pages) follow the storefront theme hierarchy and a
-  standard ecommerce type scale.** User-commissioned 2026-09-05 (no wave).
-  Audit facts (2026-09-05, code-verified from MAIN):
-  1. **Bootstrap `primary` was never remapped to the theme.** `index.tsx`
-     imports stock `bootstrap.min.css`; no `--bs-primary` / `--bs-link-color`
-     override and NO global `a` rule exist anywhere. So every plain `<Link>` /
-     `<a>` renders Bootstrap BLUE `#0d6efd` underlined (41 anchors on the
-     static pages, 182 storewide, only 36 carry an explicit theme class), the
-     `text-primary` icons on Help / CustomerService / CookieBanner are blue, and
-     `btn-primary` / `btn-outline-primary` are blue on CookieBanner,
-     CookiePreferences, NotFound, ErrorBoundary, Coupons, CouponCenter, Groupon,
-     GrouponDetail, TopicDetail and one Checkout button (`:1553`). The kit's
-     `btn-lm-primary` exists (`storefront.scss`) but those sites never used it.
-  2. **Font family is already the Amazon stack** (`app/sass/global.scss`
-     `--lm-font`: Amazon Ember → Helvetica Neue → Arial → Segoe UI → Roboto;
-     Ember is NOT loaded, so Mac = Helvetica Neue, Windows = Arial). Four
-     stylesheets override it: `home/home.scss` + `home/storefront-home.scss` +
-     `search/instantsearch/search.scss` (Roboto first — no webfont loaded, so
-     it diverges only on Android/Linux) and `sass/components/_cards.scss:53`.
-  3. **Text size flattens the hierarchy.** On all 8 static pages `<h1>` is
-     class `h4` (24px), `<h2>` is class `h6` (16px = body size), and 49 of 53
-     `<p>` are `small text-muted` — 14px GREY for policy copy a customer must
-     read (Returns 8/9, Terms 10/10, Delivery 7/7, Payments 8/8). Standard
-     ecommerce help/legal copy is 15–16px in the primary text colour, h1
-     ~26–28px, h2 ~18–20px, `small`/muted reserved for "Last updated" and
-     captions.
-  Deliverables (ONE commit; SPA only, no backend, no migration):
-  - **Theme remap at `:root` in `global.scss`:** `--bs-primary` (+ `-rgb`),
-    `--bs-link-color` / `--bs-link-hover-color` (+ `-rgb`) → `--lm-primary` /
-    `--lm-primary-dark`; `.btn-primary` and `.btn-outline-primary` CSS vars
-    (`--bs-btn-bg`, `-border-color`, `-hover-bg`, `-hover-border-color`,
-    `-active-*`, `-color` for outline) → teal. After this `text-primary`,
-    buttons and links follow the hierarchy with NO per-site edits.
-  - **Global anchor rule:** teal, `text-decoration: none` at rest, underline on
-    hover/focus (standard ecommerce link treatment). Verify the header/footer
-    links in `layout-header.scss` still look right (they set their own colours).
-  - **Font:** delete the four family overrides (item 2) so every page reads
-    `var(--lm-font)`. Do NOT add a webfont — a loaded face (Inter etc.) is a
-    storewide design decision the user has not taken.
-  - **Type scale for document pages:** one shared class (e.g. `.lm-doc` in
-    `shared/scss/content.scss`) applied by the 8 static pages: body copy
-    `1rem`/15–16px in `--lm-text`, `line-height 1.6`, h1 `1.65rem` 700,
-    h2 `1.15rem` 700 with top margin, `max-width` 720 kept; drop `small
-    text-muted` from body paragraphs; keep muted/small ONLY for "Last updated",
-    support-hours captions and the "Still stuck?" card footnote. FAQ answers
-    on Help move from `text-muted` to `--lm-text`.
-  - Keep Wave-15/9.1 copy byte-identical (this is styling; the legal wording,
-    seller identity, support email/hours and the promise pages are NOT touched).
-    i18n keys unchanged.
-- **Acceptance (dev, `npm run build:prod` + jest; live check through :9000 if the
-  stack is up):** grep shows no remaining `font-family:` outside `global.scss`;
-  a headless render of /help, /returns, /service, /cookies and /404 shows NO
-  `#0d6efd` computed colour on any anchor, icon or button (assert
-  `getComputedStyle` on a sample, not by eye); Help h2 > body size; Returns
-  body paragraphs are 15–16px in `--lm-text`; cookie banner Accept button is
-  teal; jest + `tsc` green with real counts; prod build clean. Deploy =
-  gateway-api container rebuild only (MAIN). Rewrite this block when done.
+### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY BUILT + MERGED (deploy pending)
+- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout + delivery
+  chooser + coupon cell; spec §5) — rewrite this block before launching it.
+- **Status 2026-09-05 — theme hierarchy + document type scale MERGED to master.** ONE
+  commit, SPA only. jest 49 suites / 353 tests (was 48/331, +22 in `app/sass/theme.spec.ts`),
+  tsc 0, prod build clean. What changed:
+  1. **`--lm-*` palette now lives on `:root` in `app/sass/global.scss`** (was only in
+     `product-card.scss`, so pages without a card had no tokens and relied on the
+     `var(--lm-primary, #0e7c86)` fallbacks). Bootstrap remap beside it: `--bs-primary`
+     (+`-rgb`), `--bs-link-color`/`-hover` (+`-rgb`) → teal; `.btn-primary` and
+     `.btn-outline-primary` re-declare their `--bs-btn-*` literals (Bootstrap 5.3.8 bakes
+     `#0d6efd` into the variant class, so a `:root` variable alone does NOT reach them).
+     Global `a { text-decoration: none }` + underline on hover/focus.
+  2. The four `font-family` overrides deleted (home.scss, storefront-home.scss,
+     search.scss, _cards.scss) — everything reads `--lm-font`; no webfont added.
+  3. `.lm-doc` (global.scss) on the 9 document pages (8 static + NotFound): body 1rem/1.6 in
+     `--lm-text`, h1 1.65rem, h2 1.15rem with top margin; the `h4`/`h6` heading demotions
+     removed; `small text-muted` dropped from body paragraphs, FAQ answers, the delivery
+     steps list and the Privacy processor table (kept `small`); muted survives ONLY on
+     "Last updated", the support-hours line, the help footnote and the chevron icon. Copy,
+     seller identity and i18n keys byte-identical (verified: only className attributes changed).
+  **Headless acceptance on the built bundle (real Chrome, `getComputedStyle`):** /help
+  /returns /service /cookies /404 → 372 anchors/buttons/icons scanned, **0** with
+  `rgb(13,110,253)` in color/background/border; Help h1 26.4px, h2 18.4px > body 16px, icon
+  teal; Returns 7 body paragraphs all 16px `rgb(31,42,46)`, "Last updated" 14px, link teal
+  with no underline at rest; cookie Accept (`btn btn-primary`) background `rgb(14,124,134)`;
+  `.lm-home`, `.lm-isearch`, `.lm-doc` all resolve to the Amazon Ember stack; header links
+  still white. 0 page errors. Harness: built bundle served locally + GET-only proxy of
+  `/srv`/`/auth` to trovemo.com (no dev stack was up).
+  ⚠ Blast radius is storewide by design: the 12 files that use `btn-primary` /
+  `text-primary` (CookieBanner, CookiePreferences, ErrorBoundary, Coupons, CouponCenter,
+  Groupon, GrouponDetail, TopicDetail, one Checkout button …) turn teal with no edit — that
+  was the point. Anything that WANTED Bootstrap blue no longer gets it.
+  **Deploy = gateway-api container rebuild only (MAIN)**, no migration, no backend, no env.
+  ⚠ Ubuntu-mirror gotcha from the i18n deploy still applies (see the entry below).
 - **Previously (2026-09-05):** i18n batch 2 merged AND DEPLOYED — see below.
 - **Status 2026-09-05 02:10 UTC — i18n BATCH 2 DEPLOYED to trovemo.com** from master
   `1d5536f7e` (contains `ee51e96ff`): gateway-api container only, healthy in 15 s,

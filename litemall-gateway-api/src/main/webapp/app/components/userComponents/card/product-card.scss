@@ -1,23 +1,7 @@
 // ── litemall storefront theme tokens (Teal & Coral) ───────────────────────────
-// Defined here so any view that renders a ProductCard gets the palette. Override
-// these variables in one place to re-theme the whole storefront.
-:root {
-  --lm-primary: #0e7c86; // deep teal
-  --lm-primary-dark: #0a5d65;
-  --lm-primary-soft: #e3f2f3; // teal tint for chips/hover
-  --lm-accent: #ff5a5f; // coral — prices & sale
-  --lm-accent-dark: #e8484d;
-  --lm-bg: #f6f9fa;
-  --lm-surface: #ffffff;
-  --lm-border: #eceff1;
-  --lm-text: #1f2a2e;
-  --lm-muted: #6b7b82;
-  --lm-new: var(--lm-primary);
-  --lm-hot: var(--lm-accent);
-  --lm-star: #ffb400;
-  --lm-success: #1f9d6b;
-  --lm-radius: 10px;
-}
+// The --lm-* palette is defined ONCE, on :root in app/sass/global.scss (loaded
+// by index.tsx before any view), so pages that never render a card — the help
+// and policy pages — get the same tokens. Re-theme there, not here.
 
 // ── CJ-catalog look & feel ────────────────────────────────────────────────────
 // Card structure modelled on cjdropshipping.com's product cards — a clean white
