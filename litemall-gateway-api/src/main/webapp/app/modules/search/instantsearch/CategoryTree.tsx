@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
+import { useTranslation } from 'app/i18n';
 import { resetPageTitle, setPageTitle } from 'app/shared/util/pageTitle';
 
 type Node = { id: number; name: string; level?: string; count?: number };
@@ -25,6 +26,7 @@ interface CategoryDetail {
  * `/category/{childId}`; the Search page re-seeds its scope on that navigation.
  */
 const CategoryTree: React.FC<{ categoryId: string }> = ({ categoryId }) => {
+  const { t } = useTranslation('search');
   const [detail, setDetail] = useState<CategoryDetail | null>(null);
 
   useEffect(() => {
@@ -64,10 +66,10 @@ const CategoryTree: React.FC<{ categoryId: string }> = ({ categoryId }) => {
 
   return (
     <section className="lm-isearch__facet lm-cattree">
-      <h3>Department</h3>
+      <h3>{t('rail.department')}</h3>
 
       {crumbs.length > 0 && (
-        <nav className="lm-cattree__crumbs" aria-label="Category breadcrumb">
+        <nav className="lm-cattree__crumbs" aria-label={t('rail.categoryBreadcrumb')}>
           {crumbs.map((c, i) => (
             <React.Fragment key={c.id}>
               {i > 0 && <span className="lm-cattree__sep">›</span>}
@@ -93,7 +95,7 @@ const CategoryTree: React.FC<{ categoryId: string }> = ({ categoryId }) => {
           ))}
         </ul>
       ) : (
-        <p className="lm-cattree__leaf">No subcategories</p>
+        <p className="lm-cattree__leaf">{t('rail.noSubcategories')}</p>
       )}
     </section>
   );

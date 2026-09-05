@@ -1781,14 +1781,24 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups MERGED to master 2026-09-05 (deploy + autumn term tuning in progress)
+### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
-  `seasons` on hits.** Built as `54912135c`; **MERGED to master 2026-09-05** (merge commit carries the
-  peer's SEO bulk-apply; suite on the merged tree **596 run / 0 failures / 8 skipped**, was 589 on the
-  branch alone). Deploy + the §17.4 autumn term PUT follow in the same session — see the status
-  entry above this one once it lands. Ops script for the data step: `docker-compose/season-tune.sh`
-  (`rules` backup / `terms <key> <file>` / `run` / `restore`), autumn list in
-  `docker-compose/season-terms-autumn-2026-09.json`. Spec §17 of
+  `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
+  trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
+  suite on the merged tree **596 run / 0 failures / 8 skipped**; the merge also carries the peer's
+  SEO bulk-apply, so that is live too). **Autumn terms tuned on prod the same session** via
+  `docker-compose/season-tune.sh terms autumn season-terms-autumn-2026-09.json` (rules backup
+  `/root/season-rules-backup-20260905T001924Z.json` on the VPS; `restore` reverses it) + one manual
+  scorer run. Measured live, before → after: rail items on-term **14/24 → 24/24**, off-season
+  passengers 6 → 0, search hits carrying `seasons` **0/20 → 20/20**; autumn discovery discarded 914
+  off-title + 44 excluded hits, 0 relaxed sets; tier cuts hot 773.3 / featured 631.67 (the set
+  splits now). Full record spec §17.5. ⚠ The 200-hit scan limit is now the binding bound on broad
+  terms (`wool` 1,250 hits → 200 considered, logged). ⚠ Three "Air-conditioning Blanket" items
+  survive (title has neither `cooling` nor `summer`) — `-air-conditioning` is the one-line data fix
+  if wanted. Winter/spring/summer still on seed terms. ⚠ The MAIN checkout's index shows my three
+  files as staged reverse-changes (phantom from the ref move; its working CLAUDE.md is byte-identical
+  to old master) — `git checkout HEAD -- CLAUDE.md docker-compose/season-tune.sh
+  docker-compose/season-terms-autumn-2026-09.json` there clears it; touching MAIN was denied here. Spec §17 of
   `litemall-goods-management/docs/spec-seasonal-candidacy.md` is the record. Closes all three
   limits the 2026-08-27 deploy recorded:
   1. `SeasonScoringService.discover` used to keep EVERY hit for a term. The index matches
@@ -2361,9 +2371,94 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
-- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
-  rail; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY (assigned 2026-09-05)
+- **Task — make Help center / Returns / Customer service (and the other
+  `app/modules/static/*` pages) follow the storefront theme hierarchy and a
+  standard ecommerce type scale.** User-commissioned 2026-09-05 (no wave).
+  Audit facts (2026-09-05, code-verified from MAIN):
+  1. **Bootstrap `primary` was never remapped to the theme.** `index.tsx`
+     imports stock `bootstrap.min.css`; no `--bs-primary` / `--bs-link-color`
+     override and NO global `a` rule exist anywhere. So every plain `<Link>` /
+     `<a>` renders Bootstrap BLUE `#0d6efd` underlined (41 anchors on the
+     static pages, 182 storewide, only 36 carry an explicit theme class), the
+     `text-primary` icons on Help / CustomerService / CookieBanner are blue, and
+     `btn-primary` / `btn-outline-primary` are blue on CookieBanner,
+     CookiePreferences, NotFound, ErrorBoundary, Coupons, CouponCenter, Groupon,
+     GrouponDetail, TopicDetail and one Checkout button (`:1553`). The kit's
+     `btn-lm-primary` exists (`storefront.scss`) but those sites never used it.
+  2. **Font family is already the Amazon stack** (`app/sass/global.scss`
+     `--lm-font`: Amazon Ember → Helvetica Neue → Arial → Segoe UI → Roboto;
+     Ember is NOT loaded, so Mac = Helvetica Neue, Windows = Arial). Four
+     stylesheets override it: `home/home.scss` + `home/storefront-home.scss` +
+     `search/instantsearch/search.scss` (Roboto first — no webfont loaded, so
+     it diverges only on Android/Linux) and `sass/components/_cards.scss:53`.
+  3. **Text size flattens the hierarchy.** On all 8 static pages `<h1>` is
+     class `h4` (24px), `<h2>` is class `h6` (16px = body size), and 49 of 53
+     `<p>` are `small text-muted` — 14px GREY for policy copy a customer must
+     read (Returns 8/9, Terms 10/10, Delivery 7/7, Payments 8/8). Standard
+     ecommerce help/legal copy is 15–16px in the primary text colour, h1
+     ~26–28px, h2 ~18–20px, `small`/muted reserved for "Last updated" and
+     captions.
+  Deliverables (ONE commit; SPA only, no backend, no migration):
+  - **Theme remap at `:root` in `global.scss`:** `--bs-primary` (+ `-rgb`),
+    `--bs-link-color` / `--bs-link-hover-color` (+ `-rgb`) → `--lm-primary` /
+    `--lm-primary-dark`; `.btn-primary` and `.btn-outline-primary` CSS vars
+    (`--bs-btn-bg`, `-border-color`, `-hover-bg`, `-hover-border-color`,
+    `-active-*`, `-color` for outline) → teal. After this `text-primary`,
+    buttons and links follow the hierarchy with NO per-site edits.
+  - **Global anchor rule:** teal, `text-decoration: none` at rest, underline on
+    hover/focus (standard ecommerce link treatment). Verify the header/footer
+    links in `layout-header.scss` still look right (they set their own colours).
+  - **Font:** delete the four family overrides (item 2) so every page reads
+    `var(--lm-font)`. Do NOT add a webfont — a loaded face (Inter etc.) is a
+    storewide design decision the user has not taken.
+  - **Type scale for document pages:** one shared class (e.g. `.lm-doc` in
+    `shared/scss/content.scss`) applied by the 8 static pages: body copy
+    `1rem`/15–16px in `--lm-text`, `line-height 1.6`, h1 `1.65rem` 700,
+    h2 `1.15rem` 700 with top margin, `max-width` 720 kept; drop `small
+    text-muted` from body paragraphs; keep muted/small ONLY for "Last updated",
+    support-hours captions and the "Still stuck?" card footnote. FAQ answers
+    on Help move from `text-muted` to `--lm-text`.
+  - Keep Wave-15/9.1 copy byte-identical (this is styling; the legal wording,
+    seller identity, support email/hours and the promise pages are NOT touched).
+    i18n keys unchanged.
+- **Acceptance (dev, `npm run build:prod` + jest; live check through :9000 if the
+  stack is up):** grep shows no remaining `font-family:` outside `global.scss`;
+  a headless render of /help, /returns, /service, /cookies and /404 shows NO
+  `#0d6efd` computed colour on any anchor, icon or button (assert
+  `getComputedStyle` on a sample, not by eye); Help h2 > body size; Returns
+  body paragraphs are 15–16px in `--lm-text`; cookie banner Accept button is
+  teal; jest + `tsc` green with real counts; prod build clean. Deploy =
+  gateway-api container rebuild only (MAIN). Rewrite this block when done.
+- **Previously (2026-09-05):** i18n batch 2 merged, deploy pending — see below.
+  Next i18n task after this one = batch 3 (cart/checkout + delivery chooser +
+  coupon cell; spec §5).
+- **Status 2026-09-05 — i18n BATCH 2 BUILT + MERGED to master.** ~90 string sites
+  across 23 files (spec §5 estimated ~30): `ProductCard`, `Detail.tsx` + 14 PDP
+  sub-components, `Search.tsx` + rail/tree/empty/unavailable states, `euStock.ts`.
+  New namespaces `product` + `search` (14 lazy sv/da chunks now); shared EU-warehouse
+  phrasing in `common:euStock.*` because batch 3's checkout badges read the same
+  helper. jest 48 suites / 331 tests (was 45/320), tsc 0, `i18n:check` 0, prod build
+  clean. As-built record: `litemall-gateway-api/docs/spec-i18n-foundation.md` §9.
+  **Live render check was done against PRODUCTION DATA, read-only:** no dev stack
+  was up, so the built bundle was served locally with a GET-only proxy of
+  `/srv`/`/auth`/`/_cdn` to trovemo.com and driven headless — PDP in sv, search +
+  zero-results in da/sv, home grid in sv all render translated, 0 page errors.
+  ⚠ Backend `sortOptions` labels and dynamic facet headings are SERVER strings:
+  known fields map to keys, anything else passes through VERBATIM (the
+  `describeError` rule) — never "fix" that into a hardcoded list. ⚠ react-instantsearch
+  `translations` props MUST be memoised on `t` (dequal compares functions by
+  reference — an inline object remounts the widget and refetches every render).
+  ⚠ `count` is i18next's plural trigger, not a free variable — a `{{count}}` key
+  without `_one/_other` fails `i18n:check`. ⚠ `pkill -f <pattern>` matches the Bash
+  tool's own shell and kills the session — kill by port (`ss -ltnp`) instead.
+  Seen live, NOT this batch: cookie banner still English (batch 6); the category
+  facet shows 3 raw ids whose leaves are missing from the catalog name map
+  (pre-existing, not a language issue). sv/da strings are MY drafts — native review
+  still user-side. **Deploy = gateway-api container rebuild only** (no migration, no
+  backend change, no reindex); env unchanged (`LITEMALL_I18N_LANGUAGES=en,sv,da` is
+  already live).
+- **Previous status (2026-09-04) — i18n FOUNDATION PHASE 1 SHIPPED + LIVE.**
 - **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
   with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
   en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live
@@ -2953,7 +3048,7 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: bulk apply + honest reindex (BUILT 2026-09-04)
+### Worktree: `gateway-admin` — SEO title worklist: LIVE DEV ACCEPTANCE PASSED 2026-09-05 (one UI honesty gap found, unfixed)
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
@@ -2994,18 +3089,63 @@
 - **Tests (real counts):** goods-management module suite **582 run / 0 failures / 8
   skipped** (+7 `TitleOptimisationServiceTest`, incl. reindex-failure-is-reported and
   batch-reports-refusals-in-place); admin jest **153 passed / 14 suites** (was 130/12:
-  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`); `tsc` 0 errors in `app/`.
-- **NOT done — live acceptance on dev.** No litemall service JVM was running and the
-  four dev secrets (MYSQL_PASSWORD, the two authserver secrets, GATEWAY_ADMIN_CLIENT_
-  SECRET) are user-held and were not in this session's env, so the stack could not be
-  booted from here. ⚠ The old acceptance line said ":8080" — that port is JENKINS on
-  this box; the admin dev gateway is **:18080**. Dev MySQL is up with 9,642 on-sale
-  goods, 4,606 over 60 chars, so the worklist will render there once booted. What live
-  acceptance must prove: list renders through :18080; single Apply renames one product
-  (MySQL) AND `/srv/search?q=<new title>` returns it (reindex proof); a 3-row batch with
-  one deliberately blank draft reports 2 applied / 1 refused in place; with the OCS
-  indexer container stopped, Apply answers errno 0 + `reindexed:false` and the row shows
-  "saved, not reindexed" — NOT a 500.
+  +11 `seoTitleBatch.spec.ts`, +12 `SeoTitleList.spec.tsx`);- **Status 2026-09-05 — LIVE DEV ACCEPTANCE PASSED through :18080** (branch == master
+  `8c674d368` at the time; NO code change this pass). The "user-held secrets" blocker was
+  STALE: `~/.litemall/dev.env` (mode 600) holds MYSQL_PASSWORD, and the authserver /
+  gateway-admin secrets are any MATCHING pair (`gateway-admin-dev-secret`, the way CI
+  uses `ci`). Built goods-management + gateway-admin from THIS worktree with `-am`
+  (reactor, no `~/.m2` install — the m2 litemall-db predated V64); booted eureka +
+  authserver (MAIN's July jars — both modules unchanged since 2026-07-17) +
+  goods-management :8082 + gateway-admin :18080 (JDK 21, `docker-compose/dc-local.sh`
+  for OCS/ES/rabbit/redis). ⚠ The local dev DB was at **V60**; goods-management applied
+  V61–V64 at boot (additive) — the "dev applied through V64" note elsewhere refers to a
+  different DB. Proven, each through the gateway with the admin JWT:
+  1. Worklist renders — 20 rows, header checkbox, blurb "4604 of 9642 live products are
+     over" (headless: puppeteer-core + google-chrome, `waitUntil:'load'` — `networkidle0`
+     never settles because the admin shell keeps polling; seed `admin-jwt`/`admin-refresh`/
+     `admin-role` at `/`, reload, then pushState to `/admin/goods/seo-titles`).
+  2. Single Apply on 10000032 with a marker word → MySQL renamed AND
+     `/srv/search?q=ACCPROOF7` returned exactly that product with the new name. ⚠ The
+     FIRST search, <5 s after the apply, returned `total 0, relaxed:true` — the served ES
+     index has `refresh_interval: 5s`; the doc WAS already in the index. Not a bug: never
+     assert search freshness inside 5 s of an upsert.
+  3. 3-row API batch with one blank draft → HTTP 200, `applied 2 / failed 1`, the refusal
+     IN PLACE (`title must not be blank`) and in order; DB confirmed 2 renamed, 1 untouched.
+  4. `docker stop ocs_indexer` → Apply → HTTP 200, errno 0, `reindexed:false`, warning
+     verbatim ("… No route to host"), MySQL renamed, index doc still the OLD title (the
+     warning tells the truth). Same case through the UI → cell "saved, not reindexed" +
+     alert "#10000179: Saved, but on-site search still shows the old title: …".
+  5. UI batch (header flow: tick 3 → "Apply selected (3)" → confirm → banner) — see the
+     finding below.
+  All 4 renamed dev goods (10000032/160/177/179) were restored via apply itself; DB and
+  ES titles byte-equal to the originals, worklist total back to 4604. `ocs_indexer`
+  restarted; dev JVMs stopped afterwards.
+- ⚠ **FOUND, NOT FIXED (needs its own approval): the UI batch silently drops a blank
+  draft.** `seoTitleBatch.batchItems` filters `title.length === 0` CLIENT-side while the
+  confirm line counts every ticked row — the admin confirmed "Rename 3 products and
+  reindex them", the banner said **"Applied 2 of 2 titles."** in green, and the blank row
+  stayed ticked with a greyed Apply and NO error (screenshot-verified). This contradicts
+  the claim above that refused rows show their error in the Actions cell — true only for
+  SERVER refusals. Two honest fixes: drop the client filter so the server refuses it in
+  place (the documented behaviour; the `batchItems` jest spec pins the filter and must
+  change with it), or exclude blank drafts from the confirm count and say so ("1 skipped:
+  blank title"). Also "Apply selected (1)" stays ENABLED with only a blank row ticked →
+  an empty `items[]` → errno 660 for the admin.
+- ⚠ **Build gotcha (dev; matches what `docker/Dockerfile` already does):** `mvn package`
+  on gateway-admin FAILS in the `test` phase — the frontend plugin runs
+  `npm run webapp:test` = `web-test-runner src/**/*.test.js`, a dead legacy script that
+  matches no files. `-Dmaven.test.skip=true` does NOT skip a frontend-plugin execution;
+  `-DskipTests` does (the plugin honours it for executions whose arguments contain
+  "test"). ⚠ A failed build leaves the PREVIOUS jar in `target/` — I booted a stale
+  August jar once; check `BUILD EXIT` and the jar mtime before booting, and grep the jar
+  for the feature string (`saved, not reindexed` sat in `static/main.<hash>.js`).
+- ⚠ `pkill -f <pattern>` from the Bash tool matches the tool's own `bash -c` line and
+  kills the calling shell (exit 144, twice) — kill by pid from an ANCHORED
+  `pgrep -f '^/usr/lib/jvm/…'`.
+- Deploy is still MAIN's (goods-management + gateway-admin rebuild, no migration).
+  USER-SIDE: prod click-through. NEXT worktree task, if approved: the blank-draft batch
+  fix above (tiny; SPA + one spec).
+ot reindexed" — NOT a 500.
 - **Jest gotchas (admin):** `--reporters default <path>` parses the PATH as a second
   reporter ("Could not resolve a module for a custom reporter") — use
   `--testPathPattern`. The global `jest` namespace is NOT typed here even with

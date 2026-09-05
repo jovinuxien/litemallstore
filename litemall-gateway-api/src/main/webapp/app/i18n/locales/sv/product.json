@@ -1,0 +1,140 @@
+{
+  "card": {
+    "units": {
+      "d": "d",
+      "h": "h",
+      "m": "min"
+    },
+    "dealLabel": "Tidsbegränsat erbjudande",
+    "coupon": "Rabattkod",
+    "groupBuy": "Gruppköp",
+    "sold": "{{sold}} sålda",
+    "list": "Ord. pris:",
+    "endsIn": "⏱ Slutar om {{remaining}}",
+    "claimed": "{{pct}} % utnyttjat",
+    "euStockTitle": "Fanns i ett EU-lager vid vår senaste lagerkontroll.",
+    "euStock": "EU-lager",
+    "freeShipping": "🚚 Fri frakt",
+    "added": "Tillagd ✓",
+    "addToCart": "Lägg i varukorgen"
+  },
+  "rating": {
+    "aria": "{{rating}} av 5 stjärnor",
+    "count_one": "{{count, number}} betyg",
+    "count_other": "{{count, number}} betyg",
+    "ariaShort": "{{n}} av 5"
+  },
+  "notFound": "Produkten hittades inte.",
+  "gallery": {
+    "fullscreen": "Visa bilden i helskärm",
+    "showImage": "Visa bild {{n}} av {{total}}",
+    "dialog": "Produktbilder",
+    "close": "Stäng",
+    "previous": "Föregående bild",
+    "next": "Nästa bild"
+  },
+  "popular": "Populär",
+  "listPrice": "Ord. pris:",
+  "perUnit": "per {{unit}}",
+  "about": "Om produkten",
+  "stock": {
+    "unavailable": "Inte tillgänglig just nu",
+    "inStockCount_one": "I lager · {{count}} tillgänglig",
+    "inStockCount_other": "I lager · {{count}} tillgängliga",
+    "inStock": "I lager",
+    "outOfStock": "Slut i lager"
+  },
+  "qty": "Antal",
+  "addToCart": "Lägg i varukorgen",
+  "buyNow": "Köp nu",
+  "trust": {
+    "delivery": "Leverans",
+    "deliveryVaries": "Beror på destination",
+    "shipsFrom": "Skickas från",
+    "returns": "Returer",
+    "returns30": "30 dagars returrätt",
+    "payment": "Betalning",
+    "secure": "Säker betalning"
+  },
+  "related": "Du kanske också gillar",
+  "tabs": {
+    "description": "Beskrivning",
+    "specsCount_one": "Specifikationer ({{count}})",
+    "specsCount_other": "Specifikationer ({{count}})",
+    "specs": "Specifikationer"
+  },
+  "imageAlt": "Produkt",
+  "noDescription": "Ingen beskrivning tillgänglig.",
+  "noSpecs": "Inga specifikationer angivna för den här produkten.",
+  "breadcrumb": {
+    "aria": "Sökväg",
+    "home": "Hem"
+  },
+  "collect": {
+    "saved": "Sparad",
+    "save": "Spara"
+  },
+  "faq": {
+    "title": "Vanliga frågor",
+    "more": "Mer i hjälpcentret",
+    "all": "Besök hjälpcentret"
+  },
+  "couponStrip": {
+    "save": "Spara {{value}}",
+    "over": "vid köp över {{amount}}",
+    "noMinimum": "inget minimibelopp",
+    "upTo": "upp till {{amount}}",
+    "collected": "Hämtad",
+    "claim": "Hämta rabattkod",
+    "seeAll": "Visa alla rabattkoder"
+  },
+  "deal": {
+    "title": "Tidsbegränsat erbjudande",
+    "endsIn": "Slutar om {{clock}}",
+    "claimed": "{{pct}} % utnyttjat"
+  },
+  "euStockTitle": "Den här varan finns i ett EU-lager och skickas därför inte från Kina.",
+  "groupBuy": {
+    "startFailed": "Gruppen kunde inte startas – försök igen.",
+    "title": "Gruppköp {{price}}",
+    "perGroup_one": "{{count}} person per grupp",
+    "perGroup_other": "{{count}} personer per grupp",
+    "continue": "Fortsätt till kassan",
+    "starting": "Startar…",
+    "start": "Starta en grupp",
+    "details": "Om gruppköpet",
+    "held": "Du har en plats i en grupp – välj dina alternativ och fortsätt sedan. Gruppriset dras vid betalningen."
+  },
+  "recent": "Nyligen visade produkter",
+  "reviewForm": {
+    "failed": "Din recension kunde inte skickas. Försök igen.",
+    "thanks": "Tack! Din recension har skickats.",
+    "ratingAria": "Betyg",
+    "star_one": "{{count}} stjärna",
+    "star_other": "{{count}} stjärnor",
+    "placeholder": "Berätta om din upplevelse av produkten…",
+    "submitting": "Skickar…",
+    "submit": "Skicka recension"
+  },
+  "reviews": {
+    "title": "Kundrecensioner",
+    "close": "Stäng",
+    "write": "Skriv en recension",
+    "none": "Inga recensioner ännu. Bli först med att recensera produkten.",
+    "outOf5": "{{avg}} av 5",
+    "breakdown": "Fördelning av betyg",
+    "starLabel": "{{star}} stjärnor",
+    "anonymous": "Anonym",
+    "sellerResponse": "Svar från säljaren:",
+    "showMore": "Visa fler recensioner"
+  },
+  "share": {
+    "copied": "Länk kopierad",
+    "share": "Dela"
+  },
+  "soldBy": {
+    "soldBy": "Säljs av",
+    "moreFromStore": "Mer från den här butiken",
+    "brand": "Varumärke:"
+  }
+}

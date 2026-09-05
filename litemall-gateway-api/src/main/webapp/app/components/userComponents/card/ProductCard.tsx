@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAppDispatch } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
 import { EURO, moneyAmount, moneyParts } from 'app/shared/util/money';
@@ -35,14 +36,21 @@ export const goodId = (raw: unknown): number | undefined => {
 // Compact "sold" count: 1203 -> "1.2k+".
 const fmtSold = (n: number): string => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k+` : `${n}`);
 
+/** Unit suffixes for {@link fmtRemaining} — "d"/"h"/"m" in English, per-locale elsewhere. */
+export interface RemainingUnits {
+  d: string;
+  h: string;
+  m: string;
+}
+
 // "2d 4h" / "3h 12m" / "8m" remaining until a deal-end epoch (ms); null once past.
-const fmtRemaining = (endEpoch: number, now: number): string | null => {
+export const fmtRemaining = (endEpoch: number, now: number, u: RemainingUnits = { d: 'd', h: 'h', m: 'm' }): string | null => {
   const ms = endEpoch - now;
   if (ms <= 0) return null;
   const m = Math.floor(ms / 60000);
-  if (m >= 2880) return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
-  if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
-  return `${m}m`;
+  if (m >= 2880) return `${Math.floor(m / 1440)}${u.d} ${Math.floor((m % 1440) / 60)}${u.h}`;
+  if (m >= 60) return `${Math.floor(m / 60)}${u.h} ${m % 60}${u.m}`;
+  return `${m}${u.m}`;
 };
 
 /** Ticks every 30s while a deal countdown is on screen. */
@@ -75,6 +83,9 @@ interface Props {
  */
 const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const dispatch = useAppDispatch();
+  // Subscribing to the locale here is what makes every grid re-render on a language
+  // switch (cards otherwise only pick the new language up on their next render).
+  const { t } = useTranslation('product');
   const [added, setAdded] = useState(false);
   // The backend goods DTO uses goodsName / goodsId:{id} / new / hot, while IGood
   // types them as name / id / isNew / isHot. Read whichever is present so cards
@@ -133,7 +144,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   const inEuStock = Number(p.eu_flag ?? p.euFlag ?? 0) === 1;
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
   const now = useNow(dealEnd != null);
-  const remaining = dealEnd != null ? fmtRemaining(dealEnd, now) : null;
+  const remaining = dealEnd != null ? fmtRemaining(dealEnd, now, { d: t('card.units.d'), h: t('card.units.h'), m: t('card.units.m') }) : null;
   const claimedPct = p.dealActive && typeof p.dealClaimedPct === 'number' ? Math.min(100, p.dealClaimedPct) : undefined;
 
   // One overlay badge, by priority; every other signal demotes to a text chip
@@ -186,9 +197,9 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         {overlay === 'discount' && <span className="lm-card__discount">-{discountPct}%</span>}
         {overlay && overlay !== 'discount' && (
           <span className="lm-card__flags">
-            {overlay === 'deal' && <span className="lm-card__deal-label">Limited time deal</span>}
-            {overlay === 'coupon' && <span className="lm-card__coupon">Coupon</span>}
-            {overlay === 'groupon' && <span className="lm-card__groupon">Group buy</span>}
+            {overlay === 'deal' && <span className="lm-card__deal-label">{t('card.dealLabel')}</span>}
+            {overlay === 'coupon' && <span className="lm-card__coupon">{t('card.coupon')}</span>}
+            {overlay === 'groupon' && <span className="lm-card__groupon">{t('card.groupBuy')}</span>}
           </span>
         )}
       </Link>
@@ -201,7 +212,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
 
         <div className="lm-card__meta">
           {rating > 0 && (
-            <span className="lm-card__rating" aria-label={`${rating.toFixed(1)} of 5 stars`}>
+            <span className="lm-card__rating" aria-label={t('rating.aria', { rating: rating.toFixed(1) })}>
               <span className="lm-card__stars">
                 {starIcons(rating).map((cls, i) => (
                   <i key={i} className={`bi ${cls}`} />
@@ -210,7 +221,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
               {Number(p.reviewCount) > 0 && <span className="lm-card__rcount">({Number(p.reviewCount)})</span>}
             </span>
           )}
-          {sold > 0 && <span className="lm-card__sold">{fmtSold(sold)} sold</span>}
+          {sold > 0 && <span className="lm-card__sold">{t('card.sold', { sold: fmtSold(sold) })}</span>}
         </div>
 
         <div className="lm-card__price-row">
@@ -222,7 +233,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
           </span>
           {hasDiscount && (
             <span className="lm-card__orig">
-              List: <s>{EURO}{moneyAmount(counter)}</s>
+              {t('card.list')} <s>{EURO}{moneyAmount(counter)}</s>
             </span>
           )}
         </div>
@@ -230,15 +241,17 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         {/* Signals that lost the overlay slot demote to quiet text chips. */}
         {((hasCoupon && overlay !== 'coupon') || (hasGroupon && overlay !== 'groupon')) && (
           <div className="lm-card__chips">
-            {hasCoupon && overlay !== 'coupon' && <span className="lm-card__coupon">Coupon</span>}
-            {hasGroupon && overlay !== 'groupon' && <span className="lm-card__groupon">Group buy</span>}
+            {hasCoupon && overlay !== 'coupon' && <span className="lm-card__coupon">{t('card.coupon')}</span>}
+            {hasGroupon && overlay !== 'groupon' && <span className="lm-card__groupon">{t('card.groupBuy')}</span>}
           </div>
         )}
 
         {remaining && (
           <div className="lm-card__deal" style={{ fontSize: '0.78rem', color: '#CC0C39', fontWeight: 600 }}>
-            ⏱ Ends in {remaining}
-            {claimedPct != null && claimedPct > 0 && <span style={{ marginLeft: 6, color: '#6c757d', fontWeight: 400 }}>{claimedPct}% claimed</span>}
+            {t('card.endsIn', { remaining })}
+            {claimedPct != null && claimedPct > 0 && (
+              <span style={{ marginLeft: 6, color: '#6c757d', fontWeight: 400 }}>{t('card.claimed', { pct: claimedPct })}</span>
+            )}
           </div>
         )}
         {remaining && claimedPct != null && claimedPct > 0 && (
@@ -248,17 +261,17 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         )}
 
         {inEuStock && (
-          <div className="lm-card__eustock" title="In an EU warehouse at our last stock check.">
+          <div className="lm-card__eustock" title={t('card.euStockTitle')}>
             <span aria-hidden="true" className="lm-card__eustock-dot" />
-            EU stock
+            {t('card.euStock')}
           </div>
         )}
 
-        {p.isFreeShipping && <div className="lm-card__shipping">🚚 Free shipping</div>}
+        {p.isFreeShipping && <div className="lm-card__shipping">{t('card.freeShipping')}</div>}
 
         <div className="lm-card__actions">
           <button type="button" className={`lm-card__cart${added ? ' lm-card__cart--added' : ''}`} onClick={handleAddToCart}>
-            {added ? 'Added ✓' : 'Add to cart'}
+            {added ? t('card.added') : t('card.addToCart')}
           </button>
         </div>
       </div>

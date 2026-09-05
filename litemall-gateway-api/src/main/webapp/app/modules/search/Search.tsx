@@ -19,6 +19,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
 import { useAppSelector } from 'app/config/store';
+import { i18n, type TFunction, useTranslation } from 'app/i18n';
 import { fetchSearchIndex } from 'app/modules/search/searchIndexApi';
 import { CategoryData } from 'app/shared/model/category/category.models';
 import 'app/components/userComponents/card/product-card.scss';
@@ -52,10 +53,10 @@ import './instantsearch/search.scss';
 // `sortOptions` (read off every /srv/search response into the search slice by
 // litemallSearchClient). Values map to the virtual sort-index names the search
 // client understands.
-const SORT_ITEMS = [
-  { label: 'Relevance', value: PRIMARY_INDEX },
-  { label: 'Price: low to high', value: sortIndex('price') },
-  { label: 'Price: high to low', value: sortIndex('-price') },
+const fallbackSortItems = (t: TFunction) => [
+  { label: t('search:sort.relevance'), value: PRIMARY_INDEX },
+  { label: t('search:sort.fields.price.asc'), value: sortIndex('price') },
+  { label: t('search:sort.fields.price.desc'), value: sortIndex('-price') },
 ];
 
 // A server sort value that means "no explicit sort" maps to the primary index.
@@ -63,28 +64,32 @@ const RELEVANCE_VALUES = /^-?(_score|relevance|default)$/i;
 
 // Today the backend labels its sort options with the raw searcher strings
 // ("price.asc", "review_count.desc"). Prettify ONLY that raw shape — a label
-// that doesn't match it is assumed human-authored and passes through untouched,
-// so a later backend improvement wins automatically.
+// that doesn't match it is assumed human-authored and passes through untouched
+// (verbatim, in whatever language the server wrote it — the same rule
+// describeError applies to unknown errnos), so a later backend improvement wins
+// automatically. Known fields resolve to `search:sort.fields.<field>.<dir>`.
 const RAW_SORT_LABEL = /^([a-z0-9_]+)\.(asc|desc)$/i;
-const SORT_FIELD_LABELS: Record<string, { asc: string; desc: string }> = {
-  price: { asc: 'Price: low to high', desc: 'Price: high to low' },
-  variant_price: { asc: 'Variant price: low to high', desc: 'Variant price: high to low' },
-  rating: { asc: 'Rating: low to high', desc: 'Rating: high to low' },
-  review_count: { asc: 'Fewest reviews', desc: 'Most reviews' },
-  discount_pct: { asc: 'Discount: low to high', desc: 'Discount: high to low' },
-  listed_num: { asc: 'Popularity: low to high', desc: 'Most popular' },
-  title: { asc: 'Name: A to Z', desc: 'Name: Z to A' },
-  created_epoch: { asc: 'Oldest first', desc: 'Newest first' },
-  deal_end_epoch: { asc: 'Deal ending soonest', desc: 'Deal ending latest' },
-};
+const SORT_FIELDS = new Set([
+  'price',
+  'variant_price',
+  'rating',
+  'review_count',
+  'discount_pct',
+  'discount_price',
+  'listed_num',
+  'title',
+  'created_epoch',
+  'deal_end_epoch',
+]);
 
-const prettySortLabel = (label: string): string => {
+export const prettySortLabel = (label: string, t: TFunction): string => {
   const m = RAW_SORT_LABEL.exec(label.trim());
   if (!m) return label;
-  const [, field, dir] = m;
-  const known = SORT_FIELD_LABELS[field.toLowerCase()];
-  if (known) return dir.toLowerCase() === 'asc' ? known.asc : known.desc;
-  return `${humanizeFacet(field)} (${dir.toLowerCase() === 'asc' ? 'ascending' : 'descending'})`;
+  const [, field, rawDir] = m;
+  const dir = rawDir.toLowerCase() === 'asc' ? 'asc' : 'desc';
+  const key = field.toLowerCase();
+  if (SORT_FIELDS.has(key)) return t(`search:sort.fields.${key}.${dir}`);
+  return t('search:sort.generic', { field: humanizeFacet(field), direction: t(`search:sort.${dir === 'asc' ? 'ascending' : 'descending'}`) });
 };
 
 // Facets rendered explicitly (with custom labels / a range control) above, plus
@@ -110,6 +115,42 @@ const humanizeFacet = (field: string): string =>
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase())
     .trim() || field;
+
+// Facet headings: a core field with a catalogued name (`search:rail.facetFields.*`)
+// renders that; every other dynamic facet (attribute / variant fields the index is
+// configured with) keeps the humanised field name — those come from index config,
+// and cataloguing them one by one would be a maintenance trap, not a translation.
+const facetHeading = (field: string, t: TFunction): string =>
+  i18n.exists(`search:rail.facetFields.${field}`) ? t(`search:rail.facetFields.${field}`) : humanizeFacet(field);
+
+/**
+ * Localised widget chrome ("Show more", "to", pager aria-labels, …). MEMOISED on
+ * `t`: react-instantsearch diffs widget props with dequal and functions compare
+ * by reference, so an inline `translations={{ … }}` would remount the widget —
+ * and schedule a fresh search — on every render (see the useCallback note in
+ * SearchView). `t` changes identity only on a language switch, which is the one
+ * time a remount is wanted.
+ */
+const useWidgetTranslations = (t: TFunction) =>
+  useMemo(
+    () => ({
+      refinementList: {
+        showMoreButtonText: ({ isShowingMore }: { isShowingMore: boolean }) => (isShowingMore ? t('search:widgets.showLess') : t('search:widgets.showMore')),
+        noResultsText: t('search:widgets.noResults'),
+      },
+      rangeInput: { separatorElementText: t('search:widgets.rangeSeparator'), submitButtonText: t('search:widgets.go') },
+      pagination: {
+        firstPageItemAriaLabel: t('search:widgets.firstPage'),
+        previousPageItemAriaLabel: t('search:widgets.previousPage'),
+        nextPageItemAriaLabel: t('search:widgets.nextPage'),
+        lastPageItemAriaLabel: t('search:widgets.lastPage'),
+        pageItemAriaLabel: ({ currentPage }: { currentPage: number }) => t('search:widgets.page', { page: currentPage }),
+      },
+      stats: { rootElementText: ({ nbHits }: { nbHits: number }) => t('search:widgets.stats', { count: nbHits }) },
+      clearRefinements: { resetButtonText: t('search:rail.clearAll') },
+    }),
+    [t]
+  );
 
 /**
  * ONE probe of the backend's facet groups, shared by the explicit Brand section
@@ -159,13 +200,15 @@ const useIsRefined = (attribute: string): boolean => {
  * this heading is the one most likely to end up standing over nothing.
  */
 const BrandFacet: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
+  const { t } = useTranslation('search');
+  const widget = useWidgetTranslations(t);
   const { groups, status } = useFacetGroups(categoryId);
   const refined = useIsRefined('brand');
   if (!shouldShowFacet({ status, groups, field: 'brand', refined })) return null;
   return (
     <section className="lm-isearch__facet">
-      <h3>Brand</h3>
-      <RefinementList attribute="brand" limit={8} showMore />
+      <h3>{t('rail.brand')}</h3>
+      <RefinementList attribute="brand" limit={8} showMore translations={widget.refinementList} />
     </section>
   );
 };
@@ -186,6 +229,8 @@ const BrandFacet: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
  * RefinementList.
  */
 const DynamicExtraFacets: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
+  const { t } = useTranslation('search');
+  const widget = useWidgetTranslations(t);
   const { groups, status } = useFacetGroups(categoryId);
 
   // A group with no buckets used to render a heading over an empty list: the
@@ -198,8 +243,12 @@ const DynamicExtraFacets: React.FC<{ categoryId?: string }> = ({ categoryId }) =
     <>
       {extra.map(g => (
         <section className="lm-isearch__facet" key={g.field}>
-          <h3>{humanizeFacet(g.field)}</h3>
-          {g.type === 'interval' ? <RangeInput attribute={g.field} /> : <RefinementList attribute={g.field} limit={8} showMore />}
+          <h3>{facetHeading(g.field, t)}</h3>
+          {g.type === 'interval' ? (
+            <RangeInput attribute={g.field} translations={widget.rangeInput} />
+          ) : (
+            <RefinementList attribute={g.field} limit={8} showMore translations={widget.refinementList} />
+          )}
         </section>
       ))}
     </>
@@ -237,6 +286,7 @@ const NoResultsBoundary: React.FC<{ fallback: React.ReactNode; children: React.R
  * categories (already in redux for the header drawer / home page).
  */
 const SearchEmptyState: React.FC<{ categoryId?: string }> = ({ categoryId }) => {
+  const { t } = useTranslation('search');
   const { results, indexUiState } = useInstantSearch();
   const query = (results?.query ?? '').trim();
   // Why the page is empty decides what it may say — a retired department, a
@@ -281,7 +331,7 @@ const SearchEmptyState: React.FC<{ categoryId?: string }> = ({ categoryId }) => 
       <p>{copy.body}</p>
       {trending.length > 0 && (
         <section>
-          <h3>Trending searches</h3>
+          <h3>{t('empty.trending')}</h3>
           <div className="lm-isearch__empty-chips">
             {trending.slice(0, 10).map(k => (
               <Link key={k} to={`/search?q=${encodeURIComponent(k)}`} className="lm-isearch__empty-chip">
@@ -293,7 +343,7 @@ const SearchEmptyState: React.FC<{ categoryId?: string }> = ({ categoryId }) => 
       )}
       {categories.length > 0 && (
         <section>
-          <h3>Popular categories</h3>
+          <h3>{t('empty.popularCategories')}</h3>
           <div className="lm-isearch__empty-chips">
             {categories.map(c => (
               <Link key={c.id} to={`/category/${c.id}`} className="lm-isearch__empty-chip lm-isearch__empty-chip--cat">
@@ -308,6 +358,8 @@ const SearchEmptyState: React.FC<{ categoryId?: string }> = ({ categoryId }) => 
 };
 
 const SearchView: React.FC = () => {
+  const { t } = useTranslation('search');
+  const widget = useWidgetTranslations(t);
   const params = useParams<{ id?: string }>();
   const location = useLocation();
   // The header search bar is THE search box (there is no SearchBox widget on
@@ -327,17 +379,17 @@ const SearchView: React.FC = () => {
   // onto the client's virtual sort indices; relevance-ish/empty values mean the
   // primary index. Fall back to the hardcoded list until the field arrives.
   const sortItems = useMemo(() => {
-    if (!meta.sortOptions.length) return SORT_ITEMS;
+    if (!meta.sortOptions.length) return fallbackSortItems(t);
     const items = meta.sortOptions
       .filter(o => o.label)
       .map(o => ({
-        label: prettySortLabel(o.label),
+        label: prettySortLabel(o.label, t),
         value: o.value && !RELEVANCE_VALUES.test(o.value) ? sortIndex(o.value) : PRIMARY_INDEX,
       }));
-    if (!items.some(it => it.value === PRIMARY_INDEX)) items.unshift({ label: 'Relevance', value: PRIMARY_INDEX });
+    if (!items.some(it => it.value === PRIMARY_INDEX)) items.unshift({ label: t('sort.relevance'), value: PRIMARY_INDEX });
     const seen = new Set<string>();
     return items.filter(it => (seen.has(it.value) ? false : (seen.add(it.value), true)));
-  }, [meta.sortOptions]);
+  }, [meta.sortOptions, t]);
 
   // "Did you mean / similar results" banner: OCS reported it relaxed the query
   // (typo/fuzzy fallback) for the CURRENT header query and still found hits.
@@ -396,11 +448,11 @@ const SearchView: React.FC = () => {
         ...item,
         label:
           item.attribute === 'category_ids'
-            ? 'Category'
+            ? t('rail.category')
             : item.attribute === 'coupon_flag' || item.attribute === 'groupon_flag'
-              ? 'Offers'
+              ? t('rail.offers')
               : item.attribute === 'eu_flag'
-                ? 'Delivery'
+                ? t('rail.delivery')
                 : item.label,
         refinements: item.refinements.map((r: any) => ({
           ...r,
@@ -408,15 +460,15 @@ const SearchView: React.FC = () => {
             item.attribute === 'category_ids'
               ? categoryNames.get(String(r.value)) ?? r.label
               : item.attribute === 'coupon_flag'
-                ? 'Has coupon'
+                ? t('rail.hasCoupon')
                 : item.attribute === 'groupon_flag'
-                  ? 'Group buy'
+                  ? t('rail.groupBuy')
                   : item.attribute === 'eu_flag'
-                    ? 'In EU stock'
+                    ? t('rail.inEuStock')
                     : r.label,
         })),
       })),
-    [categoryNames]
+    [categoryNames, t]
   );
 
   return (
@@ -439,8 +491,8 @@ const SearchView: React.FC = () => {
           {/* ── Filter rail ─────────────────────────────────────────────── */}
           <aside className="lm-isearch__rail">
             <div className="lm-isearch__rail-head">
-              <h2>Filters</h2>
-              <ClearRefinements translations={{ resetButtonText: 'Clear all' }} />
+              <h2>{t('rail.filters')}</h2>
+              <ClearRefinements translations={widget.clearRefinements} />
             </div>
 
             {params.id ? (
@@ -455,8 +507,14 @@ const SearchView: React.FC = () => {
                     for query-scoped multi-select filtering and ?category_ids= deep links. */}
                 <CatalogTreeNav />
                 <section className="lm-isearch__facet">
-                  <h3>Filter by category</h3>
-                  <RefinementList attribute="category_ids" limit={8} showMore transformItems={transformCategoryFacetItems} />
+                  <h3>{t('rail.filterByCategory')}</h3>
+                  <RefinementList
+                    attribute="category_ids"
+                    limit={8}
+                    showMore
+                    transformItems={transformCategoryFacetItems}
+                    translations={widget.refinementList}
+                  />
                 </section>
               </>
             )}
@@ -464,8 +522,8 @@ const SearchView: React.FC = () => {
             <BrandFacet categoryId={params.id} />
 
             <section className="lm-isearch__facet">
-              <h3>Price</h3>
-              <RangeInput attribute="price" />
+              <h3>{t('rail.price')}</h3>
+              <RangeInput attribute="price" translations={widget.rangeInput} />
             </section>
 
             {/* Wave-19 coupon_flag / Wave-21 groupon_flag toggles ride the
@@ -474,9 +532,9 @@ const SearchView: React.FC = () => {
                 fields) and round-trip the URL as ?coupon_flag=1 /
                 ?groupon_flag=1 via searchRouting's toggle mapping. */}
             <section className="lm-isearch__facet">
-              <h3>Offers</h3>
-              <ToggleRefinement attribute="coupon_flag" on={1} label="Has coupon" />
-              <ToggleRefinement attribute="groupon_flag" on={1} label="Group buy" />
+              <h3>{t('rail.offers')}</h3>
+              <ToggleRefinement attribute="coupon_flag" on={1} label={t('rail.hasCoupon')} />
+              <ToggleRefinement attribute="groupon_flag" on={1} label={t('rail.groupBuy')} />
             </section>
 
             {/* Wave-27 eu_flag. Its own section, NOT "Offers": EU stock is where
@@ -485,8 +543,8 @@ const SearchView: React.FC = () => {
                 "not known to hold EU stock" (unprobed and probed-empty are
                 indistinguishable), so there is deliberately no inverse toggle. */}
             <section className="lm-isearch__facet">
-              <h3>Delivery</h3>
-              <ToggleRefinement attribute="eu_flag" on={1} label="In EU stock" />
+              <h3>{t('rail.delivery')}</h3>
+              <ToggleRefinement attribute="eu_flag" on={1} label={t('rail.inEuStock')} />
             </section>
 
             {/* Every other facet group the backend returns (attributes, variant
@@ -497,16 +555,16 @@ const SearchView: React.FC = () => {
           {/* ── Results ─────────────────────────────────────────────────── */}
           <section className="lm-isearch__results">
             <div className="lm-isearch__results-head">
-              <Stats />
+              <Stats translations={widget.stats} />
               <label className="lm-isearch__sort">
-                Sort by
+                {t('sort.label')}
                 <SortBy items={sortItems} />
               </label>
             </div>
 
             {showRelaxedBanner && (
               <div className="lm-isearch__relaxed" role="status">
-                No exact matches for &ldquo;{relaxedQuery}&rdquo; &mdash; showing similar results.
+                {t('relaxed', { query: relaxedQuery })}
               </div>
             )}
 
@@ -518,14 +576,14 @@ const SearchView: React.FC = () => {
             <NoResultsBoundary fallback={meta.unavailable ? <SearchUnavailableState /> : <SearchEmptyState categoryId={params.id} />}>
               <Hits hitComponent={ProductHit} classNames={{ list: 'lm-isearch__grid' }} />
 
-              <Pagination className="lm-isearch__pager" padding={2} />
+              <Pagination className="lm-isearch__pager" padding={2} translations={widget.pagination} />
             </NoResultsBoundary>
           </section>
         </div>
       </InstantSearch>
 
       <div className="lm-isearch__foot">
-        <Link to="/">← Continue shopping</Link>
+        <Link to="/">{t('continueShopping')}</Link>
       </div>
     </div>
   );

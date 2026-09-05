@@ -5,6 +5,7 @@ import { userApi } from 'app/shared/api';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
+import { useTranslation } from 'app/i18n';
 
 /**
  * "Recently viewed" card row under the related products (Amazon's
@@ -27,6 +28,7 @@ interface FootItem {
 }
 
 const RecentlyViewed: React.FC<Props> = ({ currentGoodsId }) => {
+  const { t } = useTranslation('product');
   const [items, setItems] = useState<FootItem[]>([]);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ const RecentlyViewed: React.FC<Props> = ({ currentGoodsId }) => {
 
   return (
     <section className='lm-pdp__recent'>
-      <h3 className='lm-pdp__recenttitle'>Your recently viewed items</h3>
+      <h3 className='lm-pdp__recenttitle'>{t('recent')}</h3>
       <div className='lm-pdp__recentrow'>
         {rows.map(it => (
           <Link key={`${it.goodsId}-${it.id ?? ''}`} to={productPath(it.goodsId!, it.name ?? it.goodsName)} className='lm-pdp__recentcard'>

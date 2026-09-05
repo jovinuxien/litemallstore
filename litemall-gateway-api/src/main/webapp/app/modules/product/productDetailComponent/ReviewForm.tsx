@@ -3,6 +3,7 @@ import { Alert, Button, Form } from 'react-bootstrap';
 
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Post-purchase review form feeding `POST /srv/comment/post` (type 0 = goods).
@@ -16,6 +17,7 @@ interface Props {
 }
 
 const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
+  const { t } = useTranslation('product');
   const [star, setStar] = useState(5);
   const [content, setContent] = useState('');
   const [picUrls, setPicUrls] = useState<string[]>([]);
@@ -40,7 +42,7 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
       setDone(true);
       onSubmitted?.();
     } catch {
-      setNotice({ variant: 'danger', text: 'Your review could not be submitted. Please try again.' });
+      setNotice({ variant: 'danger', text: t('reviewForm.failed') });
     } finally {
       setBusy(false);
     }
@@ -49,20 +51,20 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
   if (done) {
     return (
       <Alert variant='success' className='mb-0'>
-        Thanks! Your review has been submitted.
+        {t('reviewForm.thanks')}
       </Alert>
     );
   }
 
   return (
     <Form onSubmit={submit} className='lm-review-form'>
-      <div className='mb-2' role='radiogroup' aria-label='Rating'>
+      <div className='mb-2' role='radiogroup' aria-label={t('reviewForm.ratingAria')}>
         {[1, 2, 3, 4, 5].map(i => (
           <button
             key={i}
             type='button'
             className='btn btn-link p-0 me-1 fs-5 text-warning text-decoration-none'
-            aria-label={`${i} star${i > 1 ? 's' : ''}`}
+            aria-label={t('reviewForm.star', { count: i })}
             onClick={() => setStar(i)}
           >
             <i className={`bi ${i <= star ? 'bi-star-fill' : 'bi-star'}`} />
@@ -73,7 +75,7 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
         as='textarea'
         rows={3}
         maxLength={1023}
-        placeholder='Share your experience with this product…'
+        placeholder={t('reviewForm.placeholder')}
         value={content}
         onChange={e => setContent(e.target.value)}
         className='mb-2'
@@ -88,7 +90,7 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
         </Alert>
       )}
       <Button type='submit' size='sm' variant='primary' disabled={busy || !content.trim()}>
-        {busy ? 'Submitting…' : 'Submit review'}
+        {busy ? t('reviewForm.submitting') : t('reviewForm.submit')}
       </Button>
     </Form>
   );
