@@ -221,6 +221,27 @@ public final class MailHtmlTemplates {
         return shell("Refund approved for order " + nz(orderSn), preheader, logoUrl, main.toString());
     }
 
+    /** HTML twin of {@link MailTemplates#paymentRefunded}: the late/duplicate charge was reversed. */
+    public static String paymentRefunded(String orderSn, String amount, String storeUrl, String logoUrl) {
+        StringBuilder main = new StringBuilder();
+        main.append(heading("Your payment has been refunded"));
+        main.append(paragraph("We received a payment for order <strong>" + esc(orderSn) + "</strong> after the "
+                + "order could no longer be completed, so we have refunded it in full."));
+        if (notBlank(amount)) {
+            main.append(figure("Refunded", amount, false));
+        }
+        main.append(paragraph("The refund goes back to the payment method you used. Depending on your bank it "
+                + "can take a few working days to appear on your statement. Nothing will be shipped for this "
+                + "payment."));
+        main.append(paragraph("If you still want the items, simply place a new order."));
+        main.append(button(storeUrl, "Shop again"));
+
+        String preheader = notBlank(amount)
+                ? "Refund of " + amount + " for order " + nz(orderSn)
+                : "Your payment for order " + nz(orderSn) + " has been refunded";
+        return shell("Payment refunded for order " + nz(orderSn), preheader, logoUrl, main.toString());
+    }
+
     // ------------------------------------------------------------------
     // Building blocks
     // ------------------------------------------------------------------

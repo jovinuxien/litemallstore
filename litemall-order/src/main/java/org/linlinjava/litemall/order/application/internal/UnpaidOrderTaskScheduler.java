@@ -21,12 +21,12 @@ public class UnpaidOrderTaskScheduler {
     private static final int SWEEP_BATCH_LIMIT = 200;
 
     private final LitemallUnpaidOrderTaskRepository repository;
-    private final LitemallOrderServiceImpl orderServiceImpl;
+    private final UnpaidOrderReconciler reconciler;
 
     public UnpaidOrderTaskScheduler(LitemallUnpaidOrderTaskRepository repository,
-                                    LitemallOrderServiceImpl orderServiceImpl) {
+                                    UnpaidOrderReconciler reconciler) {
         this.repository = repository;
-        this.orderServiceImpl = orderServiceImpl;
+        this.reconciler = reconciler;
     }
 
     public void schedule(LitemallOrderId orderId) {
@@ -48,10 +48,11 @@ public class UnpaidOrderTaskScheduler {
 
     // @Transactional so claimDueBatch's FOR UPDATE SKIP LOCKED row locks are held
     // for the whole sweep: a concurrent instance's sweep skips these rows, so no
-    // order is double-cancelled. Each autoCancelOrder runs in its OWN transaction
-    // (REQUIRES_NEW) against the order tables only — it never touches the task
-    // table — so a per-row failure rolls back just that order's work without
-    // poisoning this claim transaction, and the row is left (undeleted) for retry.
+    // order is double-processed. Every order mutation the reconciler makes runs in
+    // its OWN transaction (REQUIRES_NEW through a proxy) against the order tables
+    // only — never the task table — so a per-row failure rolls back just that
+    // order's work without poisoning this claim transaction, and the row is left
+    // (undeleted) for retry.
     @Scheduled(fixedDelayString = "${litemall.order.unpaid-sweep-ms:60000}")
     @Transactional
     public void sweep() {
@@ -59,21 +60,28 @@ public class UnpaidOrderTaskScheduler {
         if (due.isEmpty()) {
             return;
         }
-        log.info("Unpaid-order sweep: claimed {} due orders to cancel", due.size());
+        log.info("Unpaid-order sweep: claimed {} due orders", due.size());
         for (LitemallUnpaidOrderTaskAggregate task : due) {
+            LitemallOrderId orderId = task.getOrderId();
             try {
-                orderServiceImpl.autoCancelOrder(task.getOrderId(), "auto-cancelled: unpaid timeout");
-                repository.deleteByOrderId(task.getOrderId());
+                UnpaidOrderReconciler.Outcome outcome = reconciler.resolve(orderId);
+                if (outcome.isDeferred()) {
+                    // Money in flight, or the PSP could not be asked: keep the row, push it out.
+                    task.setDueAt(outcome.getDeferUntil());
+                    repository.upsert(task);
+                } else {
+                    repository.deleteByOrderId(orderId);
+                }
             } catch (NoSuchElementException e) {
                 // The order is gone (soft-deleted/purged). There is nothing left to
                 // cancel and no future sweep can change that, so retrying would loop
                 // forever — retire the task instead.
-                log.info("Unpaid-order task for missing order {} dropped", task.getOrderId().getId());
-                repository.deleteByOrderId(task.getOrderId());
+                log.info("Unpaid-order task for missing order {} dropped", orderId.getId());
+                repository.deleteByOrderId(orderId);
             } catch (RuntimeException e) {
                 // Kept for retry on purpose: this is for TRANSIENT failures. Anything
                 // permanent must be made non-throwing at the source, or it loops here.
-                log.warn("Failed to auto-cancel unpaid order {}; row left for retry", task.getOrderId().getId(), e);
+                log.warn("Failed to resolve unpaid order {}; row left for retry", orderId.getId(), e);
             }
         }
     }
