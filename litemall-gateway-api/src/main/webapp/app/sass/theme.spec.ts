@@ -66,7 +66,11 @@ describe('document pages', () => {
 
   it.each(DOC_PAGES)('%s keeps small+muted only for the "Last updated" caption and the help footnote', page => {
     const src = readFileSync(join(APP, 'modules', 'static', `${page}.tsx`), 'utf8');
-    const muted = [...src.matchAll(/<p className='[^']*text-muted[^']*'>\s*([^<]{0,20})/g)].map(m => m[1].trim());
-    muted.forEach(lead => expect({ page, lead, caption: /^(Last updated|Not solved\?)/.test(lead) }).toEqual({ page, lead, caption: true }));
+    // A muted <p> may only be the "Last updated" caption or the help footnote — the
+    // latter is now a <Trans i18nKey='center.footnote'> element, so match the key.
+    const muted = [...src.matchAll(/<p className='[^']*text-muted[^']*'>\s*(<Trans[^>]*i18nKey='center\.footnote'|[^<]{0,20})/g)].map(m => m[1].trim());
+    muted.forEach(lead =>
+      expect({ page, lead, caption: /^(Last updated|<Trans[^>]*i18nKey='center\.footnote')/.test(lead) }).toEqual({ page, lead, caption: true })
+    );
   });
 });
