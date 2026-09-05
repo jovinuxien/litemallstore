@@ -2445,7 +2445,35 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: order lifecycle honesty (SPA half of the order packages A–C; plan approved 2026-09-05)
+### Worktree: `gateway-api` — order lifecycle honesty BUILT (SPA half of order packages A–C), merge pending
+- **Status 2026-09-06 — BUILT, all four commits on the branch.** `38f07dc54` payment
+  (processing intents + `/pay/:id/status` polling return page + already-paid 402 ⇒ success),
+  `4a1bebe27` fulfilment (TRACKING_PENDING copy + `fulfillmentStatus` verbatim),
+  `28aa0e266` refund withdraw (button on detail/list/Refunds, 202 rows listed, refusals
+  verbatim — order actions no longer swallow errors), `652e65a4b` order timeline panel.
+  jest **57 suites / 392 tests** (was 50/360), tsc 0, `i18n:check` 0, prod build clean.
+  **Headless acceptance against the BUILT bundle** (stub server answering the exact
+  litemall-order DTO shapes, en + sv): order detail, detail→withdraw (422 refusal shown
+  verbatim), Refunds + withdraw, pay-status processing / settled / failed — 14/14 pages, every
+  contract string found, **0 page errors**. Dev order stack was NOT booted (no live e2e);
+  the processing-intent and withdraw paths are proven at the unit seam + stubbed render.
+  ⚠ Contract deviations, deliberate: the customer detail has NO numeric `orderStatus`, so
+  202 keys on `handleOption.withdrawRefund` and "left unpaid" on `handleOption.pay === false`
+  (`paymentOutcome.settlementOf`); a cancelled order is read from its status text. The
+  confirm-window copy was NOT changed: `shippingTerms.AUTO_CONFIRM_DAYS` already mirrors
+  `litemall_order_unconfirm` (7), which the backend now honours — the mirror IS the setting.
+  `redirect_status=succeeded` is never trusted; the page polls (3 s × 40) and a plain
+  confirmation that never lands says "still waiting", a `processing` one keeps saying so.
+  ⚠ Gotchas: `i18next-parser` attributes keys called through a passed-in `TFunction` to the
+  DEFAULT namespace — use `order:`-prefixed keys with the module `t` (timelineCopy.ts);
+  `innerText` is CSS-uppercased, match case-insensitively in a harness; Chrome logs an
+  intended 4xx as a console error ("Failed to load resource") — filter it, it is not a page
+  error; a Spinner inside `<p>` needs `as='span'`.
+  **RAISED, not built:** the standalone `/pay/:orderId` page (Pay now from the order list)
+  offers CARD with NO Stripe Elements mounted, so `payOrder` always rejects with "card
+  payment was not completed" — pre-existing since Wave 7, a dead end for any unpaid order;
+  needs the checkout's Elements flow lifted into that page. The tokenized guest order view
+  (mail CTAs hit the login wall) still stands. **Deploy = gateway-api container only** (MAIN).
 - **Task — order lifecycle honesty (user-approved 2026-09-05).** Code to the FROZEN
   contract `litemall-order/docs/handoff-gateway-api-lifecycle.md` (the order side is
   MERGED `5cfe7b1d5` + DEPLOYED to prod 2026-09-05). SPA only, no migration, no backend,
