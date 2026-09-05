@@ -98,6 +98,37 @@
       "unrated": "Ikke bedømt"
     }
   },
+  "timeline": {
+    "title": "Ordrehistorik",
+    "fetching": "Indlæser historik…",
+    "unavailable": "Historikken er midlertidigt utilgængelig.",
+    "types": {
+      "unknown": "Status opdateret",
+      "create": "Ordre afgivet",
+      "pay": "Betaling modtaget",
+      "cancel": "Ordre annulleret",
+      "system_cancel": "Annulleret automatisk – betalingsfristen udløb",
+      "ship": "Afsendt",
+      "receive": "Levering bekræftet",
+      "auto_receive": "Markeret som modtaget automatisk",
+      "writeoff": "Afhentet i butik",
+      "refund_request": "Refusion anmodet",
+      "refund_withdrawn": "Refusionsanmodning trukket tilbage",
+      "refund": "Refusion gennemført",
+      "cj_placement": "Leveringsopdatering",
+      "cj_placement_failed": "Leveringen er forsinket – vores team er på sagen",
+      "cj_stall": "Leveringen er forsinket – vores team er på sagen",
+      "cj_sync": "Opdatering fra leverandøren",
+      "payment_reconciled": "Betaling bekræftet",
+      "payment_refunded_stray": "Betaling refunderet",
+      "payment_stray_unrefunded": "Refusion afventer – support er underrettet"
+    },
+    "who": {
+      "you": "Dig",
+      "system": "Automatisk",
+      "team": "Vores team"
+    }
+  },
   "refunds": {
     "title": "Refusioner",
     "empty": "Ingen refusioner eller reklamationer."

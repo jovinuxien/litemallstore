@@ -8,23 +8,16 @@ import { actionErrorMessage, orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { orderAddressLines } from 'app/shared/util/address';
+import { fmtDateTime } from 'app/shared/util/dateTime';
 import { money } from 'app/shared/util/money';
 import { QRCodeSVG } from 'qrcode.react';
 
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
 import AftersalePanel from './AftersalePanel';
 import DisputePanel from './DisputePanel';
+import OrderTimelinePanel from './OrderTimelinePanel';
 import TrackingPanel from './TrackingPanel';
 import './order.scss';
-
-/** verifyTime arrives as a LocalDateTime tuple ([y,m,d,h,min,...]) or an ISO string. */
-const fmtDateTime = (t?: string | number[]): string => {
-  if (Array.isArray(t) && t.length >= 5) {
-    const [y, m, d, h, min] = t;
-    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} ${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-  }
-  return typeof t === 'string' ? t.slice(0, 16).replace('T', ' ') : '';
-};
 
 /**
  * Single-order view, modelled on litemall-vue `order/order-detail`: shipping
@@ -232,6 +225,9 @@ const OrderDetailView: React.FC = () => {
           {order.cjOrderNum && <Cell title={t('detail.cjOrderNo')} value={order.cjOrderNum} />}
           {order.orderStatusText && <Cell title={t('detail.status')} value={order.orderStatusText} />}
         </CellGroup>
+
+        {/* Status timeline (lifecycle contract §4 — the help centre promises one). */}
+        {orderId != null && <OrderTimelinePanel orderId={orderId} />}
 
         {/* Shipment tracking (Wave 4 — /srv/order/{id}/tracking; hides itself
             when the endpoint isn't deployed). Pickup orders don't ship. */}

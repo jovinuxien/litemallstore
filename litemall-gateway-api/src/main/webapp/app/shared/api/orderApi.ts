@@ -5,6 +5,7 @@ import {
   IFreightQuote,
   IOrderDetail,
   IOrderListItem,
+  IOrderTimelineEntry,
   IStore,
   ITracking,
 } from 'app/shared/model/order/order.model';
@@ -93,6 +94,11 @@ export const orderApi = {
    * (live CJ trackInfo behind a 1h server cache) — generous timeout.
    */
   tracking: (orderId: number | string) => unwrap<ITracking>(baseAxios.get(`${SRV}/order/${orderId}/tracking`, { timeout: 30000 })),
+  /**
+   * GET /srv/order/{id}/timeline — every recorded state transition, oldest first
+   * (owner-scoped; foreign/unknown ⇒ errno 404). Rendered by OrderTimelinePanel.
+   */
+  timeline: (orderId: number | string) => unwrap<IOrderTimelineEntry[]>(baseAxios.get(`${SRV}/order/${orderId}/timeline`)),
   /**
    * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
    * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment
