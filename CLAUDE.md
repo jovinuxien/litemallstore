@@ -2327,9 +2327,68 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n BATCH 2 (PDP + cards + search rail) MERGED, deploy pending
-- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout +
-  delivery chooser + coupon cell; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY (assigned 2026-09-05)
+- **Task — make Help center / Returns / Customer service (and the other
+  `app/modules/static/*` pages) follow the storefront theme hierarchy and a
+  standard ecommerce type scale.** User-commissioned 2026-09-05 (no wave).
+  Audit facts (2026-09-05, code-verified from MAIN):
+  1. **Bootstrap `primary` was never remapped to the theme.** `index.tsx`
+     imports stock `bootstrap.min.css`; no `--bs-primary` / `--bs-link-color`
+     override and NO global `a` rule exist anywhere. So every plain `<Link>` /
+     `<a>` renders Bootstrap BLUE `#0d6efd` underlined (41 anchors on the
+     static pages, 182 storewide, only 36 carry an explicit theme class), the
+     `text-primary` icons on Help / CustomerService / CookieBanner are blue, and
+     `btn-primary` / `btn-outline-primary` are blue on CookieBanner,
+     CookiePreferences, NotFound, ErrorBoundary, Coupons, CouponCenter, Groupon,
+     GrouponDetail, TopicDetail and one Checkout button (`:1553`). The kit's
+     `btn-lm-primary` exists (`storefront.scss`) but those sites never used it.
+  2. **Font family is already the Amazon stack** (`app/sass/global.scss`
+     `--lm-font`: Amazon Ember → Helvetica Neue → Arial → Segoe UI → Roboto;
+     Ember is NOT loaded, so Mac = Helvetica Neue, Windows = Arial). Four
+     stylesheets override it: `home/home.scss` + `home/storefront-home.scss` +
+     `search/instantsearch/search.scss` (Roboto first — no webfont loaded, so
+     it diverges only on Android/Linux) and `sass/components/_cards.scss:53`.
+  3. **Text size flattens the hierarchy.** On all 8 static pages `<h1>` is
+     class `h4` (24px), `<h2>` is class `h6` (16px = body size), and 49 of 53
+     `<p>` are `small text-muted` — 14px GREY for policy copy a customer must
+     read (Returns 8/9, Terms 10/10, Delivery 7/7, Payments 8/8). Standard
+     ecommerce help/legal copy is 15–16px in the primary text colour, h1
+     ~26–28px, h2 ~18–20px, `small`/muted reserved for "Last updated" and
+     captions.
+  Deliverables (ONE commit; SPA only, no backend, no migration):
+  - **Theme remap at `:root` in `global.scss`:** `--bs-primary` (+ `-rgb`),
+    `--bs-link-color` / `--bs-link-hover-color` (+ `-rgb`) → `--lm-primary` /
+    `--lm-primary-dark`; `.btn-primary` and `.btn-outline-primary` CSS vars
+    (`--bs-btn-bg`, `-border-color`, `-hover-bg`, `-hover-border-color`,
+    `-active-*`, `-color` for outline) → teal. After this `text-primary`,
+    buttons and links follow the hierarchy with NO per-site edits.
+  - **Global anchor rule:** teal, `text-decoration: none` at rest, underline on
+    hover/focus (standard ecommerce link treatment). Verify the header/footer
+    links in `layout-header.scss` still look right (they set their own colours).
+  - **Font:** delete the four family overrides (item 2) so every page reads
+    `var(--lm-font)`. Do NOT add a webfont — a loaded face (Inter etc.) is a
+    storewide design decision the user has not taken.
+  - **Type scale for document pages:** one shared class (e.g. `.lm-doc` in
+    `shared/scss/content.scss`) applied by the 8 static pages: body copy
+    `1rem`/15–16px in `--lm-text`, `line-height 1.6`, h1 `1.65rem` 700,
+    h2 `1.15rem` 700 with top margin, `max-width` 720 kept; drop `small
+    text-muted` from body paragraphs; keep muted/small ONLY for "Last updated",
+    support-hours captions and the "Still stuck?" card footnote. FAQ answers
+    on Help move from `text-muted` to `--lm-text`.
+  - Keep Wave-15/9.1 copy byte-identical (this is styling; the legal wording,
+    seller identity, support email/hours and the promise pages are NOT touched).
+    i18n keys unchanged.
+- **Acceptance (dev, `npm run build:prod` + jest; live check through :9000 if the
+  stack is up):** grep shows no remaining `font-family:` outside `global.scss`;
+  a headless render of /help, /returns, /service, /cookies and /404 shows NO
+  `#0d6efd` computed colour on any anchor, icon or button (assert
+  `getComputedStyle` on a sample, not by eye); Help h2 > body size; Returns
+  body paragraphs are 15–16px in `--lm-text`; cookie banner Accept button is
+  teal; jest + `tsc` green with real counts; prod build clean. Deploy =
+  gateway-api container rebuild only (MAIN). Rewrite this block when done.
+- **Previously (2026-09-05):** i18n batch 2 merged, deploy pending — see below.
+  Next i18n task after this one = batch 3 (cart/checkout + delivery chooser +
+  coupon cell; spec §5).
 - **Status 2026-09-05 — i18n BATCH 2 BUILT + MERGED to master.** ~90 string sites
   across 23 files (spec §5 estimated ~30): `ProductCard`, `Detail.tsx` + 14 PDP
   sub-components, `Search.tsx` + rail/tree/empty/unavailable states, `euStock.ts`.
