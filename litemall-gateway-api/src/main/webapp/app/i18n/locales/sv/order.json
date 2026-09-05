@@ -98,6 +98,37 @@
       "unrated": "Ej betygsatta"
     }
   },
+  "timeline": {
+    "title": "Orderhistorik",
+    "fetching": "Laddar historik…",
+    "unavailable": "Historiken är tillfälligt otillgänglig.",
+    "types": {
+      "unknown": "Status uppdaterad",
+      "create": "Order lagd",
+      "pay": "Betalning mottagen",
+      "cancel": "Order avbruten",
+      "system_cancel": "Avbröts automatiskt – betalningsfönstret gick ut",
+      "ship": "Skickad",
+      "receive": "Leverans bekräftad",
+      "auto_receive": "Markerad som mottagen automatiskt",
+      "writeoff": "Hämtad i butik",
+      "refund_request": "Återbetalning begärd",
+      "refund_withdrawn": "Återbetalningsbegäran tillbakadragen",
+      "refund": "Återbetalning genomförd",
+      "cj_placement": "Leveransuppdatering",
+      "cj_placement_failed": "Leveransen är fördröjd – vårt team arbetar på det",
+      "cj_stall": "Leveransen är fördröjd – vårt team arbetar på det",
+      "cj_sync": "Uppdatering från leverantören",
+      "payment_reconciled": "Betalning bekräftad",
+      "payment_refunded_stray": "Betalning återbetald",
+      "payment_stray_unrefunded": "Återbetalning väntar – supporten har informerats"
+    },
+    "who": {
+      "you": "Du",
+      "system": "Automatiskt",
+      "team": "Vårt team"
+    }
+  },
   "refunds": {
     "title": "Återbetalningar",
     "empty": "Inga återbetalningar eller reklamationer."

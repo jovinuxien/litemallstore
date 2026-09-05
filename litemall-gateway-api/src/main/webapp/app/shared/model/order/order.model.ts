@@ -212,3 +212,20 @@ export interface IDisputeContext {
   refundAllowed: boolean;
   reissueAllowed: boolean;
 }
+
+/**
+ * One step of `GET /srv/order/{id}/timeline` (oldest first). Codes + server labels for the
+ * from/to statuses; `changeType` is the stable vocabulary (see modules/order/timelineCopy);
+ * `changeMessage` is the server's account of the step; `operator` is `user`, `system` or
+ * `admin:<id>`. changeTime: ISO string or LocalDateTime tuple.
+ */
+export interface IOrderTimelineEntry {
+  fromStatus?: number | null;
+  fromStatusText?: string | null;
+  toStatus?: number | null;
+  toStatusText?: string | null;
+  changeType?: string | null;
+  changeMessage?: string | null;
+  operator?: string | null;
+  changeTime?: string | number[] | null;
+}
