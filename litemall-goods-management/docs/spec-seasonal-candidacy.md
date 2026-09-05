@@ -386,3 +386,47 @@ that split the set. Reversible: PUT the previous list back (it is in V64) and re
 Winter/spring/summer have the same weakness (`gift`, `storage`, `fan`, `outdoor` are generic) and
 the same fix; tune them before their page is activated, not after.
 
+
+### 17.5 Deployed 2026-09-05 — and what the first live run measured
+
+Merged to master `3e784648d` (suite on the merged tree 596 run / 0 failures / 8 skipped) and
+deployed as the goods-management container alone (built on the VPS from that commit, healthy in
+~20 s, `SeasonTerms` present in the running jar with `LitemallProductIndexingService` as the positive
+control, both quantile knobs visible inside the container). No migration, no reindex, no searcher
+restart — as §17 said.
+
+The §17.4 autumn list was then applied through `docker-compose/season-tune.sh terms autumn
+season-terms-autumn-2026-09.json` (backup of all four rules first:
+`/root/season-rules-backup-20260905T001924Z.json` on the VPS; `season-tune.sh restore autumn <backup>`
+puts the seed list back) and the scorer run once by hand.
+
+**Before → after, measured on the live rail through `/srv/page/season` + `POST /srv/goods/batch`:**
+
+| | before | after |
+|---|---|---|
+| rail items with an autumn term in the title (new list) | 14 / 24 | **24 / 24** |
+| items hit by an exclusion | 1 (Christmas icicle lights) | 0 |
+| off-season passengers (all-season sofa cover, coffee mug, cable organiser, bedside lamps) | 6 | 0 |
+| search hits carrying `seasons` | 0 / 20 | **20 / 20** |
+
+Run summary (all four seasons score on every run): autumn scanned 429, scored 428, published 150
+(the top 35%), 126 dropped by the cap, **discovery discarded 914 off-title hits + 44 excluded hits,
+0 relaxed sets**, tier cuts hot 773.3 / featured 631.67 — the set splits, which it never did under
+the absolute thresholds. Spring 679/679/238, summer 420/416/146, winter 518/517/181, each with
+hundreds of off-title discards and cuts in the 590–720 band. Rejections stay marginal (1 UNCOSTED,
+4 UNAVAILABLE, 1 OUT_OF_BAND). Storefront smoke 200 across shell, sitemap, robots, PDP, search,
+season page; live `?seasons=` totals autumn 24 / winter 25 / spring 24 / summer 24.
+
+Observed, recorded not hidden:
+- The 200-hit scan limit is now the binding bound on broad terms: `wool` had 1,250 hits and 200 were
+  considered, `fall` 552 → 200 (both logged). The candidate set is therefore "the top 200 by relevance
+  per term that also carry the term in the title", not the full population. Fine for a 24-item rail;
+  raise `LITEMALL_SEASONS_SCAN_LIMIT` before asking the field to be exhaustive.
+- Three "Air-conditioning Blanket" products are on the rail — a summer article under a title that
+  does not contain `cooling` or `summer`. `-air-conditioning` is the one-line data fix if the curator
+  wants them out; not applied here because it was not in the approved list.
+- Winter returns 25 members through search where the other seasons return 24: one row more than
+  the cap, from an earlier run's membership the later run did not unpublish. Cosmetic on search;
+  the page resolver still caps at 24.
+- Winter/spring/summer still run on their seed terms (`gift`, `storage`, `fan`, `outdoor`) — tune
+  each before its page is activated, exactly as §17.4 says.

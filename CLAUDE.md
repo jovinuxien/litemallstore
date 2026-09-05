@@ -1737,14 +1737,24 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups MERGED to master 2026-09-05 (deploy + autumn term tuning in progress)
+### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
-  `seasons` on hits.** Built as `54912135c`; **MERGED to master 2026-09-05** (merge commit carries the
-  peer's SEO bulk-apply; suite on the merged tree **596 run / 0 failures / 8 skipped**, was 589 on the
-  branch alone). Deploy + the §17.4 autumn term PUT follow in the same session — see the status
-  entry above this one once it lands. Ops script for the data step: `docker-compose/season-tune.sh`
-  (`rules` backup / `terms <key> <file>` / `run` / `restore`), autumn list in
-  `docker-compose/season-terms-autumn-2026-09.json`. Spec §17 of
+  `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
+  trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
+  suite on the merged tree **596 run / 0 failures / 8 skipped**; the merge also carries the peer's
+  SEO bulk-apply, so that is live too). **Autumn terms tuned on prod the same session** via
+  `docker-compose/season-tune.sh terms autumn season-terms-autumn-2026-09.json` (rules backup
+  `/root/season-rules-backup-20260905T001924Z.json` on the VPS; `restore` reverses it) + one manual
+  scorer run. Measured live, before → after: rail items on-term **14/24 → 24/24**, off-season
+  passengers 6 → 0, search hits carrying `seasons` **0/20 → 20/20**; autumn discovery discarded 914
+  off-title + 44 excluded hits, 0 relaxed sets; tier cuts hot 773.3 / featured 631.67 (the set
+  splits now). Full record spec §17.5. ⚠ The 200-hit scan limit is now the binding bound on broad
+  terms (`wool` 1,250 hits → 200 considered, logged). ⚠ Three "Air-conditioning Blanket" items
+  survive (title has neither `cooling` nor `summer`) — `-air-conditioning` is the one-line data fix
+  if wanted. Winter/spring/summer still on seed terms. ⚠ The MAIN checkout's index shows my three
+  files as staged reverse-changes (phantom from the ref move; its working CLAUDE.md is byte-identical
+  to old master) — `git checkout HEAD -- CLAUDE.md docker-compose/season-tune.sh
+  docker-compose/season-terms-autumn-2026-09.json` there clears it; touching MAIN was denied here. Spec §17 of
   `litemall-goods-management/docs/spec-seasonal-candidacy.md` is the record. Closes all three
   limits the 2026-08-27 deploy recorded:
   1. `SeasonScoringService.discover` used to keep EVERY hit for a term. The index matches
