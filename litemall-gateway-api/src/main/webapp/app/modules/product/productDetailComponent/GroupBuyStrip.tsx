@@ -5,6 +5,7 @@ import { useAppSelector } from 'app/config/store';
 import { ICombination, promotionApi } from 'app/shared/api';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Wave-21 PDP group-buy entry. When an active combination campaign exists for
@@ -27,6 +28,7 @@ const GroupBuyStrip: React.FC<{
   /** Adds the currently selected variant/qty to the cart (PDP owns that state). */
   prepareCart: () => void;
 }> = ({ goodsId, inStock, heldPinkId, prepareCart }) => {
+  const { t } = useTranslation('product');
   const navigate = useNavigate();
   const location = useLocation();
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
@@ -73,11 +75,11 @@ const GroupBuyStrip: React.FC<{
       const op = await promotionApi.combinationStart(campaign.combinationId);
       const pinkId = Number(op?.data?.pinkId);
       if (Number.isFinite(pinkId) && pinkId > 0) toCheckout(pinkId);
-      else setError('The group could not be started — please try again.');
+      else setError(t('groupBuy.startFailed'));
     } catch (e) {
       // 400 carries {success:false,message} — shown verbatim.
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? 'The group could not be started — please try again.');
+      setError(msg ?? t('groupBuy.startFailed'));
     } finally {
       setBusy(false);
     }
@@ -98,13 +100,13 @@ const GroupBuyStrip: React.FC<{
         flexWrap: 'wrap',
       }}
     >
-      <strong>Group buy {money(groupPrice)}</strong>
+      <strong>{t('groupBuy.title', { price: money(groupPrice) })}</strong>
       {originalPrice > groupPrice && (
         <span style={{ opacity: 0.85 }}>
           <s>{money(originalPrice)}</s>
         </span>
       )}
-      {campaign.requiredMembers != null && <span style={{ opacity: 0.9 }}>{campaign.requiredMembers} people per group</span>}
+      {campaign.requiredMembers != null && <span style={{ opacity: 0.9 }}>{t('groupBuy.perGroup', { count: Number(campaign.requiredMembers) })}</span>}
       <span style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
         {heldPinkId ? (
           <button
@@ -113,20 +115,20 @@ const GroupBuyStrip: React.FC<{
             disabled={!inStock}
             onClick={() => toCheckout(heldPinkId)}
           >
-            Continue to checkout
+            {t('groupBuy.continue')}
           </button>
         ) : (
           <button type='button' className='btn btn-sm btn-light fw-semibold' disabled={!inStock || busy} onClick={() => void startGroup()}>
-            {busy ? 'Starting…' : 'Start a group'}
+            {busy ? t('groupBuy.starting') : t('groupBuy.start')}
           </button>
         )}
         <Link to={detailTo} className='text-white small' style={{ whiteSpace: 'nowrap' }}>
-          Group details <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
+          {t('groupBuy.details')} <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
         </Link>
       </span>
       {heldPinkId && (
         <span className='small' style={{ flexBasis: '100%', opacity: 0.9 }}>
-          You hold a group slot — pick your options, then continue. The group price is applied at payment.
+          {t('groupBuy.held')}
         </span>
       )}
       {error && (

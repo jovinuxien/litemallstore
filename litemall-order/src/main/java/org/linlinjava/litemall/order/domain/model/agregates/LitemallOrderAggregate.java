@@ -194,19 +194,31 @@ public class LitemallOrderAggregate {
                 "Auto-cancelled: payment window expired", "system");
     }
 
-    /** Admin/fulfillment ships a paid order (PAID → SHIPPED). */
+    /** Admin ships a paid order (PAID → SHIPPED). */
     public void ship(String shipChannel, String shipSn){
+        ship(shipChannel, shipSn, "admin");
+    }
+
+    /**
+     * PAID → SHIPPED with an honest operator ("admin" for the admin panel, "system" for the
+     * CJ poller — F12) and an honest message when the carrier has not assigned a tracking
+     * number yet (F10: a blank number is left NULL, never rendered as "()").
+     */
+    public void ship(String shipChannel, String shipSn, String operator){
         LitemallOrderStatus from = this.orderStatus;
         if(!from.canTransitionTo(LitemallOrderStatus.SHIPPED)){
             throw new IllegalStateException("Order status cannot transition from " + from + " to SHIPPED");
         }
+        boolean hasTracking = shipSn != null && !shipSn.isBlank();
         this.setOrderStatus(LitemallOrderStatus.SHIPPED);
         this.setShipChannel(shipChannel);
-        this.setShipSn(shipSn);
+        this.setShipSn(hasTracking ? shipSn : null);
         this.setShipTime(LocalDateTime.now());
         this.domainEvents.add(new LitemallOrderShippedEvent(this.getOrderId()));
         recordChange(from, LitemallOrderStatus.SHIPPED, "ship",
-                "Shipped via " + shipChannel + " (" + shipSn + ")", "admin");
+                hasTracking ? "Shipped via " + shipChannel + " (" + shipSn + ")"
+                            : "Shipped via " + shipChannel + " — tracking number pending",
+                operator == null || operator.isBlank() ? "admin" : operator);
     }
 
     /** Customer confirms receipt (SHIPPED → DELIVERED). */
@@ -278,6 +290,28 @@ public class LitemallOrderAggregate {
         this.domainEvents.add(new LitemallOrderRefundRequestedEvent(this.getOrderId(), reason));
         recordChange(from, LitemallOrderStatus.REFUND_REQUEST, "refund_request",
                 reason == null || reason.isBlank() ? "Refund requested" : "Refund requested: " + reason, "user");
+    }
+
+    /**
+     * Customer withdraws their refund request before an admin decided (D4): REFUND_REQUEST →
+     * back to PAID or SHIPPED, derived from whether the order ever shipped. A request that
+     * came from a delivered order (aftersale approval, which settles in one transaction)
+     * is not withdrawable; nor is one already refunded (different status).
+     *
+     * @return the status the order returned to
+     */
+    public LitemallOrderStatus withdrawRefundRequest(){
+        LitemallOrderStatus from = this.orderStatus;
+        if (from != LitemallOrderStatus.REFUND_REQUEST) {
+            throw new IllegalStateException("Order status cannot withdraw a refund request from " + from);
+        }
+        if (this.confirmTime != null) {
+            throw new IllegalStateException("A refund request on a delivered order cannot be withdrawn");
+        }
+        LitemallOrderStatus to = this.shipTime != null ? LitemallOrderStatus.SHIPPED : LitemallOrderStatus.PAID;
+        this.setOrderStatus(to);
+        recordChange(from, to, "refund_withdrawn", "Refund request withdrawn by the customer", "user");
+        return to;
     }
 
     /** Admin approves a refund; the money has been returned (REFUND_REQUEST → REFUNDED). */

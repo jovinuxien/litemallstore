@@ -2,6 +2,7 @@ package org.linlinjava.litemall.order.interfaces.rest;
 
 import org.linlinjava.litemall.order.application.LitemallOrderOrchestratorService;
 import org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException;
+import org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentTemporarilyUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -57,6 +58,13 @@ public class StripeWebhookController {
         try {
             orchestrator.handleStripeWebhook(payload, signature);
             return ResponseEntity.ok("ok");
+        } catch (LitemallPaymentTemporarilyUnavailableException e) {
+            // Signature was valid but Stripe itself could not be asked while verifying. The
+            // orchestrator's transaction rolled back, so the event claim is released; a
+            // non-2xx makes Stripe redeliver with its own backoff — the retry that used to be
+            // impossible because the claim survived and the resend was dropped as a duplicate.
+            log.warn("Stripe webhook deferred (PSP unavailable): {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("retry later");
         } catch (LitemallPaymentGatewayException e) {
             // Bad/absent signature, or the secret is unset. Never say which — an attacker
             // probing the endpoint learns nothing beyond "rejected".

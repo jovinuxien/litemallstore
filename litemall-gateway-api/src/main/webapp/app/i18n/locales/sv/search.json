@@ -1,0 +1,107 @@
+{
+  "rail": {
+    "categories": "Kategorier",
+    "collapse": "Fäll ihop {{name}}",
+    "expand": "Fäll ut {{name}}",
+    "department": "Avdelning",
+    "categoryBreadcrumb": "Kategorisökväg",
+    "noSubcategories": "Inga underkategorier",
+    "clearAll": "Rensa alla",
+    "brand": "Varumärke",
+    "category": "Kategori",
+    "offers": "Erbjudanden",
+    "delivery": "Leverans",
+    "hasCoupon": "Har rabattkod",
+    "groupBuy": "Gruppköp",
+    "inEuStock": "I EU-lager",
+    "filters": "Filter",
+    "filterByCategory": "Filtrera på kategori",
+    "price": "Pris",
+    "facetFields": {
+      "variant_price": "Variantpris"
+    }
+  },
+  "empty": {
+    "queryTitle": "Inga träffar för ”{{query}}”",
+    "queryBody": "Kontrollera stavningen eller prova ett annat ord – eller börja med något av dessa.",
+    "filtersTitle": "Inga produkter matchar de här filtren",
+    "filtersBody": "Ta bort ett filter för att få fler träffar – eller börja med något av dessa.",
+    "departmentTitle": "Inget i den här avdelningen just nu",
+    "departmentBody": "Trovemo fokuserar nu på hem, trädgård och verktyg – här är vad vi har i lager i dag.",
+    "plainTitle": "Inga produkter hittades",
+    "plainBody": "Kontrollera stavningen eller prova ett annat ord – eller börja med något av dessa.",
+    "trending": "Populära sökningar",
+    "popularCategories": "Populära kategorier"
+  },
+  "unavailable": {
+    "title": "Sökningen är tillfälligt otillgänglig",
+    "body": "Vi kunde inte köra din sökning just nu. Försök igen om en stund.",
+    "retry": "Försök igen",
+    "home": "Tillbaka till startsidan"
+  },
+  "sort": {
+    "relevance": "Relevans",
+    "fields": {
+      "price": {
+        "asc": "Pris: lägst först",
+        "desc": "Pris: högst först"
+      },
+      "variant_price": {
+        "asc": "Variantpris: lägst först",
+        "desc": "Variantpris: högst först"
+      },
+      "rating": {
+        "asc": "Betyg: lägst först",
+        "desc": "Betyg: högst först"
+      },
+      "review_count": {
+        "asc": "Färst recensioner",
+        "desc": "Flest recensioner"
+      },
+      "discount_pct": {
+        "asc": "Rabatt: lägst först",
+        "desc": "Rabatt: högst först"
+      },
+      "listed_num": {
+        "asc": "Popularitet: lägst först",
+        "desc": "Populärast"
+      },
+      "title": {
+        "asc": "Namn: A till Ö",
+        "desc": "Namn: Ö till A"
+      },
+      "created_epoch": {
+        "asc": "Äldst först",
+        "desc": "Nyast först"
+      },
+      "deal_end_epoch": {
+        "asc": "Erbjudandet slutar snarast",
+        "desc": "Erbjudandet slutar senast"
+      },
+      "discount_price": {
+        "asc": "Kampanjpris: lägst först",
+        "desc": "Kampanjpris: högst först"
+      }
+    },
+    "generic": "{{field}} ({{direction}})",
+    "label": "Sortera efter",
+    "ascending": "stigande",
+    "descending": "fallande"
+  },
+  "widgets": {
+    "showLess": "Visa färre",
+    "showMore": "Visa fler",
+    "noResults": "Inga träffar",
+    "rangeSeparator": "till",
+    "go": "OK",
+    "firstPage": "Första sidan",
+    "previousPage": "Föregående sida",
+    "nextPage": "Nästa sida",
+    "lastPage": "Sista sidan",
+    "page": "Sida {{page}}",
+    "stats_one": "{{count, number}} träff",
+    "stats_other": "{{count, number}} träffar"
+  },
+  "relaxed": "Inga exakta träffar för ”{{query}}” – visar liknande resultat.",
+  "continueShopping": "← Fortsätt handla"
+}

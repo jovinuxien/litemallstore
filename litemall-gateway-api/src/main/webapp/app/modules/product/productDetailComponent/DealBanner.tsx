@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { baseAxios, SRV, unwrap } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Live flash-deal banner on the product detail page. Fetches
@@ -30,6 +31,7 @@ const fmtClock = (ms: number): string => {
 };
 
 const DealBanner: React.FC<{ goodsId?: number; isCj: boolean }> = ({ goodsId, isCj }) => {
+  const { t } = useTranslation('product');
   const [deal, setDeal] = useState<DealBlock | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -72,14 +74,14 @@ const DealBanner: React.FC<{ goodsId?: number; isCj: boolean }> = ({ goodsId, is
         flexWrap: 'wrap',
       }}
     >
-      <strong>Limited-time deal</strong>
-      <span style={{ fontVariantNumeric: 'tabular-nums' }}>Ends in {fmtClock(deal.endEpoch - now)}</span>
+      <strong>{t('deal.title')}</strong>
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{t('deal.endsIn', { clock: fmtClock(deal.endEpoch - now) })}</span>
       {claimedPct != null && claimedPct > 0 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 140, flex: 1 }}>
           <span style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.35)', overflow: 'hidden' }}>
             <span style={{ display: 'block', width: `${claimedPct}%`, height: '100%', background: '#fff' }} />
           </span>
-          <span style={{ fontSize: '0.8rem' }}>{claimedPct}% claimed</span>
+          <span style={{ fontSize: '0.8rem' }}>{t('deal.claimed', { pct: claimedPct })}</span>
         </span>
       )}
     </div>

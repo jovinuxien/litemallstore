@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { contentApi, IBrand } from 'app/shared/api';
 import { Attribution, attributionOf } from 'app/shared/util/attribution';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Wave-25 honest attribution row under the PDP title. Renders ONLY when the
@@ -19,6 +20,7 @@ const cache = new Map<number, Attribution | null>();
 export const clearSoldByCache = () => cache.clear();
 
 const SoldByRow: React.FC<{ brandId: number }> = ({ brandId }) => {
+  const { t } = useTranslation('product');
   const [attribution, setAttribution] = useState<Attribution | null>(() => (brandId > 0 ? cache.get(brandId) ?? null : null));
 
   useEffect(() => {
@@ -50,14 +52,14 @@ const SoldByRow: React.FC<{ brandId: number }> = ({ brandId }) => {
     <div className='lm-pdp__soldby'>
       {attribution.label === 'store' ? (
         <>
-          Sold by <Link to={`/brand/${brandId}`}>{attribution.name}</Link>
+          {t('soldBy.soldBy')} <Link to={`/brand/${brandId}`}>{attribution.name}</Link>
           <Link to={`/brand/${brandId}`} className='lm-pdp__soldby-more'>
-            More from this store
+            {t('soldBy.moreFromStore')}
           </Link>
         </>
       ) : (
         <>
-          Brand: <Link to={`/brand/${brandId}`}>{attribution.name}</Link>
+          {t('soldBy.brand')} <Link to={`/brand/${brandId}`}>{attribution.name}</Link>
         </>
       )}
     </div>

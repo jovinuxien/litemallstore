@@ -19,6 +19,9 @@ public final class MailTemplates {
     public static final String KEY_REFUND_APPROVED = "refund-approved";
     public static final String KEY_PICKUP_CODE = "pickup-code";
     public static final String KEY_PASSWORD_RESET = "password-reset";
+    public static final String KEY_PAYMENT_REFUNDED = "payment-refunded";
+    public static final String KEY_FULFILMENT_CANCELLED = "fulfilment-cancelled";
+    public static final String KEY_DELIVERED = "delivered";
 
     /** A rendered mail: the template key plus the finished subject and plain-text body. */
     public record RenderedMail(String templateKey, String subject, String body) {
@@ -118,6 +121,59 @@ public final class MailTemplates {
         }
         body.append("\nYou can follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
         return new RenderedMail(KEY_SHIPPED, subject, body.toString());
+    }
+
+    /**
+     * A payment that landed after the order could no longer accept it (cancelled for
+     * non-payment before an asynchronous method settled, or a second charge on an order
+     * already paid) was reversed automatically. {@code amount} is already formatted.
+     */
+    public static RenderedMail paymentRefunded(String orderSn, String amount) {
+        String subject = "Your payment for order " + nz(orderSn) + " has been refunded";
+        String body = "We received a payment of " + nz(amount) + " for order " + nz(orderSn)
+                + " after the order could no longer be completed, so we have refunded it in full.\n\n"
+                + "The refund goes back to the payment method you used. Depending on your bank it can take "
+                + "a few working days to appear on your statement. Nothing will be shipped for this payment.\n\n"
+                + "If you still want the items, simply place a new order.\n\n"
+                + FOOTER;
+        return new RenderedMail(KEY_PAYMENT_REFUNDED, subject, body);
+    }
+
+    /**
+     * The supplier cancelled a paid order on its side (decision D2, 2026-09-05). No money has
+     * moved yet: support settles the refund by hand, so the mail promises contact, not a
+     * refund date.
+     */
+    public static RenderedMail fulfilmentCancelled(String orderSn) {
+        String subject = "About your order " + nz(orderSn) + " — we could not fulfil it";
+        String body = "We are sorry: our supplier was unable to fulfil order " + nz(orderSn)
+                + ", so it will not be shipped.\n\n"
+                + "You do not need to do anything. Our support team is reviewing the order and will contact you "
+                + "shortly about your refund or a replacement.\n\n"
+                + "If you would rather reach us first, reply to this email.\n\n"
+                + FOOTER;
+        return new RenderedMail(KEY_FULFILMENT_CANCELLED, subject, body);
+    }
+
+    /**
+     * The order closed as delivered — by the customer's confirmation or by the automatic
+     * confirmation after the grace window (lifecycle package C, F14). Names the date the
+     * return window started from and how long it lasts; {@code deliveredAt} is already
+     * formatted.
+     */
+    public static RenderedMail delivered(String orderSn, String deliveredAt, boolean autoConfirmed,
+                                         int returnWindowDays) {
+        String subject = "Your Trovemo order " + nz(orderSn) + " has been delivered";
+        String how = autoConfirmed
+                ? "Your order " + nz(orderSn) + " was marked as delivered on " + nz(deliveredAt)
+                  + " (our carrier reported delivery and we did not hear otherwise)."
+                : "Thanks for confirming that order " + nz(orderSn) + " arrived on " + nz(deliveredAt) + ".";
+        String body = how + "\n\n"
+                + "We hope you like it! You can leave a review for each item from the order page.\n\n"
+                + "Something wrong? You have " + returnWindowDays + " days from delivery to request a return "
+                + "or refund from the order page — no need to contact us first.\n\n"
+                + FOOTER;
+        return new RenderedMail(KEY_DELIVERED, subject, body);
     }
 
     public static RenderedMail refundApproved(String orderSn, String refundAmount) {

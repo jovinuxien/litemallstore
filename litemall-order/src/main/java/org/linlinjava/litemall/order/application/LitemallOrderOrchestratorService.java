@@ -47,6 +47,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException;
+import org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentTemporarilyUnavailableException;
+import org.linlinjava.litemall.order.domain.events.payment.LitemallStrayPaymentRefundedEvent;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentState;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome;
 
 import java.time.LocalDateTime;
 
@@ -107,6 +113,15 @@ public class LitemallOrderOrchestratorService {
 
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjPlacementService cjPlacementService;
+
+    // Ops mailbox (litemall.order.cj-ops-mail) — also the escalation channel when a stray
+    // payment could not be refunded automatically (package A of the lifecycle plan).
+    @Autowired
+    private org.linlinjava.litemall.order.application.internal.cj.CjOpsNotifier opsNotifier;
+
+    /** Timeline change types written by the stray-payment path (same-status hops). */
+    public static final String CHANGE_TYPE_STRAY_PAYMENT_REFUNDED = "payment_refunded_stray";
+    public static final String CHANGE_TYPE_STRAY_PAYMENT_UNREFUNDED = "payment_stray_unrefunded";
 
     // Brokerage clawback (Wave 5): an approved aftersale invalidates the order's
     // still-frozen commission inside this same transaction (guarded status=0 → -1;
@@ -289,7 +304,7 @@ public class LitemallOrderOrchestratorService {
             LitemallOrderOperationResult result = convertSubmitResultToOperationResult(submitResult, command);
 
             boolean paymentProcessed = !submitResult.isNeedsPayment();
-            publishOrderCreationEvents(submitResult.getOrderId(), paymentProcessed);
+            publishOrderCreationEvents(submitResult.getOrderId());
             if (!paymentProcessed) {
                 scheduleUnpaidOrderTask(new LitemallOrderId(submitResult.getOrderId()));
             }
@@ -351,6 +366,35 @@ public class LitemallOrderOrchestratorService {
 
         // Validate payment action
         if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
+            String reference = paymentCommand.getPaymentReference();
+            boolean external = paymentCommand.getPaymentMethod() != null
+                    && paymentCommand.getPaymentMethod() != PaymentMethod.WALLET
+                    && reference != null && !reference.isBlank();
+            if (external && order.getOrderStatus() == LitemallOrderStatus.PAID
+                    && reference.equals(order.getPaymentIntentId())) {
+                // The webhook (or the unpaid sweep's reconciliation) settled this very intent
+                // before the client's call arrived. Same payment, same order: success, not a
+                // "cannot pay" error shown to a customer whose card was just charged.
+                return LitemallOrderOperationResult.paySuccess(
+                        orderId, order.getOrderStatus(),
+                        LitemallOrderHandleOption.forStatus(LitemallOrderStatus.PAID));
+            }
+            if (external) {
+                // A captured charge presented for an order that can no longer take it: reverse
+                // it now rather than answer "invalid state" while holding the money (F1).
+                StrayPaymentOutcome stray = handleStrayPayment(order, reference);
+                if (stray == StrayPaymentOutcome.REFUNDED) {
+                    return LitemallOrderOperationResult.payFailed(orderId,
+                            "This order is " + order.getOrderStatus() + " and can no longer be paid. "
+                            + "Your payment has been refunded automatically.");
+                }
+                if (stray == StrayPaymentOutcome.REFUND_FAILED) {
+                    return LitemallOrderOperationResult.payFailed(orderId,
+                            "This order is " + order.getOrderStatus() + " and can no longer be paid. "
+                            + "Your payment could not be refunded automatically — support has been alerted "
+                            + "and will return it.");
+                }
+            }
             return LitemallOrderOperationResult.invalidStateTransition(
                     orderId,
                     LitemallOrderOperationResult.OperationType.PAY,
@@ -463,16 +507,26 @@ public class LitemallOrderOrchestratorService {
         }
 
         if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
-            // Overwhelmingly the normal case: the client-confirm path already paid it and
-            // the webhook is just confirming. Not an error.
-            log.info("Stripe event {}: order {} is already {} — nothing to do",
-                    event.getEventId(), orderIdValue, order.getOrderStatus());
+            // Overwhelmingly the normal case: the client-confirm path already paid it with
+            // this very intent and the webhook is just confirming. The other cases — the
+            // order was cancelled by the unpaid sweep before an asynchronous payment
+            // settled, or a second intent charged an order already paid by the first —
+            // used to be logged and forgotten with the money kept (F1). They are refunded.
+            handleStrayPayment(order, event.getPaymentIntentId());
             return;
         }
 
         PaymentVerification verification = paymentGatewayPort.verify(
                 event.getPaymentIntentId(), orderIdValue, order.getActualPrice());
         if (!verification.isVerified()) {
+            if (verification.isRetryable()) {
+                // Stripe could not be asked. Throwing rolls back the event claim above so a
+                // redelivery is processed instead of dropped as a duplicate (F2); the REST
+                // layer answers 503, which is what makes Stripe redeliver.
+                throw new LitemallPaymentTemporarilyUnavailableException(
+                        "Stripe event " + event.getEventId() + " for order " + orderIdValue
+                        + " could not be verified right now: " + verification.getReason());
+            }
             log.error("Stripe event {} claims order {} was paid, but verification REJECTED it: {}",
                     event.getEventId(), orderIdValue, verification.getReason());
             return;
@@ -480,18 +534,139 @@ public class LitemallOrderOrchestratorService {
 
         log.info("Stripe event {}: marking order {} paid from the webhook (intent {})",
                 event.getEventId(), orderIdValue, event.getPaymentIntentId());
-        orderServiceImpl.markOrderPaid(orderId,
-                PaymentMethod.CREDIT_CARD.name() + ":" + event.getPaymentIntentId(),
-                event.getPaymentIntentId());
+        try {
+            settleVerifiedPspPayment(orderId, event.getPaymentIntentId());
+        } catch (IllegalStateException lostRace) {
+            // The order left CREATED between the check above and the CAS: the unpaid sweep
+            // cancelled it, or the client path paid it. Nothing was written (markOrderPaid
+            // throws before its first write). Re-read and treat the charge as stray.
+            LitemallOrderAggregate fresh = orderRepository.findById(orderId).orElse(null);
+            if (fresh == null) {
+                throw lostRace;
+            }
+            log.warn("Stripe event {}: order {} became {} while settling intent {} — reconciling",
+                    event.getEventId(), orderIdValue, fresh.getOrderStatus(), event.getPaymentIntentId());
+            handleStrayPayment(fresh, event.getPaymentIntentId());
+            return;
+        }
+        unpaidOrderTaskScheduler.cancel(orderId);
+    }
 
-        // Same decoupled CJ placement as the client pay path (Wave 8). This also gives the
-        // webhook path the first-lifecycle-pass kick it never had — placement and advance
-        // both live in CjPlacementService now.
+    /**
+     * Record a PSP-verified charge as this order's payment (plan-order-lifecycle-e2e.md,
+     * package A). The ONE place the webhook, the unpaid-order sweep's reconciliation and a
+     * repeated payment-intent mint agree on what "paid at the PSP" does locally: the guarded
+     * CREATED→PAID flip (aggregate events + timeline), the decoupled CJ placement kick, the
+     * groupon after-payment hook the webhook path used to skip, and the payment-success
+     * event. The caller has already established that the intent succeeded for this order
+     * and this amount.
+     *
+     * <p>REQUIRES_NEW through the proxy so the sweep — which holds {@code FOR UPDATE SKIP
+     * LOCKED} claims on its task rows for its whole batch — settles each order in its own
+     * transaction. Deliberately does NOT touch the unpaid-task table: the sweep owns its
+     * claimed rows and deletes them itself; the webhook retires the task after this returns.
+     *
+     * @throws IllegalStateException when the order is no longer CREATED (the CAS affected
+     *         0 rows); nothing has been written when this is thrown
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void settleVerifiedPspPayment(LitemallOrderId orderId, String paymentIntentId) {
+        orderServiceImpl.markOrderPaid(orderId,
+                PaymentMethod.CREDIT_CARD.name() + ":" + paymentIntentId, paymentIntentId);
+        LitemallOrderAggregate order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalStateException("Order " + orderId.getId() + " vanished while settling"));
+        // Same decoupled CJ placement as the client pay path (Wave 8): the money is settled
+        // by this transaction no matter what CJ does; placement runs after commit with the
+        // placement sweep as the durable retry.
         if (order.isCjFulfilled()) {
             queueCjPlacement(orderId);
         }
+        handleGrouponAfterPayment(orderId);
         domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
                 orderId, order.getActualPrice(), LocalDateTime.now()));
+    }
+
+    enum StrayPaymentOutcome {
+        /** The intent is the one that paid this order — a normal duplicate delivery. */
+        NOT_STRAY,
+        /** The PSP holds no captured funds on this intent — nothing to return. */
+        NO_CAPTURE,
+        REFUNDED,
+        /** Captured funds the PSP refused to reverse: hop + ops mail written, human needed. */
+        REFUND_FAILED
+    }
+
+    /**
+     * A succeeded PaymentIntent presented for an order that cannot accept a payment (D1):
+     * reverse it at the PSP, write the timeline hop, and publish the event the customer
+     * mail rides on. The plain refund key is NOT reused — a stray refund must never block
+     * the order's real refund later — so the intent id scopes the idempotency key.
+     *
+     * <p>Failure to refund is committed, not thrown: the money is safe at the PSP either
+     * way, and a durable hop + ops alert beats a rolled-back trace that a webhook retry
+     * would only repeat. An unreachable PSP, by contrast, IS thrown (nothing decided yet —
+     * let Stripe redeliver).
+     */
+    StrayPaymentOutcome handleStrayPayment(LitemallOrderAggregate order, String paymentIntentId) {
+        LitemallOrderId orderId = order.getOrderId();
+        Integer id = orderId.getId();
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return StrayPaymentOutcome.NO_CAPTURE;
+        }
+        if (order.getOrderStatus() == LitemallOrderStatus.PAID
+                && paymentIntentId.equals(order.getPaymentIntentId())) {
+            log.info("Intent {} already paid order {} — nothing to do", paymentIntentId, id);
+            return StrayPaymentOutcome.NOT_STRAY;
+        }
+        PaymentIntentState state = paymentGatewayPort.inspect(paymentIntentId);
+        if (state.is(PaymentIntentState.Status.UNAVAILABLE)) {
+            throw new LitemallPaymentTemporarilyUnavailableException(
+                    "Could not inspect PaymentIntent " + paymentIntentId + " for order " + id
+                    + ": " + state.getDetail());
+        }
+        if (!state.isSucceededFor(id)) {
+            log.info("Intent {} on order {} ({}) is {} — no captured funds to return",
+                    paymentIntentId, id, order.getOrderStatus(), state);
+            return StrayPaymentOutcome.NO_CAPTURE;
+        }
+
+        LitemallMoney amount = new LitemallMoney(java.math.BigDecimal.valueOf(state.getAmountReceivedMinor(), 2));
+        String currency = state.getCurrency() == null ? "" : " " + state.getCurrency().toUpperCase();
+        String status = String.valueOf(order.getOrderStatus());
+        RefundOutcome outcome = paymentGatewayPort.refund(paymentIntentId, amount, id, paymentIntentId);
+        LocalDateTime now = LocalDateTime.now();
+        if (outcome.isOk()) {
+            log.warn("Stray payment on order {} ({}): intent {} captured {}{} — refunded automatically ({})",
+                    id, status, paymentIntentId, amount.getAmount(), currency, outcome.getRefundId());
+            statusHistoryRepository.record(new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange(
+                    orderId, order.getOrderStatus(), order.getOrderStatus(),
+                    CHANGE_TYPE_STRAY_PAYMENT_REFUNDED,
+                    "Payment " + paymentIntentId + " of " + amount.getAmount() + currency
+                    + " arrived after the order was " + status + " — refunded automatically ("
+                    + outcome.getRefundId() + ")",
+                    "system", now));
+            domainEventPublisher.publish(new LitemallStrayPaymentRefundedEvent(
+                    orderId, paymentIntentId, amount.getAmount(), outcome.getRefundId(), status));
+            return StrayPaymentOutcome.REFUNDED;
+        }
+
+        log.error("Stray payment on order {} ({}): intent {} captured {}{} and the REFUND FAILED: {} — "
+                + "refund it manually in Stripe", id, status, paymentIntentId, amount.getAmount(), currency,
+                outcome.getFailureReason());
+        statusHistoryRepository.record(new org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange(
+                orderId, order.getOrderStatus(), order.getOrderStatus(),
+                CHANGE_TYPE_STRAY_PAYMENT_UNREFUNDED,
+                "Payment " + paymentIntentId + " of " + amount.getAmount() + currency
+                + " arrived after the order was " + status + " — automatic refund FAILED: "
+                + outcome.getFailureReason(),
+                "system", now));
+        opsNotifier.notify("Stray payment NOT refunded on order " + order.getOrderSn(),
+                "PaymentIntent " + paymentIntentId + " captured " + amount.getAmount() + currency
+                + " for order " + id + " (sn " + order.getOrderSn() + "), which is " + status
+                + " and cannot accept a payment.\nThe automatic refund was REJECTED by Stripe: "
+                + outcome.getFailureReason()
+                + "\nRefund this PaymentIntent manually in the Stripe dashboard. The customer has NOT been told.");
+        return StrayPaymentOutcome.REFUND_FAILED;
     }
 
     /**
@@ -534,14 +709,51 @@ public class LitemallOrderOrchestratorService {
      * @throws org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException
      *         Stripe disabled/refused/unreachable. Never returns a stub.
      */
-    public org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft
-            createPaymentIntent(LitemallOrderAggregate order) {
+    @Transactional(noRollbackFor = LitemallPaymentGatewayException.class)
+    public PaymentIntentDraft createPaymentIntent(LitemallOrderAggregate order) {
+        LitemallOrderId orderId = order.getOrderId();
+        Integer id = orderId.getId();
         if (!LitemallOrderStatusQuery.isActionAllowed(order, OrderAction.PAY)) {
-            throw new org.linlinjava.litemall.order.application.util.exception.payment.LitemallPaymentGatewayException(
-                    "Order " + order.getOrderId().getId() + " is " + order.getOrderStatus()
-                    + " and cannot be paid.");
+            throw new LitemallPaymentGatewayException(
+                    "Order " + id + " is " + order.getOrderStatus() + " and cannot be paid.");
         }
-        return paymentGatewayPort.createIntent(order.getOrderId().getId(), order.getActualPrice());
+
+        // A retried checkout mints a fresh intent. The previous one is not forgotten: if it
+        // already captured (paid in another tab, or a redirect return the SPA never followed
+        // up on) the order is settled NOW and no second charge is offered; if it is still
+        // processing (SEPA) nothing is minted either; otherwise it is cancelled at Stripe so
+        // only ONE live intent can ever capture for this order. noRollbackFor keeps the
+        // settlement when the "already paid" refusal is thrown.
+        String previous = order.getPaymentIntentId();
+        if (previous != null && !previous.isBlank()) {
+            PaymentIntentState state = paymentGatewayPort.inspect(previous);
+            if (state.is(PaymentIntentState.Status.PENDING)) {
+                state = paymentGatewayPort.cancelIntent(previous);
+            }
+            if (state.isSucceededFor(id)) {
+                settleVerifiedPspPayment(orderId, previous);
+                unpaidOrderTaskScheduler.cancel(orderId);
+                throw new LitemallPaymentGatewayException(
+                        "Order " + id + " has already been paid — refresh the page to see it.");
+            }
+            if (state.is(PaymentIntentState.Status.PROCESSING)) {
+                throw new LitemallPaymentGatewayException(
+                        "A payment for order " + id + " is still being processed by your bank. "
+                        + "Please wait for the confirmation email before paying again.");
+            }
+            // CANCELED / UNAVAILABLE / unknown-to-Stripe: fall through and mint a new one.
+        }
+
+        PaymentIntentDraft draft = paymentGatewayPort.createIntent(id, order.getActualPrice());
+        int recorded = orderRepository.recordPaymentIntentIfCreated(orderId, draft.getPaymentIntentId());
+        if (recorded == 0) {
+            // The order left CREATED while we were talking to Stripe. Never hand out a client
+            // secret that could capture against it.
+            paymentGatewayPort.cancelIntent(draft.getPaymentIntentId());
+            throw new LitemallPaymentGatewayException(
+                    "Order " + id + " can no longer be paid.");
+        }
+        return draft;
     }
 
     /**
@@ -1097,6 +1309,32 @@ public class LitemallOrderOrchestratorService {
     }
 
     /**
+     * Customer withdraws a pending refund request (lifecycle package C, decision D4):
+     * REFUND_REQUEST → back to PAID or SHIPPED. Owner-scoped. Not withdrawable once an admin
+     * decided (the order is then REFUNDED) or when the request belongs to a delivered-order
+     * aftersale (settled in one transaction, so a customer never sees that 202).
+     */
+    public LitemallOrderOperationResult withdrawRefundRequest(LitemallOrderId orderId, LitemallUserId userId) {
+        LitemallOrderAggregate order = getOrderForUser(userId, orderId);
+        if (order == null) {
+            return LitemallOrderOperationResult.orderNotFound(orderId);
+        }
+        LitemallOrderStatus previous = order.getOrderStatus();
+        if (!LitemallOrderHandleOption.forStatus(previous).isWithdrawRefund()) {
+            return LitemallOrderOperationResult.invalidStateTransition(
+                    orderId, LitemallOrderOperationResult.OperationType.REFUND, previous);
+        }
+        LitemallOrderStatus backTo;
+        try {
+            backTo = orderServiceImpl.withdrawRefundRequest(orderId);
+        } catch (IllegalStateException notWithdrawable) {
+            return LitemallOrderOperationResult.refundFailed(orderId, notWithdrawable.getMessage());
+        }
+        return LitemallOrderOperationResult.updateSuccess(orderId, previous, backTo,
+                "refund request withdrawn", LitemallOrderHandleOption.forStatus(backTo));
+    }
+
+    /**
      * Admin approves a pending refund (REFUND_REQUEST → REFUNDED). Returns the money
      * to the tender that paid — capped at the captured amount — and flips the status
      * in ONE transaction, so the money return and REFUNDED are atomic.
@@ -1433,7 +1671,7 @@ public class LitemallOrderOrchestratorService {
     // DOMAIN EVENT PUBLISHING
     // =========================================================================
 
-    private void publishOrderCreationEvents(Integer orderId, boolean paymentProcessed) {
+    private void publishOrderCreationEvents(Integer orderId) {
         LitemallOrderId orderIdObj = new LitemallOrderId(orderId);
         LitemallOrderAggregate order = orderServiceImpl.getOrderAggregate(orderIdObj).orElseThrow(() -> new RuntimeException("Order not found"));
 
@@ -1446,13 +1684,8 @@ public class LitemallOrderOrchestratorService {
                 //LocalDateTime.now()
         ));
 
-        if (paymentProcessed) {
-            domainEventPublisher.publish(new LitemallOrderPaymentSuccessEvent(
-                    orderIdObj,
-                    order.getActualPrice(),
-                    LocalDateTime.now()
-            ));
-        }
+        // (a "paid at creation" branch used to live here — placeOrder always returns
+        // needsPayment=true, so it was unreachable; removed 2026-09-05)
     }
 
 }

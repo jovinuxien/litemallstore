@@ -1,4 +1,6 @@
 package org.linlinjava.litemall.order.domain.model.repositories;
+
+import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus;
 import org.linlinjava.litemall.db.dao.*;
 import org.linlinjava.litemall.db.domain.*;
 
@@ -77,6 +79,17 @@ public interface LitemallOrderRepository {
     int markPaidIfCreated(LitemallOrderId orderId, String payId, String paymentIntentId);
 
     /**
+     * Record the PaymentIntent minted for an order STILL IN CREATED, so the unpaid-order
+     * sweep can reconcile with (and cancel at) the PSP before cancelling the order
+     * (plan-order-lifecycle-e2e.md, package A). Latest intent wins — a retried checkout
+     * mints a new one and the previous is cancelled at the PSP by the caller. The UNIQUE
+     * index on the column still forbids one intent on two orders. Returns rows updated
+     * (0 when the order left CREATED meanwhile — the caller must not hand out a client
+     * secret for an order that can no longer be paid).
+     */
+    int recordPaymentIntentIfCreated(LitemallOrderId orderId, String paymentIntentId);
+
+    /**
      * Guarded status transitions. Each mirrors {@link #markPaidIfCreated}: the UPDATE
      * only matches a row in the expected source status, so concurrent/duplicate
      * transitions affect 0 rows (the caller treats that as a clean conflict). They
@@ -119,6 +132,9 @@ public interface LitemallOrderRepository {
     /** REFUND_REQUEST → REFUNDED. */
     int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, java.time.LocalDateTime refundTime);
 
+    /** Customer withdrew the refund request (D4): REFUND_REQUEST → {@code backTo} (PAID or SHIPPED), CAS. */
+    int markRefundWithdrawnIfRequested(LitemallOrderId orderId, LitemallOrderStatus backTo);
+
     void updateAfterSaleStatus(LitemallOrderId orderId, Short statuReject);
 
     /**
@@ -136,6 +152,13 @@ public interface LitemallOrderRepository {
      * write — local {@code order_status} moves only through the guarded transitions above.
      */
     int updateCjOrderStatus(LitemallOrderId orderId, String cjOrderStatus);
+
+    /**
+     * Requeue a parked placement (package B, F7): NULL the local park sentinel
+     * (PLACEMENT_REJECTED / PLACEMENT_STALLED) on a PAID, unplaced CJ order. CAS — 0 rows
+     * when the order is not parked any more.
+     */
+    int clearCjPlacementSentinel(LitemallOrderId orderId);
 
     /**
      * Ids of CJ-fulfilled orders the status-sync poll should visit: placed at CJ, CJ status

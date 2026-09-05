@@ -23,9 +23,9 @@ const NotFound: React.FC = () => {
   const [term, setTerm] = React.useState('');
 
   return (
-    <div className='container my-5' style={{ maxWidth: 640 }}>
-      <h1 className='h4 mb-2'>{t('notFound.title')}</h1>
-      <p className='text-muted'>
+    <div className='container my-5 lm-doc' style={{ maxWidth: 640 }}>
+      <h1 className='mb-2'>{t('notFound.title')}</h1>
+      <p>
         <Trans i18nKey='notFound.body' values={{ path: location.pathname }} components={{ 1: <code /> }} />
       </p>
 

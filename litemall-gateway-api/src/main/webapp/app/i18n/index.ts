@@ -6,6 +6,8 @@ import enCart from './locales/en/cart.json';
 import enCheckout from './locales/en/checkout.json';
 import enCommon from './locales/en/common.json';
 import enErrors from './locales/en/errors.json';
+import enProduct from './locales/en/product.json';
+import enSearch from './locales/en/search.json';
 
 /**
  * Storefront i18n — the ONE module that initialises i18next. Import `useTranslation`,
@@ -34,7 +36,7 @@ export const DEFAULT_LANGUAGE: Lang = 'en';
 /** Endonyms — a language's own name is never translated. */
 export const LANGUAGE_NAMES: Record<Lang, string> = { en: 'English', sv: 'Svenska', da: 'Dansk' };
 
-export const NAMESPACES = ['common', 'cart', 'checkout', 'auth', 'errors'] as const;
+export const NAMESPACES = ['common', 'cart', 'checkout', 'auth', 'errors', 'product', 'search'] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 export const isLang = (value: unknown): value is Lang =>
@@ -76,7 +78,7 @@ if (!i18next.isInitialized) {
       ns: [...NAMESPACES],
       defaultNS: 'common',
       resources: {
-        en: { common: enCommon, cart: enCart, checkout: enCheckout, auth: enAuth, errors: enErrors },
+        en: { common: enCommon, cart: enCart, checkout: enCheckout, auth: enAuth, errors: enErrors, product: enProduct, search: enSearch },
       },
       partialBundledLanguages: true,
       // Synchronous init: English is in memory, so `t()` works on the very first render.
@@ -95,3 +97,4 @@ export const i18n: I18n = i18next;
 export const t: TFunction = i18next.t.bind(i18next) as TFunction;
 
 export { Trans, useTranslation } from 'react-i18next';
+export type { TFunction } from 'i18next';

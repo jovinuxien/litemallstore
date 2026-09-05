@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Favorite / collect toggle, mirroring litemall-vue detail `addCollect`
@@ -15,6 +16,7 @@ interface Props {
 }
 
 const CollectButton: React.FC<Props> = ({ goodsId, initialCollected = false }) => {
+  const { t } = useTranslation('product');
   const navigate = useNavigate();
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
   const [collected, setCollected] = useState(initialCollected);
@@ -40,7 +42,7 @@ const CollectButton: React.FC<Props> = ({ goodsId, initialCollected = false }) =
 
   return (
     <button type='button' className={`lm-pdp__collect${collected ? ' is-on' : ''}`} onClick={toggle} disabled={busy} aria-pressed={collected}>
-      <i className={`bi ${collected ? 'bi-heart-fill' : 'bi-heart'}`} /> {collected ? 'Saved' : 'Save'}
+      <i className={`bi ${collected ? 'bi-heart-fill' : 'bi-heart'}`} /> {collected ? t('collect.saved') : t('collect.save')}
     </button>
   );
 };

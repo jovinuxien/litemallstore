@@ -6,11 +6,81 @@
 // present, otherwise the clean Helvetica/Arial grotesque Amazon itself degrades
 // to. Sizes stay as each view defines them — this only changes the typeface,
 // weight, and smoothing, never the layout metrics.
+// ── Storefront theme tokens (Teal & Coral) — the ONE place the palette lives.
+// Every --lm-* consumer (cards, header, kit buttons, docs) reads these; the
+// Bootstrap remap below makes Bootstrap's own `primary`, links and buttons read
+// them too, so a plain <Link>, `text-primary` icon or `btn-primary` follows the
+// theme without a per-site class.
+:root {
+  --lm-primary: #0e7c86; // deep teal
+  --lm-primary-dark: #0a5d65;
+  --lm-primary-soft: #e3f2f3; // teal tint for chips/hover
+  --lm-accent: #ff5a5f; // coral — prices & sale
+  --lm-accent-dark: #e8484d;
+  --lm-bg: #f6f9fa;
+  --lm-surface: #ffffff;
+  --lm-border: #eceff1;
+  --lm-text: #1f2a2e;
+  --lm-muted: #6b7b82;
+  --lm-new: var(--lm-primary);
+  --lm-hot: var(--lm-accent);
+  --lm-star: #ffb400;
+  --lm-success: #1f9d6b;
+  --lm-radius: 10px;
+}
+
 :root {
   --lm-font: 'Amazon Ember', 'Helvetica Neue', Helvetica, Arial, 'Segoe UI', Roboto, sans-serif;
   // Point Bootstrap's own font variable at the same stack so every Bootstrap
   // surface (body, buttons, inputs, cards, dropdowns) inherits it for free.
   --bs-body-font-family: var(--lm-font);
+
+  // Bootstrap `primary` → theme teal. Stock bootstrap.min.css ships #0d6efd and
+  // nothing remapped it, so every unclassed anchor, `text-primary` icon and
+  // `btn-primary` rendered Bootstrap blue on a teal storefront. Bootstrap 5.3
+  // resolves these at use time (`.text-primary` reads --bs-primary-rgb, `a`
+  // reads --bs-link-color-rgb), so the :root override is enough for those; the
+  // button variants carry their own literals and are re-declared below.
+  --bs-primary: var(--lm-primary);
+  --bs-primary-rgb: 14, 124, 134;
+  --bs-link-color: var(--lm-primary);
+  --bs-link-color-rgb: 14, 124, 134;
+  --bs-link-hover-color: var(--lm-primary-dark);
+  --bs-link-hover-color-rgb: 10, 93, 101;
+}
+
+// Standard ecommerce link treatment: brand colour, quiet at rest, underline on
+// hover/focus. Components that set their own anchor colour (header, footer,
+// cards, PDP) keep it — this is the default for everything that set nothing.
+a {
+  text-decoration: none;
+  &:hover,
+  &:focus {
+    text-decoration: underline;
+  }
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--lm-primary);
+  --bs-btn-border-color: var(--lm-primary);
+  --bs-btn-hover-bg: var(--lm-primary-dark);
+  --bs-btn-hover-border-color: var(--lm-primary-dark);
+  --bs-btn-active-bg: var(--lm-primary-dark);
+  --bs-btn-active-border-color: var(--lm-primary-dark);
+  --bs-btn-disabled-bg: var(--lm-primary);
+  --bs-btn-disabled-border-color: var(--lm-primary);
+  --bs-btn-focus-shadow-rgb: 14, 124, 134;
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--lm-primary);
+  --bs-btn-border-color: var(--lm-primary);
+  --bs-btn-hover-bg: var(--lm-primary);
+  --bs-btn-hover-border-color: var(--lm-primary);
+  --bs-btn-active-bg: var(--lm-primary-dark);
+  --bs-btn-active-border-color: var(--lm-primary-dark);
+  --bs-btn-disabled-color: var(--lm-primary);
+  --bs-btn-disabled-border-color: var(--lm-primary);
+  --bs-btn-focus-shadow-rgb: 14, 124, 134;
 }
 
 html,
@@ -51,4 +121,34 @@ h6 {
   font-family: var(--lm-font);
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+
+// ── Document pages (help centre, policies, customer service) ─────────────────
+// A standard ecommerce reading scale: body copy at 15–16px in the text colour
+// (it used to be 14px muted grey — policy text a customer must actually read),
+// h1 ≈ 26px, h2 ≈ 18px with breathing room above. `small`/`text-muted` remain
+// available for the things that ARE captions: "Last updated", support hours,
+// the "Still stuck?" footnote.
+.lm-doc {
+  color: var(--lm-text);
+  font-size: 1rem;
+  line-height: 1.6;
+
+  h1 {
+    font-size: 1.65rem;
+    line-height: 1.25;
+  }
+  h2 {
+    font-size: 1.15rem;
+    line-height: 1.3;
+    margin-top: 1.75rem;
+    margin-bottom: 0.5rem;
+  }
+  p,
+  li {
+    color: var(--lm-text);
+  }
+  p {
+    margin-bottom: 0.9rem;
+  }
 }
