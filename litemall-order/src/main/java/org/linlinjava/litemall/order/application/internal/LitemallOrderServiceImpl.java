@@ -999,10 +999,18 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
      */
     @Transactional
     public void shipOrder(LitemallOrderId orderId, String shipChannel, String shipSn) {
+        shipOrder(orderId, shipChannel, shipSn, "admin");
+    }
+
+    /** {@link #shipOrder(LitemallOrderId, String, String)} with the operator named on the timeline. */
+    @Transactional
+    public void shipOrder(LitemallOrderId orderId, String shipChannel, String shipSn, String operator) {
         LitemallOrderAggregate agg = orderRepository.findById(orderId)
                 .orElseThrow(() -> new NoSuchElementException("Order not found"));
-        agg.ship(shipChannel, shipSn);
-        int updated = orderRepository.markShippedIfPaid(orderId, shipChannel, shipSn, agg.getShipTime());
+        agg.ship(shipChannel, shipSn, operator);
+        // agg.ship normalised a blank tracking number to NULL; the selective update then leaves
+        // ship_sn untouched (NULL), which the tracking read reports as TRACKING_PENDING.
+        int updated = orderRepository.markShippedIfPaid(orderId, shipChannel, agg.getShipSn(), agg.getShipTime());
         if (updated == 0) {
             throw new IllegalStateException("Order " + orderId.getId() + " cannot ship: not in PAID state");
         }
@@ -1033,6 +1041,24 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         domainEventPublisher.publish(
                 new org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent(orderId));
         return true;
+    }
+
+    /**
+     * Customer withdraws a pending refund request (D4): guarded REFUND_REQUEST → PAID/SHIPPED.
+     * Runs in the caller's (orchestrator) transaction. Throws IllegalStateException when the
+     * request is not withdrawable (delivered-order aftersale, or already decided).
+     */
+    public LitemallOrderStatus withdrawRefundRequest(LitemallOrderId orderId) {
+        LitemallOrderAggregate agg = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NoSuchElementException("Order not found"));
+        LitemallOrderStatus backTo = agg.withdrawRefundRequest();
+        int updated = orderRepository.markRefundWithdrawnIfRequested(orderId, backTo);
+        if (updated == 0) {
+            throw new IllegalStateException("Order " + orderId.getId() + " is no longer awaiting a refund decision");
+        }
+        persistStatusHistory(agg);
+        publishAndClearEvents(agg);
+        return backTo;
     }
 
     /** Customer confirms receipt (SHIPPED → DELIVERED). */

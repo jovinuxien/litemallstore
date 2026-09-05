@@ -1,6 +1,7 @@
 package org.linlinjava.litemall.order.infrastructure.services.acl.facades;
 
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentState;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentVerification;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentWebhookEvent;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome;
@@ -52,6 +53,37 @@ public interface PaymentGatewayPort {
      * that visibly failed.
      */
     RefundOutcome refund(String paymentIntentId, LitemallMoney amount, Integer orderId);
+
+    /**
+     * {@link #refund(String, LitemallMoney, Integer)} under a DISTINCT idempotency scope.
+     *
+     * <p>The plain refund is keyed {@code refund-order-<id>} so an admin's retried approval
+     * reverses once. A stray payment (a second, late or duplicate charge on an order that
+     * is already paid or cancelled) must not share that key: Stripe rejects a reused key
+     * with different parameters, which would block the order's real refund later. Pass the
+     * intent id (or any per-charge token) as {@code idempotencyScope}; null means the plain
+     * per-order key.
+     */
+    RefundOutcome refund(String paymentIntentId, LitemallMoney amount, Integer orderId, String idempotencyScope);
+
+    /**
+     * What the PSP currently says about an intent (plan-order-lifecycle-e2e.md, package A).
+     *
+     * <p>Never throws: an unreachable PSP answers {@link PaymentIntentState.Status#UNAVAILABLE},
+     * which callers must treat as "cannot decide" — the unpaid-order sweep defers on it and
+     * never cancels an order whose intent it could not inspect.
+     */
+    PaymentIntentState inspect(String paymentIntentId);
+
+    /**
+     * Cancel an intent that has not captured, so a late confirmation can no longer take the
+     * customer's money for an order the store is about to cancel. Returns the intent's state
+     * AFTER the attempt: {@link PaymentIntentState.Status#CANCELED} on success (or when it was
+     * already cancelled); {@code SUCCEEDED} / {@code PROCESSING} when the PSP refused because
+     * money is already captured or in flight — the caller must then settle, not cancel;
+     * {@code UNAVAILABLE} when the PSP could not be asked. Never throws.
+     */
+    PaymentIntentState cancelIntent(String paymentIntentId);
 
     /**
      * Verify the {@code Stripe-Signature} header and parse the payload.

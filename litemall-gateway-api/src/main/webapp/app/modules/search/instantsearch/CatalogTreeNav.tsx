@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 
 // Categories serialize as DDD aggregates ({ categoryId: { id }, categoryName, iconUrl }) or the
 // flat { id, name, picUrl } shape depending on the endpoint — read both defensively (same rule
@@ -16,6 +17,7 @@ const catName = (c: any): string | undefined => c?.name ?? c?.categoryName;
  * CategoryTree (breadcrumb + per-subcategory counts).
  */
 const CatalogTreeNav: React.FC<{ limit?: number }> = ({ limit = 10 }) => {
+  const { t } = useTranslation('search');
   const { dataCategoryIndex, dataCatalogAll } = useAppSelector(state => state.category.data);
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -27,7 +29,7 @@ const CatalogTreeNav: React.FC<{ limit?: number }> = ({ limit = 10 }) => {
 
   return (
     <section className="lm-isearch__facet lm-cattree" data-testid="catalog-tree-nav">
-      <h3>Categories</h3>
+      <h3>{t('rail.categories')}</h3>
       <ul className="lm-cattree__list">
         {roots.slice(0, limit).map(root => {
           const id = catId(root);
@@ -45,7 +47,7 @@ const CatalogTreeNav: React.FC<{ limit?: number }> = ({ limit = 10 }) => {
                     type="button"
                     className="lm-cattree__toggle"
                     aria-expanded={isOpen}
-                    aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${catName(root)}`}
+                    aria-label={isOpen ? t('rail.collapse', { name: catName(root) }) : t('rail.expand', { name: catName(root) })}
                     onClick={() => setOpen(prev => ({ ...prev, [key]: !prev[key] }))}
                   >
                     {isOpen ? '▾' : '▸'}

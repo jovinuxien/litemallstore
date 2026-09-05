@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { IComment, userApi } from 'app/shared/api';
+import { t as tGlobal, useTranslation } from 'app/i18n';
 import { REVIEWS_ANCHOR_ID } from './RatingSummary';
 import { computeReviewStats } from './reviewStats';
 import ReviewForm from './ReviewForm';
@@ -24,7 +25,7 @@ const INITIAL_VISIBLE = 5;
 const VISIBLE_STEP = 10;
 
 const Stars: React.FC<{ n: number }> = ({ n }) => (
-  <span className='lm-pdp__stars' aria-label={`${n} of 5`}>
+  <span className='lm-pdp__stars' aria-label={tGlobal('product:rating.ariaShort', { n })}>
     {[1, 2, 3, 4, 5].map(i => (
       <i key={i} className={`bi ${i <= n ? 'bi-star-fill' : 'bi-star'}`} />
     ))}
@@ -41,6 +42,7 @@ const fmtDate = (addTime?: string | number[]): string => {
 };
 
 const Reviews: React.FC<Props> = ({ goodsId }) => {
+  const { t } = useTranslation('product');
   const [comments, setComments] = useState<IComment[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -87,10 +89,10 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
   return (
     <section className='lm-pdp__reviews' id={REVIEWS_ANCHOR_ID}>
       <h3 className='lm-pdp__reviewstitle'>
-        Customer reviews
+        {t('reviews.title')}
         {signedIn && goodsId != null && (
           <button type='button' className='btn btn-sm btn-lm-outline ms-3 align-middle' onClick={() => setWriting(w => !w)}>
-            {writing ? 'Close' : 'Write a review'}
+            {writing ? t('reviews.close') : t('reviews.write')}
           </button>
         )}
       </h3>
@@ -100,21 +102,21 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
         </div>
       )}
       {comments.length === 0 ? (
-        <p className='text-muted'>No reviews yet. Be the first to review this product.</p>
+        <p className='text-muted'>{t('reviews.none')}</p>
       ) : (
         <>
           <div className='lm-pdp__revsummary'>
             <div className='lm-pdp__revavg'>
               <Stars n={Math.round(stats.average)} />
-              <span className='lm-pdp__revavgnum'>{stats.average.toFixed(1)} out of 5</span>
+              <span className='lm-pdp__revavgnum'>{t('reviews.outOf5', { avg: stats.average.toFixed(1) })}</span>
               <span className='lm-pdp__revtotal text-muted'>
-                {total.toLocaleString()} rating{total === 1 ? '' : 's'}
+                {t('rating.count', { count: total })}
               </span>
             </div>
-            <ul className='lm-pdp__histo' aria-label='Rating breakdown'>
+            <ul className='lm-pdp__histo' aria-label={t('reviews.breakdown')}>
               {stats.bars.map(b => (
                 <li key={b.star}>
-                  <span className='lm-pdp__histo-label'>{b.star} star</span>
+                  <span className='lm-pdp__histo-label'>{t('reviews.starLabel', { star: b.star })}</span>
                   <span className='lm-pdp__histo-bar'>
                     <span className='lm-pdp__histo-fill' style={{ width: `${b.pct}%` }} />
                   </span>
@@ -127,7 +129,7 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
             {shown.map((c, i) => (
               <li key={i} className='lm-pdp__review'>
                 <div className='lm-pdp__reviewhead'>
-                  <span className='lm-pdp__reviewer'>{c.userInfo?.nickName || 'Anonymous'}</span>
+                  <span className='lm-pdp__reviewer'>{c.userInfo?.nickName || t('reviews.anonymous')}</span>
                   <Stars n={c.star ?? 5} />
                   {fmtDate(c.addTime) && <span className='lm-pdp__reviewdate text-muted'>{fmtDate(c.addTime)}</span>}
                 </div>
@@ -136,7 +138,7 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
                   <div className='p-2 mb-2 bg-light rounded small'>
                     <span className='fw-semibold'>
                       <i className='bi bi-shop me-1' />
-                      Seller response:
+                      {t('reviews.sellerResponse')}
                     </span>{' '}
                     {c.adminContent}
                   </div>
@@ -154,7 +156,7 @@ const Reviews: React.FC<Props> = ({ goodsId }) => {
           </ul>
           {hasMore && (
             <button type='button' className='lm-pdp__revmore' onClick={showMore}>
-              Show more reviews
+              {t('reviews.showMore')}
             </button>
           )}
         </>

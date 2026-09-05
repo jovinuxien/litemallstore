@@ -221,6 +221,63 @@ public final class MailHtmlTemplates {
         return shell("Refund approved for order " + nz(orderSn), preheader, logoUrl, main.toString());
     }
 
+    /** HTML twin of {@link MailTemplates#paymentRefunded}: the late/duplicate charge was reversed. */
+    public static String paymentRefunded(String orderSn, String amount, String storeUrl, String logoUrl) {
+        StringBuilder main = new StringBuilder();
+        main.append(heading("Your payment has been refunded"));
+        main.append(paragraph("We received a payment for order <strong>" + esc(orderSn) + "</strong> after the "
+                + "order could no longer be completed, so we have refunded it in full."));
+        if (notBlank(amount)) {
+            main.append(figure("Refunded", amount, false));
+        }
+        main.append(paragraph("The refund goes back to the payment method you used. Depending on your bank it "
+                + "can take a few working days to appear on your statement. Nothing will be shipped for this "
+                + "payment."));
+        main.append(paragraph("If you still want the items, simply place a new order."));
+        main.append(button(storeUrl, "Shop again"));
+
+        String preheader = notBlank(amount)
+                ? "Refund of " + amount + " for order " + nz(orderSn)
+                : "Your payment for order " + nz(orderSn) + " has been refunded";
+        return shell("Payment refunded for order " + nz(orderSn), preheader, logoUrl, main.toString());
+    }
+
+    /** HTML twin of {@link MailTemplates#fulfilmentCancelled}: the supplier cancelled; support will contact. */
+    public static String fulfilmentCancelled(String orderSn, String orderUrl, String logoUrl) {
+        StringBuilder main = new StringBuilder();
+        main.append(heading("We could not fulfil your order"));
+        main.append(paragraph("We are sorry: our supplier was unable to fulfil order <strong>" + esc(orderSn)
+                + "</strong>, so it will not be shipped."));
+        main.append(panel(panelLine("You do not need to do anything. Our support team is reviewing the order "
+                + "and will contact you shortly about your refund or a replacement."), true));
+        main.append(paragraph("If you would rather reach us first, reply to this email."));
+        main.append(button(orderUrl, "View your order"));
+
+        return shell("About your order " + nz(orderSn), "We could not fulfil order " + nz(orderSn)
+                + " — support will contact you", logoUrl, main.toString());
+    }
+
+    /** HTML twin of {@link MailTemplates#delivered}: the order closed; review + the return window. */
+    public static String delivered(String orderSn, String deliveredAt, boolean autoConfirmed,
+                                   int returnWindowDays, String orderUrl, String logoUrl) {
+        StringBuilder main = new StringBuilder();
+        main.append(heading(autoConfirmed ? "Your order has been delivered" : "Thanks for confirming delivery"));
+        main.append(paragraph(autoConfirmed
+                ? "Your order <strong>" + esc(orderSn) + "</strong> was marked as delivered on "
+                  + esc(deliveredAt) + " &mdash; our carrier reported delivery and we did not hear otherwise."
+                : "Order <strong>" + esc(orderSn) + "</strong> arrived on " + esc(deliveredAt)
+                  + ". We hope you like it!"));
+        main.append(panel(panelLine("Something wrong? You have <strong>" + returnWindowDays + " days</strong> from "
+                + "delivery to request a return or refund from the order page &mdash; no need to contact us first."),
+                false));
+        main.append(paragraph("You can also leave a review for each item from the order page."));
+        main.append(button(orderUrl, "View your order"));
+
+        return shell("Order " + nz(orderSn) + " delivered",
+                "Order " + nz(orderSn) + " delivered on " + nz(deliveredAt) + " — " + returnWindowDays
+                + "-day return window", logoUrl, main.toString());
+    }
+
     // ------------------------------------------------------------------
     // Building blocks
     // ------------------------------------------------------------------

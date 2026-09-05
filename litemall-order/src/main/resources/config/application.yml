@@ -142,6 +142,22 @@ litemall:
     pickup-enabled: true
     # DB-row + @Scheduled sweep for unpaid-order timeouts; see UnpaidOrderTaskScheduler.
     unpaid-sweep-ms: 60000
+    # Before cancelling a due unpaid order the sweep asks Stripe about the order's
+    # PaymentIntent (UnpaidOrderReconciler, plan-order-lifecycle-e2e.md package A): a
+    # succeeded intent settles the order instead; a PROCESSING one (SEPA debit, bank
+    # redirects) defers the task by processing-defer-minutes; an unreachable Stripe
+    # defers by unavailable-defer-minutes — the sweep never cancels blind. Explicit
+    # placeholders (the relax-binding lesson): container recreate, no rebuild.
+    # Auto-confirm (SHIPPED → AUTO_DELIVERED) grace window, in days. The admin-editable
+    # system setting litemall_order_unconfirm WINS when set; this is the fallback only
+    # (lifecycle package C). The sweep cadence is auto-confirm-sweep-ms (default 1 h).
+    auto-confirm-days: ${LITEMALL_ORDER_AUTO_CONFIRM_DAYS:15}
+    # Days after delivery a return may be requested — stated in the delivered mail; must
+    # match the storefront's returns policy copy (30 days since Wave 15).
+    return-window-days: ${LITEMALL_ORDER_RETURN_WINDOW_DAYS:30}
+    unpaid-reconcile:
+      processing-defer-minutes: ${LITEMALL_ORDER_UNPAID_PROCESSING_DEFER_MINUTES:60}
+      unavailable-defer-minutes: ${LITEMALL_ORDER_UNPAID_UNAVAILABLE_DEFER_MINUTES:5}
     # CJ status-sync poll (Wave 3): every open CJ order is re-checked at this cadence,
     # batch-capped so a sweep stays inside CJ's ~1 QPS budget. See CjOrderStatusSyncScheduler.
     cj-sync-sweep-ms: 300000
@@ -160,6 +176,15 @@ litemall:
       # (place every paid CJ order as soon as CJ is configured). Any other value is
       # treated as 'manual' (fail-safe: never place without approval by accident).
       placement-mode: ${LITEMALL_ORDER_CJ_PLACEMENT_MODE:manual}
+      # Lifecycle package B (2026-09-05): a placement that keeps failing with RETRYABLE
+      # errors warns ops after stall-warn-minutes and is PARKED (PLACEMENT_STALLED — the
+      # admin Requeue button clears it) after stall-park-hours, instead of retrying every
+      # sweep forever. A placed order whose confirm/pay-from-balance CJ refuses (typically
+      # an empty CJ balance) gets a timeline hop + ops mail at most every
+      # lifecycle-alert-hours while the sync keeps retrying. Explicit placeholders.
+      stall-warn-minutes: ${LITEMALL_ORDER_CJ_STALL_WARN_MINUTES:60}
+      stall-park-hours: ${LITEMALL_ORDER_CJ_STALL_PARK_HOURS:24}
+      lifecycle-alert-hours: ${LITEMALL_ORDER_CJ_LIFECYCLE_ALERT_HOURS:24}
     # Ops mailbox for CJ fulfilment attention signals (terminal placement rejection,
     # CJ-side cancellation of a paid order). Blank = log-only (mail rows need the
     # litemall.customer-mail seam enabled anyway).

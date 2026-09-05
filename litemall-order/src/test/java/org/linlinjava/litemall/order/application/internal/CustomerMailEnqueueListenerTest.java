@@ -51,7 +51,7 @@ class CustomerMailEnqueueListenerTest {
         CustomerMailProperties properties = new CustomerMailProperties();
         properties.setEnabled(enabled);
         return new CustomerMailEnqueueListener(orderRepository, orderGoodsRepository,
-                userMapper, mailOutboxMapper, properties, adminNotifyEmail);
+                userMapper, mailOutboxMapper, properties, adminNotifyEmail, 30);
     }
 
     private static LitemallOrderAggregate order(int orderId) {
@@ -134,6 +134,68 @@ class CustomerMailEnqueueListenerTest {
      * dollar amount. The two SPAs were swept then; these bodies were not, and a customer
      * charged EUR was reading "$" in the confirmation. Pins BOTH mails this event raises.
      */
+    /** D1 of the lifecycle plan: the stray-payment refund tells the customer, with the amount Stripe reversed. */
+    @Test
+    void strayPaymentRefunded_enqueuesThePaymentRefundedMail_withTheEventAmount() {
+        LitemallOrderAggregate order = order(42);
+        order.setActualPrice(money("99.99")); // deliberately NOT the refunded amount
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onStrayPaymentRefunded(
+                new org.linlinjava.litemall.order.domain.events.payment.LitemallStrayPaymentRefundedEvent(
+                        new LitemallOrderId(42), "pi_late", new BigDecimal("8.58"), "re_9", "SYSTEM_CANCELED"));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getRecipient()).isEqualTo("buyer@example.com");
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_PAYMENT_REFUNDED);
+        assertThat(row.getSubject()).contains("20260726000042").contains("refunded");
+        assertThat(row.getBody()).contains("\u20ac8.58").doesNotContain("99.99");
+        assertThat(row.getBodyHtml()).contains("\u20ac8.58").contains("Nothing will be shipped");
+    }
+
+    /** F14: the order closed — the customer learns the date the return window started from. */
+    @Test
+    void deliveredEvent_enqueuesTheDeliveredMail_withTheReturnWindow() {
+        LitemallOrderAggregate order = order(42);
+        order.setConfirmTime(LocalDateTime.of(2026, 9, 5, 10, 0));
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderDelivered(
+                new org.linlinjava.litemall.order.domain.events.order.LitemallOrderDeliveredEvent(
+                        new LitemallOrderId(42), true));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_DELIVERED);
+        assertThat(row.getSubject()).contains("delivered");
+        assertThat(row.getBody()).contains("2026-09-05").contains("30 days");
+        assertThat(row.getBodyHtml()).contains("30 days");
+    }
+
+    /** D2: CJ cancelled a paid order — the customer is told support will contact them. */
+    @Test
+    void cjFulfilmentCancelled_enqueuesTheFulfilmentCancelledMail() {
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order(42)));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onCjFulfilmentCancelled(
+                new org.linlinjava.litemall.order.domain.events.cj.LitemallCjFulfilmentCancelledEvent(
+                        new LitemallOrderId(42), "cj-42"));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_FULFILMENT_CANCELLED);
+        assertThat(row.getSubject()).contains("20260726000042").contains("could not fulfil");
+        assertThat(row.getBody()).contains("will contact you").doesNotContain("refund has been issued");
+        assertThat(row.getBodyHtml()).contains("could not fulfil");
+    }
+
     @Test
     void paidMails_renderStoreCurrency_neverDollars() {
         LitemallOrderAggregate order = order(42);

@@ -12,8 +12,8 @@ import SocialLinks from 'app/shared/config/SocialLinks';
  * cannot drift apart.
  */
 const CustomerService: React.FC = () => (
-  <div className='container my-4' style={{ maxWidth: 640 }}>
-    <h1 className='h4 mb-3'>Customer service</h1>
+  <div className='container my-4 lm-doc' style={{ maxWidth: 640 }}>
+    <h1 className='mb-3'>Customer service</h1>
 
     <ul className='list-group'>
       {/* ONE row, because there is ONE channel. This list previously opened with
@@ -25,7 +25,7 @@ const CustomerService: React.FC = () => (
         <i className='bi bi-envelope fs-4 text-primary' />
         <div>
           <div className='fw-semibold'>Email support</div>
-          <div className='text-muted small'>
+          <div className='small'>
             <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> — include your order number if
             it concerns an order.
           </div>
@@ -34,7 +34,7 @@ const CustomerService: React.FC = () => (
       </li>
     </ul>
 
-    <h2 className='h6 mt-4'>Top questions</h2>
+    <h2 className='mt-4'>Top questions</h2>
     <div className='list-group'>
       {topFaqEntries().map(e => (
         <Link
@@ -51,7 +51,7 @@ const CustomerService: React.FC = () => (
       <Link to='/help'>Browse the full help center</Link>
     </p>
 
-    <p className='mt-4 text-muted'>
+    <p className='mt-4'>
       Have a suggestion, or signed in and prefer not to email?{' '}
       <Link to='/user/feedback'>Send us feedback</Link>.
     </p>

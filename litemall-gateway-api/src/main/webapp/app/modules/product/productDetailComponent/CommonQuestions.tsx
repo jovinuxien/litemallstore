@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { FAQ_SECTIONS, FaqEntry } from 'app/modules/static/faqData';
+import { useTranslation } from 'app/i18n';
 
 /**
  * "Common questions" accordion on the PDP (the Amazon Q&A slot). Content is a
@@ -19,13 +20,14 @@ export const pdpFaqEntries = (): FaqEntry[] => {
 };
 
 const CommonQuestions: React.FC = () => {
+  const { t } = useTranslation('product');
   const [open, setOpen] = useState<string | null>(null);
   const entries = pdpFaqEntries();
   if (!entries.length) return null;
 
   return (
     <section className='lm-pdp__faq'>
-      <h3 className='lm-pdp__faqtitle'>Common questions</h3>
+      <h3 className='lm-pdp__faqtitle'>{t('faq.title')}</h3>
       <ul className='lm-pdp__faqlist'>
         {entries.map(e => (
           <li key={e.id} className={open === e.id ? 'is-open' : ''}>
@@ -37,7 +39,7 @@ const CommonQuestions: React.FC = () => {
               <div className='lm-pdp__faqbody'>
                 <p>{e.a}</p>
                 <Link to={`/help#${e.id}`} className='lm-pdp__faqmore'>
-                  More in the help center
+                  {t('faq.more')}
                 </Link>
               </div>
             )}
@@ -45,7 +47,7 @@ const CommonQuestions: React.FC = () => {
         ))}
       </ul>
       <Link to='/help' className='lm-pdp__faqall'>
-        Visit the help center <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
+        {t('faq.all')} <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
       </Link>
     </section>
   );

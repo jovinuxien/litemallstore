@@ -200,4 +200,19 @@ class OrderTrackingServiceTest {
         assertFalse(dto.isShipped());
         assertEquals("NOT_SHIPPED", dto.getStatus());
     }
+
+    /** F10: shipped at CJ before a number was assigned — say "tracking pending", not "not shipped". */
+    @Test
+    void shippedWithoutNumberYet_isTrackingPending_notNotShipped() {
+        LitemallOrderAggregate order = order(LitemallOrderAggregate.SOURCE_CJ, null, "CJPacket Ordinary");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.SHIPPED);
+        when(orderRepository.findByIdAndUserId(USER, ORDER)).thenReturn(order);
+
+        TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
+
+        assertTrue(dto.isShipped());
+        assertEquals(OrderTrackingService.STATUS_TRACKING_PENDING, dto.getStatus());
+        assertEquals("CJPacket Ordinary", dto.getCarrier());
+        assertTrue(dto.getEvents().isEmpty());
+    }
 }

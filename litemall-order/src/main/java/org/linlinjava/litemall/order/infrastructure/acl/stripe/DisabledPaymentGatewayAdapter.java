@@ -4,6 +4,7 @@ import org.linlinjava.litemall.order.application.util.exception.payment.Litemall
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentState;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentVerification;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentWebhookEvent;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome;
@@ -52,6 +53,23 @@ public class DisabledPaymentGatewayAdapter implements PaymentGatewayPort {
         log.warn("Refund attempted for order {} while Stripe is disabled — reporting failure "
                 + "so the order stays retryable rather than showing money returned", orderId);
         return RefundOutcome.failed(DISABLED);
+    }
+
+    @Override
+    public RefundOutcome refund(String paymentIntentId, LitemallMoney amount, Integer orderId, String idempotencyScope) {
+        return refund(paymentIntentId, amount, orderId);
+    }
+
+    @Override
+    public PaymentIntentState inspect(String paymentIntentId) {
+        // "Cannot ask" rather than "not paid": the unpaid sweep must defer on this, not
+        // cancel — although with Stripe disabled no order ever carries an intent id.
+        return PaymentIntentState.unavailable(DISABLED);
+    }
+
+    @Override
+    public PaymentIntentState cancelIntent(String paymentIntentId) {
+        return PaymentIntentState.unavailable(DISABLED);
     }
 
     @Override

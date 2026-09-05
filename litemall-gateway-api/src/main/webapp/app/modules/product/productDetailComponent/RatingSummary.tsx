@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 import { catalogApi } from 'app/shared/api';
 import { starIcons } from 'app/shared/util/stars';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Amazon-style rating row directly under the title: stars, the average, and a
@@ -20,6 +21,7 @@ export const REVIEWS_ANCHOR_ID = 'lm-reviews';
 export { starIcons };
 
 const RatingSummary: React.FC<Props> = ({ goodsId }) => {
+  const { t } = useTranslation('product');
   const [meta, setMeta] = useState<{ rating?: number | null; reviewCount?: number } | null>(null);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ const RatingSummary: React.FC<Props> = ({ goodsId }) => {
 
   return (
     <div className='lm-pdp__ratingrow'>
-      <span className='lm-pdp__stars' aria-label={`${rating.toFixed(1)} of 5 stars`}>
+      <span className='lm-pdp__stars' aria-label={t('rating.aria', { rating: rating.toFixed(1) })}>
         {starIcons(rating).map((cls, i) => (
           <i key={i} className={`bi ${cls}`} />
         ))}
@@ -54,7 +56,7 @@ const RatingSummary: React.FC<Props> = ({ goodsId }) => {
         className='lm-pdp__ratingcount'
         onClick={() => document.getElementById(REVIEWS_ANCHOR_ID)?.scrollIntoView({ behavior: 'smooth' })}
       >
-        {count.toLocaleString()} rating{count === 1 ? '' : 's'}
+        {t('rating.count', { count })}
       </button>
     </div>
   );

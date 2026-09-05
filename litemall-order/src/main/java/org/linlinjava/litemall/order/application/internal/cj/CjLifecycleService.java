@@ -8,6 +8,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderId;
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderSnapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +48,7 @@ public class CjLifecycleService {
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
     private final LitemallOrderServiceImpl orderServiceImpl;
     private final CjDropshipOrderFacade cjOrderFacade;
-    private final CjOpsNotifier opsNotifier;
+    private final CjFulfilmentIncidentService incidents;
     /** When false, UNPAID CJ orders are left for manual payment (CJ dashboard / balance top-up). */
     private final boolean autoPayBalance;
 
@@ -55,13 +56,13 @@ public class CjLifecycleService {
                               LitemallOrderStatusHistoryRepository statusHistoryRepository,
                               LitemallOrderServiceImpl orderServiceImpl,
                               CjDropshipOrderFacade cjOrderFacade,
-                              CjOpsNotifier opsNotifier,
+                              CjFulfilmentIncidentService incidents,
                               @Value("${spring.cjdropship.api.auto-pay-balance:true}") boolean autoPayBalance) {
         this.orderRepository = orderRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.orderServiceImpl = orderServiceImpl;
         this.cjOrderFacade = cjOrderFacade;
-        this.opsNotifier = opsNotifier;
+        this.incidents = incidents;
         this.autoPayBalance = autoPayBalance;
     }
 
@@ -85,28 +86,43 @@ public class CjLifecycleService {
 
         switch (cjStatus) {
             case "CREATED":
-            case "IN_CART":
+            case "IN_CART": {
                 pace();
-                if (cjOrderFacade.confirmOrder(order.getCjOrderId())) {
+                CjCallOutcome outcome = cjOrderFacade.confirmOrderOutcome(order.getCjOrderId());
+                if (outcome != null && outcome.ok()) {
                     log.info("CJ order {} (local {}) confirmed", order.getCjOrderId(), orderId.getId());
+                } else {
+                    // Retried next sweep as before — but no longer silently (F5).
+                    incidents.onLifecycleMutationFailure(order, "confirm",
+                            outcome == null ? "no answer" : outcome.message());
                 }
                 break;
-            case "UNPAID":
+            }
+            case "UNPAID": {
                 if (autoPayBalance) {
                     pace();
-                    if (cjOrderFacade.payBalance(order.getCjOrderId())) {
+                    CjCallOutcome outcome = cjOrderFacade.payBalanceOutcome(order.getCjOrderId());
+                    if (outcome != null && outcome.ok()) {
                         log.info("CJ order {} (local {}) paid from balance", order.getCjOrderId(), orderId.getId());
+                    } else {
+                        // Insufficient CJ balance lands here. The customer paid us; CJ will not
+                        // ship until the account is topped up — somebody has to know (F5).
+                        incidents.onLifecycleMutationFailure(order, "payBalance",
+                                outcome == null ? "no answer" : outcome.message());
                     }
                 } else {
                     log.info("CJ order {} (local {}) awaits manual payment (auto-pay-balance=false)",
                             order.getCjOrderId(), orderId.getId());
                 }
                 break;
+            }
             case "SHIPPED":
+                noteShipmentDuringRefundReview(order, lastSeen);
                 shipLocallyIfPaid(order, snapshot);
                 backfillTrackingIfMissing(order, snapshot);
                 break;
             case "DELIVERED":
+                noteShipmentDuringRefundReview(order, lastSeen);
                 shipLocallyIfPaid(order, snapshot);
                 backfillTrackingIfMissing(order, snapshot);
                 confirmLocallyIfShipped(order);
@@ -115,16 +131,11 @@ public class CjLifecycleService {
                 log.warn("CJ order {} (local {}) is CANCELLED at CJ — local order stays {}; "
                                 + "refund via the existing aftersale/refund paths",
                         order.getCjOrderId(), orderId.getId(), order.getOrderStatus());
-                // Ops attention exactly once, on the transition (Wave 8; user decision
-                // 2026-07-20: notify + timeline, no automatic money movement). The hop and
-                // the cj_order_status projection were already written by recordHopIfChanged.
+                // Exactly once, on the transition (user decision 2026-07-20: no automatic money
+                // movement; decision D2 2026-09-05: the customer IS told). The hop and the
+                // cj_order_status projection were already written by recordHopIfChanged.
                 if (!"CANCELLED".equals(lastSeen)) {
-                    opsNotifier.notify("CJ cancelled order " + order.getOrderSn(),
-                            "CJ reports order " + orderId.getId() + " (sn " + order.getOrderSn()
-                                    + ", CJ id " + order.getCjOrderId() + ") as CANCELLED on the CJ side."
-                                    + "\nLocal order status: " + order.getOrderStatus()
-                                    + " — the customer's payment is NOT touched automatically."
-                                    + "\nDecide and settle via the normal refund/aftersale path.");
+                    incidents.onCjCancelledAfterPayment(order);
                 }
                 break;
             default:
@@ -155,6 +166,22 @@ public class CjLifecycleService {
                 order.getCjOrderId(), lastSeen == null ? "(placed)" : lastSeen, cjStatus);
     }
 
+    /**
+     * CJ shipped while the customer's refund request is still open (F11): the local status
+     * cannot move (202 is not PAID), but the admin deciding that refund must know a parcel
+     * is on its way. One hop, on the transition only.
+     */
+    private void noteShipmentDuringRefundReview(LitemallOrderAggregate order, String lastSeen) {
+        if (order.getOrderStatus() != LitemallOrderStatus.REFUND_REQUEST
+                || "SHIPPED".equals(lastSeen) || "DELIVERED".equals(lastSeen)) {
+            return;
+        }
+        statusHistoryRepository.record(new LitemallOrderStatusChange(
+                order.getOrderId(), order.getOrderStatus(), order.getOrderStatus(), CHANGE_TYPE_CJ_SYNC,
+                "CJ shipped this order while a refund request is open — settle the refund with the "
+                + "shipment in mind (the parcel cannot be recalled)", "system", LocalDateTime.now()));
+    }
+
     /** PAID → SHIPPED with CJ's carrier + tracking number; a lost race just logs and moves on. */
     private void shipLocallyIfPaid(LitemallOrderAggregate order, CjOrderSnapshot snapshot) {
         if (order.getOrderStatus() != LitemallOrderStatus.PAID) {
@@ -162,9 +189,12 @@ public class CjLifecycleService {
         }
         String carrier = firstNonBlank(snapshot.getTrackingProvider(), snapshot.getLogisticName(),
                 order.getShipChannel(), "CJ");
-        String trackNumber = snapshot.getTrackNumber() == null ? "" : snapshot.getTrackNumber();
+        // Blank stays NULL (F10): an empty string read as "shipped, no tracking" on the order
+        // and as "not shipped" in the tracking service at the same time. NULL + status
+        // SHIPPED is the honest "tracking pending"; the backfill fills it later.
+        String trackNumber = StringUtils.hasText(snapshot.getTrackNumber()) ? snapshot.getTrackNumber() : null;
         try {
-            orderServiceImpl.shipOrder(order.getOrderId(), carrier, trackNumber);
+            orderServiceImpl.shipOrder(order.getOrderId(), carrier, trackNumber, "system");
             order.setOrderStatus(LitemallOrderStatus.SHIPPED); // keep the in-memory view current
             log.info("CJ sync: order {} shipped via {} ({})", order.getOrderId().getId(), carrier, trackNumber);
         } catch (RuntimeException e) {

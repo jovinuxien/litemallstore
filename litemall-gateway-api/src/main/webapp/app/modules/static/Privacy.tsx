@@ -43,18 +43,18 @@ const PROCESSORS = [
 ];
 
 const Privacy: React.FC = () => (
-  <div className='container my-4' style={{ maxWidth: 720 }}>
-    <h1 className='h4 mb-3'>Privacy Policy</h1>
+  <div className='container my-4 lm-doc' style={{ maxWidth: 720 }}>
+    <h1 className='mb-3'>Privacy Policy</h1>
     <p className='text-muted small'>Last updated: 31 July 2026</p>
 
-    <h2 className='h6 mt-4'>Who is responsible</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>Who is responsible</h2>
+    <p>
       The data controller for trovemo.com is <strong>{SELLER.name}</strong>, {SELLER.address} —{' '}
       <a href={`mailto:${SELLER.email}`}>{SELLER.email}</a>.
     </p>
 
-    <h2 className='h6 mt-4'>What we collect and why</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>What we collect and why</h2>
+    <p>
       Account details you give us (username, email, nickname), the addresses and orders you create, and — only
       if you accept analytics and marketing cookies — how you use the store. We process order data to perform
       our contract with you, keep accounting records because Swedish bookkeeping law requires it (seven
@@ -62,8 +62,8 @@ const Privacy: React.FC = () => (
       any time.
     </p>
 
-    <h2 className='h6 mt-4'>Who we share it with</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>Who we share it with</h2>
+    <p>
       We use the processors below and share nothing beyond what each needs. Self-hosted means the software
       runs on our own infrastructure and the data is not sent to that vendor.
     </p>
@@ -80,22 +80,22 @@ const Privacy: React.FC = () => (
           {PROCESSORS.map(p => (
             <tr key={p.name}>
               <td className='fw-semibold'>{p.name}</td>
-              <td className='small text-muted'>{p.purpose}</td>
-              <td className='small text-muted'>{p.data}</td>
+              <td className='small'>{p.purpose}</td>
+              <td className='small'>{p.data}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
 
-    <h2 className='h6 mt-4'>Cookies and analytics</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>Cookies and analytics</h2>
+    <p>
       Analytics and marketing cookies are off until you accept them, and you can withdraw at any time from our{' '}
       <Link to='/cookies'>Cookie Policy</Link>. We also honour your browser&apos;s Do Not Track signal.
     </p>
 
-    <h2 className='h6 mt-4'>Your rights</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>Your rights</h2>
+    <p>
       You can request access to, correction of, deletion of, or a copy (portability) of your personal data,
       and you can object to or restrict processing. Requests are handled manually —{' '}
       <a href={`mailto:${SELLER.email}`}>email us</a> or <Link to='/service'>contact customer service</Link>{' '}
@@ -106,8 +106,8 @@ const Privacy: React.FC = () => (
           lands. Do not describe it as self-service. */}
     </p>
 
-    <h2 className='h6 mt-4'>Contact</h2>
-    <p className='text-muted small'>
+    <h2 className='mt-4'>Contact</h2>
+    <p>
       Questions about this policy: <a href={`mailto:${SELLER.email}`}>{SELLER.email}</a> ·{' '}
       <Link to='/service'>customer service</Link>.
     </p>

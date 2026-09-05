@@ -261,3 +261,44 @@ LITEMALL_ORDER_STRIPE_ENABLED=true \
 LITEMALL_ORDER_STRIPE_SECRET_KEY=sk_test_... \
 LITEMALL_ORDER_STRIPE_WEBHOOK_SECRET=whsec_...   # stripe listen --forward-to
 ```
+
+## 11. The unpaid sweep asks Stripe before it cancels (2026-09-05, lifecycle plan package A)
+
+The lifecycle audit (`plan-order-lifecycle-e2e.md`, F1/F2) found a money hole that §4's
+"webhook is authoritative" did not cover: the PaymentIntent was created with only
+`metadata.orderId`, its id was not stored until payment succeeded, and nothing cancelled
+it when the unpaid sweep cancelled the order 30 minutes after placement. A charge landing
+after that hit `markAsPaid()` on a SYSTEM_CANCELED order, which threw into the webhook
+controller's deliberate 200. Charged, cancelled, no refund. Redirect methods (the SPA's
+`return_url` is `/orders`; nothing calls `/actions/pay` afterwards) and SEPA (`processing`
+for days) made it systematic rather than a race.
+
+Decisions:
+
+- **The intent id is recorded at mint** (`recordPaymentIntentIfCreated`, CREATED-guarded).
+  Latest wins; a re-mint first inspects the previous intent — succeeded ⇒ settle it and
+  refuse a second charge (`noRollbackFor` keeps the settlement under the refusal);
+  processing ⇒ refuse; pending ⇒ cancel it at Stripe — so only ONE live intent can ever
+  capture for an order.
+- **`UnpaidOrderReconciler` decides, the sweep only owns task rows.** SUCCEEDED ⇒ settle
+  (same path as the webhook, `settleVerifiedPspPayment`, REQUIRES_NEW through the proxy);
+  PROCESSING ⇒ defer 60 min; UNAVAILABLE ⇒ defer 5 min, never cancel blind; PENDING ⇒
+  cancel at Stripe FIRST, then the order; Stripe's refusal ("already succeeded") wins.
+  Knobs `litemall.order.unpaid-reconcile.*` with explicit env placeholders.
+- **Stray charges are refunded, not logged.** A succeeded intent presented for an order
+  that cannot take it (cancelled, or already paid by a different intent) is reversed under
+  its own idempotency scope (`refund-order-<id>-<intent>` — the plain key stays reserved
+  for the order's real refund), gets a `payment_refunded_stray` hop and a customer mail
+  (`payment-refunded`). A refund Stripe refuses is committed as a `payment_stray_unrefunded`
+  hop plus an ops mail — durable and loud, never a rolled-back trace.
+- **Transient verification failures no longer burn the event id.** `PaymentVerification`
+  carries `retryable`; the orchestrator throws
+  `LitemallPaymentTemporarilyUnavailableException`, the transaction (and the claim) rolls
+  back, and the controller answers **503** so Stripe redelivers. Our own bugs still get 200.
+- **Client `/actions/pay` is idempotent** against a payment the webhook or the sweep
+  already settled with the same intent, and routes a stray charge through the same refund.
+
+§4's narrative ("a crash mid-processing leaves the event claimed … recoverable via
+dashboard resend") is superseded for the outage case by the 503 above; it still holds for
+a crash after verification.
+

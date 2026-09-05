@@ -19,10 +19,18 @@ public class OrderHandleOptionDtoResponse {
     private final boolean comment;
     private final boolean rebuy;
     private final boolean aftersale;
+    private final boolean withdrawRefund;
 
     public OrderHandleOptionDtoResponse(boolean cancel, boolean delete, boolean pay,
                                         boolean refund, boolean confirm, boolean comment,
                                         boolean rebuy, boolean aftersale) {
+        this(cancel, delete, pay, refund, confirm, comment, rebuy, aftersale, false);
+    }
+
+    public OrderHandleOptionDtoResponse(boolean cancel, boolean delete, boolean pay,
+                                        boolean refund, boolean confirm, boolean comment,
+                                        boolean rebuy, boolean aftersale, boolean withdrawRefund) {
+        this.withdrawRefund = withdrawRefund;
         this.cancel = cancel;
         this.delete = delete;
         this.pay = pay;
@@ -42,7 +50,8 @@ public class OrderHandleOptionDtoResponse {
                 domainOption.isConfirm(),
                 domainOption.isComment(),
                 domainOption.isRebuy(),
-                domainOption.isAftersale()
+                domainOption.isAftersale(),
+                domainOption.isWithdrawRefund()
         );
     }
 }

@@ -55,7 +55,10 @@ public enum LitemallOrderStatus {
     REFUND_REQUEST(202, "REFUND IN PROGRESS"){
         @Override
         public boolean canTransitionTo(LitemallOrderStatus newStatus) {
-            return newStatus == REFUNDED;
+            // REFUNDED when the admin approves; PAID / SHIPPED when the customer withdraws
+            // the request before a decision (lifecycle package C, decision D4) — back to
+            // exactly where the order was, never further.
+            return newStatus == REFUNDED || newStatus == PAID || newStatus == SHIPPED;
         }
     },
     REFUNDED(203, "REFUNDED"){

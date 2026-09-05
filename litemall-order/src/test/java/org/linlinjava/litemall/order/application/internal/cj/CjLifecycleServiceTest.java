@@ -11,6 +11,7 @@ import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrd
 import org.linlinjava.litemall.order.domain.model.valueobjects.order.LitemallOrderStatusChange;
 import org.linlinjava.litemall.order.domain.model.valueobjects.user.LitemallUserId;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjDropshipOrderFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjOrderSnapshot;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -45,11 +46,11 @@ class CjLifecycleServiceTest {
     @Mock
     private CjDropshipOrderFacade cjOrderFacade;
     @Mock
-    private CjOpsNotifier opsNotifier;
+    private CjFulfilmentIncidentService incidents;
 
     private CjLifecycleService service(boolean autoPayBalance) {
         return new CjLifecycleService(orderRepository, statusHistoryRepository, orderServiceImpl,
-                cjOrderFacade, opsNotifier, autoPayBalance);
+                cjOrderFacade, incidents, autoPayBalance);
     }
 
     private LitemallOrderAggregate cjOrder(LitemallOrderStatus localStatus, String lastSeenCjStatus) {
@@ -71,11 +72,11 @@ class CjLifecycleServiceTest {
     void createdDraft_recordsHopAndConfirms() {
         when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, null)));
         when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("CREATED", null, null)));
-        when(cjOrderFacade.confirmOrder("cj-id-1")).thenReturn(true);
+        when(cjOrderFacade.confirmOrderOutcome("cj-id-1")).thenReturn(CjCallOutcome.accepted());
 
         service(true).advance(ORDER_ID);
 
-        verify(cjOrderFacade).confirmOrder("cj-id-1");
+        verify(cjOrderFacade).confirmOrderOutcome("cj-id-1");
         verify(orderRepository).updateCjOrderStatus(ORDER_ID, "CREATED");
         ArgumentCaptor<LitemallOrderStatusChange> hop = ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
         verify(statusHistoryRepository).record(hop.capture());
@@ -89,11 +90,11 @@ class CjLifecycleServiceTest {
         when(orderRepository.findById(ORDER_ID))
                 .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CREATED")));
         when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("UNPAID", null, null)));
-        when(cjOrderFacade.payBalance("cj-id-1")).thenReturn(true);
+        when(cjOrderFacade.payBalanceOutcome("cj-id-1")).thenReturn(CjCallOutcome.accepted());
 
         service(true).advance(ORDER_ID);
 
-        verify(cjOrderFacade).payBalance("cj-id-1");
+        verify(cjOrderFacade).payBalanceOutcome("cj-id-1");
         verify(orderRepository).updateCjOrderStatus(ORDER_ID, "UNPAID");
     }
 
@@ -105,7 +106,7 @@ class CjLifecycleServiceTest {
 
         service(false).advance(ORDER_ID);
 
-        verify(cjOrderFacade, never()).payBalance(any());
+        verify(cjOrderFacade, never()).payBalanceOutcome(any());
     }
 
     @Test
@@ -130,7 +131,7 @@ class CjLifecycleServiceTest {
 
         service(true).advance(ORDER_ID);
 
-        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123");
+        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123", "system");
         verify(orderRepository).updateCjOrderStatus(ORDER_ID, "SHIPPED");
     }
 
@@ -143,7 +144,7 @@ class CjLifecycleServiceTest {
 
         service(true).advance(ORDER_ID);
 
-        verify(orderServiceImpl, never()).shipOrder(any(), any(), any());
+        verify(orderServiceImpl, never()).shipOrder(any(), any(), any(), any());
     }
 
     @Test
@@ -155,7 +156,7 @@ class CjLifecycleServiceTest {
 
         service(true).advance(ORDER_ID);
 
-        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123");
+        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", "CJPKL123", "system");
         verify(orderServiceImpl).autoConfirmOrder(ORDER_ID);
     }
 
@@ -169,7 +170,7 @@ class CjLifecycleServiceTest {
 
         verify(statusHistoryRepository, never()).record(any());
         verify(orderRepository, never()).updateCjOrderStatus(any(), any());
-        verify(cjOrderFacade, never()).confirmOrder(any());
+        verify(cjOrderFacade, never()).confirmOrderOutcome(any());
     }
 
     @Test
@@ -181,5 +182,87 @@ class CjLifecycleServiceTest {
         service(true).advance(ORDER_ID);
 
         verify(cjOrderFacade, never()).fetchOrderDetail(any());
+    }
+
+    // ------------------------------------------------------------------
+    // Lifecycle package B: nothing fails silently any more
+    // ------------------------------------------------------------------
+
+    @Test
+    void unpaid_payBalanceRefused_isReportedAsAnIncident_notSwallowed() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CREATED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("UNPAID", null, null)));
+        when(cjOrderFacade.payBalanceOutcome("cj-id-1")).thenReturn(CjCallOutcome.rejected("1602: insufficient balance"));
+
+        service(true).advance(ORDER_ID);
+
+        verify(incidents).onLifecycleMutationFailure(any(), org.mockito.ArgumentMatchers.eq("payBalance"),
+                org.mockito.ArgumentMatchers.eq("1602: insufficient balance"));
+    }
+
+    @Test
+    void created_confirmRefused_isReportedAsAnIncident() {
+        when(orderRepository.findById(ORDER_ID)).thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, null)));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("CREATED", null, null)));
+        when(cjOrderFacade.confirmOrderOutcome("cj-id-1")).thenReturn(CjCallOutcome.rejected("locked"));
+
+        service(true).advance(ORDER_ID);
+
+        verify(incidents).onLifecycleMutationFailure(any(), org.mockito.ArgumentMatchers.eq("confirm"),
+                org.mockito.ArgumentMatchers.eq("locked"));
+    }
+
+    @Test
+    void cancelledAtCj_onTheTransition_raisesTheIncidentOnce() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "UNSHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("CANCELLED", null, null)));
+
+        service(true).advance(ORDER_ID);
+
+        verify(incidents).onCjCancelledAfterPayment(any());
+        verify(orderRepository).updateCjOrderStatus(ORDER_ID, "CANCELLED");
+    }
+
+    @Test
+    void cancelledAtCj_alreadySeen_doesNotRepeatTheIncident() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "CANCELLED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1")).thenReturn(Optional.of(snapshot("CANCELLED", null, null)));
+
+        service(true).advance(ORDER_ID);
+
+        verify(incidents, never()).onCjCancelledAfterPayment(any());
+    }
+
+    /** F10: CJ says SHIPPED with no number yet — ship with a NULL number, not "". */
+    @Test
+    void shippedAtCj_withoutTrackingNumber_shipsWithNullNumber() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.PAID, "UNSHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("SHIPPED", "", "YunExpress")));
+
+        service(true).advance(ORDER_ID);
+
+        verify(orderServiceImpl).shipOrder(ORDER_ID, "YunExpress", null, "system");
+    }
+
+    /** F11: a refund is under review and CJ ships anyway — the admin must see it on the timeline. */
+    @Test
+    void shippedAtCj_whileRefundRequested_recordsAWarningHop_andDoesNotShipLocally() {
+        when(orderRepository.findById(ORDER_ID))
+                .thenReturn(Optional.of(cjOrder(LitemallOrderStatus.REFUND_REQUEST, "UNSHIPPED")));
+        when(cjOrderFacade.fetchOrderDetail("cj-id-1"))
+                .thenReturn(Optional.of(snapshot("SHIPPED", "CJPKL123", "YunExpress")));
+
+        service(true).advance(ORDER_ID);
+
+        verify(orderServiceImpl, never()).shipOrder(any(), any(), any(), any());
+        ArgumentCaptor<LitemallOrderStatusChange> hops = ArgumentCaptor.forClass(LitemallOrderStatusChange.class);
+        verify(statusHistoryRepository, org.mockito.Mockito.times(2)).record(hops.capture());
+        assertTrue(hops.getAllValues().stream()
+                .anyMatch(h -> h.getChangeMessage().contains("while a refund request is open")));
     }
 }

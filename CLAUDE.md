@@ -1535,8 +1535,95 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (unpaid-sweep loop FIXED 2026-08-27)
-- **No active assignment.**
+### Worktree: `order` — ACTIVE: order lifecycle end-to-end fix (plan approved 2026-09-05)
+- **Task — order lifecycle E2E (user-commissioned 2026-09-05, all six decisions
+  approved).** Code to `litemall-order/docs/plan-order-lifecycle-e2e.md` (the
+  contract: findings F1–F18, packages A→B→C, raises D). Decisions: D1 late
+  payment on a cancelled order = automatic Stripe refund (+hop +customer mail);
+  D2 CJ-cancelled paid order = automatic customer mail, NO money movement; D3
+  stalled placements park after 24 h; D4 customer "withdraw refund request"
+  action; D5 no automatic CJ dispute on local refund (separate decision); D6
+  prod sets `CJ_OPS_MAIL` — MAIN-session deploy step (worktrees never touch the
+  VPS). Package A (payment money-safety) ships and merges FIRST, alone.
+- **Acceptance:** as written in the plan §4 — per package, module tests green
+  with real "Tests run:" counts (baseline 298 / 0), dev acceptance through
+  :9000/:8090/:18080, and the first real prod EUR order after deploy is
+  USER-SIDE.
+- **Status 2026-09-05 — PACKAGE A BUILT (payment money-safety, F1/F2).** Module
+  suite **342 run / 0 failures** (+44). Design: `adr-stripe-payments.md` §11.
+  What changed: the PaymentIntent id is now RECORDED AT MINT (CREATED-guarded;
+  a re-mint settles a succeeded previous intent / refuses on processing /
+  cancels a pending one at Stripe); the unpaid sweep is now
+  `UnpaidOrderTaskScheduler` (task rows only) + `UnpaidOrderReconciler`
+  (SUCCEEDED ⇒ settle via `settleVerifiedPspPayment`, PROCESSING ⇒ defer 60
+  min, UNAVAILABLE ⇒ defer 5 min, PENDING ⇒ cancel AT STRIPE first, then the
+  order); stray charges (webhook OR `/actions/pay` on a cancelled/already-paid
+  order) are REFUNDED under `refund-order-<id>-<intent>` + hop
+  `payment_refunded_stray` + customer mail `payment-refunded` (core
+  MailTemplates/MailHtmlTemplates — shared-module rebuild discipline applies);
+  a refused refund commits a `payment_stray_unrefunded` hop + ops mail; a
+  transient verify failure throws `LitemallPaymentTemporarilyUnavailableException`
+  → webhook answers **503** (claim rolled back, Stripe redelivers). Knobs
+  `litemall.order.unpaid-reconcile.{processing,unavailable}-defer-minutes`
+  (env `LITEMALL_ORDER_UNPAID_*_DEFER_MINUTES`). NO migration.
+  ⚠ The orchestrator is injected `@Lazy` into the reconciler (scheduler →
+  reconciler → orchestrator → scheduler cycle) — dev boot on :18085 proved the
+  context starts (17 s, Flyway validated 65, schedulers up). ⚠ `@Transactional
+  (noRollbackFor = LitemallPaymentGatewayException)` on `createPaymentIntent`
+  is load-bearing: the "already paid" refusal must NOT roll back the settlement
+  it just made. ⚠ `settleVerifiedPspPayment` must never touch the task table
+  (the sweep holds `FOR UPDATE SKIP LOCKED` on it) — the sweep deletes its own
+  rows. ⚠ Mockito here has no `verifyNoInteractions`; `argThat` lambdas in a
+  second `when()` see null. Live Stripe test-mode probe =
+  `StripePaymentGatewayAdapterLiveIT` (opt-in via `STRIPE_TEST_SECRET_KEY`; no
+  test key exists in the repo). RAISED for gateway-api: `StripeCardForm`
+  treats a `processing` intent (SEPA) as "not completed" and `return_url:
+  /orders` never reconciles a redirect return — the backend now survives both,
+  the SPA copy is still wrong. Deploy: order container + every litemall-core
+  dependent (template classes changed); D6 `CJ_OPS_MAIL` env at the same time.
+  **Package A MERGED to master `c9ec31257` + pushed 2026-09-05.**
+- **Status 2026-09-05 — PACKAGES B + C BUILT (fulfilment visibility + closure).**
+  Suite **387 run / 0 failures** (+45). NO migration. B: new
+  `CjFulfilmentIncidentService` (@Transactional — the AFTER_COMMIT mail listener
+  drops events published outside a tx, the shipped-mail lesson) owns every
+  "CJ went wrong" signal, with STATE ON THE TIMELINE (no schema): retryable
+  placement failures write ONE "deferred" hop on the first failure (whichever
+  path), warn ops after `litemall.order.cj.stall-warn-minutes` (60), PARK under
+  the new `PLACEMENT_STALLED` sentinel after `stall-park-hours` (24); a placed
+  order CJ refuses to confirm/pay-from-balance (empty CJ balance) gets a
+  `cj_stall` hop + ops mail at most every `lifecycle-alert-hours` (24) — the
+  facade now returns `CjCallOutcome` with CJ's reason; CJ CANCELLED after payment
+  publishes `LitemallCjFulfilmentCancelledEvent` → customer mail
+  `fulfilment-cancelled` (D2) + ops mail, no money moves. Pending list now
+  INCLUDES parked rows regardless of the approval stamp (+`parked`,
+  `parkReason` = CJ's words from the last `cj_placement_failed` hop);
+  `POST /srv/private/admin/order/{id}/cj-placement/requeue` (CAS clears either
+  sentinel, keeps the approval) replaces the SQL-in-an-email; approve refuses
+  `[AFTERSALE_OPEN]` / `[PARKED]`; `place()` holds on an open aftersale; blank
+  CJ tracking stays NULL and `/tracking` answers `TRACKING_PENDING` for a
+  shipped order; sync predicate excludes 401/402; a CJ ship during a refund
+  review leaves a hop; the poller ships as operator `system`. C: `delivered`
+  mail on `LitemallOrderDeliveredEvent` (return window from
+  `litemall.order.return-window-days`, 30); auto-confirm window = system
+  setting `litemall_order_unconfirm` when set, yml fallback otherwise (was a
+  hidden 15-day code default vs the panel's 7); customer
+  `POST /srv/order/{id}/actions/refund/withdraw` (202 → PAID|SHIPPED, D4) +
+  `handleOption.withdrawRefund`; `canBeCanceled` now delegates to the
+  dispatcher, `getStatusesForShowType` deleted, dead paid-at-creation branch
+  removed, stale offline-pay javadoc corrected. Contracts:
+  `docs/handoff-gateway-admin-cj-requeue.md`, `docs/handoff-gateway-api-lifecycle.md`.
+  Dev boot on :18085 verified after EACH package (15–17 s, Flyway 65 validated).
+  ⚠ Gotchas: a Java record component named `ok` forbids a static factory
+  `ok()`; `LitemallCjRetryableException` wraps its message (match with
+  `contains`); `getOrderForUser` reads `findById` + filters, not
+  `findByIdAndUserId`. **RAISED (not built here):** gateway-api — SEPA
+  `processing` copy + redirect `return_url` reconciliation + withdraw button +
+  202 on the Refunds page + TRACKING_PENDING + timeline; gateway-admin — parked
+  rows + Requeue button + `[AFTERSALE_OPEN]`/`[PARKED]`; goods-management —
+  reviews have no purchase check (`POST /srv/comment/post` accepts any user,
+  never marks `order_goods.comment`, so "Unrated" never clears). NOT done:
+  F15 (refund after CJ paid opens no CJ dispute — D5, separate decision), F16
+  Refunds-page visibility (SPA), F17 (goods-management).
 - **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
   retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
   failures (was 291, +7 new). Found while verifying the mail deploy: prod had
@@ -1738,6 +1825,11 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
+- **RAISED by order 2026-09-05 (lifecycle audit F17):** `POST /srv/comment/post`
+  has no purchase check (any authenticated user, any goods, unlimited) and never
+  marks `litemall_order_goods.comment` / `litemall_order.comments`, so the
+  storefront's "Unrated" tab never clears. Needs an order-goods linkage
+  (goodsId + orderId from the buyer's own delivered order) before it is a review.
 - **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
   `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
   trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
@@ -2327,9 +2419,96 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
-- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
-  rail; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY SHIPPED + DEPLOYED
+- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout + delivery
+  chooser + coupon cell; spec §5) — rewrite this block before launching it.
+- **DEPLOYED to trovemo.com 2026-09-05 02:32 UTC** from master `d45511aa8`: gateway-api
+  container only (mirror-patched Dockerfile copy reused, cached runtime layer, build 2 min),
+  healthy in 15 s, 0 errors, smoke 11/11 200s, live bundle `main.740efb7c…`. The SAME
+  headless `getComputedStyle` check re-run AGAINST PRODUCTION: 372 elements / 0 Bootstrap
+  blue, Help h1 26.4 / h2 18.4 / body 16, Returns 7×16px `rgb(31,42,46)`, cookie Accept
+  `rgb(14,124,134)`, Amazon Ember on home/search/docs, header links white, 0 page errors.
+- **Status 2026-09-05 — theme hierarchy + document type scale MERGED to master.** ONE
+  commit, SPA only. jest 49 suites / 353 tests (was 48/331, +22 in `app/sass/theme.spec.ts`),
+  tsc 0, prod build clean. What changed:
+  1. **`--lm-*` palette now lives on `:root` in `app/sass/global.scss`** (was only in
+     `product-card.scss`, so pages without a card had no tokens and relied on the
+     `var(--lm-primary, #0e7c86)` fallbacks). Bootstrap remap beside it: `--bs-primary`
+     (+`-rgb`), `--bs-link-color`/`-hover` (+`-rgb`) → teal; `.btn-primary` and
+     `.btn-outline-primary` re-declare their `--bs-btn-*` literals (Bootstrap 5.3.8 bakes
+     `#0d6efd` into the variant class, so a `:root` variable alone does NOT reach them).
+     Global `a { text-decoration: none }` + underline on hover/focus.
+  2. The four `font-family` overrides deleted (home.scss, storefront-home.scss,
+     search.scss, _cards.scss) — everything reads `--lm-font`; no webfont added.
+  3. `.lm-doc` (global.scss) on the 9 document pages (8 static + NotFound): body 1rem/1.6 in
+     `--lm-text`, h1 1.65rem, h2 1.15rem with top margin; the `h4`/`h6` heading demotions
+     removed; `small text-muted` dropped from body paragraphs, FAQ answers, the delivery
+     steps list and the Privacy processor table (kept `small`); muted survives ONLY on
+     "Last updated", the support-hours line, the help footnote and the chevron icon. Copy,
+     seller identity and i18n keys byte-identical (verified: only className attributes changed).
+  **Headless acceptance on the built bundle (real Chrome, `getComputedStyle`):** /help
+  /returns /service /cookies /404 → 372 anchors/buttons/icons scanned, **0** with
+  `rgb(13,110,253)` in color/background/border; Help h1 26.4px, h2 18.4px > body 16px, icon
+  teal; Returns 7 body paragraphs all 16px `rgb(31,42,46)`, "Last updated" 14px, link teal
+  with no underline at rest; cookie Accept (`btn btn-primary`) background `rgb(14,124,134)`;
+  `.lm-home`, `.lm-isearch`, `.lm-doc` all resolve to the Amazon Ember stack; header links
+  still white. 0 page errors. Harness: built bundle served locally + GET-only proxy of
+  `/srv`/`/auth` to trovemo.com (no dev stack was up).
+  ⚠ Blast radius is storewide by design: the 12 files that use `btn-primary` /
+  `text-primary` (CookieBanner, CookiePreferences, ErrorBoundary, Coupons, CouponCenter,
+  Groupon, GrouponDetail, TopicDetail, one Checkout button …) turn teal with no edit — that
+  was the point. Anything that WANTED Bootstrap blue no longer gets it.
+  **Deploy = gateway-api container rebuild only (MAIN)**, no migration, no backend, no env.
+  ⚠ Ubuntu-mirror gotcha from the i18n deploy still applies (see the entry below).
+- **Previously (2026-09-05):** i18n batch 2 merged AND DEPLOYED — see below.
+- **Status 2026-09-05 02:10 UTC — i18n BATCH 2 DEPLOYED to trovemo.com** from master
+  `1d5536f7e` (contains `ee51e96ff`): gateway-api container only, healthy in 15 s,
+  `Started GatewayApiApplication` clean, 0 errors, smoke 8/8 200s; live bundle
+  `main.3c496ef1…`, 14 i18n chunks in the runtime map, 6/6 sv/da chunks verified BY
+  CONTENT through the edge (`Lägg i varukorgen`, `Læg i kurv`, `Pris: lägst först`,
+  `Sortér efter`, `Skickas från`, `Sendes fra`).
+  ⚠ **Two build attempts FAILED, neither because of the code:** the disk guard forced a
+  `docker builder prune -af`, which also evicted the shared `runtime` layer
+  (`apt-get install curl tini` on `eclipse-temurin:21-jre-jammy`) that every service
+  image had reused for weeks — and that night archive.ubuntu.com was crawling (22 s per
+  InRelease from the host, 15 min with no bytes inside the sandbox, then exit 100). The
+  gate held both times (container untouched). Attempt 3 built from a Dockerfile COPY in
+  `/root/Dockerfile.i18n2` (line 107 only: apt sources → de.archive.ubuntu.com, the
+  official German mirror, 0.08 s) with compose's own target + tag, 56 s, then
+  `up -d --no-deps`. Nothing in the repo tree was changed on the VPS. Follow-up worth a
+  commit: make the mirror an `ARG` (or add `Acquire::Retries`) so a mirror outage cannot
+  block a deploy. ⚠ The runtime layer is cached again now; the NEXT prune will evict it.
+  ⚠ Resolve lazy chunks as `app/<chunkName>.<hash>.js` (name + hash from the runtime
+  map), not `<id>.<hash>` — the id form 404s. The base JRE image already ships curl;
+  only tini comes from apt. VPS checkout left detached at `1d5536f7e`.
+  Next i18n task after this one = batch 3 (cart/checkout + delivery chooser +
+  coupon cell; spec §5).
+- **Status 2026-09-05 — i18n BATCH 2 BUILT + MERGED to master.** ~90 string sites
+  across 23 files (spec §5 estimated ~30): `ProductCard`, `Detail.tsx` + 14 PDP
+  sub-components, `Search.tsx` + rail/tree/empty/unavailable states, `euStock.ts`.
+  New namespaces `product` + `search` (14 lazy sv/da chunks now); shared EU-warehouse
+  phrasing in `common:euStock.*` because batch 3's checkout badges read the same
+  helper. jest 48 suites / 331 tests (was 45/320), tsc 0, `i18n:check` 0, prod build
+  clean. As-built record: `litemall-gateway-api/docs/spec-i18n-foundation.md` §9.
+  **Live render check was done against PRODUCTION DATA, read-only:** no dev stack
+  was up, so the built bundle was served locally with a GET-only proxy of
+  `/srv`/`/auth`/`/_cdn` to trovemo.com and driven headless — PDP in sv, search +
+  zero-results in da/sv, home grid in sv all render translated, 0 page errors.
+  ⚠ Backend `sortOptions` labels and dynamic facet headings are SERVER strings:
+  known fields map to keys, anything else passes through VERBATIM (the
+  `describeError` rule) — never "fix" that into a hardcoded list. ⚠ react-instantsearch
+  `translations` props MUST be memoised on `t` (dequal compares functions by
+  reference — an inline object remounts the widget and refetches every render).
+  ⚠ `count` is i18next's plural trigger, not a free variable — a `{{count}}` key
+  without `_one/_other` fails `i18n:check`. ⚠ `pkill -f <pattern>` matches the Bash
+  tool's own shell and kills the session — kill by port (`ss -ltnp`) instead.
+  Seen live, NOT this batch: cookie banner still English (batch 6); the category
+  facet shows 3 raw ids whose leaves are missing from the catalog name map
+  (pre-existing, not a language issue). sv/da strings are MY drafts — native review
+  still user-side. **Deploy = gateway-api container rebuild only** (no migration, no
+  backend change, no reindex); env unchanged (`LITEMALL_I18N_LANGUAGES=en,sv,da` is
+  already live).
+- **Previous status (2026-09-04) — i18n FOUNDATION PHASE 1 SHIPPED + LIVE.**
 - **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
   with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
   en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live
@@ -2920,6 +3099,10 @@
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
 ### Worktree: `gateway-admin` — SEO title worklist: live dev acceptance PASSED + blank-draft batch gap FIXED (2026-09-05)
+- **RAISED by order 2026-09-05:** code to
+  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md` — parked rows
+  (`parked`, `parkReason`) in the pending tab, a **Requeue** action on
+  `POST …/cj-placement/requeue`, `[AFTERSALE_OPEN]`/`[PARKED]` approve refusals.
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to

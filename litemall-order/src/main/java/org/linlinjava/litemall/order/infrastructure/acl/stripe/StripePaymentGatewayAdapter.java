@@ -13,6 +13,7 @@ import org.linlinjava.litemall.order.application.util.exception.payment.Litemall
 import org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.PaymentGatewayPort;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentDraft;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentIntentState;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentVerification;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.PaymentWebhookEvent;
 import org.linlinjava.litemall.order.infrastructure.services.acl.facades.payment.RefundOutcome;
@@ -89,9 +90,14 @@ public class StripePaymentGatewayAdapter implements PaymentGatewayPort {
         try {
             intent = PaymentIntent.retrieve(paymentIntentId, requestOptions);
         } catch (StripeException e) {
-            // Includes "no such payment_intent" — an id we cannot retrieve is not a payment.
             log.warn("Could not retrieve PaymentIntent {} for order {}: {}",
                     paymentIntentId, orderId, e.getMessage());
+            if (isTransient(e)) {
+                // Stripe did not answer. Still a rejection (fail closed), but flagged so the
+                // webhook releases its event claim and lets Stripe redeliver (F2).
+                return PaymentVerification.unavailable("PaymentIntent could not be retrieved: " + e.getMessage());
+            }
+            // "no such payment_intent" and friends — an id Stripe does not know is not a payment.
             return PaymentVerification.rejected("PaymentIntent could not be retrieved: " + e.getMessage());
         }
 
@@ -135,6 +141,12 @@ public class StripePaymentGatewayAdapter implements PaymentGatewayPort {
 
     @Override
     public RefundOutcome refund(String paymentIntentId, LitemallMoney amount, Integer orderId) {
+        return refund(paymentIntentId, amount, orderId, null);
+    }
+
+    @Override
+    public RefundOutcome refund(String paymentIntentId, LitemallMoney amount, Integer orderId,
+                                String idempotencyScope) {
         if (paymentIntentId == null || paymentIntentId.isBlank()) {
             return RefundOutcome.failed("order " + orderId + " has no recorded PaymentIntent to reverse");
         }
@@ -145,8 +157,11 @@ public class StripePaymentGatewayAdapter implements PaymentGatewayPort {
                     // Stripe dedupes on this key, so a retried admin approval reverses once.
                     .putMetadata(METADATA_ORDER_ID, String.valueOf(orderId))
                     .build();
+            String key = idempotencyScope == null || idempotencyScope.isBlank()
+                    ? "refund-order-" + orderId
+                    : "refund-order-" + orderId + "-" + idempotencyScope;
             RequestOptions idempotent = requestOptions.toBuilder()
-                    .setIdempotencyKey("refund-order-" + orderId)
+                    .setIdempotencyKey(key)
                     .build();
             Refund refund = Refund.create(params, idempotent);
             log.info("Refunded {} on PaymentIntent {} for order {} (refund {})",
@@ -157,6 +172,104 @@ public class StripePaymentGatewayAdapter implements PaymentGatewayPort {
                     orderId, paymentIntentId, e.getMessage());
             return RefundOutcome.failed(e.getMessage());
         }
+    }
+
+    @Override
+    public PaymentIntentState inspect(String paymentIntentId) {
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return PaymentIntentState.unavailable("no PaymentIntent id");
+        }
+        try {
+            return toState(PaymentIntent.retrieve(paymentIntentId, requestOptions));
+        } catch (StripeException e) {
+            log.warn("Could not inspect PaymentIntent {}: {}", paymentIntentId, e.getMessage());
+            if (isTransient(e)) {
+                return PaymentIntentState.unavailable(e.getMessage());
+            }
+            // Stripe answered and does not know this id: nothing can capture on it.
+            return PaymentIntentState.of(PaymentIntentState.Status.CANCELED, null, 0L, null,
+                    "unknown to Stripe: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public PaymentIntentState cancelIntent(String paymentIntentId) {
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return PaymentIntentState.unavailable("no PaymentIntent id");
+        }
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId, requestOptions);
+            PaymentIntentState before = toState(intent);
+            if (before.is(PaymentIntentState.Status.CANCELED)) {
+                return before;
+            }
+            if (!before.is(PaymentIntentState.Status.PENDING)) {
+                // succeeded / processing: money is captured or in flight — not ours to cancel.
+                return before;
+            }
+            PaymentIntent cancelled = intent.cancel(requestOptions);
+            log.info("Cancelled PaymentIntent {} ({} -> {})", paymentIntentId,
+                    intent.getStatus(), cancelled.getStatus());
+            return toState(cancelled);
+        } catch (StripeException e) {
+            log.warn("Could not cancel PaymentIntent {}: {}", paymentIntentId, e.getMessage());
+            if (isTransient(e)) {
+                return PaymentIntentState.unavailable(e.getMessage());
+            }
+            // Stripe refused (typically: status moved under us). Re-read so the caller acts
+            // on what the intent IS, not on what we tried to make it.
+            return inspect(paymentIntentId);
+        }
+    }
+
+    /**
+     * Stripe's status vocabulary folded to the five states the order module reasons about.
+     * Anything unrecognised is treated as PENDING-like only if it is one of the documented
+     * pre-capture statuses; unknown strings are reported UNAVAILABLE so a library upgrade
+     * that adds a status can never be misread as "safe to cancel".
+     */
+    static PaymentIntentState toState(PaymentIntent intent) {
+        if (intent == null) {
+            return PaymentIntentState.unavailable("null PaymentIntent");
+        }
+        String status = intent.getStatus() == null ? "" : intent.getStatus();
+        PaymentIntentState.Status folded;
+        switch (status) {
+            case "succeeded" -> folded = PaymentIntentState.Status.SUCCEEDED;
+            case "processing" -> folded = PaymentIntentState.Status.PROCESSING;
+            case "canceled" -> folded = PaymentIntentState.Status.CANCELED;
+            case "requires_payment_method", "requires_confirmation", "requires_action", "requires_capture" ->
+                    folded = PaymentIntentState.Status.PENDING;
+            default -> {
+                return PaymentIntentState.unavailable("unrecognised PaymentIntent status '" + status + "'");
+            }
+        }
+        Integer orderId = null;
+        Map<String, String> metadata = intent.getMetadata();
+        if (metadata != null && metadata.get(METADATA_ORDER_ID) != null) {
+            try {
+                orderId = Integer.valueOf(metadata.get(METADATA_ORDER_ID));
+            } catch (NumberFormatException ignored) {
+                // reported as null: the caller's orderId match then fails, which is the safe side
+            }
+        }
+        long received = intent.getAmountReceived() == null ? 0L : intent.getAmountReceived();
+        return PaymentIntentState.of(folded, orderId, received, intent.getCurrency(), status);
+    }
+
+    /**
+     * A failure that says nothing about the intent: connection, rate limit, Stripe 5xx,
+     * or our own credentials (a config problem is not a verdict on the customer's money).
+     * {@code InvalidRequestException} (unknown id, bad parameters) is a real answer.
+     */
+    static boolean isTransient(StripeException e) {
+        if (e instanceof com.stripe.exception.InvalidRequestException) {
+            return false;
+        }
+        if (e instanceof com.stripe.exception.CardException) {
+            return false;
+        }
+        return true;
     }
 
     @Override

@@ -306,6 +306,21 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         return litemallOrderMapper.updateByExampleSelective(patch, example);
     }
 
+    @Override
+    public int recordPaymentIntentIfCreated(LitemallOrderId orderId, String paymentIntentId) {
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return 0;
+        }
+        LitemallOrder patch = new LitemallOrder();
+        patch.setPaymentIntentId(paymentIntentId);
+        patch.setUpdateTime(LocalDateTime.now());
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode());
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
     /**
      * Shared helper for the guarded transitions: apply {@code patch} only to a row of
      * {@code orderId} currently in one of {@code fromStatuses}. Returns rows updated
@@ -414,6 +429,13 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public int markRefundWithdrawnIfRequested(LitemallOrderId orderId, LitemallOrderStatus backTo) {
+        LitemallOrder patch = new LitemallOrder();
+        patch.setOrderStatus(backTo.getCode());
+        return conditionalTransition(orderId, patch, LitemallOrderStatus.REFUND_REQUEST);
+    }
+
+    @Override
     public int markRefundedIfRequested(LitemallOrderId orderId, java.math.BigDecimal refundAmount, LocalDateTime refundTime) {
         LitemallOrder patch = new LitemallOrder();
         patch.setOrderStatus(LitemallOrderStatus.REFUNDED.getCode());
@@ -449,6 +471,12 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         patch.setCjOrderStatus(cjOrderStatus);
         patch.setUpdateTime(LocalDateTime.now());
         return litemallOrderMapper.updateByPrimaryKeySelective(patch);
+    }
+
+    @Override
+    public int clearCjPlacementSentinel(LitemallOrderId orderId) {
+        // Hand-written statement: the generated selective update cannot write NULL.
+        return orderMapper.clearCjPlacementSentinel(orderId.getId());
     }
 
     @Override
