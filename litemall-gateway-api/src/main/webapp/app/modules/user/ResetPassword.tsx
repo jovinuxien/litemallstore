@@ -3,6 +3,7 @@ import { Alert, Button, Form, Nav, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 
 import AuthShell from 'app/modules/login/AuthShell';
+import { Trans, useTranslation } from 'app/i18n';
 
 import { useAppSelector } from 'app/config/store';
 import { authApi } from 'app/shared/api';
@@ -21,6 +22,7 @@ import { authApi } from 'app/shared/api';
  */
 const ResetPassword: React.FC = () => {
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
+  const { t } = useTranslation('auth');
 
   const [tab, setTab] = useState<'change' | 'forgot'>('change');
   const [forgotAvailable, setForgotAvailable] = useState(false);
@@ -60,7 +62,7 @@ const ResetPassword: React.FC = () => {
     setWrongOld(false);
     setChanged(false);
     if (newPassword !== confirm) {
-      setChangeError('New passwords do not match.');
+      setChangeError(t('reset.mismatch'));
       return;
     }
     setChanging(true);
@@ -74,10 +76,10 @@ const ResetPassword: React.FC = () => {
       } else if (env.errno === 700) {
         setWrongOld(true);
       } else {
-        setChangeError(env.errmsg || 'Password change failed.');
+        setChangeError(env.errmsg || t('reset.changeFailed'));
       }
     } catch {
-      setChangeError('Password change failed.');
+      setChangeError(t('reset.changeFailed'));
     } finally {
       setChanging(false);
     }
@@ -92,10 +94,10 @@ const ResetPassword: React.FC = () => {
       if (env.errno === 0) {
         setRequested(true);
       } else {
-        setForgotError(env.errmsg || 'Request failed.');
+        setForgotError(env.errmsg || t('reset.requestFailed'));
       }
     } catch {
-      setForgotError('Request failed.');
+      setForgotError(t('reset.requestFailed'));
     } finally {
       setRequesting(false);
     }
@@ -113,24 +115,24 @@ const ResetPassword: React.FC = () => {
       } else if (env.errno === 703) {
         setBadToken(true);
       } else {
-        setForgotError(env.errmsg || 'Reset failed.');
+        setForgotError(env.errmsg || t('reset.resetFailed'));
       }
     } catch {
-      setForgotError('Reset failed.');
+      setForgotError(t('reset.resetFailed'));
     } finally {
       setConfirming(false);
     }
   };
 
   return (
-    <AuthShell title='Password' sub='Change your password, or recover a forgotten one.'>
+    <AuthShell title={t('reset.title')} sub={t('reset.sub')}>
           {forgotAvailable && (
             <Nav variant='tabs' activeKey={tab} onSelect={k => setTab((k as 'change' | 'forgot') ?? 'change')} className='mb-3'>
               <Nav.Item>
-                <Nav.Link eventKey='change'>Change password</Nav.Link>
+                <Nav.Link eventKey='change'>{t('reset.tabChange')}</Nav.Link>
               </Nav.Item>
               <Nav.Item>
-                <Nav.Link eventKey='forgot'>Forgot password</Nav.Link>
+                <Nav.Link eventKey='forgot'>{t('reset.tabForgot')}</Nav.Link>
               </Nav.Item>
             </Nav>
           )}
@@ -139,15 +141,18 @@ const ResetPassword: React.FC = () => {
             <>
               {!isAuthenticated && (
                 <Alert variant='warning'>
-                  You need to <Link to='/login' state={{ from: { pathname: '/reset' } }}>sign in</Link> to change your
-                  password{forgotAvailable ? ', or use the “Forgot password” tab' : ''}.
+                  <Trans
+                    t={t}
+                    i18nKey={forgotAvailable ? 'reset.needSignInOrForgot' : 'reset.needSignIn'}
+                    components={{ 1: <Link to='/login' state={{ from: { pathname: '/reset' } }} /> }}
+                  />
                 </Alert>
               )}
-              {changed && <Alert variant='success'>Password changed. Other signed-in sessions were logged out.</Alert>}
+              {changed && <Alert variant='success'>{t('reset.changed')}</Alert>}
               {changeError && <Alert variant='danger'>{changeError}</Alert>}
               <Form onSubmit={submitChange}>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Current password</Form.Label>
+                  <Form.Label>{t('reset.currentPassword')}</Form.Label>
                   <Form.Control
                     type='password'
                     value={oldPassword}
@@ -156,19 +161,19 @@ const ResetPassword: React.FC = () => {
                     required
                     autoFocus
                   />
-                  <Form.Control.Feedback type='invalid'>The current password is incorrect.</Form.Control.Feedback>
+                  <Form.Control.Feedback type='invalid'>{t('reset.wrongCurrent')}</Form.Control.Feedback>
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>New password</Form.Label>
+                  <Form.Label>{t('reset.newPassword')}</Form.Label>
                   <Form.Control type='password' value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
-                  <Form.Text className='text-muted'>At least 8 characters, different from your username.</Form.Text>
+                  <Form.Text className='text-muted'>{t('reset.passwordHelp')}</Form.Text>
                 </Form.Group>
                 <Form.Group className='mb-3'>
-                  <Form.Label>Confirm new password</Form.Label>
+                  <Form.Label>{t('reset.confirmNew')}</Form.Label>
                   <Form.Control type='password' value={confirm} onChange={e => setConfirm(e.target.value)} required />
                 </Form.Group>
                 <Button type='submit' variant='primary' className='w-100' disabled={changing || !isAuthenticated}>
-                  {changing ? <Spinner animation='border' size='sm' /> : 'Change password'}
+                  {changing ? <Spinner animation='border' size='sm' /> : t('reset.changeSubmit')}
                 </Button>
               </Form>
             </>
@@ -178,7 +183,7 @@ const ResetPassword: React.FC = () => {
             <>
               {confirmed ? (
                 <Alert variant='success'>
-                  Password reset. <Link to='/login'>Sign in</Link> with your new password.
+                  <Trans t={t} i18nKey='reset.resetDone' components={{ 1: <Link to='/login' /> }} />
                 </Alert>
               ) : (
                 <>
@@ -186,25 +191,25 @@ const ResetPassword: React.FC = () => {
                   {!requested ? (
                     <Form onSubmit={submitRequest}>
                       <Form.Group className='mb-3'>
-                        <Form.Label>Account email</Form.Label>
+                        <Form.Label>{t('reset.accountEmail')}</Form.Label>
                         <Form.Control type='email' value={email} onChange={e => setEmail(e.target.value)} required />
-                        <Form.Text className='text-muted'>We’ll send a reset code if this email is registered.</Form.Text>
+                        <Form.Text className='text-muted'>{t('reset.emailHelp')}</Form.Text>
                       </Form.Group>
                       <Button type='submit' variant='primary' className='w-100' disabled={requesting}>
-                        {requesting ? <Spinner animation='border' size='sm' /> : 'Send reset code'}
+                        {requesting ? <Spinner animation='border' size='sm' /> : t('reset.sendCode')}
                       </Button>
                     </Form>
                   ) : (
                     <>
-                      <Alert variant='info'>If that email is registered, a reset code is on its way (valid 30 minutes).</Alert>
+                      <Alert variant='info'>{t('reset.codeSent')}</Alert>
                       <Form onSubmit={submitConfirm}>
                         <Form.Group className='mb-3'>
-                          <Form.Label>Reset code</Form.Label>
+                          <Form.Label>{t('reset.code')}</Form.Label>
                           <Form.Control value={token} onChange={e => setToken(e.target.value)} isInvalid={badToken} required />
-                          <Form.Control.Feedback type='invalid'>This code is invalid or has expired.</Form.Control.Feedback>
+                          <Form.Control.Feedback type='invalid'>{t('reset.badCode')}</Form.Control.Feedback>
                         </Form.Group>
                         <Form.Group className='mb-3'>
-                          <Form.Label>New password</Form.Label>
+                          <Form.Label>{t('reset.newPassword')}</Form.Label>
                           <Form.Control
                             type='password'
                             value={forgotPassword}
@@ -213,7 +218,7 @@ const ResetPassword: React.FC = () => {
                           />
                         </Form.Group>
                         <Button type='submit' variant='primary' className='w-100' disabled={confirming}>
-                          {confirming ? <Spinner animation='border' size='sm' /> : 'Reset password'}
+                          {confirming ? <Spinner animation='border' size='sm' /> : t('reset.resetSubmit')}
                         </Button>
                       </Form>
                     </>

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { Trans, useTranslation } from 'app/i18n';
+
 /**
  * The catch-all route used to be a bare unstyled string: "Page not found", no
  * links, no search, nothing to do next.
@@ -17,13 +19,14 @@ import { Link, useLocation } from 'react-router-dom';
  */
 const NotFound: React.FC = () => {
   const location = useLocation();
+  const { t } = useTranslation();
   const [term, setTerm] = React.useState('');
 
   return (
     <div className='container my-5' style={{ maxWidth: 640 }}>
-      <h1 className='h4 mb-2'>We couldn&rsquo;t find that page</h1>
+      <h1 className='h4 mb-2'>{t('notFound.title')}</h1>
       <p className='text-muted'>
-        The address <code>{location.pathname}</code> doesn&rsquo;t exist, or the product that was here is no longer on sale.
+        <Trans i18nKey='notFound.body' values={{ path: location.pathname }} components={{ 1: <code /> }} />
       </p>
 
       <form
@@ -39,23 +42,23 @@ const NotFound: React.FC = () => {
           className='form-control'
           value={term}
           onChange={e => setTerm(e.target.value)}
-          aria-label='Search products'
-          placeholder='Search for a product'
+          aria-label={t('notFound.searchLabel')}
+          placeholder={t('notFound.searchPlaceholder')}
         />
         <button type='submit' className='btn btn-primary'>
-          Search
+          {t('notFound.search')}
         </button>
       </form>
 
       <div className='d-flex gap-2 flex-wrap'>
         <Link to='/' className='btn btn-outline-secondary'>
-          Home page
+          {t('notFound.home')}
         </Link>
         <Link to='/search' className='btn btn-outline-secondary'>
-          All products
+          {t('notFound.allProducts')}
         </Link>
         <Link to='/deals' className='btn btn-outline-secondary'>
-          Today&rsquo;s Deals
+          {t('notFound.todaysDeals')}
         </Link>
       </div>
     </div>

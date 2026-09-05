@@ -2,6 +2,7 @@
 const path = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const TerserPlugin = require('terser-webpack-plugin');
 
 module.exports = {
   mode: 'production',
@@ -11,6 +12,18 @@ module.exports = {
     filename: 'app/[name].[contenthash].js',
     publicPath: '/',
     clean: true,
+  },
+  // Explicit, JavaScript-only minimizer. Webpack 5.110 (2026-08-27) switched its
+  // default minimizer to minimizer-webpack-plugin, which picks a minifier by
+  // asset type and crashes on html-webpack-plugin's index.html ("Cannot read
+  // properties of undefined (reading 'syntax')"). Which webpack this build gets
+  // is decided by npm hoisting across the workspace (webpack-cli at the root
+  // requires the ROOT webpack, not the one pinned under this package), so the
+  // config must not depend on the patch version: minify JS with Terser, leave
+  // every other asset alone. Reproduced + fixed 2026-09-04.
+  optimization: {
+    minimize: true,
+    minimizer: [new TerserPlugin({ test: /\.m?js(\?.*)?$/i })],
   },
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],

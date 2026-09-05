@@ -11,6 +11,8 @@ import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
+import LanguageSwitcher from 'app/components/commonComponents/LanguageSwitcher';
+import { useTranslation } from 'app/i18n';
 import { SUPPORT_HOURS } from 'app/modules/static/faqData';
 import SocialLinks from 'app/shared/config/SocialLinks';
 import { useContentAvailability } from 'app/shared/util/useContentAvailability';
@@ -25,10 +27,11 @@ import './layout-header.scss';
  * source, the strip is a pointer to them.
  */
 const PROMISES = [
-  { to: '/delivery', icon: 'bi-truck', title: 'Tracked delivery', detail: 'Follow every order to your door' },
-  { to: '/payments', icon: 'bi-shield-lock', title: 'Secure payments', detail: 'Handled by Stripe, verified by us' },
-  { to: '/returns', icon: 'bi-arrow-repeat', title: '30-day returns', detail: 'Change your mind within 30 days' },
-  { to: '/help', icon: 'bi-headset', title: 'Here to help', detail: SUPPORT_HOURS },
+  { to: '/delivery', icon: 'bi-truck', key: 'delivery' },
+  { to: '/payments', icon: 'bi-shield-lock', key: 'payments' },
+  { to: '/returns', icon: 'bi-arrow-repeat', key: 'returns' },
+  // Hours are data shared with /help and /service (faqData), not translated copy.
+  { to: '/help', icon: 'bi-headset', key: 'help', detail: SUPPORT_HOURS },
 ] as const;
 
 /**
@@ -86,6 +89,7 @@ const Layout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const [term, setTerm] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestEntry[]>([]);
   const [open, setOpen] = useState(false);
@@ -137,7 +141,7 @@ const Layout: React.FC = () => {
       return undefined;
     }
     let cancelled = false;
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       try {
         // NB: the endpoint is /srv/search/suggest (SearchController) — the bare
         // /srv/suggest path never existed and left this autocomplete dead.
@@ -155,7 +159,7 @@ const Layout: React.FC = () => {
     }, 200);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [term]);
 
@@ -263,8 +267,12 @@ const Layout: React.FC = () => {
               <Form.Control
                 type='search'
                 className='lm-header__search-input'
-                placeholder={indexData?.defaultKeyword ? `Search "${indexData.defaultKeyword}" and more…` : 'Search products…'}
-                aria-label='Search'
+                placeholder={
+                  indexData?.defaultKeyword
+                    ? t('header.search.placeholderDefault', { keyword: indexData.defaultKeyword })
+                    : t('header.search.placeholder')
+                }
+                aria-label={t('header.search.label')}
                 value={term}
                 onChange={e => setTerm(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -273,7 +281,7 @@ const Layout: React.FC = () => {
                   blurTimer.current = setTimeout(() => setOpen(false), 150);
                 }}
               />
-              <button type='submit' className='lm-header__search-btn' aria-label='Search'>
+              <button type='submit' className='lm-header__search-btn' aria-label={t('header.search.label')}>
                 <i className='bi bi-search' />
               </button>
               {open && showSuggestList && (
@@ -296,8 +304,8 @@ const Layout: React.FC = () => {
                         {s.type === 'category' && <i className='bi bi-grid me-2' aria-hidden='true' />}
                         {s.type === 'curated' && <i className='bi bi-stars me-2' aria-hidden='true' />}
                         <span className='lm-header__sug-text'>{s.text}</span>
-                        {s.type === 'category' && <span className='lm-header__sug-hint'>Category</span>}
-                        {s.type === 'curated' && <span className='lm-header__sug-hint'>Popular</span>}
+                        {s.type === 'category' && <span className='lm-header__sug-hint'>{t('header.suggest.category')}</span>}
+                        {s.type === 'curated' && <span className='lm-header__sug-hint'>{t('header.suggest.curated')}</span>}
                       </button>
                     </li>
                   ))}
@@ -313,9 +321,9 @@ const Layout: React.FC = () => {
                   {recentKeywords.length > 0 && (
                     <section className='lm-header__dd-section'>
                       <div className='lm-header__dd-head'>
-                        <span>Recent searches</span>
+                        <span>{t('header.recentSearches')}</span>
                         <button type='button' className='lm-header__dd-clear' onClick={handleClearHistory}>
-                          Clear
+                          {t('header.clear')}
                         </button>
                       </div>
                       <ul className='lm-header__dd-list'>
@@ -333,7 +341,7 @@ const Layout: React.FC = () => {
                   {trendingKeywords.length > 0 && (
                     <section className='lm-header__dd-section'>
                       <div className='lm-header__dd-head'>
-                        <span>Trending</span>
+                        <span>{t('header.trending')}</span>
                       </div>
                       <div className='lm-header__dd-chips'>
                         {trendingKeywords.slice(0, 10).map(k => (
@@ -355,30 +363,30 @@ const Layout: React.FC = () => {
                   className='lm-header__acct'
                   title={
                     <span className='lm-header__stack'>
-                      <small>Hello, {nickName || 'shopper'}</small>
-                      <strong>Account &amp; Lists</strong>
+                      <small>{t('header.hello', { name: nickName || t('header.shopper') })}</small>
+                      <strong>{t('header.accountLists')}</strong>
                     </span>
                   }
                   id='account-menu'
                 >
                   <NavDropdown.Item as={Link} to='/user'>
-                    My account
+                    {t('header.myAccount')}
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/orders'>
-                    My orders
+                    {t('header.myOrders')}
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/user/favorites'>
-                    Favorites
+                    {t('header.favorites')}
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/user/coupons'>
-                    My coupons
+                    {t('header.myCoupons')}
                   </NavDropdown.Item>
                   {/* Wave 18: public coupon center (claimable offers). */}
                   <NavDropdown.Item as={Link} to='/coupons'>
-                    Coupon center
+                    {t('header.couponCenter')}
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/user/address'>
-                    Addresses
+                    {t('header.addresses')}
                   </NavDropdown.Item>
                   <NavDropdown.Divider />
                   <NavDropdown.Item
@@ -387,7 +395,7 @@ const Layout: React.FC = () => {
                       navigate('/');
                     }}
                   >
-                    Sign out
+                    {t('header.signOut')}
                   </NavDropdown.Item>
                 </NavDropdown>
               ) : (
@@ -396,32 +404,34 @@ const Layout: React.FC = () => {
                   className='lm-header__acct'
                   title={
                     <span className='lm-header__stack'>
-                      <small>Hello, sign in</small>
-                      <strong>Account &amp; Lists</strong>
+                      <small>{t('header.helloSignIn')}</small>
+                      <strong>{t('header.accountLists')}</strong>
                     </span>
                   }
                   id='account-menu'
                 >
                   <NavDropdown.Item as={Link} to='/login'>
-                    Sign in
+                    {t('header.signIn')}
                   </NavDropdown.Item>
                   <NavDropdown.Item as={Link} to='/register'>
-                    Register
+                    {t('header.register')}
                   </NavDropdown.Item>
                   {/* Wave 18: browsable logged-out; claiming asks to sign in. */}
                   <NavDropdown.Item as={Link} to='/coupons'>
-                    Coupon center
+                    {t('header.couponCenter')}
                   </NavDropdown.Item>
                 </NavDropdown>
               )}
+              {/* Hidden until more than one language is enabled (LITEMALL_I18N_LANGUAGES). */}
+              <LanguageSwitcher variant='header' />
               <Nav.Link as={Link} to='/orders' className='lm-header__stack d-none d-md-flex'>
-                <small>Returns</small>
-                <strong>&amp; Orders</strong>
+                <small>{t('header.returns')}</small>
+                <strong>{t('header.andOrders')}</strong>
               </Nav.Link>
               <Nav.Link as={Link} to='/cart' className='lm-header__cart'>
                 <i className='bi bi-cart3' />
                 {cartCount > 0 && <span className='lm-header__cart-count'>{cartCount}</span>}
-                <strong className='ms-1'>Cart</strong>
+                <strong className='ms-1'>{t('header.cart')}</strong>
               </Nav.Link>
             </Nav>
           </Container>
@@ -436,11 +446,11 @@ const Layout: React.FC = () => {
               aria-expanded={drawerOpen}
               onClick={() => setDrawerOpen(v => !v)}
             >
-              <i className='bi bi-list' /> All
+              <i className='bi bi-list' /> {t('header.all')}
             </button>
             {/* Real discount surface (deal_flag=1) — /hot stays reachable via the hero sidebar. */}
             <Link to='/deals' className='lm-header__strip-link'>
-              Today&rsquo;s Deals
+              {t('header.todaysDeals')}
             </Link>
             {/* Wave 27: the running season, named by the admin who activated it.
                 No season ⇒ no entry — never a link to a collection that isn't. */}
@@ -450,28 +460,28 @@ const Layout: React.FC = () => {
               </Link>
             )}
             <Link to='/new' className='lm-header__strip-link'>
-              New Arrivals
+              {t('header.newArrivals')}
             </Link>
             <Link to='/search' className='lm-header__strip-link'>
-              All Products
+              {t('header.allProducts')}
             </Link>
             {hasBrands && (
               <Link to='/brands' className='lm-header__strip-link'>
-                Brands
+                {t('header.brands')}
               </Link>
             )}
             {hasTopics && (
               <Link to='/topics' className='lm-header__strip-link'>
-                Topics
+                {t('header.topics')}
               </Link>
             )}
             {hasGroupons && (
               <Link to='/groupon' className='lm-header__strip-link'>
-                Group Buys
+                {t('header.groupBuys')}
               </Link>
             )}
             <Link to='/service' className='lm-header__strip-link'>
-              Customer Service
+              {t('header.customerService')}
             </Link>
           </Container>
         </nav>
@@ -494,7 +504,7 @@ const Layout: React.FC = () => {
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <i className='bi bi-chevron-up me-2' />
-          Back to top
+          {t('footer.backToTop')}
         </button>
 
         {/* Customer-promise strip — every claim here must be one the store can
@@ -512,9 +522,9 @@ const Layout: React.FC = () => {
                 <div className='col-6 col-md-3' key={promise.to}>
                   <Link to={promise.to} className='link-light text-decoration-none d-block lm-promise'>
                     <i className={`bi ${promise.icon} fs-3 d-block mb-1`} />
-                    <div className='fw-semibold small'>{promise.title}</div>
+                    <div className='fw-semibold small'>{t(`footer.promises.${promise.key}.title`)}</div>
                     <div className='text-muted' style={{ fontSize: '0.78rem' }}>
-                      {promise.detail}
+                      {'detail' in promise ? promise.detail : t(`footer.promises.${promise.key}.detail`)}
                     </div>
                   </Link>
                 </div>
@@ -537,22 +547,18 @@ const Layout: React.FC = () => {
                     nearly every product — so "thousands of products across home,
                     lifestyle, and more" and "trusted brands" both described a
                     shop that no longer exists. Focus is worth saying out loud. */}
-                <p className='text-muted small mb-3'>
-                  Everything for the home, garden and workshop — chosen, not scraped. Real prices,
-                  a checkout that just works, and 30 days to change your mind. We stand behind
-                  every order.
-                </p>
+                <p className='text-muted small mb-3'>{t('footer.blurb')}</p>
                 <SocialLinks />
               </div>
 
               <div className='col-6 col-md-3'>
-                <span className='text-uppercase small text-muted d-block mb-2'>Shop</span>
+                <span className='text-uppercase small text-muted d-block mb-2'>{t('footer.shop')}</span>
                 <div className='d-flex flex-column gap-2'>
                   <Link to='/search' className='link-light text-decoration-none small'>
-                    All products
+                    {t('footer.allProducts')}
                   </Link>
                   <Link to='/deals' className='link-light text-decoration-none small'>
-                    Today&rsquo;s deals
+                    {t('footer.todaysDeals')}
                   </Link>
                   {/* /hot ranks by listed_num — it is a best-seller list, not a
                       discount surface. It was labelled "Hot deals" here and
@@ -560,74 +566,74 @@ const Layout: React.FC = () => {
                       is the header strip's name for /deals: one label, two
                       destinations. "Today's Deals" now means /deals, only. */}
                   <Link to='/hot' className='link-light text-decoration-none small'>
-                    Best sellers
+                    {t('footer.bestSellers')}
                   </Link>
                   <Link to='/new' className='link-light text-decoration-none small'>
-                    New arrivals
+                    {t('footer.newArrivals')}
                   </Link>
                   {hasBrands && (
                     <Link to='/brands' className='link-light text-decoration-none small'>
-                      Shop by brand
+                      {t('footer.shopByBrand')}
                     </Link>
                   )}
                   {hasTopics && (
                     <Link to='/topics' className='link-light text-decoration-none small'>
-                      Topics &amp; guides
+                      {t('footer.topicsGuides')}
                     </Link>
                   )}
                   {hasArticles && (
                     <Link to='/articles' className='link-light text-decoration-none small'>
-                      Articles
+                      {t('footer.articles')}
                     </Link>
                   )}
                   {hasGroupons && (
                     <Link to='/groupon' className='link-light text-decoration-none small'>
-                      Group buys
+                      {t('footer.groupBuys')}
                     </Link>
                   )}
                   <Link to='/coupons' className='link-light text-decoration-none small'>
-                    Coupons &amp; deals
+                    {t('footer.couponsDeals')}
                   </Link>
                 </div>
               </div>
 
               <div className='col-6 col-md-3'>
-                <span className='text-uppercase small text-muted d-block mb-2'>Your account</span>
+                <span className='text-uppercase small text-muted d-block mb-2'>{t('footer.yourAccount')}</span>
                 <div className='d-flex flex-column gap-2'>
                   <Link to='/user' className='link-light text-decoration-none small'>
-                    Account overview
+                    {t('footer.accountOverview')}
                   </Link>
                   <Link to='/orders' className='link-light text-decoration-none small'>
-                    Your orders
+                    {t('footer.yourOrders')}
                   </Link>
                   <Link to='/user/favorites' className='link-light text-decoration-none small'>
-                    Wish list
+                    {t('footer.wishList')}
                   </Link>
                   <Link to='/user/address' className='link-light text-decoration-none small'>
-                    Addresses
+                    {t('footer.addresses')}
                   </Link>
                   <Link to='/user/coupons' className='link-light text-decoration-none small'>
-                    Coupons &amp; rewards
+                    {t('footer.couponsRewards')}
                   </Link>
                 </div>
               </div>
 
               <div className='col-6 col-md-3'>
-                <span className='text-uppercase small text-muted d-block mb-2'>Let us help you</span>
+                <span className='text-uppercase small text-muted d-block mb-2'>{t('footer.letUsHelp')}</span>
                 <div className='d-flex flex-column gap-2'>
                   <Link to='/help' className='link-light text-decoration-none small'>
-                    Help center
+                    {t('footer.helpCenter')}
                   </Link>
                   <Link to='/service' className='link-light text-decoration-none small'>
-                    Customer service
+                    {t('footer.customerService')}
                   </Link>
                   <Link to='/orders' className='link-light text-decoration-none small'>
-                    Track an order
+                    {t('footer.trackOrder')}
                   </Link>
                   {/* The policy, not /refunds — that is the signed-in refund list, and a
                       logged-out visitor following a help link should not hit a login wall. */}
                   <Link to='/returns' className='link-light text-decoration-none small'>
-                    Returns &amp; refunds
+                    {t('footer.returnsRefunds')}
                   </Link>
                   {/* Signed-in only. This sits in the help column, and the
                       Returns link above it exists in its policy form precisely
@@ -636,7 +642,7 @@ const Layout: React.FC = () => {
                       Customer service carries the logged-out route (email). */}
                   {isAuthenticated && (
                     <Link to='/user/feedback' className='link-light text-decoration-none small'>
-                      Send feedback
+                      {t('footer.sendFeedback')}
                     </Link>
                   )}
                 </div>
@@ -649,22 +655,20 @@ const Layout: React.FC = () => {
         <div className='bg-black text-muted py-3'>
           <Container>
             <div className='d-flex flex-wrap justify-content-between align-items-center gap-2'>
-              <small>
-                © {new Date().getFullYear()} Trovemo. All rights reserved. Prices and availability
-                are subject to change.
-              </small>
-              <div className='d-flex flex-wrap gap-3'>
+              <small>{t('footer.copyright', { year: new Date().getFullYear() })}</small>
+              <div className='d-flex flex-wrap gap-3 align-items-center'>
+                <LanguageSwitcher variant='footer' />
                 <Link to='/terms' className='link-secondary text-decoration-none small'>
-                  Conditions of Use
+                  {t('footer.conditions')}
                 </Link>
                 <Link to='/privacy' className='link-secondary text-decoration-none small'>
-                  Privacy Notice
+                  {t('footer.privacy')}
                 </Link>
                 <Link to='/cookies' className='link-secondary text-decoration-none small'>
-                  Cookie Preferences
+                  {t('footer.cookies')}
                 </Link>
                 <Link to='/service' className='link-secondary text-decoration-none small'>
-                  Contact Us
+                  {t('footer.contact')}
                 </Link>
               </div>
             </div>

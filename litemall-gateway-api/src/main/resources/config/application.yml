@@ -242,6 +242,15 @@ litemall:
   # Facebook is committed (the page is live); the others go live later via ENV
   # (LITEMALL_SOCIAL_INSTAGRAM_URL / _TIKTOK_URL / _YOUTUBE_URL / _X_URL —
   # dots and dashes both map to underscores) + container recreate, no rebuild.
+  # i18n foundation: storefront languages the operator has enabled, served to
+  # the SPA via GET /auth/site-config as `i18nLanguages`. Comma-separated
+  # language codes; `en` is always on. The SPA shows its language switcher only
+  # when more than one is listed, so the committed default keeps sv/da HIDDEN
+  # until their translations have been reviewed. Activation = set
+  # LITEMALL_I18N_LANGUAGES=en,sv,da in .env + recreate the container, no
+  # rebuild. Explicit placeholder on purpose (relaxed binding is not relied on).
+  i18n:
+    languages: ${LITEMALL_I18N_LANGUAGES:en}
   social:
     facebook-url: "https://www.facebook.com/trovemo"
     instagram-url: ""

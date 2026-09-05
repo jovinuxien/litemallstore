@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 import { money } from 'app/shared/util/money';
+import { t } from 'app/i18n';
 
 import './storefront.scss';
 
@@ -160,12 +161,12 @@ interface SubmitBarProps {
   /** Goes on the bar itself — a display-toggling wrapper would defeat position: sticky. */
   className?: string;
 }
-export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label = 'Total:', buttonText, onSubmit, disabled, loading, left, className }) => (
+export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label, buttonText, onSubmit, disabled, loading, left, className }) => (
   <div className={`lm-submit-bar ${className ?? ''}`}>
     {left && <div className='lm-submit-bar__left'>{left}</div>}
     {total != null && (
       <div className='lm-submit-bar__totals'>
-        <span className='lm-submit-bar__label'>{label} </span>
+        <span className='lm-submit-bar__label'>{label ?? t('submitBar.total')} </span>
         <span className='lm-submit-bar__total'>{money(total)}</span>
       </div>
     )}

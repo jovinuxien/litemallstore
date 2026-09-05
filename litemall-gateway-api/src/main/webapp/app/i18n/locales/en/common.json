@@ -1,0 +1,132 @@
+{
+  "header": {
+    "hello": "Hello, {{name}}",
+    "helloSignIn": "Hello, sign in",
+    "search": {
+      "placeholderDefault": "Search \"{{keyword}}\" and more…",
+      "placeholder": "Search products…",
+      "label": "Search"
+    },
+    "suggest": {
+      "category": "Category",
+      "curated": "Popular"
+    },
+    "recentSearches": "Recent searches",
+    "clear": "Clear",
+    "trending": "Trending",
+    "accountLists": "Account & Lists",
+    "myAccount": "My account",
+    "myOrders": "My orders",
+    "favorites": "Favorites",
+    "myCoupons": "My coupons",
+    "couponCenter": "Coupon center",
+    "addresses": "Addresses",
+    "signOut": "Sign out",
+    "signIn": "Sign in",
+    "register": "Register",
+    "returns": "Returns",
+    "andOrders": "& Orders",
+    "cart": "Cart",
+    "all": "All",
+    "todaysDeals": "Today’s Deals",
+    "newArrivals": "New Arrivals",
+    "allProducts": "All Products",
+    "brands": "Brands",
+    "topics": "Topics",
+    "groupBuys": "Group Buys",
+    "customerService": "Customer Service",
+    "shopper": "shopper"
+  },
+  "drawer": {
+    "shopByCategory": "Shop by category",
+    "trending": "Trending",
+    "bestSellers": "Best sellers",
+    "newArrivals": "New Arrivals",
+    "brands": "Brands",
+    "topicsGuides": "Topics & guides",
+    "helpSettings": "Help & settings",
+    "yourAccount": "Your account",
+    "yourOrders": "Your orders",
+    "customerService": "Customer service",
+    "signIn": "Sign in",
+    "expand": "Expand {{name}}",
+    "collapse": "Collapse {{name}}"
+  },
+  "errorPage": {
+    "title": "This page didn’t load",
+    "body": "Something went wrong displaying it. The rest of the shop is unaffected.",
+    "tryAgain": "Try again",
+    "home": "Go to the home page",
+    "browse": "Browse all products"
+  },
+  "rootError": {
+    "title": "Trovemo isn’t loading",
+    "body": "Something went wrong. Reloading the page usually fixes it.",
+    "reload": "Reload"
+  },
+  "language": {
+    "label": "Language",
+    "englishOnlyNotice": "This page is available in English only."
+  },
+  "submitBar": {
+    "total": "Total:"
+  },
+  "footer": {
+    "backToTop": "Back to top",
+    "blurb": "Everything for the home, garden and workshop — chosen, not scraped. Real prices, a checkout that just works, and 30 days to change your mind. We stand behind every order.",
+    "shop": "Shop",
+    "allProducts": "All products",
+    "todaysDeals": "Today’s deals",
+    "bestSellers": "Best sellers",
+    "newArrivals": "New arrivals",
+    "shopByBrand": "Shop by brand",
+    "topicsGuides": "Topics & guides",
+    "articles": "Articles",
+    "groupBuys": "Group buys",
+    "couponsDeals": "Coupons & deals",
+    "yourAccount": "Your account",
+    "accountOverview": "Account overview",
+    "yourOrders": "Your orders",
+    "wishList": "Wish list",
+    "addresses": "Addresses",
+    "couponsRewards": "Coupons & rewards",
+    "letUsHelp": "Let us help you",
+    "helpCenter": "Help center",
+    "customerService": "Customer service",
+    "trackOrder": "Track an order",
+    "returnsRefunds": "Returns & refunds",
+    "sendFeedback": "Send feedback",
+    "copyright": "© {{year}} Trovemo. All rights reserved. Prices and availability are subject to change.",
+    "conditions": "Conditions of Use",
+    "privacy": "Privacy Notice",
+    "cookies": "Cookie Preferences",
+    "contact": "Contact Us",
+    "promises": {
+      "delivery": {
+        "title": "Tracked delivery",
+        "detail": "Follow every order to your door"
+      },
+      "payments": {
+        "title": "Secure payments",
+        "detail": "Handled by Stripe, verified by us"
+      },
+      "returns": {
+        "title": "30-day returns",
+        "detail": "Change your mind within 30 days"
+      },
+      "help": {
+        "title": "Here to help"
+      }
+    }
+  },
+  "notFound": {
+    "title": "We couldn’t find that page",
+    "body": "The address <1>{{path}}</1> doesn’t exist, or the product that was here is no longer on sale.",
+    "searchLabel": "Search products",
+    "searchPlaceholder": "Search for a product",
+    "search": "Search",
+    "home": "Home page",
+    "allProducts": "All products",
+    "todaysDeals": "Today’s Deals"
+  }
+}
