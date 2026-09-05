@@ -40,6 +40,16 @@ public class LitemallSeasonProperties {
      */
     private int candidateScanLimit = 200;
 
+    /**
+     * Share of a run's scored candidates that reads {@code hot}: the top 10% by default. Tiers are
+     * QUANTILES of each run's own curve, not absolute scores — absolute thresholds were wrong the
+     * first day (1003 of 1005 hot) and would be wrong again after the next repricing.
+     */
+    private double hotQuantile = 0.10;
+
+    /** Share that reads {@code featured} or better: the top 35% by default. Always ≥ hotQuantile. */
+    private double featuredQuantile = 0.35;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -86,5 +96,21 @@ public class LitemallSeasonProperties {
 
     public void setCandidateScanLimit(int candidateScanLimit) {
         this.candidateScanLimit = candidateScanLimit;
+    }
+
+    public double getHotQuantile() {
+        return hotQuantile;
+    }
+
+    public void setHotQuantile(double hotQuantile) {
+        this.hotQuantile = hotQuantile;
+    }
+
+    public double getFeaturedQuantile() {
+        return featuredQuantile;
+    }
+
+    public void setFeaturedQuantile(double featuredQuantile) {
+        this.featuredQuantile = featuredQuantile;
     }
 }

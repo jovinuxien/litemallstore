@@ -282,6 +282,13 @@ public class SearchService {
             if (euFlag instanceof Number && ((Number) euFlag).intValue() == 1) {
                 item.put("eu_flag", 1);
             }
+            // Seasonal membership (multi-valued, e.g. ["autumn","winter"]) — same positive-only
+            // rule: absent (pre-reindex) and empty both mean "no season badge". Emitted as a list
+            // of strings whatever shape the searcher hands back (a single value can arrive bare).
+            List<String> seasons = seasonsOf(data.get("seasons"));
+            if (!seasons.isEmpty()) {
+                item.put("seasons", seasons);
+            }
             // Live flash-deal extras (present only while a deal is live): countdown + claimed bar.
             if (data.get("deal_active") instanceof Number && ((Number) data.get("deal_active")).intValue() == 1) {
                 item.put("dealActive", true);
@@ -294,6 +301,21 @@ public class SearchService {
             }
         }
         return item;
+    }
+
+    /** The season keys on a hit, whether the field arrived as a list or a single bare value. */
+    static List<String> seasonsOf(Object raw) {
+        List<String> out = new ArrayList<>();
+        if (raw instanceof Iterable<?> values) {
+            for (Object value : values) {
+                if (value instanceof String str && !str.isBlank()) {
+                    out.add(str);
+                }
+            }
+        } else if (raw instanceof String str && !str.isBlank()) {
+            out.add(str);
+        }
+        return out;
     }
 
     /** The subset of requested filters OCS actually acted on — i.e. those matching a returned facet. */

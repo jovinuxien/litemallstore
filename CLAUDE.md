@@ -1737,7 +1737,56 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — seasonal candidacy SHIPPED + DEPLOYED, Autumn page switched
+### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
+- **Status 2026-09-04 — SEASON FOLLOW-UPS BUILT: term-anchored discovery + quantile tiers +
+  `seasons` on hits.** Built as `54912135c`; **MERGED to master `3e784648d` + DEPLOYED to
+  trovemo.com 2026-09-05** (goods-management container only, built on the VPS from that commit;
+  suite on the merged tree **596 run / 0 failures / 8 skipped**; the merge also carries the peer's
+  SEO bulk-apply, so that is live too). **Autumn terms tuned on prod the same session** via
+  `docker-compose/season-tune.sh terms autumn season-terms-autumn-2026-09.json` (rules backup
+  `/root/season-rules-backup-20260905T001924Z.json` on the VPS; `restore` reverses it) + one manual
+  scorer run. Measured live, before → after: rail items on-term **14/24 → 24/24**, off-season
+  passengers 6 → 0, search hits carrying `seasons` **0/20 → 20/20**; autumn discovery discarded 914
+  off-title + 44 excluded hits, 0 relaxed sets; tier cuts hot 773.3 / featured 631.67 (the set
+  splits now). Full record spec §17.5. ⚠ The 200-hit scan limit is now the binding bound on broad
+  terms (`wool` 1,250 hits → 200 considered, logged). ⚠ Three "Air-conditioning Blanket" items
+  survive (title has neither `cooling` nor `summer`) — `-air-conditioning` is the one-line data fix
+  if wanted. Winter/spring/summer still on seed terms. ⚠ The MAIN checkout's index shows my three
+  files as staged reverse-changes (phantom from the ref move; its working CLAUDE.md is byte-identical
+  to old master) — `git checkout HEAD -- CLAUDE.md docker-compose/season-tune.sh
+  docker-compose/season-terms-autumn-2026-09.json` there clears it; touching MAIN was denied here. Spec §17 of
+  `litemall-goods-management/docs/spec-seasonal-candidacy.md` is the record. Closes all three
+  limits the 2026-08-27 deploy recorded:
+  1. `SeasonScoringService.discover` used to keep EVERY hit for a term. The index matches
+     descriptions/categories, tolerates typos and falls back to relaxed strategies — right for a
+     shopper, wrong for a curator ("All-Season Sofa Cover" arrived relaxed; "Summer Cooling
+     Blanket" matched `blanket` exactly). Now: a `relaxed=true` result set contributes NOTHING
+     (the flag was already on the response, never read); the term must be IN THE TITLE at a word
+     boundary, plural-tolerant, title-less hits dropped (fail closed); and **`-term` entries in
+     the same `terms` JSON are exclusions** (`"-summer"`), so no migration and the existing PUT
+     edits them. Discards are counted, logged and returned by `POST /season-candidates/run`
+     (`discovery.discardedRelaxed/OffTitle/Excluded` — HITS, not products). Pure class
+     `SeasonTerms`.
+  2. Tiers were absolute (hot ≥ 100 / featured ≥ 70 ⇒ 1003 of 1005 hot). Now QUANTILES of each
+     run's own curve: top 10% hot, top 35% featured-or-better, rest watch
+     (`LITEMALL_SEASONS_HOT_QUANTILE` / `_FEATURED_QUANTILE`, yml placeholders + prod compose
+     passthrough). Round-up, ties included, zero score = watch, inverted pair collapses. Run
+     returns `tierCuts`. Scoring is two-pass now (score all, then tier). ⚠ `auto-tier: featured`
+     therefore means "top 35%": a season scoring under ~69 candidates publishes fewer than 24 —
+     by design, visible in the summary. The three sibling scorers (deal/coupon/groupon) keep
+     their own absolute constants, untouched.
+  3. `toGoodsListItem` emits `seasons: [...]` when non-empty (positive-only, like the flags; bare
+     single value normalised to a list). Read-time only. **RAISED for gateway-api:** season badge
+     on ProductCard, outside the overlay chain.
+  **Deploy = goods-management container only** — no migration, no index field change, no
+  reindex, no searcher restart. AFTER deploy, MAIN applies the recommended autumn term list
+  (spec §17.4 has the exact PUT: drop `warm`/`lamp`, add `halloween`/`wool`, exclusions
+  `-summer -cooling -christmas -xmas -anti-fall -beach`), runs the scorer, and re-measures the
+  live 24 (bar: 24/24 on-term, cooling blanket gone, tier cuts that split). Winter/spring/summer
+  seeds have the same generic-term weakness (`gift`, `storage`, `fan`, `outdoor`) — tune before
+  activation. ⚠ Test-data gotcha met while building: a 40 retail with cost ≥ 33 fails the 15%
+  season-markdown gate (`40×0.85 < cost×1.05`) — synthetic rows must clear it or they never reach
+  the tier pass.
 - **Status 2026-08-27 — SEASONAL CANDIDACY LIVE (prod schema V64).** Full contract + deploy
   record + known limits: `litemall-goods-management/docs/spec-seasonal-candidacy.md`.
   `seasons` is a MULTI-VALUED index field scored nightly (04:35) for EVERY season, so the winter

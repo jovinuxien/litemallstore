@@ -31,8 +31,10 @@ public final class SeasonCandidateScorer {
     /** A discounted sale must still clear cost by this much. */
     public static final BigDecimal MIN_MARGIN_OVER_COST = new BigDecimal("1.05");
 
-    public static final BigDecimal HOT_THRESHOLD = new BigDecimal("100");
-    public static final BigDecimal FEATURED_THRESHOLD = new BigDecimal("70");
+    /** Default share of a season's scored set that reads {@code hot}: the top 10%. */
+    public static final double DEFAULT_HOT_QUANTILE = 0.10;
+    /** Default share that reads {@code featured} or better: the top 35%. */
+    public static final double DEFAULT_FEATURED_QUANTILE = 0.35;
 
     /** Reviews stop adding social proof past this count. */
     private static final int REVIEW_SATURATION = 50;
@@ -165,15 +167,73 @@ public final class SeasonCandidateScorer {
         return 1.0 + (ceiling - 1.0) * (1.0 - (ageDays / FRESHNESS_WINDOW_DAYS));
     }
 
-    /** Tier bands, matching the deal scorer's thresholds so proposals read comparably. */
-    public static String tierOf(BigDecimal score) {
-        if (score == null) {
+    /**
+     * The score a candidate must reach to be {@code hot} or {@code featured} on ONE run of ONE
+     * season. {@code null} cuts mean nothing was scored, and every tier is then {@code watch}.
+     */
+    public record TierCuts(BigDecimal hot, BigDecimal featured) {
+        public static final TierCuts NONE = new TierCuts(null, null);
+    }
+
+    /**
+     * Tier cuts as QUANTILES of the run's own score distribution.
+     *
+     * <p>The first version used the deal scorer's absolute thresholds (hot ≥ 100, featured ≥ 70).
+     * Live autumn scores spanned roughly 0–1126, so 1003 of 1005 candidates read {@code hot} and
+     * the label meant nothing. Absolute numbers would be wrong again after the next repricing —
+     * the score is margin-weighted, and the anchor margin has already moved once from 1.25 to
+     * 2.5. Quantiles follow the curve wherever it goes: the top {@code hotQuantile} of scored
+     * candidates are hot, the top {@code featuredQuantile} are featured or better, the rest watch.
+     *
+     * <p>Rounding is UP, so a tiny set still has at least one hot row when anything scored;
+     * ties at a cut are included, never split. A score of zero is watch regardless — a curve
+     * that is all zeros has nothing to rank.
+     */
+    public static TierCuts cuts(List<BigDecimal> scores, double hotQuantile, double featuredQuantile) {
+        if (scores == null || scores.isEmpty()) {
+            return TierCuts.NONE;
+        }
+        List<BigDecimal> sorted = new java.util.ArrayList<>();
+        for (BigDecimal score : scores) {
+            if (score != null) {
+                sorted.add(score);
+            }
+        }
+        if (sorted.isEmpty()) {
+            return TierCuts.NONE;
+        }
+        sorted.sort(java.util.Comparator.reverseOrder());
+        double hotQ = clampQuantile(hotQuantile);
+        // featured is the wider band by definition; a misconfiguration that inverts them
+        // collapses to "featured == hot" rather than producing an empty featured band.
+        double featuredQ = Math.max(clampQuantile(featuredQuantile), hotQ);
+        return new TierCuts(cutAt(sorted, hotQ), cutAt(sorted, featuredQ));
+    }
+
+    private static double clampQuantile(double q) {
+        if (Double.isNaN(q)) {
+            return 0.0;
+        }
+        return Math.min(1.0, Math.max(0.0, q));
+    }
+
+    /** The lowest score inside the top {@code quantile} of a descending list. */
+    private static BigDecimal cutAt(List<BigDecimal> descending, double quantile) {
+        int n = descending.size();
+        int count = (int) Math.ceil(n * quantile);
+        count = Math.min(n, Math.max(1, count));
+        return descending.get(count - 1);
+    }
+
+    /** Tier of one score against the run's cuts. */
+    public static String tierOf(BigDecimal score, TierCuts cuts) {
+        if (score == null || score.signum() <= 0 || cuts == null) {
             return LitemallSeasonCandidate.TIER_WATCH;
         }
-        if (score.compareTo(HOT_THRESHOLD) >= 0) {
+        if (cuts.hot() != null && score.compareTo(cuts.hot()) >= 0) {
             return LitemallSeasonCandidate.TIER_HOT;
         }
-        if (score.compareTo(FEATURED_THRESHOLD) >= 0) {
+        if (cuts.featured() != null && score.compareTo(cuts.featured()) >= 0) {
             return LitemallSeasonCandidate.TIER_FEATURED;
         }
         return LitemallSeasonCandidate.TIER_WATCH;
