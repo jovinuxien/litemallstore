@@ -288,12 +288,22 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
 
     @Override
     public boolean confirmOrder(String cjOrderId) {
+        return confirmOrderOutcome(cjOrderId).ok();
+    }
+
+    @Override
+    public org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome confirmOrderOutcome(String cjOrderId) {
         return simpleCall("confirmOrder", cjOrderId,
                 token -> cjOrderFeignClient.confirmOrder(token, new CjOrderIdRequest(cjOrderId)));
     }
 
     @Override
     public boolean payBalance(String cjOrderId) {
+        return payBalanceOutcome(cjOrderId).ok();
+    }
+
+    @Override
+    public org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome payBalanceOutcome(String cjOrderId) {
         return simpleCall("payBalance", cjOrderId,
                 token -> cjOrderFeignClient.payBalance(token, new CjOrderIdRequest(cjOrderId)));
     }
@@ -301,7 +311,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
     @Override
     public boolean deleteOrder(String cjOrderId) {
         return simpleCall("deleteOrder", cjOrderId,
-                token -> cjOrderFeignClient.deleteOrder(token, cjOrderId));
+                token -> cjOrderFeignClient.deleteOrder(token, cjOrderId)).ok();
     }
 
     @Override
@@ -351,23 +361,26 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
      * acceptance decided from {@code result}/{@code code} exactly like placement; any failure
      * logs and returns {@code false} so the caller (post-commit hook or poller) retries later.
      */
-    private boolean simpleCall(String operation, String cjOrderId,
-                               java.util.function.Function<String, CjSimpleResponse> call) {
+    private org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome simpleCall(
+            String operation, String cjOrderId,
+            java.util.function.Function<String, CjSimpleResponse> call) {
         if (cjOrderId == null || cjOrderId.isBlank()) {
-            return false;
+            return org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.rejected("no CJ order id");
         }
         try {
             String token = cjTokenService.getValidToken();
             CjSimpleResponse response = call.apply(token);
             boolean accepted = response != null && (response.isResult() || response.getCode() == 200);
             if (!accepted) {
-                log.warn("CJ {} rejected for {}: {}", operation, cjOrderId,
-                        response == null ? "null response" : response.getMessage());
+                String reason = response == null ? "null response"
+                        : (response.getCode() + ": " + response.getMessage());
+                log.warn("CJ {} rejected for {}: {}", operation, cjOrderId, reason);
+                return org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.rejected(reason);
             }
-            return accepted;
+            return org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.accepted();
         } catch (RuntimeException e) {
             log.warn("CJ {} failed for {}: {}", operation, cjOrderId, e.getMessage());
-            return false;
+            return org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjCallOutcome.rejected(e.getMessage());
         }
     }
 }

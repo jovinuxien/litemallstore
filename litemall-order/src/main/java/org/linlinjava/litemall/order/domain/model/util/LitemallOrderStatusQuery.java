@@ -10,17 +10,6 @@ import java.util.*;
 
 public class LitemallOrderStatusQuery {
 
-    // Use domain types consistently
-    public static List<LitemallOrderStatus> getStatusesForShowType(int showType) {
-        switch (showType) {
-            case 1: return List.of(LitemallOrderStatus.CREATED);
-            case 2: return List.of(LitemallOrderStatus.PAID);
-            case 3: return List.of(LitemallOrderStatus.SHIPPED);
-            case 4: return List.of(LitemallOrderStatus.DELIVERED);
-            default: return Collections.emptyList();
-        }
-    }
-
     // Improved: Work with domain objects, not primitives
     public static boolean isCreateStatus(LitemallOrderAggregate order) {
         return order.getOrderStatus() == LitemallOrderStatus.CREATED;
@@ -32,20 +21,20 @@ public class LitemallOrderStatusQuery {
                 && order.getOrderStatus() != LitemallOrderStatus.SYSTEM_CANCELED;
     }
 
-    // Additional useful queries
+    /**
+     * Whether the CUSTOMER may cancel: CREATED only — a paid order goes through refund. Until
+     * 2026-09-05 this claimed CREATED||PAID, contradicting {@link LitemallOrderHandleOption}
+     * (the dispatcher's real gate) and the enum. Delegates so the two cannot drift again.
+     */
     public static boolean canBeCanceled(LitemallOrderAggregate order) {
-        return order.getOrderStatus() == LitemallOrderStatus.CREATED
-                || order.getOrderStatus() == LitemallOrderStatus.PAID;
+        return isActionAllowed(order, LitemallOrderOrchestratorService.OrderAction.CANCEL);
     }
 
+    /** Terminal for the lifecycle: nothing the customer or the system does moves it further on its own. */
     public static boolean isFinalStatus(LitemallOrderAggregate order) {
-        return order.getOrderStatus() == LitemallOrderStatus.DELIVERED
-                || order.getOrderStatus() == LitemallOrderStatus.CANCELED
+        return order.getOrderStatus() == LitemallOrderStatus.CANCELED
+                || order.getOrderStatus() == LitemallOrderStatus.SYSTEM_CANCELED
                 || order.getOrderStatus() == LitemallOrderStatus.REFUNDED;
-    }
-
-    private static Short intToShort(int status) {
-        return (short) status;
     }
 
     public static boolean isActionAllowed(LitemallOrderAggregate order, LitemallOrderOrchestratorService.OrderAction action) {

@@ -186,7 +186,7 @@
           and cj_order_id is not null
           and deleted = 0
           and (cj_order_status is null or cj_order_status not in ('DELIVERED', 'CANCELLED'))
-          and order_status not in (102, 103, 203)
+          and order_status not in (102, 103, 203, 401, 402)
         order by update_time asc
         limit #{limit}
     </select>
@@ -206,7 +206,7 @@
           and deleted = 0
           and order_status = 201
           and cj_order_id is null
-          and (cj_order_status is null or cj_order_status &lt;&gt; 'PLACEMENT_REJECTED')
+          and (cj_order_status is null or cj_order_status not in ('PLACEMENT_REJECTED', 'PLACEMENT_STALLED'))
         order by update_time asc
         limit #{limit}
     </select>
@@ -224,7 +224,7 @@
           and order_status = 201
           and cj_order_id is null
           and cj_placement_approved_time is not null
-          and (cj_order_status is null or cj_order_status &lt;&gt; 'PLACEMENT_REJECTED')
+          and (cj_order_status is null or cj_order_status not in ('PLACEMENT_REJECTED', 'PLACEMENT_STALLED'))
         order by update_time asc
         limit #{limit}
     </select>
@@ -233,7 +233,9 @@
       Hand-maintained (V59, Wave 23): admin pending-approval list — paid CJ orders not yet
       placed at CJ and not yet approved, oldest payment first (fulfilment fairness). Rows
       parked under the PLACEMENT_REJECTED sentinel are INCLUDED (paid, unplaced, needing
-      admin attention); the controller derives a holdReason for them. Full rows via the
+      admin attention) — REGARDLESS of the approval stamp since 2026-09-05 (an order approved
+      and then rejected/stalled used to vanish from this list); the controller derives a
+      holdReason + parkReason for them. Full rows via the
       generated BaseResultMap so new columns stay covered automatically.
     -->
     <select id="selectCjPlacementPending"
@@ -243,7 +245,8 @@
           and deleted = 0
           and order_status = 201
           and cj_order_id is null
-          and cj_placement_approved_time is null
+          and (cj_placement_approved_time is null
+               or cj_order_status in ('PLACEMENT_REJECTED', 'PLACEMENT_STALLED'))
         order by pay_time asc, id asc
         limit #{limit} offset #{offset}
     </select>
@@ -254,8 +257,26 @@
           and deleted = 0
           and order_status = 201
           and cj_order_id is null
-          and cj_placement_approved_time is null
+          and (cj_placement_approved_time is null
+               or cj_order_status in ('PLACEMENT_REJECTED', 'PLACEMENT_STALLED'))
     </select>
+
+    <!--
+      Hand-maintained (2026-09-05, lifecycle package B): requeue a parked placement from the
+      admin panel. Clears either local park sentinel on a PAID, unplaced CJ order; CAS so a
+      placement that already happened (cj_order_id set) or a concurrent requeue affects 0 rows.
+    -->
+    <update id="clearCjPlacementSentinel">
+        update litemall_order
+        set cj_order_status = null,
+            update_time = now()
+        where id = #{id}
+          and source = 'cj'
+          and deleted = 0
+          and order_status = 201
+          and cj_order_id is null
+          and cj_order_status in ('PLACEMENT_REJECTED', 'PLACEMENT_STALLED')
+    </update>
 
     <!--
       Hand-maintained (V59, Wave 23): CAS approval stamp — written exactly once (the

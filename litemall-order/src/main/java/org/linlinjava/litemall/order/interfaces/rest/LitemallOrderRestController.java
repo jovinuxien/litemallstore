@@ -399,6 +399,16 @@ public class LitemallOrderRestController {
         return buildResponse(result);
     }
 
+    /** Customer withdraws a pending refund request (REFUND_REQUEST → PAID|SHIPPED, D4). */
+    @PostMapping("/{orderId}/actions/refund/withdraw")
+    public ResponseEntity<OrderOperationDtoResponse> withdrawRefund(
+            @PathVariable Integer orderId,
+            @RequestHeader("X-User-Id") Integer userId) {
+        LitemallOrderOperationResult result = orderOrchestrationService.withdrawRefundRequest(
+                new LitemallOrderId(orderId), new LitemallUserId(userId));
+        return buildResponse(result);
+    }
+
     /** Customer soft-deletes a terminal order. */
     @PostMapping("/{orderId}/actions/delete")
     public ResponseEntity<OrderOperationDtoResponse> deleteOrder(

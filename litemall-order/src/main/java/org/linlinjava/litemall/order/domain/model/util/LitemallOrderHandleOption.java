@@ -18,6 +18,8 @@ public class LitemallOrderHandleOption {
     private boolean comment;
     private boolean rebuy;
     private boolean aftersale;
+    /** Customer may withdraw a pending refund request (D4): REFUND_REQUEST only. */
+    private boolean withdrawRefund;
 
     public static LitemallOrderHandleOption forStatus(LitemallOrderStatus status) {
         LitemallOrderHandleOption option = new LitemallOrderHandleOption();
@@ -47,6 +49,9 @@ public class LitemallOrderHandleOption {
                 break;
             case REFUNDED:
                 option.setDelete(true);
+                break;
+            case REFUND_REQUEST:
+                option.setWithdrawRefund(true);
                 break;
             default:
                 // No options for other statuses

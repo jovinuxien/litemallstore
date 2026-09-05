@@ -139,7 +139,11 @@ public class OrderDetailDtoResponse {
         if (o.getCjOrderId() == null || o.getCjOrderId().isBlank()) {
             switch (o.getOrderStatus()) {
                 case PAID:
-                    return "Processing";
+                    // Parked (CJ rejected it, or placement stalled): a human is on it. Still
+                    // "processing" from the customer's side — but say that someone is looking.
+                    return "PLACEMENT_REJECTED".equals(cj) || "PLACEMENT_STALLED".equals(cj)
+                            ? "Processing — being reviewed by our team"
+                            : "Processing";
                 case CREATED:
                     return "Awaiting payment";
                 default:
@@ -152,7 +156,8 @@ public class OrderDetailDtoResponse {
             case "DELIVERED":
                 return "Delivered";
             case "CANCELLED":
-                return "Attention required — contact support";
+                // D2: the customer has been emailed; support owns the next step.
+                return "Could not be fulfilled — our support team will contact you";
             default:
                 return "Preparing shipment"; // CREATED / IN_CART / UNPAID / UNSHIPPED / unknown
         }

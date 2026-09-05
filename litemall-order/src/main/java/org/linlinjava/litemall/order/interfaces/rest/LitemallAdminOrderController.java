@@ -247,8 +247,10 @@ public class LitemallAdminOrderController {
      * Offline mark-paid (bank transfer / counter cash): CREATED → PAID with
      * {@code pay_id = "OFFLINE:<reference|admin:ts>"} and an {@code admin_offline_pay}
      * timeline marker. Pre-checked OUTSIDE the transaction: any non-CREATED order is a
-     * clean 422. <b>A CJ order marked paid live-fires the CJ createOrderV2 replay</b>
-     * (docs/adr-offline-mark-paid.md — the SPA confirm dialog must name it).
+     * clean 422. A CJ order marked paid is QUEUED for placement exactly like a customer
+     * payment (Wave 8 decoupling; in manual mode it then waits for admin approval) — the
+     * pre-Wave-8 "live-fires the CJ replay" behaviour described in
+     * docs/adr-offline-mark-paid.md is superseded by docs/adr-cj-retained-placement.md.
      */
     @PostMapping("/{orderId}/pay")
     public Object offlinePay(@PathVariable Integer orderId,
@@ -279,9 +281,9 @@ public class LitemallAdminOrderController {
             // Race: the order left CREATED between the pre-check and the guarded UPDATE.
             return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422, e.getMessage()));
         } catch (org.linlinjava.litemall.order.application.util.exception.cj.LitemallCjOrderException e) {
-            // The live-fired CJ replay was rejected: the whole transaction rolled back
-            // (order still CREATED, no pay_id — live-verified). Surface it as the same
-            // clean refusal the customer pay path gives a CJ rejection, not a raw 502.
+            // Defence-in-depth only since Wave 8: placement no longer runs inside this
+            // transaction, so this path should be dead. Kept so a regression still yields
+            // a clean envelope, never a 500.
             return ResponseEntity.unprocessableEntity().body(ResponseUtil.fail(422,
                     "CJ rejected the order — nothing was marked paid: " + e.getMessage()));
         }
@@ -528,6 +530,12 @@ public class LitemallAdminOrderController {
             if (p.holdReason() != null) {
                 row.put("holdReason", p.holdReason());
             }
+            // F7: parked rows now appear here regardless of the approval stamp. The admin
+            // action for them is Requeue, not Approve.
+            row.put("parked", p.parked());
+            if (p.parkReason() != null) {
+                row.put("parkReason", p.parkReason());
+            }
             rows.add(row);
         }
 
@@ -569,6 +577,27 @@ public class LitemallAdminOrderController {
                         .body(ResponseUtil.fail(422, "[" + result.status().name() + "] " + result.message()));
             }
         }
+    }
+
+    /**
+     * Requeue a parked order (PLACEMENT_REJECTED / PLACEMENT_STALLED) for CJ placement:
+     * clears the sentinel (CAS) and leaves a timeline hop; the sweep retries on its next
+     * tick. Typed 422 {@code [NOT_PARKED]} / {@code [NOT_FOUND]} otherwise.
+     */
+    @PostMapping("/{orderId}/cj-placement/requeue")
+    public Object cjPlacementRequeue(@PathVariable Integer orderId,
+                                     @RequestHeader(value = "X-User-Id", required = false) String adminUserId) {
+        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService.RequeueResult result =
+                cjPlacementApprovalService.requeue(orderId, adminUserId);
+        if (result.status() == org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService.RequeueStatus.REQUEUED) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("orderId", orderId);
+            data.put("status", result.status().name());
+            data.put("message", result.message());
+            return ResponseUtil.ok(data);
+        }
+        return ResponseEntity.unprocessableEntity()
+                .body(ResponseUtil.fail(422, "[" + result.status().name() + "] " + result.message()));
     }
 
     private Map<String, Object> toRow(LitemallOrderAggregate o) {
