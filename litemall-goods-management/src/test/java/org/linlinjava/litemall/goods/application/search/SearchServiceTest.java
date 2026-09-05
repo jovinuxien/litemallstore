@@ -120,6 +120,29 @@ public class SearchServiceTest {
         assertThat(items.get(2)).doesNotContainKey("eu_flag");
     }
 
+    // ---- seasons passthrough ----------------------------------------------
+
+    @Test
+    public void seasonsRideTheHitOnlyWhenNonEmpty() {
+        OcsSearchResult.Hit two = hit("1", "Chunky Knit Blanket", "desc");
+        two.getDocument().getData().put("seasons", List.of("autumn", "winter"));
+        OcsSearchResult.Hit bare = hit("2", "Garden Parasol", "desc");
+        bare.getDocument().getData().put("seasons", "summer"); // a single value can arrive bare
+        OcsSearchResult.Hit empty = hit("3", "Hand Plane", "desc");
+        empty.getDocument().getData().put("seasons", List.of());
+        OcsSearchResult.Hit preReindex = hit("4", "Tool Chest", "desc"); // field absent
+
+        Mockito.when(searchClient.search(anyString(), anyInt(), anyInt(), any(), any()))
+                .thenReturn(resultWithHits(two, bare, empty, preReindex));
+
+        List<Map<String, Object>> items = goodsList(service.search("q", 1, 20, null, Map.of()));
+        assertThat(items.get(0)).containsEntry("seasons", List.of("autumn", "winter"));
+        assertThat(items.get(1)).containsEntry("seasons", List.of("summer"));
+        // Empty and absent are indistinguishable to a card and both mean "no season badge".
+        assertThat(items.get(2)).doesNotContainKey("seasons");
+        assertThat(items.get(3)).doesNotContainKey("seasons");
+    }
+
     // ---- Wave-21 groupon_flag passthrough ---------------------------------
 
     @Test

@@ -180,6 +180,8 @@ container*):
 | `auto-tier` | `featured` | Minimum tier that auto-publishes |
 | `per-season-cap` | 24 | Max auto-published per season |
 | `cron` | `0 35 4 * * *` | Nightly pass |
+| `hot-quantile` | 0.10 | Share of a run's scored set that reads `hot` (§17) |
+| `featured-quantile` | 0.35 | Share that reads `featured` or better, always ≥ hot (§17) |
 
 ## 10. Migration
 
@@ -313,3 +315,118 @@ increasing order of intervention: drop the generic terms (`lamp`, `warm`), add t
 `category_ids` (currently empty), or require the term to actually appear in the title instead of
 trusting relevance.
 
+## 17. Follow-ups shipped (2026-09-04): term-anchored discovery, quantile tiers, `seasons` on hits
+
+The three limits §15–16 recorded, closed in one goods-management change. No migration, no index
+field change, no reindex, no searcher restart: the container is the whole deploy.
+
+### 17.1 Discovery is anchored on the title, and exclusions ride the term list
+
+`SeasonScoringService.discover` used to take every hit the index returned for a term. The index is
+tuned for shoppers — it matches descriptions and category names, tolerates typos, and falls back to
+relaxed and n-gram strategies when the exact query finds nothing — which is right for a search box
+and wrong for a curator. Three rules now stand between a hit and the candidate set, each counted
+and logged (`discardedRelaxed` / `discardedOffTitle` / `discardedExcluded`, also returned by
+`POST /season-candidates/run` under `discovery`):
+
+1. **A relaxed result set contributes nothing.** `SearchService` already reports `relaxed=true`
+   when `meta.query_stage > 0`; the loop now reads it and skips the whole set — the exact query
+   found nothing, so every hit is a guess. This is how "All-Season Sofa Cover" got in.
+2. **The term must be in the title**, case-insensitive, at a word boundary, plural-tolerant
+   (`blanket` matches "Blankets", not "blanketed"; `rug` does not match "drug"; `fall` does not
+   match "waterfall"). A hit with no title is unverifiable and is dropped — fail closed.
+3. **Exclusion terms**: an entry starting with `-` in the same `terms` JSON array vetoes any title
+   containing it. `"-summer"` on autumn drops the "Summer Cooling Air-Conditioning Blanket" that
+   matched on `blanket`. Exclusions are never searched for. Same column, same PUT — no migration and
+   no new admin field. `SeasonTerms` is the pure class behind all three; `SeasonTermsTest` pins them.
+
+⚠ The discard counts are HITS, not products: a product can be discarded under two terms.
+
+### 17.2 Tiers are quantiles of the run's own curve
+
+`hot ≥ 100 / featured ≥ 70` put 1003 of 1005 autumn candidates in `hot`. Absolute thresholds would
+be wrong again after the next repricing (the score is margin-weighted and the anchor margin has
+already moved 1.25 → 2.5). Now, per season per run: the top `hot-quantile` (10%) of scored
+candidates are `hot`, the top `featured-quantile` (35%) are `featured` or better, the rest `watch`.
+Rounding is up (a tiny run still has a hot row), ties at a cut are included, a zero score is always
+`watch`, and an inverted pair collapses to `featured == hot` rather than an empty featured band. The
+run logs and returns the cut scores (`tierCuts.hot` / `.featured`) so an operator can see where the
+bar fell. Both knobs are env-backed (`LITEMALL_SEASONS_HOT_QUANTILE`, `…_FEATURED_QUANTILE`) with
+explicit yml placeholders and prod compose passthrough.
+
+**What this changes about publishing:** `auto-tier: featured` now means "the top 35% of what
+scored", and the 24-cap still applies at read. Before, effectively everything published and the
+cap alone chose. Nothing customer-visible moves unless a season scores fewer than ~69 candidates
+(24 / 0.35), in which case fewer than 24 publish — by design, and visible in the run summary.
+Scoring is now two passes (score everything, then tier), so no row is written before the cuts exist.
+
+### 17.3 `seasons` rides search hits
+
+`toGoodsListItem` emits `seasons: ["autumn", …]` on a hit when the field is non-empty — the same
+positive-only rule as `coupon_flag` / `groupon_flag` / `eu_flag`; absent (pre-reindex) and empty
+both mean no key. A bare single value is normalised to a one-element list. Read-time only.
+**RAISED for gateway-api:** a season badge on `ProductCard` from `hit.seasons` (outside the overlay
+priority chain, as the EU chip is — a season is context, not an offer).
+
+### 17.4 Recommended autumn terms (data — applied on prod through the PUT, not by this deploy)
+
+Measured on the first live rail: `warm` and `lamp` pull ordinary desk lamps and anything "warm
+white"; `fall` matches "Anti-Fall"; the seed list has no exclusions at all. Proposed:
+
+```json
+PUT /srv/private/admin/insight/season-rules/autumn
+{"terms":"[\"autumn\",\"fall\",\"cosy\",\"cozy\",\"blanket\",\"throw\",\"candle\",\"harvest\",\"pumpkin\",\"halloween\",\"knit\",\"wool\",\"rug\",\"curtain\",\"-summer\",\"-cooling\",\"-christmas\",\"-xmas\",\"-anti-fall\",\"-beach\"]"}
+```
+
+Then `POST /srv/private/admin/insight/season-candidates/run` and re-measure the live 24 through
+`/srv/page/season` + `POST /srv/goods/batch` (BARE ARRAY body): the acceptance bar is 24 of 24
+titles carrying an autumn term, the cooling blanket gone, and the run summary showing tier cuts
+that split the set. Reversible: PUT the previous list back (it is in V64) and re-run.
+
+Winter/spring/summer have the same weakness (`gift`, `storage`, `fan`, `outdoor` are generic) and
+the same fix; tune them before their page is activated, not after.
+
+
+### 17.5 Deployed 2026-09-05 — and what the first live run measured
+
+Merged to master `3e784648d` (suite on the merged tree 596 run / 0 failures / 8 skipped) and
+deployed as the goods-management container alone (built on the VPS from that commit, healthy in
+~20 s, `SeasonTerms` present in the running jar with `LitemallProductIndexingService` as the positive
+control, both quantile knobs visible inside the container). No migration, no reindex, no searcher
+restart — as §17 said.
+
+The §17.4 autumn list was then applied through `docker-compose/season-tune.sh terms autumn
+season-terms-autumn-2026-09.json` (backup of all four rules first:
+`/root/season-rules-backup-20260905T001924Z.json` on the VPS; `season-tune.sh restore autumn <backup>`
+puts the seed list back) and the scorer run once by hand.
+
+**Before → after, measured on the live rail through `/srv/page/season` + `POST /srv/goods/batch`:**
+
+| | before | after |
+|---|---|---|
+| rail items with an autumn term in the title (new list) | 14 / 24 | **24 / 24** |
+| items hit by an exclusion | 1 (Christmas icicle lights) | 0 |
+| off-season passengers (all-season sofa cover, coffee mug, cable organiser, bedside lamps) | 6 | 0 |
+| search hits carrying `seasons` | 0 / 20 | **20 / 20** |
+
+Run summary (all four seasons score on every run): autumn scanned 429, scored 428, published 150
+(the top 35%), 126 dropped by the cap, **discovery discarded 914 off-title hits + 44 excluded hits,
+0 relaxed sets**, tier cuts hot 773.3 / featured 631.67 — the set splits, which it never did under
+the absolute thresholds. Spring 679/679/238, summer 420/416/146, winter 518/517/181, each with
+hundreds of off-title discards and cuts in the 590–720 band. Rejections stay marginal (1 UNCOSTED,
+4 UNAVAILABLE, 1 OUT_OF_BAND). Storefront smoke 200 across shell, sitemap, robots, PDP, search,
+season page; live `?seasons=` totals autumn 24 / winter 25 / spring 24 / summer 24.
+
+Observed, recorded not hidden:
+- The 200-hit scan limit is now the binding bound on broad terms: `wool` had 1,250 hits and 200 were
+  considered, `fall` 552 → 200 (both logged). The candidate set is therefore "the top 200 by relevance
+  per term that also carry the term in the title", not the full population. Fine for a 24-item rail;
+  raise `LITEMALL_SEASONS_SCAN_LIMIT` before asking the field to be exhaustive.
+- Three "Air-conditioning Blanket" products are on the rail — a summer article under a title that
+  does not contain `cooling` or `summer`. `-air-conditioning` is the one-line data fix if the curator
+  wants them out; not applied here because it was not in the approved list.
+- Winter returns 25 members through search where the other seasons return 24: one row more than
+  the cap, from an earlier run's membership the later run did not unpublish. Cosmetic on search;
+  the page resolver still caps at 24.
+- Winter/spring/summer still run on their seed terms (`gift`, `storage`, `fan`, `outdoor`) — tune
+  each before its page is activated, exactly as §17.4 says.
