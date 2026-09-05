@@ -5,12 +5,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import { money } from 'app/shared/util/money';
 import './order.scss';
 
 /** litemall-vue order-list showType tabs (index === showType 0–4). */
-const TABS = ['All', 'Unpaid', 'Unshipped', 'Unreceived', 'Unrated'];
+const TAB_KEYS = ['all', 'unpaid', 'unshipped', 'unreceived', 'unrated'] as const;
 
 /**
  * Customer order history, modelled on litemall-vue `user/order-list`: status
@@ -19,6 +20,7 @@ const TABS = ['All', 'Unpaid', 'Unshipped', 'Unreceived', 'Unrated'];
  * `/srv/order/list` (live on the order service).
  */
 const OrderList: React.FC = () => {
+  const { t } = useTranslation('order');
   const navigate = useNavigate();
   const [showType, setShowType] = useState(0);
   const [orders, setOrders] = useState<IOrderListItem[]>([]);
@@ -57,18 +59,18 @@ const OrderList: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='My Orders' />
+      <PageHead title={t('list.title')} />
       <div className='container lm-orders'>
-        <StatusTabs tabs={TABS} active={showType} onChange={setShowType} />
+        <StatusTabs tabs={TAB_KEYS.map(k => t(`list.tabs.${k}`))} active={showType} onChange={setShowType} />
 
         {loading ? (
           <div className='text-center my-5'>
             <Spinner animation='border' />
           </div>
         ) : orders.length === 0 ? (
-          <EmptyState icon='bi-bag' text='You have no orders here yet.'>
+          <EmptyState icon='bi-bag' text={t('list.empty')}>
             <Link to='/search' className='btn btn-lm-primary btn-sm'>
-              Start shopping
+              {t('list.startShopping')}
             </Link>
           </EmptyState>
         ) : (
@@ -77,15 +79,15 @@ const OrderList: React.FC = () => {
               <div className='lm-order-panel__head'>
                 <span className='lm-order-panel__sn'>
                   #{o.orderSn ?? o.id}
-                  {o.source === 'cj' && <span className='badge bg-lm-primary ms-2'>Dropship</span>}
+                  {o.source === 'cj' && <span className='badge bg-lm-primary ms-2'>{t('list.dropship')}</span>}
                   {/* Wave 4 pickup: badge + relabel shipping-phrased statuses. */}
-                  {o.deliveryType === 'pickup' && <span className='badge bg-secondary ms-2'>Pickup</span>}
+                  {o.deliveryType === 'pickup' && <span className='badge bg-secondary ms-2'>{t('list.pickup')}</span>}
                 </span>
                 <span className='lm-order-panel__status'>
                   {o.deliveryType === 'pickup'
                     ? (o.orderStatusText ?? '')
-                        .replace(/^Unshipped$|^To be shipped$/i, 'Awaiting pickup preparation')
-                        .replace(/^Shipped$|^To be received$/i, 'Ready for pickup')
+                        .replace(/^Unshipped$|^To be shipped$/i, t('list.pickupPreparing'))
+                        .replace(/^Shipped$|^To be received$/i, t('list.pickupReady'))
                     : o.orderStatusText}
                 </span>
               </div>
@@ -102,36 +104,36 @@ const OrderList: React.FC = () => {
                 ))}
               </div>
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>Total: {money(priceNum(o.actualPrice))}</span>
+                <span className='lm-amount'>{t('list.total', { amount: money(priceNum(o.actualPrice)) })}</span>
                 <div className='lm-order-panel__actions'>
                   {o.handleOption?.pay && (
                     <button type='button' className='btn btn-sm btn-lm-primary' disabled={pending} onClick={() => navigate(`/pay/${o.id}`)}>
-                      Pay now
+                      {t('actions.payNow')}
                     </button>
                   )}
                   {o.handleOption?.cancel && o.id != null && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.cancel(o.id as number))}>
-                      Cancel
+                      {t('actions.cancel')}
                     </button>
                   )}
                   {o.handleOption?.confirm && o.id != null && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.confirm(o.id as number))}>
-                      Confirm receipt
+                      {t('actions.confirmReceipt')}
                     </button>
                   )}
                   {o.handleOption?.refund && o.id != null && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.refund(o.id as number))}>
-                      Refund
+                      {t('actions.refund')}
                     </button>
                   )}
                   {o.handleOption?.delete && o.id != null && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.remove(o.id as number))}>
-                      Delete
+                      {t('actions.delete')}
                     </button>
                   )}
                   {o.handleOption?.rebuy && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => navigate(`/order/${o.id}`)}>
-                      Buy again
+                      {t('actions.buyAgain')}
                     </button>
                   )}
                 </div>

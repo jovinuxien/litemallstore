@@ -7,6 +7,7 @@ import enCheckout from './locales/en/checkout.json';
 import enCoupon from './locales/en/coupon.json';
 import enCommon from './locales/en/common.json';
 import enErrors from './locales/en/errors.json';
+import enOrder from './locales/en/order.json';
 import enProduct from './locales/en/product.json';
 import enSearch from './locales/en/search.json';
 
@@ -37,7 +38,7 @@ export const DEFAULT_LANGUAGE: Lang = 'en';
 /** Endonyms — a language's own name is never translated. */
 export const LANGUAGE_NAMES: Record<Lang, string> = { en: 'English', sv: 'Svenska', da: 'Dansk' };
 
-export const NAMESPACES = ['common', 'cart', 'checkout', 'auth', 'errors', 'product', 'search', 'coupon'] as const;
+export const NAMESPACES = ['common', 'cart', 'checkout', 'auth', 'errors', 'product', 'search', 'coupon', 'order'] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 export const isLang = (value: unknown): value is Lang =>
@@ -79,7 +80,7 @@ if (!i18next.isInitialized) {
       ns: [...NAMESPACES],
       defaultNS: 'common',
       resources: {
-        en: { common: enCommon, cart: enCart, checkout: enCheckout, auth: enAuth, errors: enErrors, product: enProduct, search: enSearch, coupon: enCoupon },
+        en: { common: enCommon, cart: enCart, checkout: enCheckout, auth: enAuth, errors: enErrors, product: enProduct, search: enSearch, coupon: enCoupon, order: enOrder },
       },
       partialBundledLanguages: true,
       // Synchronous init: English is in memory, so `t()` works on the very first render.

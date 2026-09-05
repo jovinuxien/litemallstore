@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 
 import { Cell, CellGroup } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { ITracking } from 'app/shared/model/order/order.model';
 
 /**
@@ -17,6 +18,7 @@ import { ITracking } from 'app/shared/model/order/order.model';
  * (foreign/unknown order) hides the section entirely.
  */
 const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
+  const { t } = useTranslation('order');
   const [tracking, setTracking] = useState<ITracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [hidden, setHidden] = useState(false);
@@ -48,35 +50,35 @@ const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
   if (hidden) return null;
 
   return (
-    <CellGroup title='Shipment tracking'>
+    <CellGroup title={t('tracking.title')}>
       {loading ? (
         <div className='p-3 text-center text-muted'>
           <Spinner animation='border' size='sm' className='me-2' />
-          Fetching tracking…
+          {t('tracking.fetching')}
         </div>
       ) : !tracking ? (
-        <Cell title={<span className='text-muted'>Tracking is temporarily unavailable.</span>} />
+        <Cell title={<span className='text-muted'>{t('tracking.unavailable')}</span>} />
       ) : !tracking.shipped ? (
         <Cell
           title={
             <span className='text-muted'>
               <i className='bi bi-box-seam me-2' />
-              Not shipped yet — tracking appears here once your order ships.
+              {t('tracking.notShipped')}
             </span>
           }
         />
       ) : (
         <>
-          {tracking.carrier && <Cell title='Carrier' value={tracking.carrier} />}
-          {tracking.trackNumber && <Cell title='Tracking no.' value={tracking.trackNumber} />}
+          {tracking.carrier && <Cell title={t('tracking.carrier')} value={tracking.carrier} />}
+          {tracking.trackNumber && <Cell title={t('tracking.trackingNo')} value={tracking.trackNumber} />}
           {tracking.lastMileCarrier && (
-            <Cell title='Last mile' value={`${tracking.lastMileCarrier}${tracking.lastTrackNumber ? ` (${tracking.lastTrackNumber})` : ''}`} />
+            <Cell title={t('tracking.lastMile')} value={`${tracking.lastMileCarrier}${tracking.lastTrackNumber ? ` (${tracking.lastTrackNumber})` : ''}`} />
           )}
           {(tracking.origin || tracking.destination) && (
-            <Cell title='Route' value={[tracking.origin, tracking.destination].filter(Boolean).join(' → ')} />
+            <Cell title={t('tracking.route')} value={[tracking.origin, tracking.destination].filter(Boolean).join(' → ')} />
           )}
-          {tracking.deliveryDay && <Cell title='Est. delivery' value={`${tracking.deliveryDay} days`} />}
-          {tracking.status && <Cell title='Status' value={tracking.status} />}
+          {tracking.deliveryDay && <Cell title={t('tracking.estDelivery')} value={t('tracking.days', { count: Number(tracking.deliveryDay) })} />}
+          {tracking.status && <Cell title={t('tracking.status')} value={tracking.status} />}
           {(tracking.events ?? []).length > 0 ? (
             <div className='px-3 pb-3'>
               <ul className='list-unstyled mb-0 mt-2'>
@@ -92,7 +94,7 @@ const TrackingPanel: React.FC<{ orderId: number | string }> = ({ orderId }) => {
               </ul>
             </div>
           ) : (
-            <Cell title={<span className='text-muted'>Tracking details are temporarily unavailable — check back later.</span>} />
+            <Cell title={<span className='text-muted'>{t('tracking.detailsUnavailable')}</span>} />
           )}
         </>
       )}

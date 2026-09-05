@@ -129,6 +129,22 @@
     "allProducts": "Alle produkter",
     "todaysDeals": "Dagens tilbud"
   },
+  "cookies": {
+    "bannerAria": "Samtykke til cookies",
+    "banner": "Vi vil gerne bruge analyse- og marketingcookies for at forstå, hvordan butikken bruges, og måle vores annoncering. De er valgfrie – afviser du, indsamles der intet. Se vores <1>cookiepolitik</1>.",
+    "decline": "Afvis",
+    "accept": "Acceptér",
+    "checking": "Tjekker analyseindstillinger…",
+    "noneConfigured": "Dette websted har ingen analyse- eller marketingværktøjer konfigureret, så der sættes ingen valgfrie cookies, og der er intet at give samtykke til.",
+    "dnt": "Din browser sender et <1>Do Not Track</1>-signal, som vi respekterer: analyse er slået fra, og vi spørger ikke. Vil du selv vælge, så slå Do Not Track fra i browserens indstillinger.",
+    "prefsTitle": "Analyse- og marketingcookies",
+    "statusOn": "I øjeblikket TIL – du har accepteret analyse- og marketingcookies. Trækker du samtykket tilbage, stopper sporingen straks, og de analysecookies, der allerede er sat, slettes.",
+    "statusOff": "I øjeblikket FRA – du har afvist. Der indsamles intet.",
+    "statusNone": "Der er endnu ikke registreret et valg, så der indsamles intet.",
+    "acceptAll": "Acceptér analyse- og marketingcookies",
+    "withdraw": "Træk samtykke tilbage",
+    "reset": "Nulstil valget (spørg mig igen)"
+  },
   "euStock": {
     "shipsFrom": "Sendes fra {{country}}",
     "shipsFromEu": "Sendes fra EU-lager",

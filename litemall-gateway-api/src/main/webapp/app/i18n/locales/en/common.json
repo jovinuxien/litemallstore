@@ -129,6 +129,22 @@
     "allProducts": "All products",
     "todaysDeals": "Today’s Deals"
   },
+  "cookies": {
+    "bannerAria": "Cookie consent",
+    "banner": "We’d like to use analytics and marketing cookies to understand how the store is used and measure our advertising. They are optional — decline and nothing is collected. See our <1>Cookie Policy</1>.",
+    "decline": "Decline",
+    "accept": "Accept",
+    "checking": "Checking analytics settings…",
+    "noneConfigured": "This site has no analytics or marketing tools configured, so no optional cookies are set and there is nothing to consent to.",
+    "dnt": "Your browser sends a <1>Do Not Track</1> signal, which we honour: analytics are off and we will not ask. To choose for yourself, turn Do Not Track off in your browser settings.",
+    "prefsTitle": "Analytics & marketing cookies",
+    "statusOn": "Currently ON — you have accepted analytics and marketing cookies. Withdrawing stops tracking immediately and deletes the analytics cookies already set.",
+    "statusOff": "Currently OFF — you have declined. Nothing is collected.",
+    "statusNone": "No choice recorded yet, so nothing is being collected.",
+    "acceptAll": "Accept analytics & marketing cookies",
+    "withdraw": "Withdraw consent",
+    "reset": "Reset choice (ask me again)"
+  },
   "euStock": {
     "shipsFrom": "Ships from {{country}}",
     "shipsFromEu": "Ships from EU stock",

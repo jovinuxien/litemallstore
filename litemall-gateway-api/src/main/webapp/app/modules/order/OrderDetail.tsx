@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { Cell, CellGroup, EmptyState, GoodsLineCard, OrderSummary, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { orderAddressLines } from 'app/shared/util/address';
 import { money } from 'app/shared/util/money';
@@ -31,6 +32,7 @@ const fmtDateTime = (t?: string | number[]): string => {
  * actual). Sourced from `/srv/order/detail`. Graceful when not live yet.
  */
 const OrderDetailView: React.FC = () => {
+  const { t } = useTranslation('order');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [order, setOrder] = useState<IOrderDetail | null>(null);
@@ -87,7 +89,7 @@ const OrderDetailView: React.FC = () => {
   if (loading) {
     return (
       <Page>
-        <PageHead title='Order detail' />
+        <PageHead title={t('detail.title')} />
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
@@ -98,12 +100,12 @@ const OrderDetailView: React.FC = () => {
   if (missing || !order) {
     return (
       <Page>
-        <PageHead title='Order detail' />
+        <PageHead title={t('detail.title')} />
         <div className='container'>
           <CellGroup>
-            <EmptyState icon='bi-receipt' text='Order details aren’t available right now.'>
+            <EmptyState icon='bi-receipt' text={t('detail.unavailable')}>
               <Link to='/orders' className='btn btn-lm-outline'>
-                Back to my orders
+                {t('actions.backToOrders')}
               </Link>
             </EmptyState>
           </CellGroup>
@@ -117,10 +119,10 @@ const OrderDetailView: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Order detail' sub={order.orderStatusText} />
+      <PageHead title={t('detail.title')} sub={order.orderStatusText} />
       <div className='container'>
         {/* Goods — an "Unrated" order (handleOption.comment) offers a per-item review form. */}
-        <CellGroup title='Items'>
+        <CellGroup title={t('detail.items')}>
           {(order.orderGoods ?? []).map(g => (
             <React.Fragment key={g.id}>
               <GoodsLineCard
@@ -138,7 +140,7 @@ const OrderDetailView: React.FC = () => {
                   ) : (
                     <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => setReviewingGoodsId(g.goodsId ?? null)}>
                       <i className='bi bi-star me-1' />
-                      Write a review
+                      {t('actions.writeReview')}
                     </button>
                   )}
                 </div>
@@ -151,16 +153,16 @@ const OrderDetailView: React.FC = () => {
         <CellGroup>
           <OrderSummary
             rows={[
-              { label: 'Goods total', value: money(priceNum(order.goodsPrice)) },
+              { label: t('detail.goodsTotal'), value: money(priceNum(order.goodsPrice)) },
               {
-                label: 'Shipping',
-                value: priceNum(order.freightPrice) > 0 ? money(priceNum(order.freightPrice)) : 'Free',
+                label: t('detail.shipping'),
+                value: priceNum(order.freightPrice) > 0 ? money(priceNum(order.freightPrice)) : t('detail.free'),
                 variant: 'muted',
               },
               ...(priceNum(order.couponPrice) > 0
-                ? [{ label: 'Coupon', value: `−${money(priceNum(order.couponPrice))}`, variant: 'success' as const }]
+                ? [{ label: t('detail.coupon'), value: `−${money(priceNum(order.couponPrice))}`, variant: 'success' as const }]
                 : []),
-              { label: 'Total paid', value: money(priceNum(order.actualPrice)), variant: 'total' },
+              { label: t('detail.totalPaid'), value: money(priceNum(order.actualPrice)), variant: 'total' },
             ]}
           />
         </CellGroup>
@@ -168,9 +170,9 @@ const OrderDetailView: React.FC = () => {
         {/* Pickup order: store card (fetched via /srv/store/detail) + verify
             code. verifyCode arrives once paid; verifyTime set = collected. */}
         {order.deliveryType === 'pickup' ? (
-          <CellGroup title='Store pickup'>
+          <CellGroup title={t('detail.storePickup')}>
             {pickupStore && (
-              <Cell title={pickupStore.name ?? 'Pickup store'}>
+              <Cell title={pickupStore.name ?? t('detail.pickupStore')}>
                 <span className='text-muted'>
                   {[pickupStore.address, pickupStore.detailedAddress].filter(Boolean).join(' ')}
                   {pickupStore.businessHours ? ` · ${pickupStore.businessHours}` : ''}
@@ -181,7 +183,7 @@ const OrderDetailView: React.FC = () => {
             {order.verifyCode &&
               (order.verifyTime ? (
                 <Cell
-                  title='Collected'
+                  title={t('detail.collected')}
                   value={
                     <span className='text-success'>
                       <i className='bi bi-check-circle me-1' />
@@ -191,7 +193,7 @@ const OrderDetailView: React.FC = () => {
                 />
               ) : (
                 <div className='p-3 text-center'>
-                  <div className='text-muted small mb-1'>Show this code at the store</div>
+                  <div className='text-muted small mb-1'>{t('detail.showCode')}</div>
                   <div className='fw-bold' style={{ fontSize: '1.8rem', letterSpacing: '0.25em' }}>{order.verifyCode}</div>
                   <div className='mt-2'>
                     <QRCodeSVG value={order.verifyCode} size={140} />
@@ -200,7 +202,7 @@ const OrderDetailView: React.FC = () => {
               ))}
           </CellGroup>
         ) : (
-          <CellGroup title='Delivery address'>
+          <CellGroup title={t('detail.deliveryAddress')}>
             {/* Structured snapshot (V48) renders as stacked lines; legacy
                 unseparated rows fall back to one line. */}
             <div className='p-3'>
@@ -219,12 +221,12 @@ const OrderDetailView: React.FC = () => {
 
         {/* Order meta */}
         <CellGroup>
-          {order.addTime && <Cell title='Order time' value={order.addTime} />}
-          <Cell title='Order no.' value={order.orderSn ?? order.id} />
-          {order.source === 'cj' && <Cell title='Fulfilment' value={<span className='badge bg-lm-primary'>Dropship</span>} />}
-          {order.shipChannel && <Cell title='Ships via' value={order.shipChannel} />}
-          {order.cjOrderNum && <Cell title='CJ order no.' value={order.cjOrderNum} />}
-          {order.orderStatusText && <Cell title='Status' value={order.orderStatusText} />}
+          {order.addTime && <Cell title={t('detail.orderTime')} value={order.addTime} />}
+          <Cell title={t('detail.orderNo')} value={order.orderSn ?? order.id} />
+          {order.source === 'cj' && <Cell title={t('detail.fulfilment')} value={<span className='badge bg-lm-primary'>{t('list.dropship')}</span>} />}
+          {order.shipChannel && <Cell title={t('detail.shipsVia')} value={order.shipChannel} />}
+          {order.cjOrderNum && <Cell title={t('detail.cjOrderNo')} value={order.cjOrderNum} />}
+          {order.orderStatusText && <Cell title={t('detail.status')} value={order.orderStatusText} />}
         </CellGroup>
 
         {/* Shipment tracking (Wave 4 — /srv/order/{id}/tracking; hides itself
@@ -243,22 +245,22 @@ const OrderDetailView: React.FC = () => {
             <div className='p-3 d-flex flex-wrap gap-2 justify-content-end'>
               {opt.pay && orderId != null && (
                 <button type='button' className='btn btn-lm-primary btn-sm' disabled={pending} onClick={() => navigate(`/pay/${orderId}`)}>
-                  Pay now
+                  {t('actions.payNow')}
                 </button>
               )}
               {opt.cancel && orderId != null && (
                 <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.cancel(orderId))}>
-                  Cancel
+                  {t('actions.cancel')}
                 </button>
               )}
               {opt.confirm && orderId != null && (
                 <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.confirm(orderId))}>
-                  Confirm receipt
+                  {t('actions.confirmReceipt')}
                 </button>
               )}
               {opt.refund && orderId != null && (
                 <button type='button' className='btn btn-lm-outline btn-sm' disabled={pending} onClick={() => act(() => orderApi.refund(orderId))}>
-                  Refund
+                  {t('actions.refund')}
                 </button>
               )}
               {opt.delete && orderId != null && (
@@ -271,7 +273,7 @@ const OrderDetailView: React.FC = () => {
                     navigate('/orders');
                   })}
                 >
-                  Delete
+                  {t('actions.delete')}
                 </button>
               )}
             </div>
