@@ -24,6 +24,11 @@ export interface IOrderHandleOption {
   rebuy?: boolean;
   /** Aftersale application window open (Wave-2 vertical). */
   aftersale?: boolean;
+  /**
+   * The order is REFUND_REQUEST (202) and the customer may take the request back
+   * (lifecycle D4). The customer payload has no numeric status — this flag IS the 202 key.
+   */
+  withdrawRefund?: boolean;
 }
 
 export interface IOrderListItem {

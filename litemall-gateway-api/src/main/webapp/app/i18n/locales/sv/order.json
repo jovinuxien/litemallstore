@@ -63,10 +63,10 @@
     "orderTime": "Ordertid",
     "orderNo": "Ordernummer",
     "fulfilment": "Leverans via",
+    "fulfilmentStatus": "Leveransstatus",
     "shipsVia": "Skickas med",
     "cjOrderNo": "CJ-ordernummer",
-    "status": "Status",
-    "fulfilmentStatus": "Leveransstatus"
+    "status": "Status"
   },
   "actions": {
     "backToOrders": "Tillbaka till mina ordrar",
@@ -75,8 +75,11 @@
     "cancel": "Avbryt",
     "confirmReceipt": "Bekräfta mottagande",
     "refund": "Återbetalning",
+    "withdrawRefund": "Ta tillbaka återbetalningsbegäran",
     "delete": "Ta bort",
-    "buyAgain": "Köp igen"
+    "buyAgain": "Köp igen",
+    "viewOrder": "Visa order",
+    "failed": "Åtgärden kunde inte genomföras. Försök igen."
   },
   "list": {
     "dropship": "Dropship",
@@ -104,6 +107,7 @@
     "fetching": "Hämtar spårning…",
     "unavailable": "Spårningen är tillfälligt otillgänglig.",
     "notShipped": "Inte skickad ännu – spårningen visas här när ordern har skickats.",
+    "pending": "Skickad – spårningsnumret är på väg",
     "carrier": "Transportör",
     "trackingNo": "Spårningsnummer",
     "lastMile": "Sista sträckan",
@@ -112,7 +116,6 @@
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dagar",
     "status": "Status",
-    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare.",
-    "pending": "Skickad – spårningsnumret är på väg"
+    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare."
   }
 }

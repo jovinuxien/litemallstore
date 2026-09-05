@@ -63,10 +63,10 @@
     "orderTime": "Order time",
     "orderNo": "Order no.",
     "fulfilment": "Fulfilment",
+    "fulfilmentStatus": "Fulfilment status",
     "shipsVia": "Ships via",
     "cjOrderNo": "CJ order no.",
-    "status": "Status",
-    "fulfilmentStatus": "Fulfilment status"
+    "status": "Status"
   },
   "actions": {
     "backToOrders": "Back to my orders",
@@ -75,8 +75,11 @@
     "cancel": "Cancel",
     "confirmReceipt": "Confirm receipt",
     "refund": "Refund",
+    "withdrawRefund": "Withdraw refund request",
     "delete": "Delete",
-    "buyAgain": "Buy again"
+    "buyAgain": "Buy again",
+    "viewOrder": "View order",
+    "failed": "That action could not be completed. Please try again."
   },
   "list": {
     "dropship": "Dropship",
@@ -104,6 +107,7 @@
     "fetching": "Fetching tracking…",
     "unavailable": "Tracking is temporarily unavailable.",
     "notShipped": "Not shipped yet — tracking appears here once your order ships.",
+    "pending": "Shipped — tracking number on its way",
     "carrier": "Carrier",
     "trackingNo": "Tracking no.",
     "lastMile": "Last mile",
@@ -112,7 +116,6 @@
     "days_one": "{{count}} day",
     "days_other": "{{count}} days",
     "status": "Status",
-    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later.",
-    "pending": "Shipped — tracking number on its way"
+    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later."
   }
 }
