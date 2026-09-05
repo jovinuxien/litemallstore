@@ -2430,7 +2430,27 @@
   body paragraphs are 15–16px in `--lm-text`; cookie banner Accept button is
   teal; jest + `tsc` green with real counts; prod build clean. Deploy =
   gateway-api container rebuild only (MAIN). Rewrite this block when done.
-- **Previously (2026-09-05):** i18n batch 2 merged, deploy pending — see below.
+- **Previously (2026-09-05):** i18n batch 2 merged AND DEPLOYED — see below.
+- **Status 2026-09-05 02:10 UTC — i18n BATCH 2 DEPLOYED to trovemo.com** from master
+  `1d5536f7e` (contains `ee51e96ff`): gateway-api container only, healthy in 15 s,
+  `Started GatewayApiApplication` clean, 0 errors, smoke 8/8 200s; live bundle
+  `main.3c496ef1…`, 14 i18n chunks in the runtime map, 6/6 sv/da chunks verified BY
+  CONTENT through the edge (`Lägg i varukorgen`, `Læg i kurv`, `Pris: lägst först`,
+  `Sortér efter`, `Skickas från`, `Sendes fra`).
+  ⚠ **Two build attempts FAILED, neither because of the code:** the disk guard forced a
+  `docker builder prune -af`, which also evicted the shared `runtime` layer
+  (`apt-get install curl tini` on `eclipse-temurin:21-jre-jammy`) that every service
+  image had reused for weeks — and that night archive.ubuntu.com was crawling (22 s per
+  InRelease from the host, 15 min with no bytes inside the sandbox, then exit 100). The
+  gate held both times (container untouched). Attempt 3 built from a Dockerfile COPY in
+  `/root/Dockerfile.i18n2` (line 107 only: apt sources → de.archive.ubuntu.com, the
+  official German mirror, 0.08 s) with compose's own target + tag, 56 s, then
+  `up -d --no-deps`. Nothing in the repo tree was changed on the VPS. Follow-up worth a
+  commit: make the mirror an `ARG` (or add `Acquire::Retries`) so a mirror outage cannot
+  block a deploy. ⚠ The runtime layer is cached again now; the NEXT prune will evict it.
+  ⚠ Resolve lazy chunks as `app/<chunkName>.<hash>.js` (name + hash from the runtime
+  map), not `<id>.<hash>` — the id form 404s. The base JRE image already ships curl;
+  only tini comes from apt. VPS checkout left detached at `1d5536f7e`.
   Next i18n task after this one = batch 3 (cart/checkout + delivery chooser +
   coupon cell; spec §5).
 - **Status 2026-09-05 — i18n BATCH 2 BUILT + MERGED to master.** ~90 string sites
