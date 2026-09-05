@@ -2419,9 +2419,15 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY BUILT + MERGED (deploy pending)
+### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY SHIPPED + DEPLOYED
 - **No active assignment.** Next natural task = i18n batch 3 (cart/checkout + delivery
   chooser + coupon cell; spec §5) — rewrite this block before launching it.
+- **DEPLOYED to trovemo.com 2026-09-05 02:32 UTC** from master `d45511aa8`: gateway-api
+  container only (mirror-patched Dockerfile copy reused, cached runtime layer, build 2 min),
+  healthy in 15 s, 0 errors, smoke 11/11 200s, live bundle `main.740efb7c…`. The SAME
+  headless `getComputedStyle` check re-run AGAINST PRODUCTION: 372 elements / 0 Bootstrap
+  blue, Help h1 26.4 / h2 18.4 / body 16, Returns 7×16px `rgb(31,42,46)`, cookie Accept
+  `rgb(14,124,134)`, Amazon Ember on home/search/docs, header links white, 0 page errors.
 - **Status 2026-09-05 — theme hierarchy + document type scale MERGED to master.** ONE
   commit, SPA only. jest 49 suites / 353 tests (was 48/331, +22 in `app/sass/theme.spec.ts`),
   tsc 0, prod build clean. What changed:
