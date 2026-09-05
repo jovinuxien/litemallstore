@@ -1,0 +1,107 @@
+{
+  "rail": {
+    "categories": "Categories",
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "department": "Department",
+    "categoryBreadcrumb": "Category breadcrumb",
+    "noSubcategories": "No subcategories",
+    "clearAll": "Clear all",
+    "brand": "Brand",
+    "category": "Category",
+    "offers": "Offers",
+    "delivery": "Delivery",
+    "hasCoupon": "Has coupon",
+    "groupBuy": "Group buy",
+    "inEuStock": "In EU stock",
+    "filters": "Filters",
+    "filterByCategory": "Filter by category",
+    "price": "Price",
+    "facetFields": {
+      "variant_price": "Variant price"
+    }
+  },
+  "empty": {
+    "queryTitle": "No results for “{{query}}”",
+    "queryBody": "Check the spelling or try a different term — or start from one of these.",
+    "filtersTitle": "No products match these filters",
+    "filtersBody": "Clear a filter to widen the results — or start from one of these.",
+    "departmentTitle": "Nothing in this department right now",
+    "departmentBody": "Trovemo now focuses on home, garden and tools — here is what we stock today.",
+    "plainTitle": "No products found",
+    "plainBody": "Check the spelling or try a different term — or start from one of these.",
+    "trending": "Trending searches",
+    "popularCategories": "Popular categories"
+  },
+  "unavailable": {
+    "title": "Search is temporarily unavailable",
+    "body": "We couldn’t run your search just now. Please try again in a moment.",
+    "retry": "Try again",
+    "home": "Back to the home page"
+  },
+  "sort": {
+    "relevance": "Relevance",
+    "fields": {
+      "price": {
+        "asc": "Price: low to high",
+        "desc": "Price: high to low"
+      },
+      "variant_price": {
+        "asc": "Variant price: low to high",
+        "desc": "Variant price: high to low"
+      },
+      "rating": {
+        "asc": "Rating: low to high",
+        "desc": "Rating: high to low"
+      },
+      "review_count": {
+        "asc": "Fewest reviews",
+        "desc": "Most reviews"
+      },
+      "discount_pct": {
+        "asc": "Discount: low to high",
+        "desc": "Discount: high to low"
+      },
+      "listed_num": {
+        "asc": "Popularity: low to high",
+        "desc": "Most popular"
+      },
+      "title": {
+        "asc": "Name: A to Z",
+        "desc": "Name: Z to A"
+      },
+      "created_epoch": {
+        "asc": "Oldest first",
+        "desc": "Newest first"
+      },
+      "deal_end_epoch": {
+        "asc": "Deal ending soonest",
+        "desc": "Deal ending latest"
+      },
+      "discount_price": {
+        "asc": "Deal price: low to high",
+        "desc": "Deal price: high to low"
+      }
+    },
+    "generic": "{{field}} ({{direction}})",
+    "label": "Sort by",
+    "ascending": "ascending",
+    "descending": "descending"
+  },
+  "widgets": {
+    "showLess": "Show less",
+    "showMore": "Show more",
+    "noResults": "No results",
+    "rangeSeparator": "to",
+    "go": "Go",
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page",
+    "page": "Page {{page}}",
+    "stats_one": "{{count, number}} result",
+    "stats_other": "{{count, number}} results"
+  },
+  "relaxed": "No exact matches for “{{query}}” — showing similar results.",
+  "continueShopping": "← Continue shopping"
+}

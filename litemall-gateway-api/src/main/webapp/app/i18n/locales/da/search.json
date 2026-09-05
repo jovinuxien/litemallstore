@@ -1,0 +1,107 @@
+{
+  "rail": {
+    "categories": "Kategorier",
+    "collapse": "Fold {{name}} sammen",
+    "expand": "Fold {{name}} ud",
+    "department": "Afdeling",
+    "categoryBreadcrumb": "Kategoristi",
+    "noSubcategories": "Ingen underkategorier",
+    "clearAll": "Ryd alle",
+    "brand": "Mærke",
+    "category": "Kategori",
+    "offers": "Tilbud",
+    "delivery": "Levering",
+    "hasCoupon": "Har rabatkode",
+    "groupBuy": "Gruppekøb",
+    "inEuStock": "På EU-lager",
+    "filters": "Filtre",
+    "filterByCategory": "Filtrér efter kategori",
+    "price": "Pris",
+    "facetFields": {
+      "variant_price": "Variantpris"
+    }
+  },
+  "empty": {
+    "queryTitle": "Ingen resultater for ”{{query}}”",
+    "queryBody": "Tjek stavningen, eller prøv et andet ord – eller start med et af disse.",
+    "filtersTitle": "Ingen produkter matcher disse filtre",
+    "filtersBody": "Fjern et filter for at få flere resultater – eller start med et af disse.",
+    "departmentTitle": "Intet i denne afdeling lige nu",
+    "departmentBody": "Trovemo fokuserer nu på hjem, have og værktøj – her er, hvad vi har på lager i dag.",
+    "plainTitle": "Ingen produkter fundet",
+    "plainBody": "Tjek stavningen, eller prøv et andet ord – eller start med et af disse.",
+    "trending": "Populære søgninger",
+    "popularCategories": "Populære kategorier"
+  },
+  "unavailable": {
+    "title": "Søgning er midlertidigt utilgængelig",
+    "body": "Vi kunne ikke udføre din søgning lige nu. Prøv igen om lidt.",
+    "retry": "Prøv igen",
+    "home": "Tilbage til forsiden"
+  },
+  "sort": {
+    "relevance": "Relevans",
+    "fields": {
+      "price": {
+        "asc": "Pris: lavest først",
+        "desc": "Pris: højest først"
+      },
+      "variant_price": {
+        "asc": "Variantpris: lavest først",
+        "desc": "Variantpris: højest først"
+      },
+      "rating": {
+        "asc": "Bedømmelse: lavest først",
+        "desc": "Bedømmelse: højest først"
+      },
+      "review_count": {
+        "asc": "Færrest anmeldelser",
+        "desc": "Flest anmeldelser"
+      },
+      "discount_pct": {
+        "asc": "Rabat: lavest først",
+        "desc": "Rabat: højest først"
+      },
+      "listed_num": {
+        "asc": "Popularitet: lavest først",
+        "desc": "Mest populære"
+      },
+      "title": {
+        "asc": "Navn: A til Å",
+        "desc": "Navn: Å til A"
+      },
+      "created_epoch": {
+        "asc": "Ældste først",
+        "desc": "Nyeste først"
+      },
+      "deal_end_epoch": {
+        "asc": "Tilbuddet slutter snarest",
+        "desc": "Tilbuddet slutter senest"
+      },
+      "discount_price": {
+        "asc": "Tilbudspris: lavest først",
+        "desc": "Tilbudspris: højest først"
+      }
+    },
+    "generic": "{{field}} ({{direction}})",
+    "label": "Sortér efter",
+    "ascending": "stigende",
+    "descending": "faldende"
+  },
+  "widgets": {
+    "showLess": "Vis færre",
+    "showMore": "Vis flere",
+    "noResults": "Ingen resultater",
+    "rangeSeparator": "til",
+    "go": "OK",
+    "firstPage": "Første side",
+    "previousPage": "Forrige side",
+    "nextPage": "Næste side",
+    "lastPage": "Sidste side",
+    "page": "Side {{page}}",
+    "stats_one": "{{count, number}} resultat",
+    "stats_other": "{{count, number}} resultater"
+  },
+  "relaxed": "Ingen præcise resultater for ”{{query}}” – viser lignende resultater.",
+  "continueShopping": "← Fortsæt med at handle"
+}

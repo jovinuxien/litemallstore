@@ -128,5 +128,13 @@
     "home": "Startsidan",
     "allProducts": "Alla produkter",
     "todaysDeals": "Dagens erbjudanden"
+  },
+  "euStock": {
+    "shipsFrom": "Skickas från {{country}}",
+    "shipsFromEu": "Skickas från EU-lager",
+    "euWarehouse": "ett EU-lager",
+    "country": {
+      "DE": "Tyskland"
+    }
   }
 }

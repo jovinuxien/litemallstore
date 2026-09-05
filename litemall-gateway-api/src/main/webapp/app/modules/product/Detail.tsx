@@ -3,6 +3,7 @@ import { Spinner } from 'react-bootstrap';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { userApi } from 'app/shared/api';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { goodId, priceNum } from 'app/components/userComponents/card/ProductCard';
@@ -50,6 +51,7 @@ const sameSpecs = (a: string[] = [], b: string[] = []): boolean => a.length === 
  */
 const ProductDetailView: React.FC = () => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation('product');
   const navigate = useNavigate();
   const { id: routeId } = useParams<{ id: string }>();
   // Slugged URLs (`/product/123-some-name`, Wave-13) carry the id in the
@@ -203,7 +205,7 @@ const ProductDetailView: React.FC = () => {
   }
 
   if (!goods || goodId(goods) == null) {
-    return <div className='lm-pdp__center lm-pdp__notfound'>{errorMessage ?? 'Product not found.'}</div>;
+    return <div className='lm-pdp__center lm-pdp__notfound'>{errorMessage ?? t('notFound')}</div>;
   }
 
   const gid = goodId(goods);
@@ -285,7 +287,7 @@ const ProductDetailView: React.FC = () => {
           <button
             type='button'
             className='lm-pdp__stage'
-            aria-label='View image fullscreen'
+            aria-label={t('gallery.fullscreen')}
             onClick={() => setLightboxOpen(true)}
           >
             <img src={activeImage} alt={goods.goodsName} />
@@ -301,7 +303,7 @@ const ProductDetailView: React.FC = () => {
                   // The thumbnail is decorative (alt=''), so without a label on the
                   // button a screen reader announces only "button". The stage button
                   // above already carries one; these were missed.
-                  aria-label={`Show image ${i + 1} of ${gallery.length}`}
+                  aria-label={t('gallery.showImage', { n: i + 1, total: gallery.length })}
                   aria-pressed={img === activeImage}
                   onMouseEnter={() => setActiveImage(img)}
                   onClick={() => setActiveImage(img)}
@@ -315,7 +317,7 @@ const ProductDetailView: React.FC = () => {
 
         {/* Title / price / variants */}
         <section className='lm-pdp__info'>
-          {goods.hot && <span className='lm-pdp__popular'>Popular</span>}
+          {goods.hot && <span className='lm-pdp__popular'>{t('popular')}</span>}
           <h1 className='lm-pdp__title'>{goods.goodsName}</h1>
           <SoldByRow brandId={brandIdOf(goods)} />
           <EuStockBadge stock={euStock} />
@@ -329,10 +331,10 @@ const ProductDetailView: React.FC = () => {
             </span>
             {hasDiscount && (
               <span className='lm-pdp__orig'>
-                List Price: <s>{EURO}{moneyAmount(counter)}</s>
+                {t('listPrice')} <s>{EURO}{moneyAmount(counter)}</s>
               </span>
             )}
-            {goods.unit && <span className='lm-pdp__unit'>per {goods.unit}</span>}
+            {goods.unit && <span className='lm-pdp__unit'>{t('perUnit', { unit: goods.unit })}</span>}
           </div>
 
           {/* Claimable coupons, Amazon coupon-row style, tight under the price.
@@ -423,7 +425,7 @@ const ProductDetailView: React.FC = () => {
 
           {attributes && attributes.length > 0 && (
             <div className='lm-pdp__about'>
-              <h2>About this item</h2>
+              <h2>{t('about')}</h2>
               <ul>
                 {attributes.slice(0, 8).map((a, i) => (
                   <li key={`${a.attributeName}-${i}`}>
@@ -440,14 +442,16 @@ const ProductDetailView: React.FC = () => {
           <div className='lm-pdp__buyprice'>{EURO}{moneyAmount(retail)}</div>
           <div className={`lm-pdp__stock${inStock ? ' in' : ' out'}`}>
             {!onSale
-              ? 'Currently unavailable'
+              ? t('stock.unavailable')
               : inStock
-                ? `In stock${selectedSku ? ` · ${stock} available` : ''}`
-                : 'Out of stock'}
+                ? selectedSku
+                  ? t('stock.inStockCount', { count: stock })
+                  : t('stock.inStock')
+                : t('stock.outOfStock')}
           </div>
 
           <div className='lm-pdp__qty'>
-            <span>Qty</span>
+            <span>{t('qty')}</span>
             <button type='button' onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={quantity <= 1}>
               −
             </button>
@@ -464,10 +468,10 @@ const ProductDetailView: React.FC = () => {
           </div>
 
           <button type='button' className='lm-pdp__addcart' disabled={!inStock} onClick={handleAddToCart}>
-            <i className='bi bi-cart-plus me-1' /> Add to cart
+            <i className='bi bi-cart-plus me-1' /> {t('addToCart')}
           </button>
           <button type='button' className='lm-pdp__buynow' disabled={!inStock} onClick={handleBuyNow}>
-            Buy now
+            {t('buyNow')}
           </button>
 
           <CollectButton goodsId={gid} />
@@ -478,9 +482,9 @@ const ProductDetailView: React.FC = () => {
               is charged at checkout, so no "FREE delivery" claim. */}
           <dl className='lm-pdp__trust'>
             <div>
-              <dt>Delivery</dt>
+              <dt>{t('trust.delivery')}</dt>
               <dd>
-                <Link to='/help'>Varies by destination</Link>
+                <Link to='/help'>{t('trust.deliveryVaries')}</Link>
               </dd>
             </div>
             {/* Wave-28: origin is a MEASUREMENT, not branding. Both of these rows used
@@ -494,20 +498,20 @@ const ProductDetailView: React.FC = () => {
                 "Sold by" row is gone rather than restated here. */}
             {euStock && (
               <div>
-                <dt>Ships from</dt>
+                <dt>{t('trust.shipsFrom')}</dt>
                 <dd>{euOriginName(euStock)}</dd>
               </div>
             )}
             <div>
-              <dt>Returns</dt>
+              <dt>{t('trust.returns')}</dt>
               <dd>
-                <Link to='/returns'>30-day returns</Link>
+                <Link to='/returns'>{t('trust.returns30')}</Link>
               </dd>
             </div>
             <div>
-              <dt>Payment</dt>
+              <dt>{t('trust.payment')}</dt>
               <dd>
-                <i className='bi bi-shield-check' /> Secure transaction
+                <i className='bi bi-shield-check' /> {t('trust.secure')}
               </dd>
             </div>
           </dl>
@@ -518,7 +522,7 @@ const ProductDetailView: React.FC = () => {
           reviews, the Amazon PDP order. */}
       {related && related.length > 0 && (
         <section className='lm-pdp__related'>
-          <h3 className='lm-pdp__relatedtitle'>You may also like</h3>
+          <h3 className='lm-pdp__relatedtitle'>{t('related')}</h3>
           <div className='lm-pdp__relatedgrid'>
             {related
               .filter(r => goodId(r) !== gid)
@@ -534,10 +538,10 @@ const ProductDetailView: React.FC = () => {
       <div className='lm-pdp__tabs'>
         <div className='lm-pdp__tabbar'>
           <button type='button' className={tab === 'description' ? 'is-active' : ''} onClick={() => setTab('description')}>
-            Description
+            {t('tabs.description')}
           </button>
           <button type='button' className={tab === 'specs' ? 'is-active' : ''} onClick={() => setTab('specs')}>
-            Specifications {attributes?.length ? `(${attributes.length})` : ''}
+            {attributes?.length ? t('tabs.specsCount', { count: attributes.length }) : t('tabs.specs')}
           </button>
         </div>
 
@@ -549,7 +553,7 @@ const ProductDetailView: React.FC = () => {
                   key={src}
                   className='lm-pdp__detailimg'
                   src={src}
-                  alt={goods.goodsName ?? 'Product'}
+                  alt={goods.goodsName ?? t('imageAlt')}
                   loading='lazy'
                   onError={e => (e.currentTarget.style.display = 'none')}
                 />
@@ -557,7 +561,7 @@ const ProductDetailView: React.FC = () => {
             ) : briefText ? (
               <p>{briefText}</p>
             ) : (
-              <p className='text-muted'>No description provided.</p>
+              <p className='text-muted'>{t('noDescription')}</p>
             )}
           </div>
         )}
@@ -576,7 +580,7 @@ const ProductDetailView: React.FC = () => {
                 </tbody>
               </table>
             ) : (
-              <p className='text-muted'>No specifications listed for this product.</p>
+              <p className='text-muted'>{t('noSpecs')}</p>
             )}
           </div>
         )}
