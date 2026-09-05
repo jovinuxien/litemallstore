@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ICoupon, userApi } from 'app/shared/api';
 import { couponValueShort, isPercentCoupon } from 'app/shared/util/couponFormat';
 import { EURO } from 'app/shared/util/money';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Receivable-coupon strip on the detail page, mirroring litemall-vue's coupon
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const CouponStrip: React.FC<Props> = ({ goodsId }) => {
+  const { t } = useTranslation('product');
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
   const [claimed, setClaimed] = useState<Record<number, boolean>>({});
 
@@ -54,25 +56,25 @@ const CouponStrip: React.FC<Props> = ({ goodsId }) => {
       {coupons.map(c => (
         <button key={c.id} type='button' className='lm-pdp__coupon' onClick={() => claim(c)} disabled={c.id != null && claimed[c.id]}>
           <span className='lm-pdp__coupon-val'>
-            <i className='bi bi-tag-fill' /> Save {couponValueShort(c)}
+            <i className='bi bi-tag-fill' /> {t('couponStrip.save', { value: couponValueShort(c) })}
           </span>
           <span className='lm-pdp__coupon-min'>
-            {c.min ? `over ${EURO}${c.min}` : 'no minimum'}
-            {isPercentCoupon(c) && c.discountCap ? ` · up to ${EURO}${c.discountCap}` : ''}
+            {c.min ? t('couponStrip.over', { amount: `${EURO}${c.min}` }) : t('couponStrip.noMinimum')}
+            {isPercentCoupon(c) && c.discountCap ? ` · ${t('couponStrip.upTo', { amount: `${EURO}${c.discountCap}` })}` : ''}
           </span>
           <span className='lm-pdp__coupon-cta'>
             {c.id != null && claimed[c.id] ? (
               <>
-                <i className='bi bi-check-lg' /> Collected
+                <i className='bi bi-check-lg' /> {t('couponStrip.collected')}
               </>
             ) : (
-              'Claim coupon'
+              t('couponStrip.claim')
             )}
           </span>
         </button>
       ))}
       <Link to='/coupons' className='lm-pdp__coupon-all small text-decoration-none align-self-center flex-shrink-0'>
-        See all coupons <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
+        {t('couponStrip.seeAll')} <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
       </Link>
     </div>
   );

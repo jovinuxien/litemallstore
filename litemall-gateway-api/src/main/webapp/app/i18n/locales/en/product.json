@@ -1,0 +1,140 @@
+{
+  "card": {
+    "units": {
+      "d": "d",
+      "h": "h",
+      "m": "m"
+    },
+    "dealLabel": "Limited time deal",
+    "coupon": "Coupon",
+    "groupBuy": "Group buy",
+    "sold": "{{sold}} sold",
+    "list": "List:",
+    "endsIn": "⏱ Ends in {{remaining}}",
+    "claimed": "{{pct}}% claimed",
+    "euStockTitle": "In an EU warehouse at our last stock check.",
+    "euStock": "EU stock",
+    "freeShipping": "🚚 Free shipping",
+    "added": "Added ✓",
+    "addToCart": "Add to cart"
+  },
+  "rating": {
+    "aria": "{{rating}} of 5 stars",
+    "count_one": "{{count, number}} rating",
+    "count_other": "{{count, number}} ratings",
+    "ariaShort": "{{n}} of 5"
+  },
+  "notFound": "Product not found.",
+  "gallery": {
+    "fullscreen": "View image fullscreen",
+    "showImage": "Show image {{n}} of {{total}}",
+    "dialog": "Product images",
+    "close": "Close",
+    "previous": "Previous image",
+    "next": "Next image"
+  },
+  "popular": "Popular",
+  "listPrice": "List Price:",
+  "perUnit": "per {{unit}}",
+  "about": "About this item",
+  "stock": {
+    "unavailable": "Currently unavailable",
+    "inStockCount_one": "In stock · {{count}} available",
+    "inStockCount_other": "In stock · {{count}} available",
+    "inStock": "In stock",
+    "outOfStock": "Out of stock"
+  },
+  "qty": "Qty",
+  "addToCart": "Add to cart",
+  "buyNow": "Buy now",
+  "trust": {
+    "delivery": "Delivery",
+    "deliveryVaries": "Varies by destination",
+    "shipsFrom": "Ships from",
+    "returns": "Returns",
+    "returns30": "30-day returns",
+    "payment": "Payment",
+    "secure": "Secure transaction"
+  },
+  "related": "You may also like",
+  "tabs": {
+    "description": "Description",
+    "specsCount_one": "Specifications ({{count}})",
+    "specsCount_other": "Specifications ({{count}})",
+    "specs": "Specifications"
+  },
+  "imageAlt": "Product",
+  "noDescription": "No description provided.",
+  "noSpecs": "No specifications listed for this product.",
+  "breadcrumb": {
+    "aria": "Breadcrumb",
+    "home": "Home"
+  },
+  "collect": {
+    "saved": "Saved",
+    "save": "Save"
+  },
+  "faq": {
+    "title": "Common questions",
+    "more": "More in the help center",
+    "all": "Visit the help center"
+  },
+  "couponStrip": {
+    "save": "Save {{value}}",
+    "over": "over {{amount}}",
+    "noMinimum": "no minimum",
+    "upTo": "up to {{amount}}",
+    "collected": "Collected",
+    "claim": "Claim coupon",
+    "seeAll": "See all coupons"
+  },
+  "deal": {
+    "title": "Limited-time deal",
+    "endsIn": "Ends in {{clock}}",
+    "claimed": "{{pct}}% claimed"
+  },
+  "euStockTitle": "This item is held in an EU warehouse, so it does not ship from China.",
+  "groupBuy": {
+    "startFailed": "The group could not be started — please try again.",
+    "title": "Group buy {{price}}",
+    "perGroup_one": "{{count}} person per group",
+    "perGroup_other": "{{count}} people per group",
+    "continue": "Continue to checkout",
+    "starting": "Starting…",
+    "start": "Start a group",
+    "details": "Group details",
+    "held": "You hold a group slot — pick your options, then continue. The group price is applied at payment."
+  },
+  "recent": "Your recently viewed items",
+  "reviewForm": {
+    "failed": "Your review could not be submitted. Please try again.",
+    "thanks": "Thanks! Your review has been submitted.",
+    "ratingAria": "Rating",
+    "star_one": "{{count}} star",
+    "star_other": "{{count}} stars",
+    "placeholder": "Share your experience with this product…",
+    "submitting": "Submitting…",
+    "submit": "Submit review"
+  },
+  "reviews": {
+    "title": "Customer reviews",
+    "close": "Close",
+    "write": "Write a review",
+    "none": "No reviews yet. Be the first to review this product.",
+    "outOf5": "{{avg}} out of 5",
+    "breakdown": "Rating breakdown",
+    "starLabel": "{{star}} star",
+    "anonymous": "Anonymous",
+    "sellerResponse": "Seller response:",
+    "showMore": "Show more reviews"
+  },
+  "share": {
+    "copied": "Link copied",
+    "share": "Share"
+  },
+  "soldBy": {
+    "soldBy": "Sold by",
+    "moreFromStore": "More from this store",
+    "brand": "Brand:"
+  }
+}

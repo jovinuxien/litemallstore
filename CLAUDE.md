@@ -2317,9 +2317,35 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — i18n FOUNDATION (en/sv/da) SHIPPED + LIVE
-- **No active assignment.** Next natural task = i18n batch 2 (PDP + cards + search
-  rail; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — i18n BATCH 2 (PDP + cards + search rail) MERGED, deploy pending
+- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout +
+  delivery chooser + coupon cell; spec §5) — rewrite this block before launching it.
+- **Status 2026-09-05 — i18n BATCH 2 BUILT + MERGED to master.** ~90 string sites
+  across 23 files (spec §5 estimated ~30): `ProductCard`, `Detail.tsx` + 14 PDP
+  sub-components, `Search.tsx` + rail/tree/empty/unavailable states, `euStock.ts`.
+  New namespaces `product` + `search` (14 lazy sv/da chunks now); shared EU-warehouse
+  phrasing in `common:euStock.*` because batch 3's checkout badges read the same
+  helper. jest 48 suites / 331 tests (was 45/320), tsc 0, `i18n:check` 0, prod build
+  clean. As-built record: `litemall-gateway-api/docs/spec-i18n-foundation.md` §9.
+  **Live render check was done against PRODUCTION DATA, read-only:** no dev stack
+  was up, so the built bundle was served locally with a GET-only proxy of
+  `/srv`/`/auth`/`/_cdn` to trovemo.com and driven headless — PDP in sv, search +
+  zero-results in da/sv, home grid in sv all render translated, 0 page errors.
+  ⚠ Backend `sortOptions` labels and dynamic facet headings are SERVER strings:
+  known fields map to keys, anything else passes through VERBATIM (the
+  `describeError` rule) — never "fix" that into a hardcoded list. ⚠ react-instantsearch
+  `translations` props MUST be memoised on `t` (dequal compares functions by
+  reference — an inline object remounts the widget and refetches every render).
+  ⚠ `count` is i18next's plural trigger, not a free variable — a `{{count}}` key
+  without `_one/_other` fails `i18n:check`. ⚠ `pkill -f <pattern>` matches the Bash
+  tool's own shell and kills the session — kill by port (`ss -ltnp`) instead.
+  Seen live, NOT this batch: cookie banner still English (batch 6); the category
+  facet shows 3 raw ids whose leaves are missing from the catalog name map
+  (pre-existing, not a language issue). sv/da strings are MY drafts — native review
+  still user-side. **Deploy = gateway-api container rebuild only** (no migration, no
+  backend change, no reindex); env unchanged (`LITEMALL_I18N_LANGUAGES=en,sv,da` is
+  already live).
+- **Previous status (2026-09-04) — i18n FOUNDATION PHASE 1 SHIPPED + LIVE.**
 - **Status 2026-09-04 — i18n FOUNDATION PHASE 1 MERGED + DEPLOYED to trovemo.com
   with sv/da ENABLED** (master `4fca1ce06`; `.env.prod` `LITEMALL_I18N_LANGUAGES=
   en,sv,da`, backup `.env.prod.bak-i18n-2026-09-04`; container healthy in 13 s; live

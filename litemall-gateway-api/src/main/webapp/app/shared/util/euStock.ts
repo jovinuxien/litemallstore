@@ -13,15 +13,22 @@
  * products will legitimately show nothing. That is correct: the delivery claim is
  * per-SKU and per-measurement, never a storewide promise.
  */
+import { i18n, t } from 'app/i18n';
+
 
 export interface EuStock {
   units: number;
   countries: string[];
 }
 
-/** Country code -> the name a customer recognises. Only warehouses CJ actually stocks. */
-const COUNTRY_NAMES: Record<string, string> = {
-  DE: 'Germany',
+/**
+ * Country code -> the name a customer recognises, in the CURRENT locale. Only warehouses
+ * CJ actually stocks have an entry (`common:euStock.country.<ISO-2>`); anything else is
+ * null, never the raw code.
+ */
+const countryName = (code: string): string | null => {
+  const key = `common:euStock.country.${code.toUpperCase()}`;
+  return i18n.exists(key) ? t(key) : null;
 };
 
 /**
@@ -48,8 +55,8 @@ export const euStockOf = (data: { euStock?: { units?: number; countries?: string
  * measured.
  */
 export const euStockLabel = (stock: EuStock): string => {
-  const named = stock.countries.map(c => COUNTRY_NAMES[c.toUpperCase()]).filter(Boolean);
-  return named.length === 1 ? `Ships from ${named[0]}` : 'Ships from EU stock';
+  const named = stock.countries.map(countryName).filter((n): n is string => Boolean(n));
+  return named.length === 1 ? t('common:euStock.shipsFrom', { country: named[0] }) : t('common:euStock.shipsFromEu');
 };
 
 /**
@@ -64,8 +71,8 @@ export const euStockLabel = (stock: EuStock): string => {
  * replaced ("Trovemo") was already the wrong kind of guess.
  */
 export const euOriginName = (stock: EuStock): string => {
-  const named = stock.countries.map(c => COUNTRY_NAMES[c.toUpperCase()]).filter(Boolean);
-  return named.length === 1 ? named[0] : 'an EU warehouse';
+  const named = stock.countries.map(countryName).filter((n): n is string => Boolean(n));
+  return named.length === 1 ? named[0] : t('common:euStock.euWarehouse');
 };
 
 /**
@@ -81,5 +88,5 @@ export const euOriginName = (stock: EuStock): string => {
  */
 export const originCountryName = (code: string | null | undefined): string | null => {
   if (!code) return null;
-  return COUNTRY_NAMES[code.toUpperCase()] ?? null;
+  return countryName(code);
 };

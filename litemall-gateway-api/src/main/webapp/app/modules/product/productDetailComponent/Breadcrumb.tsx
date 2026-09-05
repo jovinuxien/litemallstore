@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { BASE_URL_CONTEXT } from 'app/config/api';
 import { baseAxios } from 'app/config/axiosinstance';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Amazon-style category trail above the title: `Home › L1 › L2 › leaf`, each
@@ -20,6 +21,7 @@ interface Props {
 type Node = { id: number; name: string };
 
 const Breadcrumb: React.FC<Props> = ({ categoryIds }) => {
+  const { t } = useTranslation('product');
   const leafId = (categoryIds ?? []).map(Number).filter(Number.isFinite).pop();
   const [crumbs, setCrumbs] = useState<Node[]>([]);
 
@@ -43,8 +45,8 @@ const Breadcrumb: React.FC<Props> = ({ categoryIds }) => {
   if (!crumbs.length) return null;
 
   return (
-    <nav className='lm-pdp__crumbs' aria-label='Breadcrumb'>
-      <Link to='/'>Home</Link>
+    <nav className='lm-pdp__crumbs' aria-label={t('breadcrumb.aria')}>
+      <Link to='/'>{t('breadcrumb.home')}</Link>
       {crumbs.map(c => (
         <React.Fragment key={c.id}>
           <span className='lm-pdp__crumbsep' aria-hidden='true'>
