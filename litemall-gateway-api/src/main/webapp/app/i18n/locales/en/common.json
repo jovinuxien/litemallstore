@@ -128,5 +128,13 @@
     "home": "Home page",
     "allProducts": "All products",
     "todaysDeals": "Today’s Deals"
+  },
+  "euStock": {
+    "shipsFrom": "Ships from {{country}}",
+    "shipsFromEu": "Ships from EU stock",
+    "euWarehouse": "an EU warehouse",
+    "country": {
+      "DE": "Germany"
+    }
   }
 }

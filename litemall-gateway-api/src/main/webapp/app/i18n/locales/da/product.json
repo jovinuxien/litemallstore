@@ -1,0 +1,140 @@
+{
+  "card": {
+    "units": {
+      "d": "d",
+      "h": "t",
+      "m": "min"
+    },
+    "dealLabel": "Tidsbegrænset tilbud",
+    "coupon": "Rabatkode",
+    "groupBuy": "Gruppekøb",
+    "sold": "{{sold}} solgt",
+    "list": "Normalpris:",
+    "endsIn": "⏱ Slutter om {{remaining}}",
+    "claimed": "{{pct}} % udnyttet",
+    "euStockTitle": "Var på et EU-lager ved vores seneste lagertjek.",
+    "euStock": "EU-lager",
+    "freeShipping": "🚚 Gratis fragt",
+    "added": "Tilføjet ✓",
+    "addToCart": "Læg i kurv"
+  },
+  "rating": {
+    "aria": "{{rating}} ud af 5 stjerner",
+    "count_one": "{{count, number}} bedømmelse",
+    "count_other": "{{count, number}} bedømmelser",
+    "ariaShort": "{{n}} ud af 5"
+  },
+  "notFound": "Produktet blev ikke fundet.",
+  "gallery": {
+    "fullscreen": "Vis billedet i fuld skærm",
+    "showImage": "Vis billede {{n}} af {{total}}",
+    "dialog": "Produktbilleder",
+    "close": "Luk",
+    "previous": "Forrige billede",
+    "next": "Næste billede"
+  },
+  "popular": "Populær",
+  "listPrice": "Normalpris:",
+  "perUnit": "pr. {{unit}}",
+  "about": "Om produktet",
+  "stock": {
+    "unavailable": "Ikke tilgængelig lige nu",
+    "inStockCount_one": "På lager · {{count}} tilgængelig",
+    "inStockCount_other": "På lager · {{count}} tilgængelige",
+    "inStock": "På lager",
+    "outOfStock": "Udsolgt"
+  },
+  "qty": "Antal",
+  "addToCart": "Læg i kurv",
+  "buyNow": "Køb nu",
+  "trust": {
+    "delivery": "Levering",
+    "deliveryVaries": "Afhænger af destinationen",
+    "shipsFrom": "Sendes fra",
+    "returns": "Returnering",
+    "returns30": "30 dages returret",
+    "payment": "Betaling",
+    "secure": "Sikker betaling"
+  },
+  "related": "Du vil måske også synes om",
+  "tabs": {
+    "description": "Beskrivelse",
+    "specsCount_one": "Specifikationer ({{count}})",
+    "specsCount_other": "Specifikationer ({{count}})",
+    "specs": "Specifikationer"
+  },
+  "imageAlt": "Produkt",
+  "noDescription": "Ingen beskrivelse tilgængelig.",
+  "noSpecs": "Der er ikke angivet specifikationer for dette produkt.",
+  "breadcrumb": {
+    "aria": "Brødkrumme",
+    "home": "Forside"
+  },
+  "collect": {
+    "saved": "Gemt",
+    "save": "Gem"
+  },
+  "faq": {
+    "title": "Ofte stillede spørgsmål",
+    "more": "Mere i hjælpecentret",
+    "all": "Besøg hjælpecentret"
+  },
+  "couponStrip": {
+    "save": "Spar {{value}}",
+    "over": "ved køb over {{amount}}",
+    "noMinimum": "intet minimumsbeløb",
+    "upTo": "op til {{amount}}",
+    "collected": "Hentet",
+    "claim": "Hent rabatkode",
+    "seeAll": "Se alle rabatkoder"
+  },
+  "deal": {
+    "title": "Tidsbegrænset tilbud",
+    "endsIn": "Slutter om {{clock}}",
+    "claimed": "{{pct}} % udnyttet"
+  },
+  "euStockTitle": "Denne vare ligger på et EU-lager og sendes derfor ikke fra Kina.",
+  "groupBuy": {
+    "startFailed": "Gruppen kunne ikke startes – prøv igen.",
+    "title": "Gruppekøb {{price}}",
+    "perGroup_one": "{{count}} person pr. gruppe",
+    "perGroup_other": "{{count}} personer pr. gruppe",
+    "continue": "Fortsæt til kassen",
+    "starting": "Starter…",
+    "start": "Start en gruppe",
+    "details": "Om gruppekøbet",
+    "held": "Du har en plads i en gruppe – vælg dine valgmuligheder, og fortsæt derefter. Gruppeprisen trækkes ved betalingen."
+  },
+  "recent": "Senest viste produkter",
+  "reviewForm": {
+    "failed": "Din anmeldelse kunne ikke sendes. Prøv igen.",
+    "thanks": "Tak! Din anmeldelse er sendt.",
+    "ratingAria": "Bedømmelse",
+    "star_one": "{{count}} stjerne",
+    "star_other": "{{count}} stjerner",
+    "placeholder": "Fortæl om din oplevelse med produktet…",
+    "submitting": "Sender…",
+    "submit": "Send anmeldelse"
+  },
+  "reviews": {
+    "title": "Kundeanmeldelser",
+    "close": "Luk",
+    "write": "Skriv en anmeldelse",
+    "none": "Ingen anmeldelser endnu. Bliv den første til at anmelde produktet.",
+    "outOf5": "{{avg}} ud af 5",
+    "breakdown": "Fordeling af bedømmelser",
+    "starLabel": "{{star}} stjerner",
+    "anonymous": "Anonym",
+    "sellerResponse": "Svar fra sælger:",
+    "showMore": "Vis flere anmeldelser"
+  },
+  "share": {
+    "copied": "Link kopieret",
+    "share": "Del"
+  },
+  "soldBy": {
+    "soldBy": "Sælges af",
+    "moreFromStore": "Mere fra denne butik",
+    "brand": "Mærke:"
+  }
+}

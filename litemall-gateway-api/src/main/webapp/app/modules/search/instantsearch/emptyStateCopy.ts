@@ -12,6 +12,8 @@
  * category filtered down to zero by a price refinement is a filter miss, not a
  * retired department.
  */
+import { t } from 'app/i18n';
+
 export interface EmptyStateContext {
   /** Set on the /category/:id landing; absent on plain /search. */
   categoryId?: string | null;
@@ -44,27 +46,15 @@ export const hasRefinements = (uiState: Record<string, unknown> | null | undefin
 export const emptyStateCopy = ({ categoryId, query, refined }: EmptyStateContext): EmptyStateCopy => {
   const q = (query ?? '').trim();
   if (q) {
-    return {
-      title: `No results for “${q}”`,
-      body: 'Check the spelling or try a different term — or start from one of these.',
-    };
+    return { title: t('search:empty.queryTitle', { query: q }), body: t('search:empty.queryBody') };
   }
   if (refined) {
-    return {
-      title: 'No products match these filters',
-      body: 'Clear a filter to widen the results — or start from one of these.',
-    };
+    return { title: t('search:empty.filtersTitle'), body: t('search:empty.filtersBody') };
   }
   if (categoryId) {
     // Says only what is true of every empty department, retired or simply
     // sold out, and never claims a delivery or restock we have not measured.
-    return {
-      title: 'Nothing in this department right now',
-      body: 'Trovemo now focuses on home, garden and tools — here is what we stock today.',
-    };
+    return { title: t('search:empty.departmentTitle'), body: t('search:empty.departmentBody') };
   }
-  return {
-    title: 'No products found',
-    body: 'Check the spelling or try a different term — or start from one of these.',
-  };
+  return { title: t('search:empty.plainTitle'), body: t('search:empty.plainBody') };
 };

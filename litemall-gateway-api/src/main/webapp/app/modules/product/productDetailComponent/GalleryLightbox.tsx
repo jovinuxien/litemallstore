@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Fullscreen gallery viewer (Amazon's click-to-zoom equivalent, no deps):
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const GalleryLightbox: React.FC<Props> = ({ images, current, onSelect, onClose }) => {
+  const { t } = useTranslation('product');
   const idx = Math.max(0, images.indexOf(current));
   const step = useCallback(
     (delta: number) => {
@@ -35,19 +37,19 @@ const GalleryLightbox: React.FC<Props> = ({ images, current, onSelect, onClose }
   if (!images.length) return null;
 
   return (
-    <div className='lm-pdp__lightbox' role='dialog' aria-modal='true' aria-label='Product images' onClick={onClose}>
+    <div className='lm-pdp__lightbox' role='dialog' aria-modal='true' aria-label={t('gallery.dialog')} onClick={onClose}>
       <div className='lm-pdp__lightbox-body' onClick={e => e.stopPropagation()}>
-        <button type='button' className='lm-pdp__lightbox-close' aria-label='Close' onClick={onClose}>
+        <button type='button' className='lm-pdp__lightbox-close' aria-label={t('gallery.close')} onClick={onClose}>
           <i className='bi bi-x-lg' />
         </button>
         {images.length > 1 && (
-          <button type='button' className='lm-pdp__lightbox-nav prev' aria-label='Previous image' onClick={() => step(-1)}>
+          <button type='button' className='lm-pdp__lightbox-nav prev' aria-label={t('gallery.previous')} onClick={() => step(-1)}>
             <i className='bi bi-chevron-left' />
           </button>
         )}
         <img src={images[idx]} alt='' />
         {images.length > 1 && (
-          <button type='button' className='lm-pdp__lightbox-nav next' aria-label='Next image' onClick={() => step(1)}>
+          <button type='button' className='lm-pdp__lightbox-nav next' aria-label={t('gallery.next')} onClick={() => step(1)}>
             <i className='bi bi-chevron-right' />
           </button>
         )}
