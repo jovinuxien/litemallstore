@@ -20,7 +20,7 @@ const Entry: React.FC<{ entry: FaqEntry }> = ({ entry }) => (
       <i className='bi bi-question-circle me-2 text-primary' />
       {entry.q}
     </div>
-    <div className='text-muted'>{entry.a}</div>
+    <div>{entry.a}</div>
     {entry.links && entry.links.length > 0 && (
       <div className='small mt-1'>
         {entry.links.map((l, i) => (
@@ -56,8 +56,8 @@ const Help: React.FC = () => {
   );
 
   return (
-    <div className='container my-4' style={{ maxWidth: 720 }}>
-      <h1 className='h4 mb-3'>Help center</h1>
+    <div className='container my-4 lm-doc' style={{ maxWidth: 720 }}>
+      <h1 className='mb-3'>Help center</h1>
 
       <div className='input-group mb-4'>
         <span className='input-group-text'>
@@ -74,14 +74,14 @@ const Help: React.FC = () => {
       </div>
 
       {sections.length === 0 && (
-        <p className='text-muted'>
+        <p>
           No help entries match “{filter}”. Try another word, or use the contact options below.
         </p>
       )}
 
       {sections.map(s => (
         <section key={s.id} id={s.id} className='mb-4'>
-          <h2 className='h6 text-uppercase text-muted'>
+          <h2 className='mt-4'>
             <i className={`bi ${s.icon} me-2`} aria-hidden='true' />
             {s.title}
           </h2>
@@ -93,8 +93,8 @@ const Help: React.FC = () => {
 
       <div className='card mt-4'>
         <div className='card-body'>
-          <h2 className='h6 mb-2'>Still stuck?</h2>
-          <p className='text-muted small mb-2'>These pages solve most problems directly:</p>
+          <h2 className='mb-2'>Still stuck?</h2>
+          <p className='mb-2'>These pages solve most problems directly:</p>
           <ul className='small mb-3'>
             <li>
               <Link to='/orders'>My orders</Link> — order status, timeline, tracking, cancel, and
