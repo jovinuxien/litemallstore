@@ -151,6 +151,15 @@ public class CustomerMailEnqueueListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
+    public void onStrayPaymentRefunded(
+            org.linlinjava.litemall.order.domain.events.payment.LitemallStrayPaymentRefundedEvent event) {
+        // The amount comes from the event (what Stripe actually reversed), not from the
+        // order row — the order's own refund_amount belongs to its real refund path.
+        String amount = event.getAmount() == null ? "" : CURRENCY_SYMBOL + event.getAmount().setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        submit(event.getOrderId().getId(), (order, email) -> enqueuePaymentRefundedMail(order, email, amount));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onOrderRefunded(LitemallOrderRefundedEvent event) {
         submit(event.getOrderId().getId(), this::enqueueRefundApprovedMail);
     }
@@ -341,6 +350,11 @@ public class CustomerMailEnqueueListener {
         return base.isEmpty() ? "" : base + "/mail-logo.png";
     }
 
+    /** The storefront home — the CTA of a mail about an order that no longer exists to view. */
+    private String storeUrl() {
+        return baseUrl();
+    }
+
     private String deliveryBlock(LitemallOrderAggregate order) {
         if (order.isPickup()) {
             return "Pickup at: " + pickupLocation(order)
@@ -447,6 +461,12 @@ public class CustomerMailEnqueueListener {
         insertRow(email, MailTemplates.refundApproved(order.getOrderSn(), refundAmount),
                 safeHtml(order, "refund-approved", () -> MailHtmlTemplates.refundApproved(
                         order.getOrderSn(), refundAmount, orderUrl(order), logoUrl())));
+    }
+
+    private void enqueuePaymentRefundedMail(LitemallOrderAggregate order, String email, String amount) {
+        insertRow(email, MailTemplates.paymentRefunded(order.getOrderSn(), amount),
+                safeHtml(order, MailTemplates.KEY_PAYMENT_REFUNDED, () -> MailHtmlTemplates.paymentRefunded(
+                        order.getOrderSn(), amount, storeUrl(), logoUrl())));
     }
 
     /** Pickup orders store {@code "PICKUP: <store name>"} in the address column. */

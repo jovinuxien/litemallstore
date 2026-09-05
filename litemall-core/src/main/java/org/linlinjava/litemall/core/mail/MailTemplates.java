@@ -19,6 +19,7 @@ public final class MailTemplates {
     public static final String KEY_REFUND_APPROVED = "refund-approved";
     public static final String KEY_PICKUP_CODE = "pickup-code";
     public static final String KEY_PASSWORD_RESET = "password-reset";
+    public static final String KEY_PAYMENT_REFUNDED = "payment-refunded";
 
     /** A rendered mail: the template key plus the finished subject and plain-text body. */
     public record RenderedMail(String templateKey, String subject, String body) {
@@ -118,6 +119,22 @@ public final class MailTemplates {
         }
         body.append("\nYou can follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
         return new RenderedMail(KEY_SHIPPED, subject, body.toString());
+    }
+
+    /**
+     * A payment that landed after the order could no longer accept it (cancelled for
+     * non-payment before an asynchronous method settled, or a second charge on an order
+     * already paid) was reversed automatically. {@code amount} is already formatted.
+     */
+    public static RenderedMail paymentRefunded(String orderSn, String amount) {
+        String subject = "Your payment for order " + nz(orderSn) + " has been refunded";
+        String body = "We received a payment of " + nz(amount) + " for order " + nz(orderSn)
+                + " after the order could no longer be completed, so we have refunded it in full.\n\n"
+                + "The refund goes back to the payment method you used. Depending on your bank it can take "
+                + "a few working days to appear on your statement. Nothing will be shipped for this payment.\n\n"
+                + "If you still want the items, simply place a new order.\n\n"
+                + FOOTER;
+        return new RenderedMail(KEY_PAYMENT_REFUNDED, subject, body);
     }
 
     public static RenderedMail refundApproved(String orderSn, String refundAmount) {

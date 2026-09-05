@@ -44,13 +44,23 @@ class MailHtmlTemplateTest {
                 ORDER_URL, LOGO_URL);
     }
 
-    /** All four customer templates, rendered with realistic input. */
+    /** All five customer templates, rendered with realistic input. */
     private static List<String> allTemplates() {
         return List.of(
                 MailHtmlTemplates.orderConfirmation(confirmation()),
                 MailHtmlTemplates.shipped("20260826000042", "CJPacket", "CJ123456789DE", ORDER_URL, LOGO_URL),
                 MailHtmlTemplates.pickupCode("20260826000042", "Trovemo Store, Paris", "482913", ORDER_URL, LOGO_URL),
-                MailHtmlTemplates.refundApproved("20260826000042", "€44.16", ORDER_URL, LOGO_URL));
+                MailHtmlTemplates.refundApproved("20260826000042", "€44.16", ORDER_URL, LOGO_URL),
+                MailHtmlTemplates.paymentRefunded("20260826000042", "€8.58", "https://trovemo.com", LOGO_URL));
+    }
+
+    @Test
+    void paymentRefunded_saysNothingShips_andSendsTheCustomerBackToTheStore() {
+        String html = MailHtmlTemplates.paymentRefunded("SN1", "€8.58", "https://trovemo.com", LOGO_URL);
+
+        assertThat(html).contains("€8.58").contains("Nothing will be shipped").contains("place a new order");
+        assertThat(html).contains("href=\"https://trovemo.com\"").contains("Shop again");
+        assertThat(html).doesNotContain("View your order"); // there is no order to view
     }
 
     // ------------------------------------------------------------------

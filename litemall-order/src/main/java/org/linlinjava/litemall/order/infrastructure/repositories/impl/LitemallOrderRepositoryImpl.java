@@ -306,6 +306,21 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         return litemallOrderMapper.updateByExampleSelective(patch, example);
     }
 
+    @Override
+    public int recordPaymentIntentIfCreated(LitemallOrderId orderId, String paymentIntentId) {
+        if (paymentIntentId == null || paymentIntentId.isBlank()) {
+            return 0;
+        }
+        LitemallOrder patch = new LitemallOrder();
+        patch.setPaymentIntentId(paymentIntentId);
+        patch.setUpdateTime(LocalDateTime.now());
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.createCriteria()
+                .andIdEqualTo(orderId.getId())
+                .andOrderStatusEqualTo(LitemallOrderStatus.CREATED.getCode());
+        return litemallOrderMapper.updateByExampleSelective(patch, example);
+    }
+
     /**
      * Shared helper for the guarded transitions: apply {@code patch} only to a row of
      * {@code orderId} currently in one of {@code fromStatuses}. Returns rows updated

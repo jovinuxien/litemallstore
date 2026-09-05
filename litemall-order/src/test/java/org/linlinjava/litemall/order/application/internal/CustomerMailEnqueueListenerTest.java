@@ -134,6 +134,28 @@ class CustomerMailEnqueueListenerTest {
      * dollar amount. The two SPAs were swept then; these bodies were not, and a customer
      * charged EUR was reading "$" in the confirmation. Pins BOTH mails this event raises.
      */
+    /** D1 of the lifecycle plan: the stray-payment refund tells the customer, with the amount Stripe reversed. */
+    @Test
+    void strayPaymentRefunded_enqueuesThePaymentRefundedMail_withTheEventAmount() {
+        LitemallOrderAggregate order = order(42);
+        order.setActualPrice(money("99.99")); // deliberately NOT the refunded amount
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onStrayPaymentRefunded(
+                new org.linlinjava.litemall.order.domain.events.payment.LitemallStrayPaymentRefundedEvent(
+                        new LitemallOrderId(42), "pi_late", new BigDecimal("8.58"), "re_9", "SYSTEM_CANCELED"));
+
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        LitemallMailOutbox row = captor.getValue();
+        assertThat(row.getRecipient()).isEqualTo("buyer@example.com");
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_PAYMENT_REFUNDED);
+        assertThat(row.getSubject()).contains("20260726000042").contains("refunded");
+        assertThat(row.getBody()).contains("\u20ac8.58").doesNotContain("99.99");
+        assertThat(row.getBodyHtml()).contains("\u20ac8.58").contains("Nothing will be shipped");
+    }
+
     @Test
     void paidMails_renderStoreCurrency_neverDollars() {
         LitemallOrderAggregate order = order(42);

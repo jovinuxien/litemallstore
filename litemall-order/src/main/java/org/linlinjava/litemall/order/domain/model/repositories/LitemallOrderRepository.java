@@ -77,6 +77,17 @@ public interface LitemallOrderRepository {
     int markPaidIfCreated(LitemallOrderId orderId, String payId, String paymentIntentId);
 
     /**
+     * Record the PaymentIntent minted for an order STILL IN CREATED, so the unpaid-order
+     * sweep can reconcile with (and cancel at) the PSP before cancelling the order
+     * (plan-order-lifecycle-e2e.md, package A). Latest intent wins — a retried checkout
+     * mints a new one and the previous is cancelled at the PSP by the caller. The UNIQUE
+     * index on the column still forbids one intent on two orders. Returns rows updated
+     * (0 when the order left CREATED meanwhile — the caller must not hand out a client
+     * secret for an order that can no longer be paid).
+     */
+    int recordPaymentIntentIfCreated(LitemallOrderId orderId, String paymentIntentId);
+
+    /**
      * Guarded status transitions. Each mirrors {@link #markPaidIfCreated}: the UPDATE
      * only matches a row in the expected source status, so concurrent/duplicate
      * transitions affect 0 rows (the caller treats that as a clean conflict). They

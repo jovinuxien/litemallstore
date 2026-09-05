@@ -1535,8 +1535,52 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — idle (unpaid-sweep loop FIXED 2026-08-27)
-- **No active assignment.**
+### Worktree: `order` — ACTIVE: order lifecycle end-to-end fix (plan approved 2026-09-05)
+- **Task — order lifecycle E2E (user-commissioned 2026-09-05, all six decisions
+  approved).** Code to `litemall-order/docs/plan-order-lifecycle-e2e.md` (the
+  contract: findings F1–F18, packages A→B→C, raises D). Decisions: D1 late
+  payment on a cancelled order = automatic Stripe refund (+hop +customer mail);
+  D2 CJ-cancelled paid order = automatic customer mail, NO money movement; D3
+  stalled placements park after 24 h; D4 customer "withdraw refund request"
+  action; D5 no automatic CJ dispute on local refund (separate decision); D6
+  prod sets `CJ_OPS_MAIL` — MAIN-session deploy step (worktrees never touch the
+  VPS). Package A (payment money-safety) ships and merges FIRST, alone.
+- **Acceptance:** as written in the plan §4 — per package, module tests green
+  with real "Tests run:" counts (baseline 298 / 0), dev acceptance through
+  :9000/:8090/:18080, and the first real prod EUR order after deploy is
+  USER-SIDE.
+- **Status 2026-09-05 — PACKAGE A BUILT (payment money-safety, F1/F2).** Module
+  suite **342 run / 0 failures** (+44). Design: `adr-stripe-payments.md` §11.
+  What changed: the PaymentIntent id is now RECORDED AT MINT (CREATED-guarded;
+  a re-mint settles a succeeded previous intent / refuses on processing /
+  cancels a pending one at Stripe); the unpaid sweep is now
+  `UnpaidOrderTaskScheduler` (task rows only) + `UnpaidOrderReconciler`
+  (SUCCEEDED ⇒ settle via `settleVerifiedPspPayment`, PROCESSING ⇒ defer 60
+  min, UNAVAILABLE ⇒ defer 5 min, PENDING ⇒ cancel AT STRIPE first, then the
+  order); stray charges (webhook OR `/actions/pay` on a cancelled/already-paid
+  order) are REFUNDED under `refund-order-<id>-<intent>` + hop
+  `payment_refunded_stray` + customer mail `payment-refunded` (core
+  MailTemplates/MailHtmlTemplates — shared-module rebuild discipline applies);
+  a refused refund commits a `payment_stray_unrefunded` hop + ops mail; a
+  transient verify failure throws `LitemallPaymentTemporarilyUnavailableException`
+  → webhook answers **503** (claim rolled back, Stripe redelivers). Knobs
+  `litemall.order.unpaid-reconcile.{processing,unavailable}-defer-minutes`
+  (env `LITEMALL_ORDER_UNPAID_*_DEFER_MINUTES`). NO migration.
+  ⚠ The orchestrator is injected `@Lazy` into the reconciler (scheduler →
+  reconciler → orchestrator → scheduler cycle) — dev boot on :18085 proved the
+  context starts (17 s, Flyway validated 65, schedulers up). ⚠ `@Transactional
+  (noRollbackFor = LitemallPaymentGatewayException)` on `createPaymentIntent`
+  is load-bearing: the "already paid" refusal must NOT roll back the settlement
+  it just made. ⚠ `settleVerifiedPspPayment` must never touch the task table
+  (the sweep holds `FOR UPDATE SKIP LOCKED` on it) — the sweep deletes its own
+  rows. ⚠ Mockito here has no `verifyNoInteractions`; `argThat` lambdas in a
+  second `when()` see null. Live Stripe test-mode probe =
+  `StripePaymentGatewayAdapterLiveIT` (opt-in via `STRIPE_TEST_SECRET_KEY`; no
+  test key exists in the repo). RAISED for gateway-api: `StripeCardForm`
+  treats a `processing` intent (SEPA) as "not completed" and `return_url:
+  /orders` never reconciles a redirect return — the backend now survives both,
+  the SPA copy is still wrong. Deploy: order container + every litemall-core
+  dependent (template classes changed); D6 `CJ_OPS_MAIL` env at the same time.
 - **Status 2026-08-27 — UNPAID-ORDER SWEEP LOOP: cancelled orders no longer
   retried forever.** Branch commit `01a7bc77e`; module tests 298 run / 0
   failures (was 291, +7 new). Found while verifying the mail deploy: prod had
