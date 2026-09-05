@@ -1,0 +1,40 @@
+{
+  "center": {
+    "title": "Rabatkoder",
+    "claimFailed": "Rabatkoden kunne ikke hentes.",
+    "subAuth": "Hent en rabatkode nedenfor, og vælg den derefter ved kassen. <1>Mine rabatkoder</1> · <2>Find produkter med rabatkode</2>",
+    "subGuest": "Hent en rabatkode, så bruges den fra din konto ved kassen. <1>Log ind</1> for at hente. <2>Find produkter med rabatkode</2>",
+    "empty": "Ingen rabatkoder lige nu – kig forbi igen snart.",
+    "offYourOrder": "rabat på din ordre",
+    "off": "rabat",
+    "claiming": "Henter…",
+    "claimed": "Hentet ✓",
+    "claim": "Hent",
+    "signInToClaim": "Log ind for at hente",
+    "viewMine": "Mine rabatkoder"
+  },
+  "format": {
+    "shopStore": "Shop i butikken",
+    "capParen": " (op til {{amount}})",
+    "percentOff": "{{rate}} % rabat",
+    "flatOff": "{{amount}} rabat",
+    "spend": "Køb for {{amount}}",
+    "noMinimum": "Intet minimumsbeløb",
+    "upTo": "op til {{amount}}",
+    "pickerOver": " (ved køb over {{amount}})",
+    "pickerPercentCap": " · procentrabat, op til {{amount}}",
+    "pickerPercent": " · procentrabat",
+    "shopEligible": "Se produkter, der er omfattet",
+    "viewEligible": "Se produktet, der er omfattet",
+    "shopAll": "Se alle produkter"
+  },
+  "mine": {
+    "unused": "Ubrugte",
+    "used": "Brugte",
+    "expired": "Udløbne",
+    "title": "Mine rabatkoder",
+    "sub": "Hent flere under <1>rabatkoder</1>.",
+    "empty": "Ingen rabatkoder her.",
+    "browse": "Gå til rabatkoderne"
+  }
+}

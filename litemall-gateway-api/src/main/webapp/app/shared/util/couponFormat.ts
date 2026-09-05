@@ -1,4 +1,5 @@
 import { ICoupon, userApi } from 'app/shared/api';
+import { t } from 'app/i18n';
 import { EURO } from 'app/shared/util/money';
 
 /**
@@ -18,7 +19,7 @@ import { EURO } from 'app/shared/util/money';
 
 export const isPercentCoupon = (c: ICoupon): boolean => c.discountType === 1;
 
-const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? ` (up to ${EURO}${c.discountCap})` : '');
+const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? t('coupon:format.capParen', { amount: `${EURO}${c.discountCap}` }) : '');
 
 /** Compact value for card/strip headings: "15%" or "€5". */
 export const couponValueShort = (c: ICoupon): string =>
@@ -26,11 +27,11 @@ export const couponValueShort = (c: ICoupon): string =>
 
 /** Full sentence label: "15% off (up to €20)" or "€5 off". */
 export const couponDiscountLabel = (c: ICoupon): string =>
-  isPercentCoupon(c) ? `${c.discount ?? 0}% off${cap(c)}` : `${EURO}${c.discount ?? 0} off`;
+  isPercentCoupon(c) ? `${t('coupon:format.percentOff', { rate: c.discount ?? 0 })}${cap(c)}` : t('coupon:format.flatOff', { amount: `${EURO}${c.discount ?? 0}` });
 
 /** Threshold line: "Spend €50" / "No minimum", with the percent cap appended. */
 export const couponConditionLabel = (c: ICoupon): string =>
-  `${c.min ? `Spend ${EURO}${c.min}` : 'No minimum'}${isPercentCoupon(c) && c.discountCap ? ` · up to ${EURO}${c.discountCap}` : ''}`;
+  `${c.min ? t('coupon:format.spend', { amount: `${EURO}${c.min}` }) : t('coupon:format.noMinimum')}${isPercentCoupon(c) && c.discountCap ? ` · ${t('coupon:format.upTo', { amount: `${EURO}${c.discountCap}` })}` : ''}`;
 
 /**
  * Checkout-picker option text. `c` comes from selectlist, so `discount` is the
@@ -39,8 +40,12 @@ export const couponConditionLabel = (c: ICoupon): string =>
  */
 export const couponPickerLabel = (c: ICoupon): string => {
   const name = c.name ? `${c.name} — ` : '';
-  const min = c.min ? ` (over ${EURO}${c.min})` : '';
-  const kind = isPercentCoupon(c) ? ` · percent coupon${c.discountCap ? `, up to ${EURO}${c.discountCap}` : ''}` : '';
+  const min = c.min ? t('coupon:format.pickerOver', { amount: `${EURO}${c.min}` }) : '';
+  const kind = isPercentCoupon(c)
+    ? c.discountCap
+      ? t('coupon:format.pickerPercentCap', { amount: `${EURO}${c.discountCap}` })
+      : t('coupon:format.pickerPercent')
+    : '';
   return `${name}−${EURO}${c.discount}${min}${kind}`;
 };
 
@@ -48,16 +53,16 @@ export const couponPickerLabel = (c: ICoupon): string => {
 export const couponScopeLink = (c: ICoupon): { to: string; label: string } => {
   const ids = Array.isArray(c.goodsValue) ? c.goodsValue.filter(id => Number.isFinite(id)) : [];
   if (c.goodsType === 1 && ids.length > 0) {
-    return { to: `/category/${ids[0]}`, label: 'Shop eligible items' };
+    return { to: `/category/${ids[0]}`, label: t('coupon:format.shopEligible') };
   }
   if (c.goodsType === 2 && ids.length === 1) {
-    return { to: `/product/${ids[0]}`, label: 'View eligible product' };
+    return { to: `/product/${ids[0]}`, label: t('coupon:format.viewEligible') };
   }
   if (c.goodsType === 2 && ids.length > 1) {
     // No multi-goods landing exists; search is the honest fallback.
-    return { to: '/search', label: 'Shop the store' };
+    return { to: '/search', label: t('coupon:format.shopStore') };
   }
-  return { to: '/search', label: 'Shop all products' };
+  return { to: '/search', label: t('coupon:format.shopAll') };
 };
 
 /**
