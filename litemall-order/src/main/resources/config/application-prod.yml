@@ -32,6 +32,16 @@ logging:
     # into container logs, which are plain text on the host and go to anyone with
     # `docker logs`. INFO here.
     org.springframework.web: INFO
+    # ⚠ SEPARATE KEY ON PURPOSE. application.yml:376 sets org.linlinjava.litemall.db:
+    # DEBUG = every MyBatis statement WITH its bound parameters — for this service
+    # that is customer name, address, phone, email and Stripe intent ids, in plain
+    # text under `docker logs`. Spring resolves the MOST SPECIFIC logger key, so the
+    # package-level INFO above cannot hold it down (the goods-management lesson of
+    # 2026-08-15: 611 MB in two hours). No file appender here, so no OOM vector —
+    # but the SQL evicts real ERRORs from the json-file rotation within minutes.
+    # The compose passthrough LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB makes this
+    # effective by recreate alone; this line makes it hold without the env.
+    org.linlinjava.litemall.db: INFO
 
 management:
   endpoints:

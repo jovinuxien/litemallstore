@@ -789,9 +789,12 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
 
     /**
      * Customer-initiated cancellation (CREATED → CANCELED). Applies the guarded
-     * status update, records the transition to the history timeline, releases
-     * reserved stock (best-effort) and publishes the resulting domain events — all
-     * in one transaction.
+     * status update, records the transition to the history timeline and publishes
+     * the resulting domain events — all in one transaction. The reserved stock is
+     * released (best-effort) only once that transaction COMMITS: the restore is a
+     * remote call that commits in goods-management on its own, so doing it inline
+     * and then rolling back here would leave the order CREATED with its quantities
+     * also back on sale — oversold by exactly this order.
      */
     public void cancelOrder(LitemallOrderId orderId, String reason) {
         LitemallOrderAggregate orderAggregate = orderRepository.findById(orderId)
@@ -802,7 +805,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
             throw new IllegalStateException(
                     "Order " + orderId.getId() + " can no longer be cancelled (already paid/cancelled)");
         }
-        restoreStockForOrder(orderId);
+        restoreStockOnCancelCommit(orderId);
         cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "customer cancel");
         releaseCouponOnCancelCommit(orderAggregate);
         releasePinkOnCancelCommit(orderAggregate);
@@ -841,7 +844,7 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
         // Safe by construction: the CAS just proved the row was CREATED, so this
         // cannot throw. It records the status change + domain event for the steps below.
         orderAggregate.autoCancel();
-        restoreStockForOrder(orderId);
+        restoreStockOnCancelCommit(orderId);
         cjFulfillmentService.cancelAtCjIfDeletable(orderAggregate, "auto cancel (unpaid timeout)");
         releaseCouponOnCancelCommit(orderAggregate);
         releasePinkOnCancelCommit(orderAggregate);
@@ -1138,11 +1141,20 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
     }
 
     /**
-     * Best-effort release of the stock reserved for an order's lines (used when an
-     * order is cancelled). Reads the persisted order-goods rows and asks the goods
-     * ACL to add the quantities back; never throws.
+     * Best-effort release of the stock reserved for a cancelled order's lines, run
+     * once the cancellation COMMITS. The order-goods rows are read inside the
+     * transaction (they are the order's own data); the goods ACL call — which
+     * commits remotely in goods-management and is NOT idempotent — is deferred to an
+     * after-commit synchronization, so a cancel that rolls back after this point
+     * (CJ cancel, history persist, event publish) never leaves the order CREATED
+     * with its quantities also back on sale. Mirrors the coupon/pink release hooks
+     * in the same two methods and the placement path's restore-on-rollback guard.
+     *
+     * <p>Immediate call when no transaction synchronization is active (unit tests,
+     * or a caller outside a transaction). The facade never throws: a failed restore
+     * is logged and reported false, exactly as before — no new failure mode.
      */
-    private void restoreStockForOrder(LitemallOrderId orderId) {
+    private void restoreStockOnCancelCommit(LitemallOrderId orderId) {
         List<LitemallOrderGoodsAggregate> orderGoods = orderGoodsRepository.findByOId(orderId);
         if (orderGoods == null || orderGoods.isEmpty()) {
             return;
@@ -1152,7 +1164,16 @@ public class LitemallOrderServiceImpl implements LitemallIOrderService {
                         g -> g.getProductId().getId(),
                         g -> (int) g.getNumber(),
                         Integer::sum));
-        goodsFacade.restoreStock(productQuantities);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            goodsFacade.restoreStock(productQuantities);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                goodsFacade.restoreStock(productQuantities);
+            }
+        });
     }
     /**
      * @Desc: Validate and reduce stock for all items in a batch

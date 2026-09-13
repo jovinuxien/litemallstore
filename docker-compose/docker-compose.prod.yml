@@ -581,6 +581,15 @@ services:
       # application.yml:204). Without this passthrough a deploy-day .env flip to
       # eur would silently no-op — the container would keep charging usd.
       LITEMALL_ORDER_STRIPE_CURRENCY: ${LITEMALL_ORDER_STRIPE_CURRENCY:-usd}
+      # ⚠ SEPARATE KEY ON PURPOSE (mirror of goods-management's). application.yml
+      # sets org.linlinjava.litemall.db: DEBUG = every SQL statement with its bound
+      # parameters — customer PII and Stripe intent ids straight into `docker logs`,
+      # and the 30 MB json-file rotation fills with SQL within minutes so real
+      # ERRORs are gone before anyone reads them. Spring resolves the MOST SPECIFIC
+      # logger key, so only this key holds it down. application-prod.yml pins it
+      # too; this env makes it effective with a container RECREATE, no rebuild.
+      # Set DEBUG to get per-SQL detail back temporarily — do not leave it on.
+      LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB: ${LITEMALL_ORDER_DB_LOG_LEVEL:-INFO}
     healthcheck: {<<: *litemall-healthcheck, test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]}
     mem_limit: 1g
 
