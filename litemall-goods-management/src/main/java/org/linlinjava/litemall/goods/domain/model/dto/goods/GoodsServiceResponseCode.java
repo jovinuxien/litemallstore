@@ -38,4 +38,10 @@ public class GoodsServiceResponseCode {
     /** /srv/goods/meta/{id}: goods missing or soft-deleted (off-sale is still served). */
     public static final Integer GOODS_NOT_FOUND = 654;
 
+    // Review subdomain (F17, 2026-09-13). 660 is the SEO title family — don't re-mint.
+    /** /srv/comment/post: the caller has no delivered (401/402) order line for this goods. */
+    public static final Integer REVIEW_NOT_PURCHASED = 670;
+    /** /srv/comment/post: every delivered line of this goods already carries a review. */
+    public static final Integer REVIEW_ALREADY_POSTED = 671;
+
 }
