@@ -1581,8 +1581,8 @@
      `afterCompletion(STATUS_ROLLED_BACK)`, no lines ⇒ no call.
   ⚠ Merge mechanics: MAIN's checkout held a STALE CLAUDE.md (older than master's own
   committed copy — the peer `git push .` pattern), so this merge also moved the ref
-  with `git push . fix/order:master` and never touched MAIN's tree. Origin push not
-  possible from this session (ssh agent refused signing) — MAIN pushes origin + prod.
+  with `git push . fix/order:master` and never touched MAIN's tree. Pushed to origin
+  (`2cc0ba6a4`); the prod bare repo `/opt/litemall.git` is MAIN's to push at deploy.
   **Deploy = MAIN:** rebuild + recreate the order container (item 2 + the yml pin need
   the image; the compose env line alone works with a recreate). NOT done here: F15/D5,
   F13, and the raised gateway-api/gateway-admin/goods-management halves (the gateway-api
