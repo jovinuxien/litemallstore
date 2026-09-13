@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Spinner } from 'react-bootstrap';
+import { Alert, Spinner } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
-import { orderApi } from 'app/shared/api';
+import { actionErrorMessage, orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
 import { money } from 'app/shared/util/money';
@@ -26,6 +26,8 @@ const OrderList: React.FC = () => {
   const [orders, setOrders] = useState<IOrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  // A refused action's reason (the server's words) and the order it concerned.
+  const [actionError, setActionError] = useState<{ orderId?: number; message: string } | null>(null);
 
   const load = useCallback(async (type: number) => {
     setLoading(true);
@@ -45,13 +47,14 @@ const OrderList: React.FC = () => {
     load(showType);
   }, [load, showType]);
 
-  const act = async (fn: () => Promise<unknown>) => {
+  const act = async (orderId: number | undefined, fn: () => Promise<unknown>) => {
     setPending(true);
+    setActionError(null);
     try {
       await fn();
       await load(showType);
-    } catch {
-      /* surfaced via reload; keep UI responsive */
+    } catch (e) {
+      setActionError({ orderId, message: actionErrorMessage(e) });
     } finally {
       setPending(false);
     }
@@ -103,6 +106,11 @@ const OrderList: React.FC = () => {
                   />
                 ))}
               </div>
+              {actionError && actionError.orderId === o.id && (
+                <Alert variant='danger' className='mx-3 my-2 py-2 small' role='alert'>
+                  {actionError.message}
+                </Alert>
+              )}
               <div className='lm-order-panel__foot'>
                 <span className='lm-amount'>{t('list.total', { amount: money(priceNum(o.actualPrice)) })}</span>
                 <div className='lm-order-panel__actions'>
@@ -112,22 +120,27 @@ const OrderList: React.FC = () => {
                     </button>
                   )}
                   {o.handleOption?.cancel && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.cancel(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(o.id, () => orderApi.cancel(o.id as number))}>
                       {t('actions.cancel')}
                     </button>
                   )}
                   {o.handleOption?.confirm && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.confirm(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(o.id, () => orderApi.confirm(o.id as number))}>
                       {t('actions.confirmReceipt')}
                     </button>
                   )}
                   {o.handleOption?.refund && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.refund(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(o.id, () => orderApi.refund(o.id as number))}>
                       {t('actions.refund')}
                     </button>
                   )}
+                  {o.handleOption?.withdrawRefund && o.id != null && (
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(o.id, () => orderApi.withdrawRefund(o.id as number))}>
+                      {t('actions.withdrawRefund')}
+                    </button>
+                  )}
                   {o.handleOption?.delete && o.id != null && (
-                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(() => orderApi.remove(o.id as number))}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => act(o.id, () => orderApi.remove(o.id as number))}>
                       {t('actions.delete')}
                     </button>
                   )}

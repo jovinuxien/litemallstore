@@ -184,9 +184,21 @@
   },
   "status": {
     "order": "Order #{{id}}",
-    "redirecting": "Skickar dig vidare till dina ordrar…",
+    "viewOrder": "Visa order",
     "viewOrders": "Visa ordrar",
     "success": "Betalningen lyckades",
-    "failed": "Betalningen misslyckades"
+    "redirectingOrder": "Tar dig till din order…",
+    "failed": "Betalningen misslyckades",
+    "failedBody": "Inget har debiterats. Du kan försöka igen med ett annat betalsätt.",
+    "tryAgain": "Försök igen",
+    "cancelled": "Den här ordern avbröts",
+    "cancelledBody": "Om en betalning har dragits återbetalas den automatiskt.",
+    "processing": "Din bank behandlar betalningen",
+    "processingBody": "Betalningen är på väg och slutförs under de närmaste dagarna. Vi mejlar dig så snart den är bekräftad – betala inte igen.",
+    "stillWaiting": "Väntar fortfarande på bekräftelse",
+    "stillWaitingBody": "Betalningen har inte bekräftats ännu. Betala inte igen – vi mejlar dig när den är klar, och ordersidan visar aktuell status.",
+    "confirming": "Bekräftar din betalning…",
+    "confirmingBody": "Vi kontrollerar med betalningsleverantören. Det tar oftast några sekunder.",
+    "redirecting": "Skickar dig vidare till dina ordrar…"
   }
 }

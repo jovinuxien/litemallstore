@@ -184,9 +184,21 @@
   },
   "status": {
     "order": "Ordre #{{id}}",
-    "redirecting": "Sender dig videre til dine ordrer…",
+    "viewOrder": "Se ordre",
     "viewOrders": "Se ordrer",
     "success": "Betalingen lykkedes",
-    "failed": "Betalingen mislykkedes"
+    "redirectingOrder": "Sender dig til din ordre…",
+    "failed": "Betalingen mislykkedes",
+    "failedBody": "Der er ikke trukket noget. Du kan prøve igen med en anden betalingsmetode.",
+    "tryAgain": "Prøv igen",
+    "cancelled": "Denne ordre blev annulleret",
+    "cancelledBody": "Hvis der er trukket en betaling, refunderes den automatisk.",
+    "processing": "Din bank behandler betalingen",
+    "processingBody": "Betalingen er på vej og gennemføres i løbet af de næste par dage. Vi sender dig en e-mail, så snart den er bekræftet – betal ikke igen.",
+    "stillWaiting": "Venter stadig på bekræftelse",
+    "stillWaitingBody": "Betalingen er ikke bekræftet endnu. Betal ikke igen – vi sender en e-mail, når den er, og ordresiden viser den aktuelle status.",
+    "confirming": "Bekræfter din betaling…",
+    "confirmingBody": "Vi tjekker hos betalingsudbyderen. Det tager som regel et par sekunder.",
+    "redirecting": "Sender dig videre til dine ordrer…"
   }
 }

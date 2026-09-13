@@ -24,6 +24,11 @@ export interface IOrderHandleOption {
   rebuy?: boolean;
   /** Aftersale application window open (Wave-2 vertical). */
   aftersale?: boolean;
+  /**
+   * The order is REFUND_REQUEST (202) and the customer may take the request back
+   * (lifecycle D4). The customer payload has no numeric status — this flag IS the 202 key.
+   */
+  withdrawRefund?: boolean;
 }
 
 export interface IOrderListItem {
@@ -61,6 +66,13 @@ export interface IOrderDetail {
   cjOrderNum?: string;
   /** Logistics line the order ships with (the CJ line chosen at placement). */
   shipChannel?: string;
+  /**
+   * Customer-facing fulfilment phrase for CJ orders, server-rendered (Wave 8; two more
+   * phrases since the order lifecycle packages — "Processing — being reviewed by our
+   * team", "Could not be fulfilled — our support team will contact you"). A SERVER
+   * string: shown verbatim, never mapped to a client list. Null/absent on local orders.
+   */
+  fulfillmentStatus?: string | null;
   /**
    * Wave 4 pickup fields (litemall-order/docs/handoff-gateway-api-pickup.md).
    * NON_NULL: express orders carry none of these. verifyCode appears only once
@@ -199,4 +211,21 @@ export interface IDisputeContext {
   maxAmountUsd?: number;
   refundAllowed: boolean;
   reissueAllowed: boolean;
+}
+
+/**
+ * One step of `GET /srv/order/{id}/timeline` (oldest first). Codes + server labels for the
+ * from/to statuses; `changeType` is the stable vocabulary (see modules/order/timelineCopy);
+ * `changeMessage` is the server's account of the step; `operator` is `user`, `system` or
+ * `admin:<id>`. changeTime: ISO string or LocalDateTime tuple.
+ */
+export interface IOrderTimelineEntry {
+  fromStatus?: number | null;
+  fromStatusText?: string | null;
+  toStatus?: number | null;
+  toStatusText?: string | null;
+  changeType?: string | null;
+  changeMessage?: string | null;
+  operator?: string | null;
+  changeTime?: string | number[] | null;
 }
