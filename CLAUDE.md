@@ -2445,7 +2445,19 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — order lifecycle honesty BUILT (SPA half of order packages A–C), merge pending
+### Worktree: `gateway-api` — order lifecycle honesty MERGED to master (SPA half of order packages A–C); deploy = MAIN
+- **Status 2026-09-13 — MERGED to master (fast-forward from the worktree), deploy PENDING.**
+  Re-verified on the clean tree the same day before merging: jest **57 suites / 392 tests**,
+  tsc 0, `i18n:check` exit 0, branch 0 behind master (`fd5bb911f`). No code change since
+  2026-09-06. **Deploy = gateway-api container only** (MAIN): no migration, no backend, no
+  env; the Ubuntu-mirror gotcha below still applies. ⚠ MAIN's checkout held UNCOMMITTED
+  CLAUDE.md edits on this block's header line (the i18n deploy note) and on the
+  gateway-admin block when this merged — the ref was moved with `git push .
+  fix/gateway-api:master` so MAIN's working tree was never touched; a ready reconciliation
+  patch (this header + status kept, MAIN's "DEPLOYED 2026-09-05 21:38 UTC" paragraph
+  re-inserted beneath) was handed to MAIN. Still RAISED, not built: the standalone
+  `/pay/:orderId` page (card with no Stripe Elements — every unpaid order is a dead end) and
+  the tokenized guest order view (needs a backend half).
 - **Status 2026-09-06 — BUILT, all four commits on the branch.** `38f07dc54` payment
   (processing intents + `/pay/:id/status` polling return page + already-paid 402 ⇒ success),
   `4a1bebe27` fulfilment (TRACKING_PENDING copy + `fulfillmentStatus` verbatim),
