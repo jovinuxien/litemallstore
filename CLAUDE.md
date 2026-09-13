@@ -1850,7 +1850,49 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — Wave-28 origin endpoint + batch cap BUILT (2026-09-06)
+### Worktree: `goods-management` — F17 purchase-gated reviews BUILT (2026-09-13); Wave-28 origin endpoint still unmerged
+- **Status 2026-09-13 — F17 BUILT: `POST /srv/comment/post` is PURCHASE-GATED and stamps the
+  order line.** Plan approved by the user the same day (decisions: goods-management writes
+  `litemall_order_goods.comment` directly via CAS in the review's own transaction; absent
+  `orderId` consumes the OLDEST unreviewed delivered line so the PDP form keeps working; kill
+  switch default true). Branch merged onto master `22a8d0390` first. What changed:
+  1. `application/comment/PurchaseVerificationService` — reads `litemall_order` +
+     `litemall_order_goods` READ-ONLY through the shared litemall-db mappers (the
+     Coupon/GrouponSignalResolver precedent); eligible = caller's non-deleted order at 401/402
+     holding the goods with `comment` 0/NULL, oldest first; `deleted` bound as a literal
+     (`andLogicalDeleted` is inverted). `markReviewed` = `update … set comment=<id> where id=? and
+     (comment=0 or comment is null)`; a lost race throws `ReviewSlotTakenException` INSIDE the
+     `@Transactional` post so the review insert rolls back — two posts can never both land on one
+     purchase. That column had had NO writer since the Wave-4 wx-api decommission.
+  2. Typed refusals (new family, `GoodsServiceResponseCode`): **670** "Only customers who
+     received this product can review it", **671** "You have already reviewed this purchase"
+     (also the concurrent-claim outcome); junk `orderId` = 402; unlogin unchanged. Optional body
+     `orderId` PINS the check to that order (never falls back to another purchase).
+  3. `litemall.comment.require-purchase` (env `LITEMALL_COMMENT_REQUIRE_PURCHASE`, yml
+     placeholder + prod compose passthrough, default true); false = the 2026-07-07 v1 behaviour
+     byte-for-byte (no check, no stamp), container recreate only.
+  Tests: `PurchaseVerificationServiceTest` 8, `CommentPostServiceTest` 8,
+  `LitemallCommentControllerPostTest` 5; module suite **632 run / 0 failures / 8 skipped** (was
+  611). **LIVE DEV ACCEPTANCE PASSED** on the fresh jar alone on :8082 (JDK 21, no Eureka/rabbit):
+  user 3 (paid, never delivered) → 670; user 1 (delivered orders 68 + 70, both goods 1055022) →
+  200 twice with lines 64/66 stamped with the new comment ids, third post → 671; `orderId:68` →
+  671, `orderId:999` → 670, `orderId:"abc"` → 402, no identity → 501; `/srv/comment/list`
+  serves the new rows unchanged; restart with the switch false → the non-buyer's post lands
+  with no stamp touched. Dev rows then restored exactly (comments deleted, lines back to 0,
+  goods 1055022 review_count/rating back to 1/5.0). ⚠ The rollback-on-lost-race path is proven
+  at the unit seam only (no live way to race two posts by hand). ⚠ Generated Example criteria
+  quote the reserved column: the text is `` `comment` is null ``. NO migration, NO litemall-db
+  change, NO index field, NO reindex. Deploy = goods-management container only.
+  **RAISED (needed before "Unrated" visibly clears):** order — expose `orderGoods[].comment`
+  in the detail DTO, derive `handleOption.comment` + the Unrated tab (showType 4) from lines
+  with `comment = 0` instead of status alone, and stop hardcoding `litemall_order.comments` to 0
+  at creation (`LitemallOrderServiceImpl:415`); gateway-api — ReviewForm renders errno 670/671
+  verbatim (today every error is a generic "failed"), hides the per-line "Write review" once
+  the line is stamped, and passes `orderId` from OrderDetail. Existing pre-gate comment rows
+  stay (no purchase to attribute them to).
+  ⚠ MERGE STILL BLOCKED from here: MAIN's checkout is dirty with a peer's uncommitted edits to
+  CLAUDE.md + four compose files, so BOTH this and the unmerged Wave-28 origin commit
+  (`eaf1ea625`) wait on MAIN (branch pushed to origin).
 - **Status 2026-09-06 — WAVE 28 goods-management half BUILT: `GET /srv/goods/origin` + the
   `/srv/goods/batch` cap.** No Task line was active when this session opened; the assignment was
   picked from the raised items and user-approved (origin endpoint + batch cap). Coded to the FROZEN

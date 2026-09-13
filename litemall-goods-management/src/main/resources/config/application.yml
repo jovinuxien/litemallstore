@@ -280,6 +280,13 @@ litemall:
     # cost/retail persist in the store currency. 1.0 = identity; prod sets the real
     # rate at the EUR flip together with LITEMALL_GOODS_CURRENCY=EUR.
     fx-usd-eur: ${LITEMALL_FX_USD_EUR:1.0}
+  comment:
+    # F17 (2026-09-13): POST /srv/comment/post accepts a review only against an unreviewed
+    # DELIVERED order line of that goods bought by the caller, and stamps the line
+    # (litemall_order_goods.comment = comment id) in the same transaction. false = the
+    # 2026-07-07 v1 behaviour exactly (any authenticated user, no stamp) — a container
+    # recreate, no rebuild. Explicit placeholder + prod compose passthrough, as always.
+    require-purchase: ${LITEMALL_COMMENT_REQUIRE_PURCHASE:true}
   # Wave 14: inventory governance. The governor sizes nightly retirement proposals
   # against catalog-target; the 02:00 executor flips due APPROVED batches off-sale
   # (reversible via the normal admin on-sale toggle). Crons stay clear of the nightly

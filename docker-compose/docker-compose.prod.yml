@@ -695,6 +695,11 @@ services:
       # Unlike the floor this has NO ordering dependency on the margin: raising the margin can
       # only push more rows over a ceiling, and off-sale is reversible either way.
       LITEMALL_GOODS_PRICE_CEILING: ${LITEMALL_GOODS_PRICE_CEILING:-0}
+      # F17 (2026-09-13): product reviews require a delivered purchase of the goods (default
+      # true). Set to false to restore the old any-authenticated-user behaviour without a
+      # rebuild. Same passthrough trap as the floor: without this line .env.prod cannot
+      # reach the container.
+      LITEMALL_COMMENT_REQUIRE_PURCHASE: ${LITEMALL_COMMENT_REQUIRE_PURCHASE:-true}
       # L1 root ids the storefront is narrowed to (comma-separated; empty = OFF). Narrowing
       # off-sales today's goods, but the CJ pipeline keeps mirroring all 14 L1s and the nightly
       # promote lands every NEW product on sale — one night after narrowing, 328 new non-anchor
