@@ -1,0 +1,88 @@
+{
+  "addressEdit": {
+    "loadFailed": "Adressen kunde inte laddas.",
+    "phoneMismatch": "Telefonnumret stämmer inte med det valda landet – kontrollera antalet siffror.",
+    "saveFailed": "Det gick inte att spara.",
+    "deleteFailed": "Det gick inte att ta bort.",
+    "title": "Redigera adress",
+    "recipient": "Mottagare *",
+    "phone": "Telefon *",
+    "country": "Land",
+    "selectCountry": "-- Land --",
+    "cascade": "Välj region från lista (adresser i Kina)",
+    "province": "Region / län",
+    "select": "Välj…",
+    "city": "Ort",
+    "district": "Distrikt",
+    "detail": "Adress *",
+    "postalCode": "Postnummer",
+    "setDefault": "Ange som standard",
+    "save": "Spara",
+    "delete": "Ta bort"
+  },
+  "addresses": {
+    "title": "Mina adresser",
+    "addNew": "Lägg till ny adress",
+    "empty": "Inga sparade adresser ännu.",
+    "edit": "Ändra",
+    "delete": "Ta bort"
+  },
+  "favorites": {
+    "title": "Favoriter",
+    "empty": "Du har inte sparat några produkter ännu.",
+    "remove": "Ta bort"
+  },
+  "feedback": {
+    "sendFailed": "Feedbacken kunde inte skickas.",
+    "title": "Feedback",
+    "sub": "Berätta vad du tycker – förslag, klagomål eller buggar.",
+    "sent": "Tack – din feedback har skickats.",
+    "type": "Typ",
+    "message": "Ditt meddelande *",
+    "messagePlaceholder": "Beskriv din feedback",
+    "contact": "Kontakt (valfritt)",
+    "contactPlaceholder": "Telefon eller e-post",
+    "screenshots": "Skärmbilder (valfritt)",
+    "submit": "Skicka feedback",
+    "types": {
+      "feedback": "Förslag",
+      "complaint": "Klagomål",
+      "bug": "Bugg",
+      "other": "Annat"
+    }
+  },
+  "footprint": {
+    "title": "Nyligen visade",
+    "empty": "Ingen webbhistorik ännu."
+  },
+  "profile": {
+    "loadFailed": "Din profil kunde inte laddas.",
+    "noUrl": "Uppladdningen lyckades men returnerade ingen URL.",
+    "avatarFailed": "Uppladdningen av profilbilden misslyckades.",
+    "updateFailed": "Profilen kunde inte uppdateras.",
+    "title": "Profil",
+    "updated": "Profilen har uppdaterats.",
+    "nickname": "Visningsnamn",
+    "email": "E-post",
+    "avatar": "Profilbild",
+    "uploading": "Laddar upp…",
+    "mobile": "Mobilnummer",
+    "mobileTaken": "Det här mobilnumret är redan registrerat.",
+    "save": "Spara ändringar",
+    "changePassword": "Byt lösenord"
+  },
+  "center": {
+    "myAccount": "Mitt konto",
+    "menu": {
+      "orders": "Mina ordrar",
+      "aftersales": "Reklamationer",
+      "favorites": "Favoriter",
+      "footprint": "Nyligen visade",
+      "coupons": "Rabattkoder",
+      "addresses": "Adresser",
+      "profile": "Profil",
+      "password": "Byt lösenord",
+      "feedback": "Feedback"
+    }
+  }
+}

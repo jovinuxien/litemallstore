@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -19,6 +20,7 @@ const fmtDate = (addTime?: string | number[]): string => {
  * inject. errno 643 = missing/hidden; 404/501/network degrade the same way.
  */
 const ArticleDetail: React.FC = () => {
+  const { t } = useTranslation('content');
   const { id } = useParams<{ id: string }>();
   const [article, setArticle] = useState<IArticle | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'unavailable'>('loading');
@@ -52,9 +54,9 @@ const ArticleDetail: React.FC = () => {
   if (state === 'unavailable' || !article) {
     return (
       <div className='container my-5 text-center'>
-        <h4>This article isn’t available</h4>
+        <h4>{t('article.unavailable')}</h4>
         <p className='text-muted'>
-          It may have been removed. <Link to='/articles'>Browse all articles</Link>
+          <Trans t={t} i18nKey='article.removed' components={{ 1: <Link to='/articles' /> }} />
         </p>
       </div>
     );
@@ -64,14 +66,14 @@ const ArticleDetail: React.FC = () => {
     <div className='container my-4' style={{ maxWidth: 760 }}>
       <nav className='small mb-2'>
         <Link to='/articles' className='text-decoration-none'>
-          Articles
+          {t('article.title')}
         </Link>
         {article.categoryName && <span className='text-muted'> / {article.categoryName}</span>}
       </nav>
       <h1 className='h3'>{article.title}</h1>
       <div className='small text-muted mb-3'>
         {fmtDate(article.addTime)}
-        {article.viewCount != null && <span className='ms-3'>{article.viewCount} views</span>}
+        {article.viewCount != null && <span className='ms-3'>{t('article.views', { count: article.viewCount })}</span>}
       </div>
       {article.picUrl && <img src={article.picUrl} alt='' className='mb-3' style={{ maxWidth: '100%', borderRadius: 8 }} />}
       {/* Server-sanitized HTML (spec: clean-and-store on save). */}
@@ -80,7 +82,7 @@ const ArticleDetail: React.FC = () => {
         <div className='mt-4 p-3 bg-light rounded'>
           <Link to={`/product/${article.goodsId}`} className='text-decoration-none'>
             <i className='bi bi-bag me-2' />
-            View the featured product →
+            {t('article.featuredProduct')}
           </Link>
         </div>
       )}

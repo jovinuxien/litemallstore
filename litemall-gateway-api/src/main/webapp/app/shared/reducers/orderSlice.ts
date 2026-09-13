@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import { BASE_URL_CONTEXT } from 'app/config/api';
+import { t } from 'app/i18n';
 import { baseAxios } from 'app/config/axiosinstance';
 import { ApiResult, BaseState } from 'app/config/types';
 import { cartApi, CheckoutSummary } from 'app/shared/api/cartApi';
@@ -265,7 +266,7 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
   'order/place',
   async ({ group, items, paymentMethod, addressId, couponId, userCouponId, message, countryCode, cjLogisticName, deliveryType, storeId, pickupName, pickupMobile, pinkId }, thunkApi) => {
     if (!isSignedIn()) {
-      return thunkApi.rejectWithValue({ errno: 401, errmsg: 'Please sign in to place an order', data: null });
+      return thunkApi.rejectWithValue({ errno: 401, errmsg: t('errors:order.signIn'), data: null });
     }
     try {
       const mirrored = await mirrorGroupToServerCart(items);
@@ -273,7 +274,7 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
         // e.g. stale cj_<pid> lines from an old session cart — never submit an empty cart.
         return thunkApi.rejectWithValue({
           errno: 400,
-          errmsg: 'These items can no longer be ordered — remove them and re-add from the product page.',
+          errmsg: t('errors:order.staleItems'),
           data: null,
         });
       }
@@ -301,13 +302,13 @@ export const placeOrder = createAsyncThunk<PlacedOrder, PlaceOrderParams, { reje
       const response = await baseAxios.post(`${BASE_URL_CONTEXT}/order/submit`, submitBody);
       const data = response.data as OrderOperationResponse;
       if (data.success === false || data.orderId == null) {
-        return thunkApi.rejectWithValue({ errno: 1, errmsg: data.message ?? 'Order placement failed', data: null });
+        return thunkApi.rejectWithValue({ errno: 1, errmsg: data.message ?? t('errors:order.placementFailed'), data: null });
       }
       return { group, orderId: data.orderId, orderSn: data.orderSn, actualPrice: data.actualPrice, paid: false, paymentMethod };
     } catch (error) {
       return thunkApi.rejectWithValue({
         errno: (error as { response?: { status?: number } }).response?.status ?? 500,
-        errmsg: messageFromError(error, 'Order placement failed'),
+        errmsg: messageFromError(error, t('errors:order.placementFailed')),
         data: null,
       });
     }
@@ -340,7 +341,7 @@ export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectVa
         if (!paymentIntentId) {
           return thunkApi.rejectWithValue({
             errno: 400,
-            errmsg: 'Card payment was not completed — please try again.',
+            errmsg: t('errors:order.cardNotCompleted'),
             data: null,
           });
         }
@@ -360,7 +361,7 @@ export const payOrder = createAsyncThunk<PlacedOrder, PayOrderParams, { rejectVa
       return thunkApi.rejectWithValue({
         errno: status ?? (timedOut ? 504 : 500),
         errmsg: timedOut
-          ? 'Payment is taking longer than expected. Check My Orders before retrying — the order may already be paid.'
+          ? t('errors:order.paymentSlow')
           : messageFromError(error, 'Payment failed'),
         data: null,
       });
@@ -408,7 +409,7 @@ const orderSlice = createSlice({
       .addCase(placeOrder.rejected, (state, action) => {
         state.loading = 'failed';
         state.phase = 'idle';
-        state.errorMessage = action.payload?.errmsg ?? 'Order placement failed';
+        state.errorMessage = action.payload?.errmsg ?? t('errors:order.placementFailed');
         state.errorNumber = action.payload?.errno ?? 500;
       })
       .addCase(payOrder.pending, state => {

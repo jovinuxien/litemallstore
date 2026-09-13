@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { ApiResult, BaseState } from 'app/config/types';
+import { t } from 'app/i18n';
 import { cartApi, toReject } from 'app/shared/api';
 import { ICartTotalData, IItemCart } from 'app/shared/model/cart/cart.models';
 
@@ -124,7 +125,7 @@ const cartSlice = createSlice({
       })
       .addCase(fetchCart.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? action.error.message ?? 'Failed to load cart';
+        state.errorMessage = action.payload?.errmsg ?? action.error.message ?? t('errors:cart.loadFailed');
       })
       .addCase(fetchCart.fulfilled, (state, action) => {
         state.loading = 'succeeded';
@@ -157,7 +158,7 @@ const cartSlice = createSlice({
       })
       .addCase(updateCartItem.rejected, (state, action) => {
         state.loading = 'failed';
-        state.errorMessage = action.payload?.errmsg ?? 'Failed to update cart item';
+        state.errorMessage = action.payload?.errmsg ?? t('errors:cart.updateFailed');
       });
   },
 });

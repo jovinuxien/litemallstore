@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { FAQ_SECTIONS, FaqEntry } from 'app/modules/static/faqData';
+import { faqSections, FaqEntry } from 'app/modules/static/faqData';
 import { useTranslation } from 'app/i18n';
 
 /**
@@ -15,7 +15,7 @@ export const PDP_FAQ_IDS = ['delivery-time', 'track-order', 'return-window', 'pa
 
 export const pdpFaqEntries = (): FaqEntry[] => {
   const byId = new Map<string, FaqEntry>();
-  FAQ_SECTIONS.forEach(s => s.entries.forEach(e => byId.set(e.id, e)));
+  faqSections().forEach(s => s.entries.forEach(e => byId.set(e.id, e)));
   return PDP_FAQ_IDS.map(id => byId.get(id)).filter((e): e is FaqEntry => !!e);
 };
 

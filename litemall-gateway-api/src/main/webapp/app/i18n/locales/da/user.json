@@ -1,0 +1,88 @@
+{
+  "addressEdit": {
+    "loadFailed": "Adressen kunne ikke indlæses.",
+    "phoneMismatch": "Telefonnummeret passer ikke til det valgte land – tjek antallet af cifre.",
+    "saveFailed": "Kunne ikke gemme.",
+    "deleteFailed": "Kunne ikke slette.",
+    "title": "Redigér adresse",
+    "recipient": "Modtager *",
+    "phone": "Telefon *",
+    "country": "Land",
+    "selectCountry": "-- Land --",
+    "cascade": "Vælg region fra liste (adresser i Kina)",
+    "province": "Region",
+    "select": "Vælg…",
+    "city": "By",
+    "district": "Distrikt",
+    "detail": "Adresse *",
+    "postalCode": "Postnummer",
+    "setDefault": "Angiv som standard",
+    "save": "Gem",
+    "delete": "Slet"
+  },
+  "addresses": {
+    "title": "Mine adresser",
+    "addNew": "Tilføj ny adresse",
+    "empty": "Ingen gemte adresser endnu.",
+    "edit": "Redigér",
+    "delete": "Slet"
+  },
+  "favorites": {
+    "title": "Favoritter",
+    "empty": "Du har ikke gemt nogen produkter endnu.",
+    "remove": "Fjern"
+  },
+  "feedback": {
+    "sendFailed": "Feedbacken kunne ikke sendes.",
+    "title": "Feedback",
+    "sub": "Fortæl os, hvad du synes – forslag, klager eller fejl.",
+    "sent": "Tak – din feedback er sendt.",
+    "type": "Type",
+    "message": "Din besked *",
+    "messagePlaceholder": "Beskriv din feedback",
+    "contact": "Kontakt (valgfrit)",
+    "contactPlaceholder": "Telefon eller e-mail",
+    "screenshots": "Skærmbilleder (valgfrit)",
+    "submit": "Send feedback",
+    "types": {
+      "feedback": "Forslag",
+      "complaint": "Klage",
+      "bug": "Fejl",
+      "other": "Andet"
+    }
+  },
+  "footprint": {
+    "title": "Senest set",
+    "empty": "Ingen browserhistorik endnu."
+  },
+  "profile": {
+    "loadFailed": "Din profil kunne ikke indlæses.",
+    "noUrl": "Upload lykkedes, men returnerede ingen URL.",
+    "avatarFailed": "Upload af profilbillede mislykkedes.",
+    "updateFailed": "Profilen kunne ikke opdateres.",
+    "title": "Profil",
+    "updated": "Profilen er opdateret.",
+    "nickname": "Visningsnavn",
+    "email": "E-mail",
+    "avatar": "Profilbillede",
+    "uploading": "Uploader…",
+    "mobile": "Mobilnummer",
+    "mobileTaken": "Dette mobilnummer er allerede registreret.",
+    "save": "Gem ændringer",
+    "changePassword": "Skift adgangskode"
+  },
+  "center": {
+    "myAccount": "Min konto",
+    "menu": {
+      "orders": "Mine ordrer",
+      "aftersales": "Reklamationer",
+      "favorites": "Favoritter",
+      "footprint": "Senest set",
+      "coupons": "Rabatkoder",
+      "addresses": "Adresser",
+      "profile": "Profil",
+      "password": "Skift adgangskode",
+      "feedback": "Feedback"
+    }
+  }
+}

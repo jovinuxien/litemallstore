@@ -1,0 +1,172 @@
+{
+  "service": {
+    "title": "Kundservice",
+    "emailSupport": "Support via e-post",
+    "emailLine": "<1>{{email}}</1> – ange ditt ordernummer om det gäller en order.",
+    "answered": "Vi svarar {{hours}}.",
+    "topQuestions": "Vanligaste frågorna",
+    "browseAll": "Bläddra i hela hjälpcentret",
+    "feedback": "Har du ett förslag, eller är inloggad och vill hellre inte mejla? <1>Skicka feedback</1>.",
+    "followUs": "Följ oss"
+  },
+  "delivery": {
+    "title": "Frakt och leverans",
+    "costTitle": "Vad det kostar",
+    "cost": "Frakten är fast <1>{{flat}}</1> per order. Ordrar på <2>{{freeMin}}</2> eller mer skickas <3>gratis</3> – det dras automatiskt i kassan, ingen kod behövs.",
+    "courierTitle": "Välja transportör",
+    "courier": "I kassan ser du de leveransalternativ som finns för din varukorg. Standardalternativet ingår i den fasta frakten. En snabbare transportör visar exakt vad den lägger till – till exempel ”+€3,20” – och inget läggs till om du inte väljer det. Priset du ser är priset du betalar: vi räknar om det på våra egna servrar när ordern läggs, aldrig i din webbläsare.",
+    "fromTitle": "Varifrån din order skickas",
+    "from1": "De flesta varor skickas från vår leverantörs lager. Vissa finns i ett EU-lager, och de har märkningen <1>EU-lager</1> på produktkortet och produktsidan. Märkningen speglar vår senaste lagerkontroll, inte ett löfte om just ditt paket, och en vara utan märkning är inte nödvändigtvis långsammare – vi saknar bara en färsk avläsning för den.",
+    "from2": "Allt annat reser längre, så räkna med mer tid än vid en inrikes leverans. Vi säger hellre det rakt ut än lovar ett leveransdatum vi inte kan stå för.",
+    "followTitle": "Följa din order",
+    "follow1": "När din order skickas mejlar vi dig transportör och spårningsnummer.",
+    "follow2": "Har transportören inte utfärdat något nummer ännu säger vi det och återkommer – du får aldrig ett mejl med en tom spårningsrad.",
+    "follow3": "Varje order har en statussida under <1>Dina ordrar</1> som visar spårningshändelser i takt med att transportören rapporterar dem.",
+    "follow4": "En order markeras automatiskt som mottagen {{days}} dagar efter avsändning. Du kan bekräfta tidigare från ordersidan.",
+    "addressTitle": "Ändra din adress",
+    "address": "En leveransadress kan inte ändras när en order har lagts. Kan ordern fortfarande avbrytas, avbryt den under <1>Dina ordrar</1> och lägg den igen med rätt adress. Att hålla din <2>adressbok</2> uppdaterad är det enklaste sättet att undvika detta.",
+    "unpaidTitle": "Ordrar som inte betalas",
+    "unpaid": "En order som lämnas obetald i {{minutes}} minuter frigörs automatiskt och varorna går tillbaka till lagret. Inget dras.",
+    "returnsTitle": "Returer",
+    "returns": "Du har 30 dagar på dig att ångra dig – se <1>Returer och återbetalningar</1> för hela policyn, inklusive din lagstadgade ångerrätt. Allt annat, <2>hör av dig</2>."
+  },
+  "center": {
+    "title": "Hjälpcenter",
+    "searchPlaceholder": "Sök i hjälpen, t.ex. återbetalning, rabattkod, leverans…",
+    "searchAria": "Sök i hjälpen",
+    "noMatch": "Inga hjälpartiklar matchar ”{{query}}”. Prova ett annat ord eller använd kontaktalternativen nedan.",
+    "stuck": "Behöver du fortfarande hjälp?",
+    "solveMost": "De här sidorna löser de flesta problem direkt:",
+    "li1": "<1>Mina ordrar</1> – orderstatus, historik, spårning, avbokning och reklamationer.",
+    "li2": "<1>Returer och återbetalningar</1> – returpolicyn, och <2>dina återbetalningar</2> för att följa en begäran.",
+    "li3": "<1>Logga in</1> – inklusive återställning av lösenord.",
+    "li4": "<1>Cookieinställningar</1> – ändra ditt val för analyscookies.",
+    "footnote": "Inte löst? Mejla <1>{{email}}</1> – ange ditt ordernummer om det gäller en order – eller <2>skicka feedback</2> från ditt konto. Öppettider finns på sidan <3>kundservice</3>."
+  },
+  "payments": {
+    "title": "Så fungerar betalningar",
+    "whoTitle": "Vem hanterar ditt kort",
+    "who": "Betalningar hanteras av <1>Stripe</1>. Dina kortuppgifter anges i Stripes eget betalformulär och går direkt till Stripe – de når aldrig Trovemos servrar, och vi ser eller lagrar aldrig ditt kortnummer.",
+    "bankTitle": "Din banks verifieringssteg",
+    "bank": "När din bank kräver det kör Stripe kontrollen ”bekräfta att det är du” som en del av betalningen. Det är ett lagkrav för kortbetalningar på nätet inom EU, och det skyddar dig lika mycket som oss.",
+    "chargedTitle": "Vad du debiteras",
+    "charged": "Allt på Trovemo prissätts och debiteras i <1>euro</1>. Beloppet du godkänner är beloppet som dras – inga avgifter dyker upp på slutet. Frakt och eventuell rabatt visas innan du betalar; se <2>Frakt och leverans</2>.",
+    "verifyTitle": "Vi verifierar betalningen innan vi accepterar ordern",
+    "verify": "När du betalar litar vi inte bara på din webbläsare. Vår server frågar Stripe direkt och markerar ordern som betald bara om betalningen verkligen lyckades, <1>det mottagna beloppet stämmer med ordern på öret</1> och betalningen hör till just den ordern. Allt annat avvisas. Därför kan bekräftelsen ta ett ögonblick – vi kontrollerar betalningen, vi visar den inte bara.",
+    "balanceTitle": "Betala med ditt saldo",
+    "balance": "Har du ett Trovemo-saldo kan du betala med det i stället för kort. Återbetalningar för en order betald med saldo går tillbaka till saldot.",
+    "refundsTitle": "Återbetalningar",
+    "refunds": "Godkända återbetalningar går tillbaka samma väg som du betalade: kortbetalningar återförs automatiskt via Stripe, saldobetalningar krediteras tillbaka. En kortåterbetalning tar sedan några bankdagar att synas, beroende på din bank. Hela policyn finns under <1>Returer och återbetalningar</1>.",
+    "keepTitle": "Vad vi sparar",
+    "keep": "Vi sparar din order, vad du köpte, din leveransadress och en referens till betalningen. Inte ditt kortnummer. Vad mer vi sparar, och varför, framgår av vår <1>integritetspolicy</1>.",
+    "wrongTitle": "Om något ser fel ut",
+    "wrong": "Ett kort som nekas debiteras inte, och ett väntande belopp som din bank visar för ett nekat försök är en reservation som försvinner av sig själv. Ser ett belopp fel ut, eller ser du en debitering för en order som inte accepterades, mejla <1>kundservice</1> med ditt ordernummer – vi kan se exakt vad som dragits och rätta till det."
+  },
+  "sections": {
+    "orders": "Ordrar och leverans",
+    "payments": "Betalning och priser",
+    "returns": "Returer och återbetalningar",
+    "account": "Konto och säkerhet",
+    "coupons": "Rabattkoder och erbjudanden"
+  },
+  "links": {
+    "cart": "Din varukorg",
+    "orders": "Mina ordrar",
+    "delivery": "Frakt och leverans",
+    "addresses": "Dina adresser",
+    "payments": "Så fungerar betalningar",
+    "returnsPolicy": "Retur- och återbetalningspolicy",
+    "refunds": "Dina återbetalningar",
+    "signIn": "Logga in",
+    "profile": "Profil",
+    "privacy": "Integritetspolicy",
+    "cookies": "Cookieinställningar",
+    "couponCenter": "Rabattkoder",
+    "myCoupons": "Mina rabattkoder",
+    "deals": "Dagens erbjudanden",
+    "hot": "Bästsäljare",
+    "groupBuys": "Gruppköp"
+  },
+  "faq": {
+    "place-order": {
+      "q": "Hur lägger jag en order?",
+      "a": "Lägg varor i varukorgen, gå till kassan, välj leveransadress och betalsätt och lägg ordern."
+    },
+    "track-order": {
+      "q": "Hur spårar jag min order?",
+      "a": "Öppna Mina ordrar i kontomenyn. Varje order har en statushistorik, och spårningsuppgifter visas på ordersidan när den har skickats."
+    },
+    "delivery-time": {
+      "q": "Hur lång är leveranstiden?",
+      "a": "Många av våra produkter skickas direkt från våra leverantörers lager, som kan ligga utomlands, så leveranstiden varierar med produkt och destination och kan vara längre än inrikes frakt. Följ varje order på dess statushistorik under Mina ordrar."
+    },
+    "shipping-cost": {
+      "q": "Vad kostar frakten, och när är den gratis?",
+      "a": "Frakten är fast €{{flat}} per order och gratis vid köp för €{{freeMin}} eller mer – rabatten dras automatiskt, ingen kod behövs. Väljer du en snabbare transportör i kassan betalar du bara mellanskillnaden, som visas innan du betalar."
+    },
+    "eu-stock": {
+      "q": "Vad betyder märkningen ”EU-lager”?",
+      "a": "Den betyder att vår senaste lagerkontroll hittade varan i ett EU-lager, så den har kortare väg att resa. Det är en lageravläsning, inte en leveransgaranti, och en vara utan märkningen är inte nödvändigtvis långsammare – vi saknar bara en färsk avläsning för den."
+    },
+    "cancel-order": {
+      "q": "Kan jag avbryta en order?",
+      "a": "Så länge en order kan avbrytas (vanligtvis innan den är betald) visas en Avbryt-knapp på den under Mina ordrar. Efter betalning använder du orderns alternativ för återbetalning och reklamation i stället."
+    },
+    "change-address": {
+      "q": "Kan jag ändra leveransadressen efter att jag beställt?",
+      "a": "En orders leveransadress kan inte ändras efter att den lagts. Kan ordern fortfarande avbrytas, avbryt den under Mina ordrar och lägg den igen med rätt adress. Håll din adressbok uppdaterad för att undvika detta."
+    },
+    "payment-methods": {
+      "q": "Vilka betalsätt stöds?",
+      "a": "Kredit- eller betalkort, som hanteras säkert av Stripe, samt ditt plånbokssaldo. Kortuppgifterna anges i Stripes betalformulär och når aldrig våra servrar."
+    },
+    "card-safety": {
+      "q": "Är mitt kort säkert?",
+      "a": "Dina kortuppgifter anges i Stripes eget betalformulär och går direkt till Stripe – de når aldrig våra servrar, och vi ser eller lagrar aldrig ditt kortnummer. Vi verifierar också varje betalning med Stripe innan vi accepterar en order."
+    },
+    "payment-failed": {
+      "q": "Min betalning misslyckades – vad gör jag nu?",
+      "a": "Inget går förlorat: ordern sparas som obetald. Öppna den under Mina ordrar och välj Betala för att försöka igen – du kan försöka med kortet igen eller byta betalsätt."
+    },
+    "when-charged": {
+      "q": "När dras pengarna?",
+      "a": "När du slutför betalningen för en order – antingen direkt i kassan eller senare via orderns Betala-knapp. Att lägga en order utan att betala kostar inget."
+    },
+    "return-window": {
+      "q": "Vad gäller för returer?",
+      "a": "De flesta varor kan returneras inom 30 dagar från leverans. Starta en begäran från orderns reklamationsavsnitt under Mina ordrar. Hela policyn finns på sidan Returer och återbetalningar."
+    },
+    "refund-method": {
+      "q": "Hur betalas återbetalningar ut?",
+      "a": "På samma sätt som du betalade: kortbetalningar återförs via Stripe, plånboksbetalningar går tillbaka till ditt plånbokssaldo. Följ status under Dina återbetalningar."
+    },
+    "refund-time": {
+      "q": "Hur lång tid tar en återbetalning?",
+      "a": "Återbetalningar till plånboken syns i saldot så snart de godkänts. Kortåterbetalningar skickas till Stripe vid godkännande; din bank tar sedan vanligtvis några bankdagar på sig att bokföra pengarna."
+    },
+    "reset-password": {
+      "q": "Jag har glömt mitt lösenord – hur återställer jag det?",
+      "a": "Använd alternativet Glömt lösenord på inloggningssidan för att återställa det via e-post. Visas inte alternativet, mejla oss från adressen på ditt konto så hjälper vi dig."
+    },
+    "update-profile": {
+      "q": "Hur uppdaterar jag min profil eller mina adresser?",
+      "a": "Din profil (namn, lösenord) finns under Konto och leveransadresser under Dina adresser."
+    },
+    "privacy-cookies": {
+      "q": "Hur används mina uppgifter, och hur hanterar jag cookies?",
+      "a": "Integritetspolicyn förklarar vad vi samlar in och varför. Valfria analyscookies är avstängda om du inte accepterar dem, och du kan ändra ditt val när som helst under Cookieinställningar."
+    },
+    "use-coupon": {
+      "q": "Hur använder jag en rabattkod?",
+      "a": "Bläddra bland erbjudandena under Rabattkoder och hämta dem du vill ha – de visas sedan i kassan, där du väljer en för att få rabatten. Rabattkoder du hämtat listas under Mina rabattkoder."
+    },
+    "coupon-not-applying": {
+      "q": "Varför fungerar inte min rabattkod?",
+      "a": "Rabattkoder har en giltighetstid, och många har ett minimibelopp eller gäller bara vissa varor eller kategorier. Kontrollera villkoren under Mina rabattkoder och se till att varukorgen uppfyller dem."
+    },
+    "find-deals": {
+      "q": "Var hittar jag aktuella erbjudanden?",
+      "a": "Dagens erbjudanden samlar tidsbegränsade erbjudanden, Bästsäljare visar vad som är populärt, och Gruppköp ger ett lägre pris när tillräckligt många köpare går ihop."
+    }
+  }
+}

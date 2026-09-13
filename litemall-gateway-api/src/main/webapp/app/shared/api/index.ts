@@ -1,14 +1,14 @@
 export * from './http';
 export { catalogApi } from './catalogApi';
 export { cartApi } from './cartApi';
-export { orderApi } from './orderApi';
+export { orderApi, actionErrorMessage } from './orderApi';
 export { userApi } from './userApi';
 export { contentApi } from './contentApi';
 export { promotionApi } from './promotionApi';
 export { authApi } from './authApi';
 export type { GoodsListParams } from './catalogApi';
 export type { AddToCartBody, CheckoutSummary } from './cartApi';
-export type { OrderListParams } from './orderApi';
+export type { OrderListParams, IOrderOperation } from './orderApi';
 export type { IAddress, ICoupon, IComment, ICommentPost } from './userApi';
 export type { IBrand, ITopic, IGrouponItem, IArticle, IArticleCategory, IPageView, IPageComponent, IRegion, IRegionNode } from './contentApi';
 export type { ICombination, ICombinationPink, IPromotionOperation } from './promotionApi';

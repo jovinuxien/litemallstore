@@ -2445,9 +2445,93 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — STATIC-PAGE TYPOGRAPHY + THEME HIERARCHY SHIPPED + DEPLOYED
-- **No active assignment.** Next natural task = i18n batch 3 (cart/checkout + delivery
-  chooser + coupon cell; spec §5) — rewrite this block before launching it.
+### Worktree: `gateway-api` — order lifecycle honesty MERGED to master (SPA half of order packages A–C); deploy = MAIN
+- **Status 2026-09-13 — MERGED to master (fast-forward from the worktree), deploy PENDING.**
+  Re-verified on the clean tree the same day before merging: jest **57 suites / 392 tests**,
+  tsc 0, `i18n:check` exit 0, branch 0 behind master (`fd5bb911f`). No code change since
+  2026-09-06. **Deploy = gateway-api container only** (MAIN): no migration, no backend, no
+  env; the Ubuntu-mirror gotcha below still applies. ⚠ MAIN's checkout held UNCOMMITTED
+  CLAUDE.md edits on this block's header line (the i18n deploy note) and on the
+  gateway-admin block when this merged — the ref was moved with `git push .
+  fix/gateway-api:master` so MAIN's working tree was never touched; a ready reconciliation
+  patch (this header + status kept, MAIN's "DEPLOYED 2026-09-05 21:38 UTC" paragraph
+  re-inserted beneath) was handed to MAIN. Still RAISED, not built: the standalone
+  `/pay/:orderId` page (card with no Stripe Elements — every unpaid order is a dead end) and
+  the tokenized guest order view (needs a backend half).
+- **Status 2026-09-06 — BUILT, all four commits on the branch.** `38f07dc54` payment
+  (processing intents + `/pay/:id/status` polling return page + already-paid 402 ⇒ success),
+  `4a1bebe27` fulfilment (TRACKING_PENDING copy + `fulfillmentStatus` verbatim),
+  `28aa0e266` refund withdraw (button on detail/list/Refunds, 202 rows listed, refusals
+  verbatim — order actions no longer swallow errors), `652e65a4b` order timeline panel.
+  jest **57 suites / 392 tests** (was 50/360), tsc 0, `i18n:check` 0, prod build clean.
+  **Headless acceptance against the BUILT bundle** (stub server answering the exact
+  litemall-order DTO shapes, en + sv): order detail, detail→withdraw (422 refusal shown
+  verbatim), Refunds + withdraw, pay-status processing / settled / failed — 14/14 pages, every
+  contract string found, **0 page errors**. Dev order stack was NOT booted (no live e2e);
+  the processing-intent and withdraw paths are proven at the unit seam + stubbed render.
+  ⚠ Contract deviations, deliberate: the customer detail has NO numeric `orderStatus`, so
+  202 keys on `handleOption.withdrawRefund` and "left unpaid" on `handleOption.pay === false`
+  (`paymentOutcome.settlementOf`); a cancelled order is read from its status text. The
+  confirm-window copy was NOT changed: `shippingTerms.AUTO_CONFIRM_DAYS` already mirrors
+  `litemall_order_unconfirm` (7), which the backend now honours — the mirror IS the setting.
+  `redirect_status=succeeded` is never trusted; the page polls (3 s × 40) and a plain
+  confirmation that never lands says "still waiting", a `processing` one keeps saying so.
+  ⚠ Gotchas: `i18next-parser` attributes keys called through a passed-in `TFunction` to the
+  DEFAULT namespace — use `order:`-prefixed keys with the module `t` (timelineCopy.ts);
+  `innerText` is CSS-uppercased, match case-insensitively in a harness; Chrome logs an
+  intended 4xx as a console error ("Failed to load resource") — filter it, it is not a page
+  error; a Spinner inside `<p>` needs `as='span'`.
+  **RAISED, not built:** the standalone `/pay/:orderId` page (Pay now from the order list)
+  offers CARD with NO Stripe Elements mounted, so `payOrder` always rejects with "card
+  payment was not completed" — pre-existing since Wave 7, a dead end for any unpaid order;
+  needs the checkout's Elements flow lifted into that page. The tokenized guest order view
+  (mail CTAs hit the login wall) still stands. **Deploy = gateway-api container only** (MAIN).
+- **Task — order lifecycle honesty (user-approved 2026-09-05).** Code to the FROZEN
+  contract `litemall-order/docs/handoff-gateway-api-lifecycle.md` (the order side is
+  MERGED `5cfe7b1d5` + DEPLOYED to prod 2026-09-05). SPA only, no migration, no backend,
+  no env. Four commits in order: (1) payment copy + redirect return — `processing`
+  intents (SEPA) are "your bank is processing this, do not pay again", never a retry;
+  `return_url` → `/pay/:orderId/status`, which POLLS the order until it leaves unpaid;
+  402 "already been paid" ⇒ success + reload; "refunded automatically" shown verbatim;
+  (2) fulfilment facts — `TRACKING_PENDING` renders "Shipped — tracking number on its
+  way"; the two new `fulfillmentStatus` phrases pass through verbatim; (3) refund
+  withdraw — button wherever a 202 order shows (`handleOption.withdrawRefund`), typed
+  refusals verbatim, Refunds page STOPS hiding 202; confirm-window copy stops naming
+  15 days; (4) `GET /srv/order/{id}/timeline` rendered as plain sentences on the order
+  page (help copy already promises it). Every new string lands in en/sv/da together.
+- **Acceptance:** jest + tsc green with real counts (baseline 50 suites / 360 tests);
+  headless render of order detail, Refunds and pay-status against captured payload
+  shapes in en + sv, 0 page errors; withdraw + processing-intent paths proven at the
+  unit seam (dev order stack only if bootable — say which). Deploy = MAIN.
+- ⚠ Payload facts (verified against litemall-order source 2026-09-05): the customer
+  detail is `GET /srv/order/detail?orderId=` and carries NO numeric `orderStatus` —
+  key 202 on `handleOption.withdrawRefund` and "left unpaid" on `handleOption.pay ===
+  false`; operation refusals arrive as a non-2xx `OrderOperationDtoResponse`
+  (`{success:false, message}`), not an errno envelope.
+- **Previously: No active assignment.** The storefront UI i18n is COMPLETE (every §5 UI
+  batch done; legal pages English by design). Other candidates: i18n phase 2 `lang_key`
+  on the user (V65, litemall-db shared-module discipline, order mails in the buyer's
+  language); native sv/da review (user-side).
+- **Status 2026-09-05 — i18n batches 3–7 + slice fallbacks MERGED to master.** Six
+  commits (`57ea2abfe` checkout/coupons, `59dd8a42d` orders/cookies, `24d884d39` user
+  area/shared forms, `f3571861d` home/content pages, `a59d6a439` help centre/FAQ,
+  `70e060428` redux fallbacks): ~380 more string sites, 12 namespaces, **24 lazy sv/da
+  chunks**; jest 50 suites / 360 tests, tsc 0, `i18n:check` 0, prod build clean.
+  As-built record: `litemall-gateway-api/docs/spec-i18n-foundation.md` §10.
+  Every batch was rendered READ-ONLY against production data (built bundle + GET-only
+  proxy to trovemo.com, headless Chrome) in sv/da with 0 page errors; signed-in surfaces
+  (orders, user area) are proven at unit/type level only.
+  ⚠ `faqData.ts` now holds the FAQ STRUCTURE only — wording lives in `help.json` by id
+  (`faq.<id>.q/a`, `sections.<id>`, `links.<key>`); edit copy THERE, in all three
+  languages, or the parity spec fails. ⚠ The courier "Included" class tests the delta
+  NUMBER, never the label. ⚠ `count` is i18next's plural trigger — eight keys needed
+  `_one/_other`; a sentence that merely mentions a number uses another variable.
+  ⚠ Anchoring an import insert on `import React` glues it into the first line — anchor
+  on the full line. Also fixed on the way: the order-confirmation fallback total still
+  rendered `$` (missed by the Wave-24 € sweep).
+  **Deploy = gateway-api container rebuild only** (no migration, no backend, no env;
+  the Ubuntu-mirror gotcha below still applies). sv/da strings are MY drafts.
+- **Previously (2026-09-05): theme hierarchy SHIPPED + DEPLOYED, i18n batch 2 DEPLOYED.**
 - **DEPLOYED to trovemo.com 2026-09-05 02:32 UTC** from master `d45511aa8`: gateway-api
   container only (mirror-patched Dockerfile copy reused, cached runtime layer, build 2 min),
   healthy in 15 s, 0 errors, smoke 11/11 200s, live bundle `main.740efb7c…`. The SAME

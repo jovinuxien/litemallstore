@@ -1,0 +1,172 @@
+{
+  "service": {
+    "title": "Kundeservice",
+    "emailSupport": "Support via e-mail",
+    "emailLine": "<1>{{email}}</1> – angiv dit ordrenummer, hvis det gælder en ordre.",
+    "answered": "Vi svarer {{hours}}.",
+    "topQuestions": "Mest stillede spørgsmål",
+    "browseAll": "Se hele hjælpecentret",
+    "feedback": "Har du et forslag, eller er du logget ind og vil helst ikke skrive en mail? <1>Send os feedback</1>.",
+    "followUs": "Følg os"
+  },
+  "delivery": {
+    "title": "Fragt og levering",
+    "costTitle": "Hvad det koster",
+    "cost": "Fragten er fast <1>{{flat}}</1> pr. ordre. Ordrer på <2>{{freeMin}}</2> eller mere sendes <3>gratis</3> – det trækkes automatisk ved kassen, ingen kode nødvendig.",
+    "courierTitle": "Valg af fragtfirma",
+    "courier": "Ved kassen ser du de leveringsmuligheder, der findes for din kurv. Standardmuligheden er inkluderet i den faste fragt. Et hurtigere fragtfirma viser præcis, hvad det lægger til – for eksempel ”+€3,20” – og intet lægges til, medmindre du vælger det. Prisen, du ser, er prisen, du betaler: vi genberegner den på vores egne servere, når ordren afgives, aldrig i din browser.",
+    "fromTitle": "Hvor din ordre sendes fra",
+    "from1": "De fleste varer sendes fra vores leverandørs lager. Nogle ligger på et EU-lager, og de har mærkatet <1>EU-lager</1> på produktkortet og produktsiden. Mærkatet afspejler vores seneste lagertjek, ikke et løfte om netop din pakke, og en vare uden mærkat er ikke nødvendigvis langsommere – vi mangler blot en frisk aflæsning for den.",
+    "from2": "Alt andet rejser længere, så regn med mere tid end ved indenlandsk levering. Vi siger det hellere ligeud end lover en leveringsdato, vi ikke kan stå inde for.",
+    "followTitle": "Følg din ordre",
+    "follow1": "Når din ordre afsendes, sender vi dig fragtfirma og sporingsnummer på e-mail.",
+    "follow2": "Har fragtfirmaet endnu ikke udstedt et nummer, siger vi det og følger op – du får aldrig en e-mail med en tom sporingslinje.",
+    "follow3": "Hver ordre har en statusside under <1>Dine ordrer</1>, der viser sporingshændelser, efterhånden som fragtfirmaet rapporterer dem.",
+    "follow4": "En ordre markeres automatisk som modtaget {{days}} dage efter afsendelse. Du kan bekræfte tidligere fra ordresiden.",
+    "addressTitle": "Ændring af din adresse",
+    "address": "En leveringsadresse kan ikke ændres, når en ordre er afgivet. Kan ordren stadig annulleres, så annullér den under <1>Dine ordrer</1> og afgiv den igen med den rigtige adresse. At holde din <2>adressebog</2> opdateret er den nemmeste måde at undgå det på.",
+    "unpaidTitle": "Ordrer, der ikke betales",
+    "unpaid": "En ordre, der står ubetalt i {{minutes}} minutter, frigives automatisk, og varerne går tilbage på lager. Intet trækkes.",
+    "returnsTitle": "Returnering",
+    "returns": "Du har 30 dage til at fortryde – se <1>Returnering og refusion</1> for hele politikken, inklusive din lovbestemte fortrydelsesret. Alt andet, <2>kontakt os</2>."
+  },
+  "center": {
+    "title": "Hjælpecenter",
+    "searchPlaceholder": "Søg i hjælpen, f.eks. refusion, rabatkode, levering…",
+    "searchAria": "Søg i hjælpen",
+    "noMatch": "Ingen hjælpeartikler matcher ”{{query}}”. Prøv et andet ord, eller brug kontaktmulighederne nedenfor.",
+    "stuck": "Stadig brug for hjælp?",
+    "solveMost": "Disse sider løser de fleste problemer direkte:",
+    "li1": "<1>Mine ordrer</1> – ordrestatus, historik, sporing, annullering og reklamationer.",
+    "li2": "<1>Returnering og refusion</1> – returpolitikken, og <2>dine refusioner</2> til at følge en anmodning.",
+    "li3": "<1>Log ind</1> – inklusive nulstilling af adgangskode.",
+    "li4": "<1>Cookieindstillinger</1> – ændr dit valg for analysecookies.",
+    "footnote": "Ikke løst? Skriv til <1>{{email}}</1> – angiv dit ordrenummer, hvis det gælder en ordre – eller <2>send feedback</2> fra din konto. Åbningstider findes på siden <3>kundeservice</3>."
+  },
+  "payments": {
+    "title": "Sådan fungerer betalinger",
+    "whoTitle": "Hvem håndterer dit kort",
+    "who": "Betalinger håndteres af <1>Stripe</1>. Dine kortoplysninger indtastes i Stripes egen betalingsformular og går direkte til Stripe – de når aldrig Trovemos servere, og vi ser eller gemmer aldrig dit kortnummer.",
+    "bankTitle": "Din banks verificeringstrin",
+    "bank": "Hvor din bank kræver det, kører Stripe tjekket ”bekræft, at det er dig” som en del af betalingen. Det er et lovkrav for kortbetalinger på nettet i EU, og det beskytter dig lige så meget som os.",
+    "chargedTitle": "Hvad du trækkes for",
+    "charged": "Alt på Trovemo prissættes og trækkes i <1>euro</1>. Beløbet, du godkender, er beløbet, der trækkes – ingen gebyrer dukker op til sidst. Fragt og eventuel rabat vises, før du betaler; se <2>Fragt og levering</2>.",
+    "verifyTitle": "Vi verificerer betalingen, før vi accepterer ordren",
+    "verify": "Når du betaler, tager vi ikke bare din browsers ord for det. Vores server spørger Stripe direkte og markerer kun ordren som betalt, hvis betalingen reelt lykkedes, <1>det modtagne beløb matcher ordren på øren</1>, og betalingen hører til netop den ordre. Alt andet afvises. Derfor kan bekræftelsen tage et øjeblik – vi tjekker betalingen, vi viser den ikke bare.",
+    "balanceTitle": "Betaling med din saldo",
+    "balance": "Har du en Trovemo-saldo, kan du betale med den i stedet for kort. Refusioner for en saldobetalt ordre går tilbage til saldoen.",
+    "refundsTitle": "Refusioner",
+    "refunds": "Godkendte refusioner går tilbage samme vej, som du betalte: kortbetalinger tilbageføres automatisk via Stripe, saldobetalinger krediteres tilbage. En kortrefusion tager derefter nogle bankdage at vise sig, afhængigt af din bank. Hele politikken findes under <1>Returnering og refusion</1>.",
+    "keepTitle": "Hvad vi gemmer",
+    "keep": "Vi gemmer din ordre, hvad du købte, din leveringsadresse og en reference til betalingen. Ikke dit kortnummer. Hvad vi ellers gemmer, og hvorfor, fremgår af vores <1>privatlivspolitik</1>.",
+    "wrongTitle": "Hvis noget ser forkert ud",
+    "wrong": "Et kort, der afvises, trækkes ikke, og et ventende beløb, som din bank viser for et afvist forsøg, er en reservation, der forsvinder af sig selv. Ser et beløb forkert ud, eller ser du en trækning for en ordre, der ikke blev accepteret, så skriv til <1>kundeservice</1> med dit ordrenummer – vi kan se præcis, hvad der blev trukket, og rette det."
+  },
+  "sections": {
+    "orders": "Ordrer og levering",
+    "payments": "Betaling og priser",
+    "returns": "Returnering og refusion",
+    "account": "Konto og sikkerhed",
+    "coupons": "Rabatkoder og tilbud"
+  },
+  "links": {
+    "cart": "Din kurv",
+    "orders": "Mine ordrer",
+    "delivery": "Fragt og levering",
+    "addresses": "Dine adresser",
+    "payments": "Sådan fungerer betalinger",
+    "returnsPolicy": "Retur- og refusionspolitik",
+    "refunds": "Dine refusioner",
+    "signIn": "Log ind",
+    "profile": "Profil",
+    "privacy": "Privatlivspolitik",
+    "cookies": "Cookieindstillinger",
+    "couponCenter": "Rabatkoder",
+    "myCoupons": "Mine rabatkoder",
+    "deals": "Dagens tilbud",
+    "hot": "Bestsellere",
+    "groupBuys": "Gruppekøb"
+  },
+  "faq": {
+    "place-order": {
+      "q": "Hvordan afgiver jeg en ordre?",
+      "a": "Læg varer i kurven, gå til kassen, vælg leveringsadresse og betalingsmetode, og afgiv ordren."
+    },
+    "track-order": {
+      "q": "Hvordan sporer jeg min ordre?",
+      "a": "Åbn Mine ordrer i kontomenuen. Hver ordre har en statushistorik, og sporingsoplysninger vises på ordresiden, når den er afsendt."
+    },
+    "delivery-time": {
+      "q": "Hvor lang er leveringstiden?",
+      "a": "Mange af vores produkter sendes direkte fra vores leverandørers lagre, som kan ligge i udlandet, så leveringstiden varierer efter produkt og destination og kan være længere end indenlandsk fragt. Følg hver ordre på dens statushistorik under Mine ordrer."
+    },
+    "shipping-cost": {
+      "q": "Hvad koster fragten, og hvornår er den gratis?",
+      "a": "Fragten er fast €{{flat}} pr. ordre og gratis ved køb for €{{freeMin}} eller mere – rabatten trækkes automatisk, ingen kode nødvendig. Vælger du et hurtigere fragtfirma ved kassen, betaler du kun forskellen, som vises, før du betaler."
+    },
+    "eu-stock": {
+      "q": "Hvad betyder mærkatet ”EU-lager”?",
+      "a": "Det betyder, at vores seneste lagertjek fandt varen på et EU-lager, så den har kortere vej at rejse. Det er en lageraflæsning, ikke en leveringsgaranti, og en vare uden mærkatet er ikke nødvendigvis langsommere – vi mangler blot en frisk aflæsning for den."
+    },
+    "cancel-order": {
+      "q": "Kan jeg annullere en ordre?",
+      "a": "Så længe en ordre kan annulleres (typisk før den er betalt), vises en Annullér-knap på den under Mine ordrer. Efter betaling bruger du i stedet ordrens muligheder for refusion og reklamation."
+    },
+    "change-address": {
+      "q": "Kan jeg ændre leveringsadressen, efter jeg har bestilt?",
+      "a": "En ordres leveringsadresse kan ikke ændres, når den er afgivet. Kan ordren stadig annulleres, så annullér den under Mine ordrer og afgiv den igen med den rigtige adresse. Hold din adressebog opdateret for at undgå dette."
+    },
+    "payment-methods": {
+      "q": "Hvilke betalingsmetoder understøttes?",
+      "a": "Kredit- eller betalingskort, håndteret sikkert af Stripe, samt din saldo. Kortoplysningerne indtastes i Stripes betalingsformular og når aldrig vores servere."
+    },
+    "card-safety": {
+      "q": "Er mit kort sikkert?",
+      "a": "Dine kortoplysninger indtastes i Stripes egen betalingsformular og går direkte til Stripe – de når aldrig vores servere, og vi ser eller gemmer aldrig dit kortnummer. Vi verificerer også hver betaling hos Stripe, før vi accepterer en ordre."
+    },
+    "payment-failed": {
+      "q": "Min betaling mislykkedes – hvad nu?",
+      "a": "Intet går tabt: ordren gemmes som ubetalt. Åbn den under Mine ordrer, og brug Betal for at prøve igen – du kan prøve kortet igen eller skifte betalingsmetode."
+    },
+    "when-charged": {
+      "q": "Hvornår trækkes pengene?",
+      "a": "Når du gennemfører betalingen for en ordre – enten direkte ved kassen eller senere via ordrens Betal-knap. At afgive en ordre uden at betale koster ikke noget."
+    },
+    "return-window": {
+      "q": "Hvad er returpolitikken?",
+      "a": "De fleste varer kan returneres inden for 30 dage fra levering. Start en anmodning fra ordrens reklamationsafsnit under Mine ordrer. Hele politikken findes på siden Returnering og refusion."
+    },
+    "refund-method": {
+      "q": "Hvordan udbetales refusioner?",
+      "a": "Samme vej, som du betalte: kortbetalinger tilbageføres via Stripe, saldobetalinger går tilbage til din saldo. Følg status under Dine refusioner."
+    },
+    "refund-time": {
+      "q": "Hvor lang tid tager en refusion?",
+      "a": "Refusioner til saldoen vises, så snart refusionen er godkendt. Kortrefusioner sendes til Stripe ved godkendelse; din bank bruger derefter typisk nogle bankdage på at bogføre pengene."
+    },
+    "reset-password": {
+      "q": "Jeg har glemt min adgangskode – hvordan nulstiller jeg den?",
+      "a": "Brug muligheden Glemt adgangskode på login-siden for at nulstille den via e-mail. Vises muligheden ikke, så skriv til os fra adressen på din konto, så hjælper vi."
+    },
+    "update-profile": {
+      "q": "Hvordan opdaterer jeg min profil eller mine adresser?",
+      "a": "Din profil (navn, adgangskode) findes under Konto og leveringsadresser under Dine adresser."
+    },
+    "privacy-cookies": {
+      "q": "Hvordan bruges mine data, og hvordan styrer jeg cookies?",
+      "a": "Privatlivspolitikken forklarer, hvad vi indsamler og hvorfor. Valgfrie analysecookies er slået fra, medmindre du accepterer dem, og du kan ændre dit valg når som helst under Cookieindstillinger."
+    },
+    "use-coupon": {
+      "q": "Hvordan bruger jeg en rabatkode?",
+      "a": "Gennemse tilbuddene under Rabatkoder, og hent dem, du vil have – de vises derefter ved kassen, hvor du vælger en for at få rabatten. Rabatkoder, du har hentet, står under Mine rabatkoder."
+    },
+    "coupon-not-applying": {
+      "q": "Hvorfor virker min rabatkode ikke?",
+      "a": "Rabatkoder har en gyldighedsperiode, og mange har et minimumsbeløb eller gælder kun bestemte varer eller kategorier. Tjek betingelserne under Mine rabatkoder, og sørg for, at kurven opfylder dem."
+    },
+    "find-deals": {
+      "q": "Hvor finder jeg aktuelle tilbud?",
+      "a": "Dagens tilbud samler tidsbegrænsede tilbud, Bestsellere viser, hvad der er populært, og Gruppekøb giver en lavere pris, når nok købere går sammen."
+    }
+  }
+}

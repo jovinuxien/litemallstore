@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import Delivery from './Delivery';
-import { FAQ_SECTIONS } from './faqData';
+import { faqSections } from './faqData';
 import Payments from './Payments';
 import { AUTO_CONFIRM_DAYS, FREIGHT_FLAT, FREIGHT_FREE_MIN, UNPAID_MINUTES } from './shippingTerms';
 
@@ -86,7 +86,7 @@ describe('How payments work', () => {
 });
 
 describe('help centre picks the new pages up', () => {
-  const entries = FAQ_SECTIONS.flatMap(s => s.entries);
+  const entries = faqSections().flatMap(s => s.entries);
 
   it('answers what shipping costs, from the same constants as the page', () => {
     const entry = entries.find(e => e.id === 'shipping-cost');

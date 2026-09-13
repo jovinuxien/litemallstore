@@ -3,6 +3,7 @@ import { Alert, Form } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { CheckoutPaymentMethod, payOrder } from 'app/shared/reducers/orderSlice';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
@@ -14,6 +15,7 @@ import { Cell, CellGroup, Page, PageHead, PaymentBrandIcons, SubmitBar } from 'a
  * the order slice's `payOrder` thunk (`POST /srv/order/{id}/actions/pay`).
  */
 const Payment: React.FC = () => {
+  const { t } = useTranslation('checkout');
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -39,16 +41,16 @@ const Payment: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Payment' />
+      <PageHead title={t('pay.title')} />
       <div className='container'>
         {/* Order summary */}
-        <CellGroup title='Order'>
-          <Cell title='Order no.' value={orderSn} />
-          <Cell title='Amount due' value={<span className='lm-amount'>{money(amountDue)}</span>} />
+        <CellGroup title={t('pay.order')}>
+          <Cell title={t('pay.orderNo')} value={orderSn} />
+          <Cell title={t('pay.amountDue')} value={<span className='lm-amount'>{money(amountDue)}</span>} />
         </CellGroup>
 
         {/* Payment method */}
-        <CellGroup title='Payment method'>
+        <CellGroup title={t('pay.method')}>
           <Cell>
             <Form.Check
               type='radio'
@@ -56,7 +58,7 @@ const Payment: React.FC = () => {
               name='pm'
               label={
                 <>
-                  Credit / debit card
+                  {t('payment.card')}
                   <PaymentBrandIcons />
                 </>
               }
@@ -69,7 +71,7 @@ const Payment: React.FC = () => {
               type='radio'
               id='pm-wallet'
               name='pm'
-              label='Digital wallet'
+              label={t('pay.wallet')}
               checked={paymentMethod === 'WALLET'}
               onChange={() => setPaymentMethod('WALLET')}
             />
@@ -79,7 +81,7 @@ const Payment: React.FC = () => {
         {errorMessage && <Alert variant='danger'>{errorMessage}</Alert>}
       </div>
 
-      <SubmitBar total={amountDue} buttonText='Pay now' onSubmit={pay} loading={submitting} />
+      <SubmitBar total={amountDue} buttonText={t('pay.payNow')} onSubmit={pay} loading={submitting} />
     </Page>
   );
 };

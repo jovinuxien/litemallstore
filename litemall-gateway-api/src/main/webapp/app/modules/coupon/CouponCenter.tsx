@@ -6,6 +6,7 @@ import { ICoupon, userApi } from 'app/shared/api';
 import { ApiError } from 'app/shared/api/http';
 import { EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { useAppSelector } from 'app/config/store';
+import { Trans, useTranslation } from 'app/i18n';
 import { couponConditionLabel, couponScopeLink, couponValueShort, isPercentCoupon } from 'app/shared/util/couponFormat';
 import { resetPageTitle, setPageTitle } from 'app/shared/util/pageTitle';
 
@@ -23,6 +24,7 @@ import { resetPageTitle, setPageTitle } from 'app/shared/util/pageTitle';
 type ClaimState = 'busy' | 'claimed' | { error: string };
 
 const CouponCenter: React.FC = () => {
+  const { t } = useTranslation('coupon');
   const navigate = useNavigate();
   const isAuthenticated = useAppSelector(state => state.customerAuth.data.isAuthenticated);
 
@@ -31,7 +33,7 @@ const CouponCenter: React.FC = () => {
   const [claims, setClaims] = useState<Record<number, ClaimState>>({});
 
   useEffect(() => {
-    setPageTitle('Coupons');
+    setPageTitle(t('center.title'));
     let cancelled = false;
     userApi
       .couponList({ page: 1, limit: 60 })
@@ -65,7 +67,7 @@ const CouponCenter: React.FC = () => {
       setClaims(prev => ({ ...prev, [id]: 'claimed' }));
     } catch (e) {
       // Honest errno message (already claimed / limit reached / expired).
-      const msg = e instanceof ApiError && e.message ? e.message : 'Could not claim this coupon.';
+      const msg = e instanceof ApiError && e.message ? e.message : t('center.claimFailed');
       setClaims(prev => ({ ...prev, [id]: { error: msg } }));
     }
   };
@@ -73,25 +75,18 @@ const CouponCenter: React.FC = () => {
   return (
     <Page>
       <PageHead
-        title='Coupons'
+        title={t('center.title')}
         sub={
+          // Wave-19: the coupon_flag=1 deep-link filters to products an active
+          // claimable coupon covers (searchRouting maps it onto the "Has coupon" toggle).
           isAuthenticated ? (
-            <>
-              Claim a coupon below, then pick it at checkout. <Link to='/user/coupons'>View my coupons</Link>
-              {' · '}
-              {/* Wave-19: search preset — the coupon_flag=1 deep-link filters to
-                  products an active claimable coupon covers (searchRouting maps
-                  it onto the "Has coupon" toggle). */}
-              <Link to='/search?coupon_flag=1'>Find couponed products</Link>
-            </>
+            <Trans t={t} i18nKey='center.subAuth' components={{ 1: <Link to='/user/coupons' />, 2: <Link to='/search?coupon_flag=1' /> }} />
           ) : (
-            <>
-              Claim a coupon and it is applied from your account at checkout.{' '}
-              <Link to='/login' state={{ from: { pathname: '/coupons' } }}>
-                Sign in
-              </Link>{' '}
-              to claim. <Link to='/search?coupon_flag=1'>Find couponed products</Link>
-            </>
+            <Trans
+              t={t}
+              i18nKey='center.subGuest'
+              components={{ 1: <Link to='/login' state={{ from: { pathname: '/coupons' } }} />, 2: <Link to='/search?coupon_flag=1' /> }}
+            />
           )
         }
       />
@@ -101,9 +96,9 @@ const CouponCenter: React.FC = () => {
             <Spinner animation='border' />
           </div>
         ) : coupons.length === 0 ? (
-          <EmptyState icon='bi-ticket-perforated' text='No coupons on offer right now — check back soon.'>
+          <EmptyState icon='bi-ticket-perforated' text={t('center.empty')}>
             <Link to='/search' className='btn btn-sm btn-outline-primary mt-2'>
-              Shop the store
+              {t('format.shopStore')}
             </Link>
           </EmptyState>
         ) : (
@@ -116,7 +111,7 @@ const CouponCenter: React.FC = () => {
                 <div key={c.id} className='lm-coupon-card'>
                   <div className='lm-coupon-card__value'>
                     <div className='lm-coupon-card__amt'>{couponValueShort(c)}</div>
-                    <div className='lm-coupon-card__cond'>{isPercentCoupon(c) ? 'off your order' : 'off'}</div>
+                    <div className='lm-coupon-card__cond'>{isPercentCoupon(c) ? t('center.offYourOrder') : t('center.off')}</div>
                   </div>
                   <div className='lm-coupon-card__body'>
                     <div className='lm-coupon-card__name'>{c.name}</div>
@@ -134,14 +129,14 @@ const CouponCenter: React.FC = () => {
                         disabled={state === 'busy' || claimedNow}
                         onClick={() => claim(c)}
                       >
-                        {state === 'busy' ? 'Claiming…' : claimedNow ? 'Claimed ✓' : isAuthenticated ? 'Claim' : 'Sign in to claim'}
+                        {state === 'busy' ? t('center.claiming') : claimedNow ? t('center.claimed') : isAuthenticated ? t('center.claim') : t('center.signInToClaim')}
                       </button>
                       <Link to={scope.to} className='small text-decoration-none'>
                         {scope.label} <i className='bi bi-chevron-right' style={{ fontSize: '0.7em' }} />
                       </Link>
                       {claimedNow && (
                         <Link to='/user/coupons' className='small text-decoration-none'>
-                          View my coupons
+                          {t('center.viewMine')}
                         </Link>
                       )}
                     </div>

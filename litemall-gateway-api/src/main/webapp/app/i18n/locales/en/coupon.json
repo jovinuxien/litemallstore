@@ -1,0 +1,40 @@
+{
+  "center": {
+    "title": "Coupons",
+    "claimFailed": "Could not claim this coupon.",
+    "subAuth": "Claim a coupon below, then pick it at checkout. <1>View my coupons</1> · <2>Find couponed products</2>",
+    "subGuest": "Claim a coupon and it is applied from your account at checkout. <1>Sign in</1> to claim. <2>Find couponed products</2>",
+    "empty": "No coupons on offer right now — check back soon.",
+    "offYourOrder": "off your order",
+    "off": "off",
+    "claiming": "Claiming…",
+    "claimed": "Claimed ✓",
+    "claim": "Claim",
+    "signInToClaim": "Sign in to claim",
+    "viewMine": "View my coupons"
+  },
+  "format": {
+    "shopStore": "Shop the store",
+    "capParen": " (up to {{amount}})",
+    "percentOff": "{{rate}}% off",
+    "flatOff": "{{amount}} off",
+    "spend": "Spend {{amount}}",
+    "noMinimum": "No minimum",
+    "upTo": "up to {{amount}}",
+    "pickerOver": " (over {{amount}})",
+    "pickerPercentCap": " · percent coupon, up to {{amount}}",
+    "pickerPercent": " · percent coupon",
+    "shopEligible": "Shop eligible items",
+    "viewEligible": "View eligible product",
+    "shopAll": "Shop all products"
+  },
+  "mine": {
+    "unused": "Unused",
+    "used": "Used",
+    "expired": "Expired",
+    "title": "My Coupons",
+    "sub": "Claim more in the <1>coupon center</1>.",
+    "empty": "No coupons here.",
+    "browse": "Browse the coupon center"
+  }
+}

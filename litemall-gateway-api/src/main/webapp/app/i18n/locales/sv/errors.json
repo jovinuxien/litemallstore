@@ -3,7 +3,21 @@
   "registrationFailed": "Registreringen misslyckades",
   "guestCheckoutFailed": "Gästkassan misslyckades",
   "googleFailed": "Inloggning med Google misslyckades",
+  "product": {
+    "loadFailed": "Produkten kunde inte laddas"
+  },
   "requestFailed": "Begäran misslyckades",
+  "cart": {
+    "loadFailed": "Varukorgen kunde inte laddas",
+    "updateFailed": "Varan i varukorgen kunde inte uppdateras"
+  },
+  "order": {
+    "signIn": "Logga in för att lägga en order",
+    "staleItems": "De här varorna kan inte längre beställas – ta bort dem och lägg till dem igen från produktsidan.",
+    "placementFailed": "Ordern kunde inte läggas",
+    "cardNotCompleted": "Kortbetalningen slutfördes inte – försök igen.",
+    "paymentSlow": "Betalningen tar längre tid än väntat. Kontrollera Mina ordrar innan du försöker igen – ordern kan redan vara betald."
+  },
   "byCode": {
     "700": "Det nuvarande lösenordet är fel.",
     "701": "Återställning av lösenord via e-post är inte tillgänglig.",

@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -19,6 +20,7 @@ import 'app/shared/scss/content.scss';
  * shows up in both without a rebuild.
  */
 const TopicList: React.FC = () => {
+  const { t } = useTranslation('content');
   const [topics, setTopics] = useState<ITopic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,13 +41,13 @@ const TopicList: React.FC = () => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>Topics</h1>
+      <h1 className='h4 mb-3'>{t('topic.title')}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
       ) : topics.length === 0 ? (
-        <p className='text-muted text-center my-5'>No topics to show yet.</p>
+        <p className='text-muted text-center my-5'>{t('topic.none')}</p>
       ) : (
         <div className='d-grid gap-3'>
           {topics.map(t => (
