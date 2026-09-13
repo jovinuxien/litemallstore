@@ -1,0 +1,40 @@
+{
+  "center": {
+    "title": "Rabattkoder",
+    "claimFailed": "Rabattkoden kunde inte hämtas.",
+    "subAuth": "Hämta en rabattkod nedan och välj den sedan i kassan. <1>Mina rabattkoder</1> · <2>Hitta produkter med rabattkod</2>",
+    "subGuest": "Hämta en rabattkod så används den från ditt konto i kassan. <1>Logga in</1> för att hämta. <2>Hitta produkter med rabattkod</2>",
+    "empty": "Inga rabattkoder just nu – titta in igen snart.",
+    "offYourOrder": "rabatt på din order",
+    "off": "rabatt",
+    "claiming": "Hämtar…",
+    "claimed": "Hämtad ✓",
+    "claim": "Hämta",
+    "signInToClaim": "Logga in för att hämta",
+    "viewMine": "Mina rabattkoder"
+  },
+  "format": {
+    "shopStore": "Handla i butiken",
+    "capParen": " (upp till {{amount}})",
+    "percentOff": "{{rate}} % rabatt",
+    "flatOff": "{{amount}} rabatt",
+    "spend": "Handla för {{amount}}",
+    "noMinimum": "Inget minimibelopp",
+    "upTo": "upp till {{amount}}",
+    "pickerOver": " (vid köp över {{amount}})",
+    "pickerPercentCap": " · procentrabatt, upp till {{amount}}",
+    "pickerPercent": " · procentrabatt",
+    "shopEligible": "Visa produkter som ingår",
+    "viewEligible": "Visa produkten som ingår",
+    "shopAll": "Visa alla produkter"
+  },
+  "mine": {
+    "unused": "Oanvända",
+    "used": "Använda",
+    "expired": "Utgångna",
+    "title": "Mina rabattkoder",
+    "sub": "Hämta fler under <1>rabattkoder</1>.",
+    "empty": "Inga rabattkoder här.",
+    "browse": "Till rabattkoderna"
+  }
+}

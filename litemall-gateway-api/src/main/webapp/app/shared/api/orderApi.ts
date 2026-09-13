@@ -5,11 +5,57 @@ import {
   IFreightQuote,
   IOrderDetail,
   IOrderListItem,
+  IOrderTimelineEntry,
   IStore,
   ITracking,
 } from 'app/shared/model/order/order.model';
 
-import { baseAxios, SRV, unwrap } from './http';
+import { t } from 'app/i18n';
+
+import { ApiError, baseAxios, SRV, unwrap } from './http';
+
+/**
+ * `OrderOperationDtoResponse` — what every `/srv/order/{id}/actions/*` verb answers. NOT an
+ * errno envelope: a refusal is a non-2xx with `success:false` and the reason in `message`
+ * (order lifecycle contract §3: "typed failure message, not a 500 — show it verbatim").
+ */
+export interface IOrderOperation {
+  success?: boolean;
+  message?: string;
+  orderId?: number;
+  orderSn?: string;
+  previousStatus?: string;
+  currentStatus?: string;
+  errorCode?: string;
+}
+
+/**
+ * Run an order action and normalise its refusal into an {@link ApiError} carrying the
+ * server's own wording, so every surface can render it verbatim with one catch. A 2xx
+ * with `success:false` is treated the same way. Anything without a message (network,
+ * 401) is rethrown untouched.
+ */
+const operation = async (p: Promise<{ data: IOrderOperation }>): Promise<IOrderOperation> => {
+  try {
+    const res = await p;
+    const body = res?.data;
+    if (body && body.success === false) throw new ApiError(422, body.message ?? t('errors:requestFailed'));
+    return body;
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    const response = (e as { response?: { status?: number; data?: { message?: string; errmsg?: string } } })?.response;
+    const message = response?.data?.message ?? response?.data?.errmsg;
+    if (message) throw new ApiError(response?.status ?? 500, message);
+    throw e;
+  }
+};
+
+/** The text to show a customer for a failed order action: the server's words when it gave any. */
+export const actionErrorMessage = (e: unknown): string => {
+  if (e instanceof ApiError) return e.message;
+  const response = (e as { response?: { data?: { message?: string; errmsg?: string } } })?.response;
+  return response?.data?.message ?? response?.data?.errmsg ?? t('order:actions.failed');
+};
 
 /**
  * Order lifecycle against the order-service (`/srv/order`). `submit` exists; the
@@ -49,6 +95,11 @@ export const orderApi = {
    */
   tracking: (orderId: number | string) => unwrap<ITracking>(baseAxios.get(`${SRV}/order/${orderId}/tracking`, { timeout: 30000 })),
   /**
+   * GET /srv/order/{id}/timeline — every recorded state transition, oldest first
+   * (owner-scoped; foreign/unknown ⇒ errno 404). Rendered by OrderTimelinePanel.
+   */
+  timeline: (orderId: number | string) => unwrap<IOrderTimelineEntry[]>(baseAxios.get(`${SRV}/order/${orderId}/timeline`)),
+  /**
    * POST /srv/order/{id}/actions/pay — pay a placed order (CARD/WALLET).
    * Returns the OrderOperationDtoResponse verbatim (no errno envelope); a payment
    * failure surfaces as a non-2xx (402) the caller catches. For a source='cj' order
@@ -77,10 +128,17 @@ export const orderApi = {
   // 401 the SPA turns into its sign-in flow.
   list: (params: OrderListParams) => unwrap<{ list: IOrderListItem[]; total: number }>(baseAxios.get(`${SRV}/order/list`, { params })),
   detail: (orderId: number | string) => unwrap<IOrderDetail>(baseAxios.get(`${SRV}/order/detail?orderId=${encodeURIComponent(String(orderId))}`)),
-  cancel: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/cancel`, {})),
-  confirm: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/confirm`, {})),
-  refund: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/refund`, {})),
-  remove: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/${orderId}/actions/delete`, {})),
+  cancel: (orderId: number | string) => operation(baseAxios.post(`${SRV}/order/${orderId}/actions/cancel`, {})),
+  confirm: (orderId: number | string) => operation(baseAxios.post(`${SRV}/order/${orderId}/actions/confirm`, {})),
+  refund: (orderId: number | string) => operation(baseAxios.post(`${SRV}/order/${orderId}/actions/refund`, {})),
+  /**
+   * POST /srv/order/{id}/actions/refund/withdraw — the customer takes back a pending
+   * refund request (REFUND_REQUEST → PAID|SHIPPED; lifecycle decision D4). Offered exactly
+   * when `handleOption.withdrawRefund` is true. A request that can no longer be withdrawn
+   * (delivered-order aftersale, already decided) is a typed refusal shown verbatim.
+   */
+  withdrawRefund: (orderId: number | string) => operation(baseAxios.post(`${SRV}/order/${orderId}/actions/refund/withdraw`, {})),
+  remove: (orderId: number | string) => operation(baseAxios.post(`${SRV}/order/${orderId}/actions/delete`, {})),
   prepay: (orderId: number | string) => unwrap(baseAxios.post(`${SRV}/order/prepay`, { orderId })),
 
   // Aftersale / RMA (Wave-2 vertical, live on master —

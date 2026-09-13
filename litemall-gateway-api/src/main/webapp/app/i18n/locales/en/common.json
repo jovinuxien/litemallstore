@@ -64,12 +64,40 @@
     "body": "Something went wrong. Reloading the page usually fixes it.",
     "reload": "Reload"
   },
+  "forms": {
+    "upload": {
+      "noUrl": "Upload returned no URL.",
+      "failed": "Image upload failed (max 5 MB, images only).",
+      "remove": "Remove image"
+    },
+    "phone": {
+      "unknownCode": "Unknown country code — check the digits after \"+\".",
+      "lengthDetail": "{{kind}} for {{country}} (+{{dial}}) — {{expected}} digits expected, you entered {{entered}}.",
+      "selectCode": "Select country code",
+      "placeholder": "Phone number",
+      "search": "Search country…",
+      "noMatch": "No match",
+      "tooShort": "Too short",
+      "tooLong": "Too long"
+    },
+    "card": {
+      "loading": "Card payment is still loading — please try again in a moment.",
+      "checkDetails": "Please check your card details.",
+      "notCharged": "Your card could not be charged.",
+      "processing": "Your bank is processing this payment. We will email you when it is confirmed — do not pay again.",
+      "notCompleted": "Your payment was not completed. Please try another card."
+    }
+  },
   "language": {
     "label": "Language",
     "englishOnlyNotice": "This page is available in English only."
   },
   "submitBar": {
     "total": "Total:"
+  },
+  "kit": {
+    "acceptedCards": "Accepted cards: Visa, Mastercard, American Express",
+    "defaultAddress": "Default"
   },
   "footer": {
     "backToTop": "Back to top",
@@ -129,6 +157,22 @@
     "allProducts": "All products",
     "todaysDeals": "Today’s Deals"
   },
+  "cookies": {
+    "bannerAria": "Cookie consent",
+    "banner": "We’d like to use analytics and marketing cookies to understand how the store is used and measure our advertising. They are optional — decline and nothing is collected. See our <1>Cookie Policy</1>.",
+    "decline": "Decline",
+    "accept": "Accept",
+    "checking": "Checking analytics settings…",
+    "noneConfigured": "This site has no analytics or marketing tools configured, so no optional cookies are set and there is nothing to consent to.",
+    "dnt": "Your browser sends a <1>Do Not Track</1> signal, which we honour: analytics are off and we will not ask. To choose for yourself, turn Do Not Track off in your browser settings.",
+    "prefsTitle": "Analytics & marketing cookies",
+    "statusOn": "Currently ON — you have accepted analytics and marketing cookies. Withdrawing stops tracking immediately and deletes the analytics cookies already set.",
+    "statusOff": "Currently OFF — you have declined. Nothing is collected.",
+    "statusNone": "No choice recorded yet, so nothing is being collected.",
+    "acceptAll": "Accept analytics & marketing cookies",
+    "withdraw": "Withdraw consent",
+    "reset": "Reset choice (ask me again)"
+  },
   "euStock": {
     "shipsFrom": "Ships from {{country}}",
     "shipsFromEu": "Ships from EU stock",
@@ -136,5 +180,12 @@
     "country": {
       "DE": "Germany"
     }
+  },
+  "social": {
+    "facebook": "Trovemo on Facebook",
+    "instagram": "Trovemo on Instagram",
+    "tiktok": "Trovemo on TikTok",
+    "x": "Trovemo on X",
+    "youtube": "Trovemo on YouTube"
   }
 }

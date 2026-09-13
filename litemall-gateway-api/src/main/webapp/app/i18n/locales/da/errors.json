@@ -3,7 +3,21 @@
   "registrationFailed": "Registreringen mislykkedes",
   "guestCheckoutFailed": "Gæstekassen mislykkedes",
   "googleFailed": "Google-login mislykkedes",
+  "product": {
+    "loadFailed": "Produktet kunne ikke indlæses"
+  },
   "requestFailed": "Anmodningen mislykkedes",
+  "cart": {
+    "loadFailed": "Kurven kunne ikke indlæses",
+    "updateFailed": "Varen i kurven kunne ikke opdateres"
+  },
+  "order": {
+    "signIn": "Log ind for at afgive en ordre",
+    "staleItems": "Disse varer kan ikke længere bestilles – fjern dem, og tilføj dem igen fra produktsiden.",
+    "placementFailed": "Ordren kunne ikke afgives",
+    "cardNotCompleted": "Kortbetalingen blev ikke gennemført – prøv igen.",
+    "paymentSlow": "Betalingen tager længere tid end forventet. Tjek Mine ordrer, før du prøver igen – ordren kan allerede være betalt."
+  },
   "byCode": {
     "700": "Den nuværende adgangskode er forkert.",
     "701": "Nulstilling af adgangskode via e-mail er ikke tilgængelig.",

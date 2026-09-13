@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -18,6 +19,7 @@ import 'app/shared/scss/content.scss';
  * can never disagree about whether this section has anything to show.
  */
 const BrandList: React.FC = () => {
+  const { t } = useTranslation('content');
   const [brands, setBrands] = useState<BrandWithGoods[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,13 +40,13 @@ const BrandList: React.FC = () => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>Brands &amp; stores</h1>
+      <h1 className='h4 mb-3'>{t('brand.title')}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
       ) : brands.length === 0 ? (
-        <p className='text-muted text-center my-5'>No brands to show yet.</p>
+        <p className='text-muted text-center my-5'>{t('brand.none')}</p>
       ) : (
         <div className='lm-brand-grid'>
           {brands.map(b => (

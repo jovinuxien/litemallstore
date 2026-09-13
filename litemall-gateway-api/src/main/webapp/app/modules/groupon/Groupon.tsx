@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
+import { useTranslation } from 'app/i18n';
 import { contentApi, promotionApi, ICombinationPink, IGrouponItem } from 'app/shared/api';
 import { toDisplayTime } from './grouponUtils';
 import 'app/shared/scss/content.scss';
@@ -18,6 +19,7 @@ import 'app/shared/scss/content.scss';
  * group is browsable here but checkout still prices at retail.
  */
 const Groupon: React.FC = () => {
+  const { t } = useTranslation('content');
   const [items, setItems] = useState<IGrouponItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +66,7 @@ const Groupon: React.FC = () => {
       return true;
     } catch (e) {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setActionError(msg ?? 'The group action could not be completed.');
+      setActionError(msg ?? t('groupon.actionFailed'));
       return false;
     } finally {
       setActionBusy(false);
@@ -83,11 +85,11 @@ const Groupon: React.FC = () => {
 
   return (
     <div className='container my-4'>
-      <h1 className='h4 mb-3'>Group deals</h1>
+      <h1 className='h4 mb-3'>{t('groupon.title')}</h1>
 
       {signedIn && (myGroups.length > 0 || actionError) && (
         <div className='mb-4'>
-          <h2 className='h6 text-muted'>My groups</h2>
+          <h2 className='h6 text-muted'>{t('groupon.myGroups')}</h2>
           {actionError && (
             <Alert variant='warning' onClose={() => setActionError(null)} dismissible>
               {actionError}
@@ -101,21 +103,19 @@ const Groupon: React.FC = () => {
                       share link + group-price checkout live. */}
                   {p.combinationId != null ? (
                     <Link to={`/groupon/${p.combinationId}`} className='fw-semibold'>
-                      Group #{p.pinkId}
+                      {t('groupon.groupN', { id: p.pinkId })}
                     </Link>
                   ) : (
-                    <span className='fw-semibold'>Group #{p.pinkId}</span>
+                    <span className='fw-semibold'>{t('groupon.groupN', { id: p.pinkId })}</span>
                   )}
-                  {p.headId != null && p.headId === p.pinkId && <span className='badge text-bg-info ms-2'>Leader</span>}
-                  <span className='ms-2'>
-                    {p.memberCount ?? 1}/{p.requiredMembers ?? '?'} joined
-                  </span>
+                  {p.headId != null && p.headId === p.pinkId && <span className='badge text-bg-info ms-2'>{t('groupon.leader')}</span>}
+                  <span className='ms-2'>{t('groupon.joined', { count: p.memberCount ?? 1, required: p.requiredMembers ?? '?' })}</span>
                   <span className={`badge ms-2 ${p.status === 'Success' ? 'text-bg-success' : p.status === 'Failed' ? 'text-bg-secondary' : 'text-bg-warning'}`}>
-                    {p.status ?? 'Pending'}
+                    {p.status ?? t('groupon.pending')}
                   </span>
                 </div>
                 <div className='small text-muted'>
-                  {p.status === 'Pending' && p.expireTime ? <>expires {toDisplayTime(p.expireTime)} · share id #{p.pinkId} to invite</> : null}
+                  {p.status === 'Pending' && p.expireTime ? t('groupon.expiresShare', { time: toDisplayTime(p.expireTime), id: p.pinkId }) : null}
                 </div>
               </div>
             ))}
@@ -134,13 +134,13 @@ const Groupon: React.FC = () => {
           <Form.Control
             size='sm'
             style={{ maxWidth: 220 }}
-            placeholder='Join with an invite id…'
+            placeholder={t('groupon.joinPlaceholder')}
             value={joinPinkId}
             onChange={e => setJoinPinkId(e.target.value)}
             inputMode='numeric'
           />
           <Button size='sm' variant='outline-primary' type='submit' disabled={actionBusy || !joinPinkId}>
-            Join group
+            {t('groupon.join')}
           </Button>
         </Form>
       )}
@@ -150,7 +150,7 @@ const Groupon: React.FC = () => {
           <Spinner animation='border' />
         </div>
       ) : items.length === 0 ? (
-        <p className='text-muted text-center my-5'>No group deals running right now.</p>
+        <p className='text-muted text-center my-5'>{t('groupon.none')}</p>
       ) : (
         <div className='lm-grid'>
           {items.map((g, i) => (
@@ -165,15 +165,15 @@ const Groupon: React.FC = () => {
                   {g.discount != null && <span className='lm-groupon-card__badge'>−{money(g.discount)}</span>}
                 </div>
               </Link>
-              <div className='small text-muted mt-1'>{g.discountMember ?? '?'} people per group</div>
+              <div className='small text-muted mt-1'>{t('groupon.perGroup', { count: Number(g.discountMember) || 0 })}</div>
               {g.id != null ? (
                 <Link to={`/groupon/${g.id}`} className='btn btn-sm btn-outline-primary mt-2'>
-                  View group deal
+                  {t('groupon.viewDeal')}
                 </Link>
               ) : (
                 signedIn && (
                   <Button size='sm' variant='outline-primary' className='mt-2' disabled={actionBusy} onClick={() => startGroup(g.id)}>
-                    Start a group
+                    {t('groupon.start')}
                   </Button>
                 )
               )}

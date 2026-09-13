@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'app/i18n';
 import React, { useEffect, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -12,6 +13,7 @@ import PageRenderer from './PageRenderer';
  * same friendly not-available state.
  */
 const PageView: React.FC = () => {
+  const { t } = useTranslation('content');
   const { id } = useParams<{ id: string }>();
   const [page, setPage] = useState<IPageView | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'unavailable'>('loading');
@@ -45,9 +47,9 @@ const PageView: React.FC = () => {
   if (state === 'unavailable' || !page) {
     return (
       <div className='container my-5 text-center'>
-        <h4>This page isn’t available</h4>
+        <h4>{t('page.unavailable')}</h4>
         <p className='text-muted'>
-          It may have been unpublished. <Link to='/'>Back to the home page</Link>
+          <Trans t={t} i18nKey='page.unpublished' components={{ 1: <Link to='/' /> }} />
         </p>
       </div>
     );

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Form, Spinner } from 'react-bootstrap';
 
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 
 /**
  * Shared image uploader: file picker → `POST /srv/storage/upload`
@@ -17,6 +18,7 @@ interface Props {
 }
 
 const ImageUploader: React.FC<Props> = ({ value, onChange, max = 5, disabled }) => {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -32,10 +34,10 @@ const ImageUploader: React.FC<Props> = ({ value, onChange, max = 5, disabled }) 
       if (url) {
         onChange([...value, url].slice(0, max));
       } else {
-        setError('Upload returned no URL.');
+        setError(t('forms.upload.noUrl'));
       }
     } catch {
-      setError('Image upload failed (max 5 MB, images only).');
+      setError(t('forms.upload.failed'));
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -52,7 +54,7 @@ const ImageUploader: React.FC<Props> = ({ value, onChange, max = 5, disabled }) 
               <button
                 type='button'
                 className='btn-close btn-close-white'
-                aria-label='Remove image'
+                aria-label={t('forms.upload.remove')}
                 style={{
                   position: 'absolute',
                   top: 2,

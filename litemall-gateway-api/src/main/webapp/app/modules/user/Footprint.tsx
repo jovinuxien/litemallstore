@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
 import { money } from 'app/shared/util/money';
 import { userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import './user.scss';
 
 interface FootprintItem {
@@ -22,6 +23,7 @@ interface FootprintItem {
  * `/srv/footprint/list`.
  */
 const Footprint: React.FC = () => {
+  const { t } = useTranslation('user');
   const [items, setItems] = useState<FootprintItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,13 +45,13 @@ const Footprint: React.FC = () => {
 
   return (
     <div className='container my-4 lm-user' style={{ maxWidth: 720 }}>
-      <h1 className='h4 mb-3'>Recently viewed</h1>
+      <h1 className='h4 mb-3'>{t('footprint.title')}</h1>
       {loading ? (
         <div className='text-center my-5'>
           <Spinner animation='border' />
         </div>
       ) : items.length === 0 ? (
-        <p className='text-muted text-center my-5'>No browsing history yet.</p>
+        <p className='text-muted text-center my-5'>{t('footprint.empty')}</p>
       ) : (
         <div className='d-grid gap-2'>
           {items.map(it => (

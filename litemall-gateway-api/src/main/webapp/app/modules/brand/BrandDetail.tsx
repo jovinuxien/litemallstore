@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 import { Link, useParams } from 'react-router-dom';
@@ -16,6 +17,7 @@ import 'app/shared/scss/content.scss';
  * as a "Store" (the PDP's "Sold by" target), kind=0 as a "Brand".
  */
 const BrandDetail: React.FC = () => {
+  const { t } = useTranslation('content');
   const { id } = useParams<{ id: string }>();
   const [brand, setBrand] = useState<IBrand | null>(null);
   const [goods, setGoods] = useState<IGood[]>([]);
@@ -53,7 +55,7 @@ const BrandDetail: React.FC = () => {
   return (
     <div className='container my-4'>
       <Link to='/brands' className='btn btn-link px-0 mb-2'>
-        <i className='bi bi-chevron-left' /> All brands
+        <i className='bi bi-chevron-left' /> {t('brand.all')}
       </Link>
 
       {attribution && brand && (
@@ -61,10 +63,10 @@ const BrandDetail: React.FC = () => {
           {brand.picUrl && <img src={brand.picUrl} alt={attribution.name} />}
           <div>
             <span className={`lm-brand-badge lm-brand-badge--${attribution.label}`}>
-              {attribution.label === 'store' ? 'Store' : 'Brand'}
+              {attribution.label === 'store' ? t('brand.store') : t('brand.brand')}
             </span>
             <h1 className='h4 mb-1'>
-              {attribution.label === 'store' ? <>Sold by {attribution.name}</> : attribution.name}
+              {attribution.label === 'store' ? t('brand.soldBy', { name: attribution.name }) : attribution.name}
             </h1>
             {brand.desc && <p className='text-muted mb-0'>{brand.desc}</p>}
           </div>
@@ -73,7 +75,7 @@ const BrandDetail: React.FC = () => {
 
       {goods.length === 0 ? (
         <p className='text-muted text-center my-5'>
-          No products listed for this {attribution?.label === 'store' ? 'store' : 'brand'} yet.
+          {attribution?.label === 'store' ? t('brand.noProductsStore') : t('brand.noProductsBrand')}
         </p>
       ) : (
         <div className='lm-grid'>

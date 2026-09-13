@@ -2,19 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector } from 'app/config/store';
+import { useTranslation } from 'app/i18n';
 import { AccountInfo, authApi } from 'app/shared/api';
 import './user.scss';
 
 const MENU = [
-  { to: '/orders', icon: 'bi-box-seam', label: 'My orders' },
-  { to: '/refunds', icon: 'bi-arrow-counterclockwise', label: 'After-sales' },
-  { to: '/user/favorites', icon: 'bi-heart', label: 'Favorites' },
-  { to: '/user/footprint', icon: 'bi-clock-history', label: 'Footprint' },
-  { to: '/user/coupons', icon: 'bi-ticket-perforated', label: 'Coupons' },
-  { to: '/user/address', icon: 'bi-geo-alt', label: 'Addresses' },
-  { to: '/user/profile', icon: 'bi-person-gear', label: 'Profile' },
-  { to: '/reset', icon: 'bi-shield-lock', label: 'Change password' },
-  { to: '/user/feedback', icon: 'bi-chat-dots', label: 'Feedback' },
+  { to: '/orders', icon: 'bi-box-seam', key: 'orders' },
+  { to: '/refunds', icon: 'bi-arrow-counterclockwise', key: 'aftersales' },
+  { to: '/user/favorites', icon: 'bi-heart', key: 'favorites' },
+  { to: '/user/footprint', icon: 'bi-clock-history', key: 'footprint' },
+  { to: '/user/coupons', icon: 'bi-ticket-perforated', key: 'coupons' },
+  { to: '/user/address', icon: 'bi-geo-alt', key: 'addresses' },
+  { to: '/user/profile', icon: 'bi-person-gear', key: 'profile' },
+  { to: '/reset', icon: 'bi-shield-lock', key: 'password' },
+  { to: '/user/feedback', icon: 'bi-chat-dots', key: 'feedback' },
 ];
 
 /**
@@ -24,6 +25,7 @@ const MENU = [
  * userInfo when that call fails.
  */
 const UserCenter: React.FC = () => {
+  const { t } = useTranslation('user');
   const auth = useAppSelector(state => state.customerAuth.data.userInfo);
   const [info, setInfo] = useState<AccountInfo | null>(null);
 
@@ -34,7 +36,7 @@ const UserCenter: React.FC = () => {
       .catch(() => setInfo(null));
   }, []);
 
-  const nickName = info?.nickName ?? auth?.nickName ?? 'My account';
+  const nickName = info?.nickName ?? auth?.nickName ?? t('center.myAccount');
   const avatar = info?.avatarUrl ?? auth?.avatarUrl;
 
   return (
@@ -51,7 +53,7 @@ const UserCenter: React.FC = () => {
         {MENU.map(m => (
           <Link key={m.to} to={m.to} className='lm-user__tile'>
             <i className={`bi ${m.icon}`} />
-            <span>{m.label}</span>
+            <span>{t(`center.menu.${m.key}`)}</span>
           </Link>
         ))}
       </div>

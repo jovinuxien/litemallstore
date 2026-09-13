@@ -3,6 +3,7 @@ import { Alert, Form, Spinner } from 'react-bootstrap';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { contentApi, IAddress, IRegionNode, userApi } from 'app/shared/api';
+import { useTranslation } from 'app/i18n';
 import AddressAutocompleteInput from 'app/components/commonComponents/AddressAutocompleteInput';
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import RegionInput from 'app/components/commonComponents/RegionInput';
@@ -19,6 +20,7 @@ const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '',
  * `/srv/address/save`. Graceful when not live (follow-up: order/user worktree).
  */
 const AddressEdit: React.FC = () => {
+  const { t } = useTranslation('user');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isNew = !id || id === 'new';
@@ -49,7 +51,7 @@ const AddressEdit: React.FC = () => {
     userApi
       .addressDetail(Number(id))
       .then(a => setForm({ ...EMPTY, ...(a ?? {}) }))
-      .catch(() => setError('Could not load this address.'))
+      .catch(() => setError(t('addressEdit.loadFailed')))
       .finally(() => setLoading(false));
   }, [id, isNew]);
 
@@ -58,7 +60,7 @@ const AddressEdit: React.FC = () => {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!telValid) {
-      setError('The phone number does not match the selected country — check the digit count.');
+      setError(t('addressEdit.phoneMismatch'));
       return;
     }
     setSaving(true);
@@ -67,7 +69,7 @@ const AddressEdit: React.FC = () => {
       await userApi.addressSave(form);
       navigate('/user/address');
     } catch (err) {
-      setError((err as { message?: string })?.message ?? 'Save failed.');
+      setError((err as { message?: string })?.message ?? t('addressEdit.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -81,7 +83,7 @@ const AddressEdit: React.FC = () => {
       await userApi.addressDelete(form.id);
       navigate('/user/address');
     } catch (err) {
-      setError((err as { message?: string })?.message ?? 'Delete failed.');
+      setError((err as { message?: string })?.message ?? t('addressEdit.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -97,18 +99,18 @@ const AddressEdit: React.FC = () => {
 
   return (
     <Page>
-      <PageHead title='Edit address' />
+      <PageHead title={t('addressEdit.title')} />
       <div className='container'>
         {error && <Alert variant='warning'>{error}</Alert>}
         <Form onSubmit={save}>
           <CellGroup>
             <div className='row g-3 p-3'>
               <div className='col-md-6'>
-                <Form.Label>Recipient *</Form.Label>
+                <Form.Label>{t('addressEdit.recipient')}</Form.Label>
                 <Form.Control value={form.name ?? ''} onChange={set('name')} required />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Phone *</Form.Label>
+                <Form.Label>{t('addressEdit.phone')}</Form.Label>
                 {/* Country dial-code selector, stores one E.164 number. An
                     existing value is parsed back into country + digits, so
                     editing keeps the saved number visible (a legacy non-E.164
@@ -118,14 +120,14 @@ const AddressEdit: React.FC = () => {
                 <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} onValidityChange={setTelValid} />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Country</Form.Label>
+                <Form.Label>{t('addressEdit.country')}</Form.Label>
                 {/* Same list as checkout (V48 country_code); powers the region
                     type-ahead below and pre-fills checkout's destination country. */}
                 <Form.Select
                   value={form.countryCode ?? ''}
                   onChange={e => setForm(prev => ({ ...prev, countryCode: e.target.value }))}
                 >
-                  <option value=''>-- Country --</option>
+                  <option value=''>{t('addressEdit.selectCountry')}</option>
                   {SHIPPING_COUNTRIES.map(c => (
                     <option key={c.code} value={c.code}>
                       {c.name}
@@ -138,7 +140,7 @@ const AddressEdit: React.FC = () => {
                   <Form.Check
                     type='switch'
                     id='region-cascade-switch'
-                    label='Pick region from list (China addresses)'
+                    label={t('addressEdit.cascade')}
                     checked={useCascade}
                     onChange={e => setUseCascade(e.target.checked)}
                   />
@@ -147,12 +149,12 @@ const AddressEdit: React.FC = () => {
               {useCascade && regions.length > 0 ? (
                 <>
                   <div className='col-md-4'>
-                    <Form.Label>Province / Region</Form.Label>
+                    <Form.Label>{t('addressEdit.province')}</Form.Label>
                     <Form.Select
                       value={form.province ?? ''}
                       onChange={e => setForm(prev => ({ ...prev, province: e.target.value, city: '', county: '' }))}
                     >
-                      <option value=''>Select…</option>
+                      <option value=''>{t('addressEdit.select')}</option>
                       {regions.map(r => (
                         <option key={r.id} value={r.name}>
                           {r.name}
@@ -161,13 +163,13 @@ const AddressEdit: React.FC = () => {
                     </Form.Select>
                   </div>
                   <div className='col-md-4'>
-                    <Form.Label>City</Form.Label>
+                    <Form.Label>{t('addressEdit.city')}</Form.Label>
                     <Form.Select
                       value={form.city ?? ''}
                       disabled={!province}
                       onChange={e => setForm(prev => ({ ...prev, city: e.target.value, county: '' }))}
                     >
-                      <option value=''>Select…</option>
+                      <option value=''>{t('addressEdit.select')}</option>
                       {(province?.children ?? []).map(c => (
                         <option key={c.id} value={c.name}>
                           {c.name}
@@ -176,13 +178,13 @@ const AddressEdit: React.FC = () => {
                     </Form.Select>
                   </div>
                   <div className='col-md-4'>
-                    <Form.Label>District</Form.Label>
+                    <Form.Label>{t('addressEdit.district')}</Form.Label>
                     <Form.Select
                       value={form.county ?? ''}
                       disabled={!city}
                       onChange={e => setForm(prev => ({ ...prev, county: e.target.value }))}
                     >
-                      <option value=''>Select…</option>
+                      <option value=''>{t('addressEdit.select')}</option>
                       {(city?.children ?? []).map(d => (
                         <option key={d.id} value={d.name}>
                           {d.name}
@@ -194,7 +196,7 @@ const AddressEdit: React.FC = () => {
               ) : (
                 <>
                   <div className='col-md-4'>
-                    <Form.Label>Province / Region</Form.Label>
+                    <Form.Label>{t('addressEdit.province')}</Form.Label>
                     {/* Type-ahead over the selected country's regions; free text
                         stays valid (countries without data = plain input). */}
                     <RegionInput
@@ -204,17 +206,17 @@ const AddressEdit: React.FC = () => {
                     />
                   </div>
                   <div className='col-md-4'>
-                    <Form.Label>City</Form.Label>
+                    <Form.Label>{t('addressEdit.city')}</Form.Label>
                     <Form.Control value={form.city ?? ''} onChange={set('city')} />
                   </div>
                   <div className='col-md-4'>
-                    <Form.Label>District</Form.Label>
+                    <Form.Label>{t('addressEdit.district')}</Form.Label>
                     <Form.Control value={form.county ?? ''} onChange={set('county')} />
                   </div>
                 </>
               )}
               <div className='col-12'>
-                <Form.Label>Address detail *</Form.Label>
+                <Form.Label>{t('addressEdit.detail')}</Form.Label>
                 {/* Wave 16: env-gated Places suggestions; unset key ⇒ plain input. */}
                 <AddressAutocompleteInput
                   value={form.addressDetail ?? ''}
@@ -235,13 +237,13 @@ const AddressEdit: React.FC = () => {
                 />
               </div>
               <div className='col-md-6'>
-                <Form.Label>Postal code</Form.Label>
+                <Form.Label>{t('addressEdit.postalCode')}</Form.Label>
                 <Form.Control value={form.postalCode ?? ''} onChange={set('postalCode')} />
               </div>
               <div className='col-md-6 d-flex align-items-end'>
                 <Form.Check
                   type='checkbox'
-                  label='Set as default'
+                  label={t('addressEdit.setDefault')}
                   checked={!!form.isDefault}
                   onChange={e => setForm(prev => ({ ...prev, isDefault: e.target.checked }))}
                 />
@@ -251,11 +253,11 @@ const AddressEdit: React.FC = () => {
 
           <div className='mt-3 d-flex gap-2'>
             <button type='submit' className='btn btn-lm-primary' disabled={saving || deleting}>
-              {saving ? <Spinner animation='border' size='sm' /> : 'Save'}
+              {saving ? <Spinner animation='border' size='sm' /> : t('addressEdit.save')}
             </button>
             {!isNew && (
               <button type='button' className='btn btn-lm-outline' onClick={remove} disabled={saving || deleting}>
-                {deleting ? <Spinner animation='border' size='sm' /> : 'Delete'}
+                {deleting ? <Spinner animation='border' size='sm' /> : t('addressEdit.delete')}
               </button>
             )}
           </div>

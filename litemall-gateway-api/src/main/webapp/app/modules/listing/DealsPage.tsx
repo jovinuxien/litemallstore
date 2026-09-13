@@ -1,3 +1,4 @@
+import { useTranslation } from 'app/i18n';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from 'react-bootstrap';
 
@@ -31,19 +32,19 @@ interface SearchData {
 
 const PAGE_SIZE = 24;
 
-const DISCOUNT_BANDS: { label: string; range: string | null }[] = [
-  { label: 'All deals', range: null },
-  { label: '10–25% off', range: '10,25' },
-  { label: '25–50% off', range: '25,50' },
-  { label: '50–70% off', range: '50,70' },
-  { label: '70% off or more', range: '70,100' },
+const DISCOUNT_BANDS: { key: string; lo?: number; hi?: number; range: string | null }[] = [
+  { key: 'all', range: null },
+  { key: 'band', lo: 10, hi: 25, range: '10,25' },
+  { key: 'band', lo: 25, hi: 50, range: '25,50' },
+  { key: 'band', lo: 50, hi: 70, range: '50,70' },
+  { key: 'top', lo: 70, range: '70,100' },
 ];
 
-const SORTS: { label: string; value: string | null }[] = [
-  { label: 'Featured', value: null },
-  { label: 'Deepest discount', value: '-discount_pct' },
-  { label: 'Ending soon', value: 'deal_end_epoch' },
-  { label: 'Price: low to high', value: 'price' },
+const SORTS: { key: 'featured' | 'deepest' | 'endingSoon' | 'priceAsc'; value: string | null }[] = [
+  { key: 'featured', value: null },
+  { key: 'deepest', value: '-discount_pct' },
+  { key: 'endingSoon', value: 'deal_end_epoch' },
+  { key: 'priceAsc', value: 'price' },
 ];
 
 const Chip: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
@@ -57,6 +58,9 @@ const Chip: React.FC<{ active: boolean; onClick: () => void; children: React.Rea
 );
 
 const DealsPage: React.FC = () => {
+  const { t } = useTranslation('content');
+  const bandLabel = (b: (typeof DISCOUNT_BANDS)[number]) =>
+    b.key === 'all' ? t('deals.allDeals') : b.key === 'top' ? t('deals.bandTop', { lo: b.lo }) : t('deals.band', { lo: b.lo, hi: b.hi });
   const [goods, setGoods] = useState<IGood[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -142,15 +146,15 @@ const DealsPage: React.FC = () => {
   return (
     <div className='container my-4'>
       <div className='d-flex flex-wrap align-items-center justify-content-between mb-2'>
-        <h1 className='h4 mb-2'>Today&rsquo;s Deals</h1>
+        <h1 className='h4 mb-2'>{t('deals.title')}</h1>
         <form className='d-flex mb-2' style={{ maxWidth: 340 }} onSubmit={onSubmit}>
           <input
             className='form-control form-control-sm me-2'
-            placeholder='Search within deals'
+            placeholder={t('deals.searchPlaceholder')}
             value={input}
             list='deals-suggest'
             onChange={e => setInput(e.target.value)}
-            aria-label='Search within deals'
+            aria-label={t('deals.searchPlaceholder')}
           />
           <datalist id='deals-suggest'>
             {suggestions.map(s => (
@@ -158,26 +162,26 @@ const DealsPage: React.FC = () => {
             ))}
           </datalist>
           <button type='submit' className='btn btn-sm btn-dark'>
-            Search
+            {t('deals.search')}
           </button>
         </form>
       </div>
 
       <div className='mb-1'>
         {DISCOUNT_BANDS.map(b => (
-          <Chip key={b.label} active={band === b.range} onClick={() => resetAnd(() => setBand(b.range))}>
-            {b.label}
+          <Chip key={b.range ?? 'all'} active={band === b.range} onClick={() => resetAnd(() => setBand(b.range))}>
+            {bandLabel(b)}
           </Chip>
         ))}
         <Chip active={liveOnly} onClick={() => resetAnd(() => setLiveOnly(!liveOnly))}>
-          ⏱ Limited-time
+          {t('deals.limitedTime')}
         </Chip>
       </div>
 
       {categoryChips.length > 0 && (
         <div className='mb-1'>
           <Chip active={category === null} onClick={() => resetAnd(() => setCategory(null))}>
-            All categories
+            {t('deals.allCategories')}
           </Chip>
           {categoryChips.map(c => (
             <Chip key={c} active={category === c} onClick={() => resetAnd(() => setCategory(category === c ? null : c))}>
@@ -189,11 +193,10 @@ const DealsPage: React.FC = () => {
 
       <div className='d-flex align-items-center justify-content-between mb-3'>
         <span className='text-muted small'>
-          {loading && page === 1 ? '…' : `${total} deal${total === 1 ? '' : 's'}`}
+          {loading && page === 1 ? '…' : t('deals.count', { count: total })}
           {q && (
             <>
-              {' '}
-              for &ldquo;{q}&rdquo;{' '}
+              {t('deals.forQuery', { query: q })}
               <button
                 type='button'
                 className='btn btn-link btn-sm p-0 align-baseline'
@@ -202,7 +205,7 @@ const DealsPage: React.FC = () => {
                   resetAnd(() => setQ(''));
                 }}
               >
-                clear
+                {t('deals.clear')}
               </button>
             </>
           )}
@@ -211,11 +214,11 @@ const DealsPage: React.FC = () => {
           className='form-select form-select-sm w-auto'
           value={sort ?? ''}
           onChange={e => resetAnd(() => setSort(e.target.value || null))}
-          aria-label='Sort deals'
+          aria-label={t('deals.sortAria')}
         >
           {SORTS.map(s => (
-            <option key={s.label} value={s.value ?? ''}>
-              {s.label}
+            <option key={s.key} value={s.value ?? ''}>
+              {t(`deals.${s.key}`)}
             </option>
           ))}
         </select>
@@ -226,7 +229,7 @@ const DealsPage: React.FC = () => {
           <Spinner animation='border' />
         </div>
       ) : goods.length === 0 ? (
-        <p className='text-muted text-center my-5'>No deals match right now — check back soon.</p>
+        <p className='text-muted text-center my-5'>{t('deals.none')}</p>
       ) : (
         <>
           <div className='lm-grid'>
@@ -237,7 +240,7 @@ const DealsPage: React.FC = () => {
           {page < totalPages && (
             <div className='text-center my-4'>
               <button type='button' className='btn btn-outline-dark' disabled={loading} onClick={() => setPage(p => p + 1)}>
-                {loading ? 'Loading…' : 'Show more deals'}
+                {loading ? t('deals.loading') : t('deals.showMore')}
               </button>
             </div>
           )}

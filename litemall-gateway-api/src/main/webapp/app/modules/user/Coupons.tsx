@@ -4,12 +4,11 @@ import { Link } from 'react-router-dom';
 
 import { ICoupon, userApi } from 'app/shared/api';
 import { EmptyState, Page, PageHead, StatusTabs } from 'app/components/commonComponents/storefront';
+import { Trans, useTranslation } from 'app/i18n';
 import { couponConditionLabel, couponValueShort } from 'app/shared/util/couponFormat';
 import './user.scss';
 
 /** litemall-vue coupon-list status tabs: 0 unused, 1 used, 2 expired. */
-const TABS = ['Unused', 'Used', 'Expired'];
-
 /**
  * My coupons, modelled on litemall-vue `user/coupon-list`. Sourced from
  * `/srv/coupon/mylist`. The tab index IS the status code the backend
@@ -17,6 +16,8 @@ const TABS = ['Unused', 'Used', 'Expired'];
  * "N%" + their cap; the coupon center is linked for claiming more.
  */
 const Coupons: React.FC = () => {
+  const { t } = useTranslation('coupon');
+  const tabs = [t('mine.unused'), t('mine.used'), t('mine.expired')];
   const [status, setStatus] = useState(0);
   const [coupons, setCoupons] = useState<ICoupon[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,24 +45,20 @@ const Coupons: React.FC = () => {
   return (
     <Page>
       <PageHead
-        title='My Coupons'
-        sub={
-          <>
-            Claim more in the <Link to='/coupons'>coupon center</Link>.
-          </>
-        }
+        title={t('mine.title')}
+        sub={<Trans t={t} i18nKey='mine.sub' components={{ 1: <Link to='/coupons' /> }} />}
       />
       <div className='container'>
-        <StatusTabs tabs={TABS} active={status} onChange={setStatus} />
+        <StatusTabs tabs={tabs} active={status} onChange={setStatus} />
 
         {loading ? (
           <div className='text-center my-5'>
             <Spinner animation='border' />
           </div>
         ) : coupons.length === 0 ? (
-          <EmptyState icon='bi-ticket-perforated' text='No coupons here.'>
+          <EmptyState icon='bi-ticket-perforated' text={t('mine.empty')}>
             <Link to='/coupons' className='btn btn-sm btn-outline-primary mt-2'>
-              Browse the coupon center
+              {t('mine.browse')}
             </Link>
           </EmptyState>
         ) : (
