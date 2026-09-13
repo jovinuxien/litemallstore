@@ -63,6 +63,7 @@
     "orderTime": "Order time",
     "orderNo": "Order no.",
     "fulfilment": "Fulfilment",
+    "fulfilmentStatus": "Fulfilment status",
     "shipsVia": "Ships via",
     "cjOrderNo": "CJ order no.",
     "status": "Status"
@@ -74,8 +75,11 @@
     "cancel": "Cancel",
     "confirmReceipt": "Confirm receipt",
     "refund": "Refund",
+    "withdrawRefund": "Withdraw refund request",
     "delete": "Delete",
-    "buyAgain": "Buy again"
+    "buyAgain": "Buy again",
+    "viewOrder": "View order",
+    "failed": "That action could not be completed. Please try again."
   },
   "list": {
     "dropship": "Dropship",
@@ -94,6 +98,37 @@
       "unrated": "Unrated"
     }
   },
+  "timeline": {
+    "title": "Order timeline",
+    "fetching": "Loading timeline…",
+    "unavailable": "The timeline is temporarily unavailable.",
+    "types": {
+      "unknown": "Status updated",
+      "create": "Order placed",
+      "pay": "Payment received",
+      "cancel": "Order cancelled",
+      "system_cancel": "Cancelled automatically — the payment window closed",
+      "ship": "Shipped",
+      "receive": "Delivery confirmed",
+      "auto_receive": "Marked as received automatically",
+      "writeoff": "Collected in store",
+      "refund_request": "Refund requested",
+      "refund_withdrawn": "Refund request withdrawn",
+      "refund": "Refund completed",
+      "cj_placement": "Fulfilment update",
+      "cj_placement_failed": "Fulfilment delayed — our team is on it",
+      "cj_stall": "Fulfilment delayed — our team is on it",
+      "cj_sync": "Supplier update",
+      "payment_reconciled": "Payment confirmed",
+      "payment_refunded_stray": "Payment refunded",
+      "payment_stray_unrefunded": "Payment refund pending — support has been alerted"
+    },
+    "who": {
+      "you": "You",
+      "system": "Automatic",
+      "team": "Our team"
+    }
+  },
   "refunds": {
     "title": "Refunds",
     "empty": "No refund or after-sales requests."
@@ -103,6 +138,7 @@
     "fetching": "Fetching tracking…",
     "unavailable": "Tracking is temporarily unavailable.",
     "notShipped": "Not shipped yet — tracking appears here once your order ships.",
+    "pending": "Shipped — tracking number on its way",
     "carrier": "Carrier",
     "trackingNo": "Tracking no.",
     "lastMile": "Last mile",

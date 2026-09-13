@@ -184,9 +184,21 @@
   },
   "status": {
     "order": "Order #{{id}}",
-    "redirecting": "Redirecting to your orders…",
+    "viewOrder": "View order",
     "viewOrders": "View orders",
     "success": "Payment successful",
-    "failed": "Payment failed"
+    "redirectingOrder": "Taking you to your order…",
+    "failed": "Payment failed",
+    "failedBody": "Nothing was charged. You can try again with another payment method.",
+    "tryAgain": "Try again",
+    "cancelled": "This order was cancelled",
+    "cancelledBody": "If a payment was taken, it is refunded automatically.",
+    "processing": "Your bank is processing this payment",
+    "processingBody": "The payment is on its way and will settle over the next few days. We will email you as soon as it is confirmed — please do not pay again.",
+    "stillWaiting": "Still waiting for confirmation",
+    "stillWaitingBody": "The payment has not been confirmed yet. Do not pay again — we will email you when it is, and the order page shows the current status.",
+    "confirming": "Confirming your payment…",
+    "confirmingBody": "We are checking with the payment provider. This usually takes a few seconds.",
+    "redirecting": "Redirecting to your orders…"
   }
 }
