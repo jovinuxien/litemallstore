@@ -1,7 +1,17 @@
 # Plan — order worktree follow-ups after lifecycle packages A/B/C
 
-Status: **AWAITING APPROVAL** (drafted 2026-09-06, every claim re-verified
-against the tree the same day). Worktree `order`.
+Status: **APPROVED + BUILT 2026-09-13** (drafted 2026-09-06; every claim
+re-verified against the tree again on 2026-09-13 before approval — all held).
+Worktree `order`. As built: module suite **395 run / 0 failures** (baseline
+387, +8: `ProdLoggingConfigTest` 2, `LitemallOrderCancelStockRestoreTest` 6).
+Item 1 = `application-prod.yml` `.db: INFO` pin + compose passthrough
+`LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB` (`${LITEMALL_ORDER_DB_LOG_LEVEL:-INFO}`)
++ resource pin (plus a dev pin asserting `application.yml` keeps DEBUG). Item 2 =
+`restoreStockOnCancelCommit` replacing `restoreStockForOrder` at both cancel
+sites; the order-goods read stays inside the transaction, only the remote
+restore moves to `afterCommit` (inline when no synchronization is active).
+Deploy = MAIN: order container rebuild; the compose env line alone works with a
+recreate. No migration, no core/db change.
 
 ## 0. Where the assignment stands
 
