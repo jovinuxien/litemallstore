@@ -1888,7 +1888,7 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — F17 purchase-gated reviews BUILT (2026-09-13); Wave-28 origin endpoint still unmerged
+### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint MERGED to master (2026-09-20); deploy = MAIN
 - **Status 2026-09-13 — F17 BUILT: `POST /srv/comment/post` is PURCHASE-GATED and stamps the
   order line.** Plan approved by the user the same day (decisions: goods-management writes
   `litemall_order_goods.comment` directly via CAS in the review's own transaction; absent
@@ -1928,9 +1928,27 @@
   verbatim (today every error is a generic "failed"), hides the per-line "Write review" once
   the line is stamped, and passes `orderId` from OrderDetail. Existing pre-gate comment rows
   stay (no purchase to attribute them to).
-  ⚠ MERGE STILL BLOCKED from here: MAIN's checkout is dirty with a peer's uncommitted edits to
-  CLAUDE.md + four compose files, so BOTH this and the unmerged Wave-28 origin commit
-  (`eaf1ea625`) wait on MAIN (branch pushed to origin).
+- **Status 2026-09-20 — BOTH BUILT ITEMS MERGED to master + pushed (F17 `042803cee` + Wave-28
+  origin `eaf1ea625`), deploy PENDING = MAIN.** Master was merged into the branch first (clean
+  auto-merge; the prod compose file now carries BOTH order's `LOGGING_LEVEL_ORG_LINLINJAVA_
+  LITEMALL_DB` line and F17's `LITEMALL_COMMENT_REQUIRE_PURCHASE` passthrough); module suite on
+  the merged tree **632 run / 0 failures / 8 skipped** (shared modules built in the reactor, JDK
+  21), then the ref was moved with `git push . fix/goods-management:master` (MAIN's checkout was
+  STILL dirty with a peer's CLAUDE.md + compose + gateway-api edits, so its working tree was never
+  touched — the 2026-09-13 precedent). ⚠ **Caught before merging: the two gzip log archives
+  under `litemall-goods-management/logs/` were NEVER tracked on master** — `eaf1ea625` swept
+  them in with `git add -A`, F17 dropped them, and `6f3b46302` "restored" them on the wrong
+  premise; merging as-is would have baked a 10.5 MB dev log into history. Untracked again
+  (`2cf76dd3d`, files kept on disk) and root `.gitignore` gains `*.log.gz` (it had only `*.log`).
+  Correct the earlier "tracked archives" note: they were not. **MAIN reconciliation:** its
+  `git status` now shows the 17 merged paths as phantom staged reverse-diffs — `git checkout
+  HEAD -- .gitignore litemall-goods-management/ litemall-gateway-api/docs/spec-wave28-eu-origin-
+  freight.md` clears the 15 with no peer edits; CLAUDE.md and `docker-compose.prod.yml` carry
+  REAL peer edits and need a hand merge (do NOT `git commit -a` there before that — it would
+  revert this merge). **Deploy = goods-management container only**: no migration, no litemall-db
+  change, no index field, no reindex, no new env (the F17 switch defaults true;
+  `LITEMALL_COMMENT_REQUIRE_PURCHASE=false` + recreate is the kill switch). First live positive
+  proof of `/srv/goods/origin` = the prod checkout after deploy (dev has 0 measured rows).
 - **Status 2026-09-06 — WAVE 28 goods-management half BUILT: `GET /srv/goods/origin` + the
   `/srv/goods/batch` cap.** No Task line was active when this session opened; the assignment was
   picked from the raised items and user-approved (origin endpoint + batch cap). Coded to the FROZEN
