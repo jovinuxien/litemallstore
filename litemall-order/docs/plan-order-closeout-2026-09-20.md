@@ -1,7 +1,15 @@
 # Plan — order worktree close-out of the lifecycle assignment (2026-09-20)
 
-Status: **AWAITING APPROVAL** (no code edited). Worktree `order`, branch
-`fix/order` == master (`d67029cde`, 0 ahead / 0 behind, clean).
+Status: **APPROVED (Option 1) + BUILT 2026-09-20.** Code commit `5bb240b23`:
+`CjFulfillmentService.cancelAtCjIfDeletable` now enqueues one `CjOpsNotifier`
+mail in both not-cancelled branches (subject "CJ order <id> still live after
+<context> — order <sn>"); constructor gains the notifier (single call site =
+the test). Suite **400 run / 0 failures** (baseline 395, +5 in
+`CjFulfillmentServiceTest`). Dev boot on :18085: started in 18 s, Flyway
+validated 65, 0 ERROR lines, `/actuator/health` 200. D5 = decided "no
+automatic CJ dispute"; F13 = closed as documented. Deploy = MAIN (order
+container rebuild + recreate; carries the still-undeployed `2cc0ba6a4`).
+Drafted against `fix/order` == master `d67029cde`.
 
 ## 0. Where the assignment stands (verified today against the tree)
 
