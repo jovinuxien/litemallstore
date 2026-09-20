@@ -1535,7 +1535,7 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — ACTIVE: order lifecycle end-to-end fix (plan approved 2026-09-05)
+### Worktree: `order` — lifecycle follow-ups BUILT + MERGED (prod SQL DEBUG silence + stock restore after commit, 2026-09-13); deploy = MAIN
 - **Task — order lifecycle E2E (user-commissioned 2026-09-05, all six decisions
   approved).** Code to `litemall-order/docs/plan-order-lifecycle-e2e.md` (the
   contract: findings F1–F18, packages A→B→C, raises D). Decisions: D1 late
@@ -1549,6 +1549,44 @@
   with real "Tests run:" counts (baseline 298 / 0), dev acceptance through
   :9000/:8090/:18080, and the first real prod EUR order after deploy is
   USER-SIDE.
+- **Status 2026-09-13 — FOLLOW-UPS BUILT (plan `litemall-order/docs/
+  plan-order-followups-2026-09-06.md`, approved 2026-09-13; every claim re-verified
+  against the tree before approval).** Suite **395 run / 0 failures** (+8 over 387).
+  NO migration, no core/db change, no other container.
+  1. **Prod SQL DEBUG firehose silenced.** `application.yml:376` sets
+     `org.linlinjava.litemall.db: DEBUG` and the prod yml countered only the parent
+     package — Spring resolves the MOST SPECIFIC key, so prod logged every MyBatis
+     statement WITH bound parameters (customer name/address/phone/email, Stripe intent
+     ids) under `docker logs`, and the 30 MB json-file rotation filled with SQL within
+     minutes, evicting real ERRORs. No file appender here ⇒ no OOM vector (unlike
+     goods-management 2026-08-15), but the same mechanism. Fix: `.db: INFO` pinned in
+     `application-prod.yml` at the same specificity + compose passthrough
+     `LOGGING_LEVEL_ORG_LINLINJAVA_LITEMALL_DB: ${LITEMALL_ORDER_DB_LOG_LEVEL:-INFO}` on
+     the order block (env outranks yml ⇒ MAIN can apply it with a RECREATE before any
+     rebuild) + `ProdLoggingConfigTest` (prod pin; dev pin asserting `application.yml`
+     keeps DEBUG so the runbooks' `Preparing:` lines survive). Prod proof after
+     recreate = 0 `Preparing:` lines in `docker logs order`.
+  2. **F3 — stock restored only once the cancel COMMITS.** `cancelOrder` +
+     `autoCancelOrder` called the goods restore (a REMOTE commit, not idempotent) and
+     then still ran CJ cancel, history persist and event publish in the same local
+     transaction: a rollback after the restore left the order CREATED with its
+     quantities also back on sale — oversold by exactly the order. Now
+     `restoreStockOnCancelCommit` (replaces `restoreStockForOrder` at both sites): the
+     order-goods read stays inside the tx, the facade call moves to an `afterCommit`
+     synchronization; inline when none is active — the pink-release pattern in the
+     same methods. Facade stays never-throwing ⇒ no new failure mode.
+     `LitemallOrderCancelStockRestoreTest` (6) = the module's FIRST tests driving
+     `TransactionSynchronizationManager`: inline on both paths without a tx (summed
+     quantities), deferred until `afterCommit` with one, NEVER on
+     `afterCompletion(STATUS_ROLLED_BACK)`, no lines ⇒ no call.
+  ⚠ Merge mechanics: MAIN's checkout held a STALE CLAUDE.md (older than master's own
+  committed copy — the peer `git push .` pattern), so this merge also moved the ref
+  with `git push . fix/order:master` and never touched MAIN's tree. Pushed to origin
+  (`2cc0ba6a4`); the prod bare repo `/opt/litemall.git` is MAIN's to push at deploy.
+  **Deploy = MAIN:** rebuild + recreate the order container (item 2 + the yml pin need
+  the image; the compose env line alone works with a recreate). NOT done here: F15/D5,
+  F13, and the raised gateway-api/gateway-admin/goods-management halves (the gateway-api
+  SPA half merged separately as `22a8d0390`, 2026-09-13).
 - **Status 2026-09-05 — PACKAGE A BUILT (payment money-safety, F1/F2).** Module
   suite **342 run / 0 failures** (+44). Design: `adr-stripe-payments.md` §11.
   What changed: the PaymentIntent id is now RECORDED AT MINT (CREATED-guarded;
