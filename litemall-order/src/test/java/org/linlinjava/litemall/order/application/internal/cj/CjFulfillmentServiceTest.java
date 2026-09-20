@@ -49,11 +49,13 @@ class CjFulfillmentServiceTest {
     private org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderStatusHistoryRepository statusHistoryRepository;
     @Mock
     private org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper;
+    @Mock
+    private CjOpsNotifier opsNotifier;
 
     private CjFulfillmentService service(String defaultShipToCountry) {
         return new CjFulfillmentService(
                 cjOrderFacade, lineResolver, addressRepository, orderRepository,
-                statusHistoryRepository, userMapper, defaultShipToCountry);
+                statusHistoryRepository, userMapper, opsNotifier, defaultShipToCountry);
     }
 
     private LitemallOrderAggregate paidCjOrder(String countryCode) {
@@ -207,6 +209,89 @@ class CjFulfillmentServiceTest {
         service("").cancelAtCjIfDeletable(unplaced, "cancel");
 
         verify(cjOrderFacade, never()).deleteOrder(any());
+    }
+
+    // ---- D5 (2026-09-20): the double-loss alert when CJ cannot be stopped ------------
+
+    @Test
+    void cjOrderPastTheDeletableWindow_alertsOpsExactlyOnce_namingCjIdAndSn() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.REFUNDED);
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("UNSHIPPED"); // CJ paid from balance — the store just refunded too
+        order.setActualPrice(new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney(
+                new java.math.BigDecimal("54.31")));
+
+        service("").cancelAtCjIfDeletable(order, "refund approved");
+
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(opsNotifier, org.mockito.Mockito.times(1)).notify(subject.capture(), body.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(subject.getValue().contains("cj-id-9"), subject.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(subject.getValue().contains("20260704654321"), subject.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(subject.getValue().contains("refund approved"), subject.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(body.getValue().contains("UNSHIPPED"), body.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(body.getValue().contains("\u20ac54.31"), body.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(body.getValue().contains("REFUNDED"), body.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(body.getValue().contains("No CJ dispute"), body.getValue());
+    }
+
+    @Test
+    void refusedDelete_alertsOpsExactlyOnce() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.PAID);
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("CREATED");
+        when(cjOrderFacade.deleteOrder("cj-id-9")).thenReturn(false);
+
+        service("").cancelAtCjIfDeletable(order, "cancelled/refunded during placement");
+
+        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        verify(opsNotifier, org.mockito.Mockito.times(1)).notify(subject.capture(), any());
+        org.junit.jupiter.api.Assertions.assertTrue(subject.getValue().contains("cj-id-9"), subject.getValue());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                subject.getValue().contains("cancelled/refunded during placement"), subject.getValue());
+    }
+
+    @Test
+    void successfulDelete_doesNotAlertOps() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setOrderStatus(org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus.PAID);
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("UNPAID");
+        when(cjOrderFacade.deleteOrder("cj-id-9")).thenReturn(true);
+
+        service("").cancelAtCjIfDeletable(order, "refund approved");
+
+        verify(opsNotifier, never()).notify(any(), any());
+    }
+
+    @Test
+    void localOrPlacedlessOrder_doesNotAlertOps() {
+        LitemallOrderAggregate local = paidCjOrder("NO");
+        local.setSource(LitemallOrderAggregate.SOURCE_LOCAL);
+        local.setCjOrderId("irrelevant");
+        local.setCjOrderStatus("UNSHIPPED");
+        service("").cancelAtCjIfDeletable(local, "refund approved");
+
+        LitemallOrderAggregate unplaced = paidCjOrder("NO"); // never placed at CJ
+        unplaced.setCjOrderStatus("UNSHIPPED");
+        service("").cancelAtCjIfDeletable(unplaced, "refund approved");
+
+        verify(opsNotifier, never()).notify(any(), any());
+    }
+
+    @Test
+    void unknownAmount_stillAlerts_withHonestPlaceholder() {
+        LitemallOrderAggregate order = paidCjOrder("NO");
+        order.setCjOrderId("cj-id-9");
+        order.setCjOrderStatus("SHIPPED");
+
+        service("").cancelAtCjIfDeletable(order, "aftersale approved");
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(opsNotifier).notify(any(), body.capture());
+        org.junit.jupiter.api.Assertions.assertTrue(body.getValue().contains("amount unknown"), body.getValue());
     }
 
     @Test

@@ -55,6 +55,7 @@ public class CjFulfillmentService {
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderStatusHistoryRepository statusHistoryRepository;
     private final org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper;
+    private final CjOpsNotifier opsNotifier;
     /** Deployment-market fallback destination country when the order carries none. */
     private final String defaultShipToCountryCode;
 
@@ -64,6 +65,7 @@ public class CjFulfillmentService {
                                 LitemallOrderRepository orderRepository,
                                 LitemallOrderStatusHistoryRepository statusHistoryRepository,
                                 org.linlinjava.litemall.db.dao.LitemallUserMapper userMapper,
+                                CjOpsNotifier opsNotifier,
                                 @Value("${spring.cjdropship.api.ship-to-country-code:}") String defaultShipToCountryCode) {
         this.cjOrderFacade = cjOrderFacade;
         this.lineResolver = lineResolver;
@@ -71,6 +73,7 @@ public class CjFulfillmentService {
         this.orderRepository = orderRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.userMapper = userMapper;
+        this.opsNotifier = opsNotifier;
         this.defaultShipToCountryCode = defaultShipToCountryCode;
     }
 
@@ -143,6 +146,14 @@ public class CjFulfillmentService {
      * for non-CJ orders and orders never placed at CJ (cancel-before-pay: pay-first means
      * there is nothing at CJ yet). Never throws — a refusal or outage is logged and the
      * order flagged for manual attention in the CJ dashboard.
+     *
+     * <p>Decision D5 (2026-09-20): when the CJ order CANNOT be stopped here — CJ already
+     * paid it from the balance, or CJ refused the delete — no CJ dispute is opened
+     * automatically (a dispute is a product-problem claim, not "we refunded our customer").
+     * Instead ops get ONE mail: the store has just returned the customer's money while CJ
+     * is still fulfilling goods it paid for, and the only other record is a timeline hop
+     * the approving admin never sees. The outbox row is inserted in the caller's
+     * transaction, so a rolled-back refund/cancel takes its alert with it.
      */
     public void cancelAtCjIfDeletable(LitemallOrderAggregate order, String context) {
         if (order == null || !order.isCjFulfilled() || !StringUtils.hasText(order.getCjOrderId())) {
@@ -158,6 +169,8 @@ public class CjFulfillmentService {
                     + context + "): CJ status " + cjStatus
                     + " no longer allows deletion — CJ-side fulfilment continues; use the dispute "
                     + "flow or the CJ dashboard");
+            notifyOpsCjOrderStillLive(order, context, "CJ status " + cjStatus
+                    + " no longer allows deletion (CJ has already been paid from the balance)");
             return;
         }
         if (cjOrderFacade.deleteOrder(order.getCjOrderId())) {
@@ -171,7 +184,29 @@ public class CjFulfillmentService {
                     order.getCjOrderId(), order.getOrderId().getId(), context);
             recordCjHop(order, "CJ order " + order.getCjOrderId() + " could NOT be deleted at CJ ("
                     + context + ") — CJ-side state unchanged; check the CJ dashboard");
+            notifyOpsCjOrderStillLive(order, context,
+                    "CJ refused the delete (or was unreachable) — CJ status " + cjStatus);
         }
+    }
+
+    /** The double-loss alert: money went back (or the order stopped) locally, CJ still has a live order. */
+    private void notifyOpsCjOrderStillLive(LitemallOrderAggregate order, String context, String why) {
+        opsNotifier.notify("CJ order " + order.getCjOrderId() + " still live after " + context
+                        + " — order " + order.getOrderSn(),
+                "Local order " + order.getOrderId().getId() + " (sn " + order.getOrderSn() + ", "
+                        + money(order) + ") was stopped locally (" + context + "), but its CJ order "
+                        + order.getCjOrderId() + " could NOT be cancelled at CJ: " + why + "."
+                        + "\nLocal order status: " + order.getOrderStatus()
+                        + "\n\nNothing more happens automatically. While CJ still allows it, cancel the CJ "
+                        + "order in the CJ dashboard so the balance is not spent on goods nobody is waiting for; "
+                        + "once CJ has shipped, the goods go to the customer and the store has paid twice "
+                        + "(refund + CJ). No CJ dispute is opened for this (decision D5).");
+    }
+
+    /** Ops-mail amount. Single-currency store (Wave 24: EUR storewide). */
+    private static String money(LitemallOrderAggregate order) {
+        return order.getActualPrice() == null || order.getActualPrice().getAmount() == null
+                ? "amount unknown" : "\u20ac" + order.getActualPrice().getAmount().toPlainString();
     }
 
     /** Same-status {@code cj_sync} timeline hop; the local order status never moves here. */
