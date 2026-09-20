@@ -1535,7 +1535,7 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — lifecycle follow-ups BUILT + MERGED (prod SQL DEBUG silence + stock restore after commit, 2026-09-13); deploy = MAIN
+### Worktree: `order` — lifecycle assignment CLOSED (D5 ops alert BUILT + MERGED 2026-09-20; F13 documented); deploy = MAIN (one order rebuild carries `2cc0ba6a4` + this)
 - **Task — order lifecycle E2E (user-commissioned 2026-09-05, all six decisions
   approved).** Code to `litemall-order/docs/plan-order-lifecycle-e2e.md` (the
   contract: findings F1–F18, packages A→B→C, raises D). Decisions: D1 late
@@ -1549,6 +1549,32 @@
   with real "Tests run:" counts (baseline 298 / 0), dev acceptance through
   :9000/:8090/:18080, and the first real prod EUR order after deploy is
   USER-SIDE.
+- **Status 2026-09-20 — ASSIGNMENT CLOSED: the last parked finding (F15/D5) built,
+  F13 closed as documented.** Plan + record: `litemall-order/docs/
+  plan-order-closeout-2026-09-20.md` (user chose Option 1). Suite **400 run / 0
+  failures** (+5 over 395); dev boot :18085 started 18 s, Flyway 65, 0 ERRORs, health
+  200. NO migration, no core/db change, no other container.
+  **D5 decided: NO automatic CJ dispute on a local refund** (a dispute is a
+  product-problem claim with evidence; "we refunded our customer" is not one).
+  Built instead: `CjFulfillmentService.cancelAtCjIfDeletable` — the seam every
+  refund-approve / aftersale-approve / cancel-during-placement path already runs —
+  now enqueues ONE ops mail through `CjOpsNotifier` in BOTH not-cancelled branches
+  (CJ status past CREATED/IN_CART/UNPAID, i.e. CJ already paid from balance; or CJ
+  refused the delete). Before, those branches wrote only a timeline hop the
+  approving admin never sees, so the store could refund the customer AND have CJ
+  ship goods it paid for, silently. The outbox row is inserted in the caller's
+  transaction ⇒ a rolled-back refund takes its alert with it; blank `CJ_OPS_MAIL`
+  stays log-only. Delete-succeeded, non-CJ and never-placed orders are unchanged.
+  **F13** (JVM-local `inFlight` guard in `CjPlacementService`) stays documented: one
+  order instance by compose design, the sweep adopts an existing CJ order by
+  `order_sn` first, and a durable claim would need V65 for a topology we don't run.
+  ⚠ Prod facts still standing: `2cc0ba6a4` (SQL DEBUG pin + F3 stock restore) has NO
+  deploy record — one order image rebuild + recreate ships both; the plan's real
+  acceptance (one real EUR order end to end) is USER-SIDE and has never happened.
+  RAISED (not order scope): Wave-21 GROUP_EXPIRED auto-refund is DEAD in prod —
+  promotion's yml reads `KAFKA_BROKERS` while compose sets `LITEMALL_KAFKA_BROKERS`
+  (diagnosed 2026-09-06, one env line + recreate, promotion/MAIN). No active
+  assignment after this.
 - **Status 2026-09-13 — FOLLOW-UPS BUILT (plan `litemall-order/docs/
   plan-order-followups-2026-09-06.md`, approved 2026-09-13; every claim re-verified
   against the tree before approval).** Suite **395 run / 0 failures** (+8 over 387).
