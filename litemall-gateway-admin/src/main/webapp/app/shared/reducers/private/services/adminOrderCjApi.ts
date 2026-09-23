@@ -213,6 +213,15 @@ export interface IPendingCjRow {
   /** variants resolvable at CJ; undefined when the backend didn't say */
   cjReady?: boolean;
   holdReason?: string;
+  /**
+   * Lifecycle package B (handoff-gateway-admin-cj-requeue.md): true when CJ
+   * terminally rejected the order (PLACEMENT_REJECTED) or retryable failures
+   * outlived the stall window (PLACEMENT_STALLED). The admin action for such a
+   * row is Requeue, not Approve. False when the backend predates the field.
+   */
+  parked: boolean;
+  /** CJ's own words from the latest cj_placement_failed hop; absent unless parked. */
+  parkReason?: string;
 }
 
 export interface IPendingCjPage {
@@ -244,6 +253,8 @@ const toPendingCjRow = (e: Record<string, unknown>): IPendingCjRow => {
     items,
     cjReady: typeof e.cjReady === 'boolean' ? e.cjReady : undefined,
     holdReason: str(e.holdReason),
+    parked: e.parked === true,
+    parkReason: str(e.parkReason),
   };
 };
 
@@ -343,6 +354,13 @@ export const adminOrderCjApi = createApi({
     approveCjPlacement: builder.mutation<IEnvelope, number | string>({
       query: orderId => ({ url: `/order/${orderId}/cj-placement/approve`, method: 'POST' }),
     }),
+    // Lifecycle package B: clear a parked order's sentinel so the placement
+    // sweep retries it (approval stamp kept). Raw envelope — [NOT_PARKED] /
+    // [NOT_FOUND] 422s surface verbatim via orderOpMessage(); a second click is
+    // answered [NOT_PARKED], which is the honest "already requeued".
+    requeueCjPlacement: builder.mutation<IEnvelope, number | string>({
+      query: orderId => ({ url: `/order/${orderId}/cj-placement/requeue`, method: 'POST' }),
+    }),
     batchApproveAftersales: builder.mutation<IBatchResult, Array<number>>({
       query: ids => ({ url: '/aftersale/batch-approve', method: 'POST', body: { ids } }),
       transformResponse: toBatchResult,
@@ -433,6 +451,7 @@ export const {
   usePrintReceiptMutation,
   useGetCjPlacementPendingQuery,
   useApproveCjPlacementMutation,
+  useRequeueCjPlacementMutation,
   useBatchApproveAftersalesMutation,
   useBatchRejectAftersalesMutation,
 } = adminOrderCjApi;

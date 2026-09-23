@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { cjPlacementState } from 'app/shared/model/admin/order.model';
+import { cjPlacementState, isParkedCjStatus, parkedLabel } from 'app/shared/model/admin/order.model';
 import {
   orderOpMessage,
   pendingItemsSummary,
@@ -46,11 +46,48 @@ describe('toPendingCjPage', () => {
         actualPrice: '38.38',
         consignee: 'Jane Doe',
         country: 'US',
-        items: [{ name: 'Spatula set', number: 2 }, { name: 'Loose string item', number: undefined }],
+        items: [
+          { name: 'Spatula set', number: 2 },
+          { name: 'Loose string item', number: undefined },
+        ],
         cjReady: true,
         holdReason: 'awaiting admin approval',
+        parked: false,
+        parkReason: undefined,
       },
     ]);
+  });
+
+  it("reads a parked row (lifecycle package B) with CJ's words, and defaults parked=false for an older backend", () => {
+    const page = toPendingCjPage({
+      errno: 0,
+      data: {
+        list: [
+          {
+            orderId: 11,
+            orderSn: '2026080711111',
+            cjReady: false,
+            parked: true,
+            parkReason: 'CJ rejected the fulfilment order: 7001: Please enter a IOSS number.',
+            holdReason:
+              'CJ rejected the placement: CJ rejected the fulfilment order: 7001: Please enter a IOSS number. — fix the cause and use Requeue (approval alone does nothing)',
+          },
+          { orderId: 12, orderSn: 'sn-12', cjReady: true },
+        ],
+        total: 2,
+        pages: 1,
+      },
+    });
+    expect(page.list[0]).toMatchObject({
+      orderId: 11,
+      parked: true,
+      cjReady: false,
+      parkReason: 'CJ rejected the fulfilment order: 7001: Please enter a IOSS number.',
+    });
+    expect(page.list[1].parked).toBe(false);
+    expect(page.list[1].parkReason).toBeUndefined();
+    // a string "true" is NOT a park — only the boolean the contract specifies
+    expect(toPendingCjPage({ list: [{ orderId: 1, parked: 'true' }] } as never).list[0].parked).toBe(false);
   });
 
   it('keeps a 2xx errno!==0 body honest via errmsg (never a silent empty page)', () => {
@@ -75,7 +112,7 @@ describe('pendingItemsSummary', () => {
     expect(pendingItemsSummary([])).toBe('—');
     expect(pendingItemsSummary([{ name: 'A', number: 2 }, { name: 'B' }])).toBe('A ×2, B');
     expect(
-      pendingItemsSummary([{ name: 'A', number: 1 }, { name: 'B', number: 1 }, { name: 'C', number: 1 }, { name: 'D' }, { name: 'E' }]),
+      pendingItemsSummary([{ name: 'A', number: 1 }, { name: 'B', number: 1 }, { name: 'C', number: 1 }, { name: 'D' }, { name: 'E' }])
     ).toBe('A ×1, B ×1, C ×1 +2 more');
   });
 });
@@ -87,7 +124,7 @@ describe('toApprovalStamp', () => {
       approvedTime: '2026-08-08T10:00:00',
     });
     expect(
-      toApprovalStamp({ data: { errno: 0, data: { cjPlacementApprovedBy: 'admin123', cjPlacementApprovedTime: [2026, 8, 8, 10, 0, 0] } } }),
+      toApprovalStamp({ data: { errno: 0, data: { cjPlacementApprovedBy: 'admin123', cjPlacementApprovedTime: [2026, 8, 8, 10, 0, 0] } } })
     ).toEqual({ approvedBy: 'admin123', approvedTime: '2026-08-08T10:00:00' });
   });
 
@@ -101,7 +138,7 @@ describe('toApprovalStamp', () => {
 describe('orderOpMessage — approve refusals surface verbatim', () => {
   it('passes the typed refusal text through untouched', () => {
     expect(orderOpMessage({ data: { errno: 662, errmsg: 'order is not paid — nothing to approve' } })).toBe(
-      'order is not paid — nothing to approve',
+      'order is not paid — nothing to approve'
     );
     expect(orderOpMessage({ data: { errno: 0 } })).toBeNull();
   });
@@ -109,6 +146,19 @@ describe('orderOpMessage — approve refusals surface verbatim', () => {
   it('reports transport errors with their status', () => {
     expect(orderOpMessage({ error: { status: 404 } })).toBe('Request failed (404)');
     expect(orderOpMessage({ error: { status: 502, data: { errmsg: 'order service unavailable' } } })).toBe('order service unavailable');
+  });
+
+  it('surfaces the package-B typed refusals verbatim — approve [PARKED]/[AFTERSALE_OPEN], requeue [NOT_PARKED]', () => {
+    const refusal = (errmsg: string) => ({ error: { status: 422, data: { errno: 422, errmsg } } });
+    expect(orderOpMessage(refusal('[PARKED] the order is parked — approval does nothing; requeue it'))).toBe(
+      '[PARKED] the order is parked — approval does nothing; requeue it'
+    );
+    expect(orderOpMessage(refusal('[AFTERSALE_OPEN] a refund request is open on this order — settle it first'))).toBe(
+      '[AFTERSALE_OPEN] a refund request is open on this order — settle it first'
+    );
+    expect(orderOpMessage(refusal('[NOT_PARKED] order 11 is not parked'))).toBe('[NOT_PARKED] order 11 is not parked');
+    // the requeue success envelope is a success, whatever its message
+    expect(orderOpMessage({ data: { errno: 0, data: { orderId: 11, status: 'REQUEUED', message: 'requeued' } } })).toBeNull();
   });
 });
 
@@ -127,13 +177,41 @@ describe('cjPlacementState', () => {
 
   it('an approval stamp means approved-awaiting-placement; only cjOrderId means placed', () => {
     expect(cjPlacementState({ source: 'cj', orderStatus: 201, cjPlacementApprovedTime: '2026-08-08T10:00:00' })).toBe(
-      'approved-awaiting-placement',
+      'approved-awaiting-placement'
     );
     expect(cjPlacementState({ source: 'cj', orderStatus: 201, cjPlacementApprovedTime: [2026, 8, 8, 10, 0, 0] })).toBe(
-      'approved-awaiting-placement',
+      'approved-awaiting-placement'
     );
+    expect(cjPlacementState({ source: 'cj', orderStatus: 301, cjPlacementApprovedTime: '2026-08-08T10:00:00', cjOrderId: 'CJ123' })).toBe(
+      'placed'
+    );
+  });
+
+  it('a park sentinel wins over the approval stamp — the parked-after-approval order is parked, not "awaiting placement"', () => {
+    // The handoff names this exact bug: approved, then CJ rejected, rendered as
+    // approved-awaiting-placement forever because the stamp was read first.
     expect(
-      cjPlacementState({ source: 'cj', orderStatus: 301, cjPlacementApprovedTime: '2026-08-08T10:00:00', cjOrderId: 'CJ123' }),
-    ).toBe('placed');
+      cjPlacementState({
+        source: 'cj',
+        orderStatus: 201,
+        cjPlacementApprovedTime: '2026-09-05T10:00:00',
+        cjOrderStatus: 'PLACEMENT_REJECTED',
+      })
+    ).toBe('parked');
+    expect(cjPlacementState({ source: 'cj', orderStatus: 201, cjOrderStatus: 'PLACEMENT_STALLED' })).toBe('parked');
+    // a real cjOrderId still means placed, whatever the status column says
+    expect(cjPlacementState({ source: 'cj', orderStatus: 201, cjOrderStatus: 'PLACEMENT_REJECTED', cjOrderId: 'CJ9' })).toBe('placed');
+    // a CJ-side status that is not a park sentinel does not park
+    expect(cjPlacementState({ source: 'cj', orderStatus: 201, cjOrderStatus: 'CREATED' })).toBe('awaiting-approval');
+    expect(cjPlacementState({ source: 'local', orderStatus: 201, cjOrderStatus: 'PLACEMENT_REJECTED' })).toBe('not-applicable');
+  });
+
+  it('labels each park sentinel, and nothing else', () => {
+    expect(parkedLabel('PLACEMENT_REJECTED')).toBe('Parked — CJ rejected');
+    expect(parkedLabel('PLACEMENT_STALLED')).toBe('Parked — placement stalled');
+    expect(parkedLabel('CREATED')).toBeUndefined();
+    expect(parkedLabel(undefined)).toBeUndefined();
+    expect(isParkedCjStatus('PLACEMENT_STALLED')).toBe(true);
+    expect(isParkedCjStatus('toString')).toBe(false); // a Record lookup must not hit Object.prototype
   });
 });
