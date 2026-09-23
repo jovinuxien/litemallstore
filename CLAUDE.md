@@ -3370,11 +3370,50 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: live dev acceptance PASSED + blank-draft batch gap FIXED (2026-09-05)
-- **RAISED by order 2026-09-05:** code to
-  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md` — parked rows
-  (`parked`, `parkReason`) in the pending tab, a **Requeue** action on
-  `POST …/cj-placement/requeue`, `[AFTERSALE_OPEN]`/`[PARKED]` approve refusals.
+### Worktree: `gateway-admin` — parked CJ placements + Requeue MERGED (2026-09-23); deploy = MAIN
+- **Status 2026-09-23 — PARKED CJ PLACEMENTS + REQUEUE: BUILT, LIVE-ACCEPTED on dev,
+  MERGED to master `9fcd28726`.** The order raise of 2026-09-05 (lifecycle package B,
+  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md`) is CLOSED. One commit, SPA
+  only, no backend, no migration. Deploy = MAIN (gateway-admin container rebuild only).
+  What it fixes: an order approved and then refused by CJ (prod order 11, the live IOSS
+  rejection) rendered on the detail page as "Approved — awaiting CJ placement" FOREVER,
+  because `cjPlacementState` read the approval stamp before anything else, and the only
+  way to retry it was SQL. Now: `'parked'` state decided BEFORE the stamp
+  (`PLACEMENT_REJECTED` / `PLACEMENT_STALLED` with no cjOrderId); detail page shows the
+  exact badge ("Parked — CJ rejected" / "Parked — placement stalled"), keeps the stamp
+  line with "approval alone does nothing", offers **Requeue** in place of Approve; the
+  pending tab badges parked rows, renders the hold sentence ONCE (it already quotes CJ's
+  words — `parkReason` is NOT rendered a second time; it feeds the confirm dialog), and
+  requeues inline (confirm quotes CJ's reason; server message verbatim; refetch). The
+  dashboard card badges parked rows and its header carries "N parked among the 5 shown"
+  — counted over the rows FETCHED, never a total the server did not send.
+  Tests: jest **15 suites / 170 tests** (was 14/158): +5 model/api, +4 dashboard, +4 in
+  the new `OrderListPending.spec.tsx` (RTK hooks mocked at the seam, MemoryRouter at
+  `?tab=pending`); tsc 0. ⚠ A test caught my own helper: `key in Record` matches
+  `Object.prototype` (`'toString'` read as parked) — own-property lookup now.
+  **LIVE DEV ACCEPTANCE PASSED through :18080** (order + gateway-admin built from this
+  worktree, eureka/authserver = MAIN's July jars, headless Chrome): pending tab 4 parked
+  rows (dev's natural rejects 91/95/102 + order 110 parked as STALLED by SQL = the
+  approved-then-parked case) with 4 Requeue buttons and no Approve; dashboard "2 parked
+  among the 5 shown" + Parked badges; detail 110 badge/stamp/Requeue → confirm → success
+  banner → state flips to "Approved — awaiting CJ placement" (DB: sentinel NULL, approval
+  stamp KEPT, hop "Requeued for CJ placement by admin 1"); detail 91 "Parked — CJ
+  rejected"; tab requeue of 102 with the confirm quoting CJ's words; a stale parked row
+  requeued after an API requeue shows `[NOT_PARKED] order 95 is not parked (cj status
+  null, order status PAID)` verbatim with the confirm kept open; approve of a parked
+  order answers `[PARKED] …` 422 verbatim. 0 page errors. Dev rows restored as found.
+  ⚠ **Acceptance lesson:** an UNAPPROVED order that is requeued STAYS in the pending list
+  (it is approvable again); only an APPROVED one leaves it — badge 15 → 14 was order 110,
+  not 102. My first assertion expected 102 to vanish; the page was right, the test wrong.
+  ⚠ **Prettier gotcha (admin):** `.prettierrc` has `singleQuote` but NOT `jsxSingleQuote`,
+  and the repo's TSX uses single-quoted JSX attributes — `prettier --write` flips every
+  JSX quote in the file (my first commit carried 876/371 lines of churn). Format with
+  `--jsx-single-quote`, or reapply edits onto the original; check `git diff --numstat`.
+  ⚠ Dev boot: a jar rebuilt UNDER a running JVM dies on restart with
+  `ClassNotFoundException: ch.qos.logback…ThrowableProxy` — kill first, then build (the
+  landmine list already says so; I hit it anyway). `pgrep -af '^/usr/lib/jvm/…'` anchored,
+  kill by pid. Not built here (no admin timeline view exists): the handoff's `cj_stall` /
+  `cj_sync` hop wording has no render site in this SPA.
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
