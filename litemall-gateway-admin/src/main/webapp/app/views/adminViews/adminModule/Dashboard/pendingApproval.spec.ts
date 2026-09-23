@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { IPendingCjPage } from 'app/shared/reducers/private/services/adminOrderCjApi';
 
-import { DASHBOARD_PENDING_ROWS, dashboardPendingRows, pendingOverflow, pendingTileState } from './pendingApproval';
+import { DASHBOARD_PENDING_ROWS, dashboardPendingRows, parkedNote, pendingOverflow, pendingTileState } from './pendingApproval';
 
 // Dashboard pending-CJ-approval tile + card. The load-bearing rule is that a
 // failed fetch must never render as "0 pending" — that would tell an operator
@@ -15,7 +15,7 @@ const page = (over: Partial<IPendingCjPage> = {}): IPendingCjPage => ({
   ...over,
 });
 
-const row = (orderId: number) => ({ orderId, orderSn: `sn-${orderId}`, items: [] });
+const row = (orderId: number, parked = false) => ({ orderId, orderSn: `sn-${orderId}`, items: [], parked });
 
 describe('pendingTileState', () => {
   it('shows a count when orders are waiting', () => {
@@ -90,5 +90,30 @@ describe('pendingOverflow', () => {
   it('never goes negative, and claims no overflow when the count is unknown', () => {
     expect(pendingOverflow(pendingTileState({ data: page({ total: 2 }) }), 5)).toBe(0);
     expect(pendingOverflow(pendingTileState({ isError: true }), 0)).toBe(0);
+  });
+});
+
+describe('parkedNote — "of which parked" (handoff §3)', () => {
+  it('is silent when nothing fetched is parked', () => {
+    expect(parkedNote(page({ total: 2, list: [row(1), row(2)] }))).toBe('');
+    expect(parkedNote(undefined)).toBe('');
+    expect(parkedNote(page({ total: 2, list: [row(1, true)], errmsg: 'down' }))).toBe('');
+  });
+
+  it('counts parked rows when the card shows the whole queue', () => {
+    expect(parkedNote(page({ total: 3, list: [row(1, true), row(2), row(3, true)] }))).toBe('2 parked');
+  });
+
+  it('never claims a total it did not fetch: overflow wording names the rows shown', () => {
+    const list = [row(1, true), row(2), row(3), row(4), row(5)];
+    expect(parkedNote(page({ total: 9, list }))).toBe('1 parked among the 5 shown');
+  });
+
+  it('rides along in the tile note', () => {
+    expect(pendingTileState({ data: page({ total: 3, list: [row(1, true), row(2), row(3)] }) }).note).toBe(
+      '3 orders need approval, 1 parked'
+    );
+    expect(pendingTileState({ data: page({ total: 1, list: [row(1, true)] }) }).note).toBe('1 order needs approval, 1 parked');
+    expect(pendingTileState({ data: page({ total: 3, list: [row(1)] }) }).note).toBe('3 orders need approval');
   });
 });

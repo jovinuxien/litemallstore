@@ -1,4 +1,4 @@
-import { cjPlacementState, orderStatusInfo } from 'app/shared/model/admin/order.model';
+import { cjPlacementState, orderStatusInfo, parkedLabel } from 'app/shared/model/admin/order.model';
 import { useReadOrderQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
 import {
   ICjApprovalStamp,
@@ -6,6 +6,7 @@ import {
   orderOpMessage,
   toApprovalStamp,
   useApproveCjPlacementMutation,
+  useRequeueCjPlacementMutation,
   useGetFulfillmentConfigQuery,
   useGetTrackingQuery,
   useMarkOrderPaidMutation,
@@ -127,6 +128,11 @@ const OrderDetail: React.FC = () => {
   const [payOpen, setPayOpen] = React.useState(false);
   const [payReference, setPayReference] = React.useState('');
   const [approveOpen, setApproveOpen] = React.useState(false);
+  // Lifecycle package B: a parked order (CJ rejected / placement stalled) is
+  // requeued from here; the sentinel clears server-side and the refetch moves
+  // the state on. Approval is never offered for a parked order.
+  const [requeuePlacement, { isLoading: requeuing }] = useRequeueCjPlacementMutation();
+  const [requeueOpen, setRequeueOpen] = React.useState(false);
   // Stamp from a just-confirmed approval — keeps the UI honest even before
   // the refetched detail payload projects the V59 columns.
   const [localStamp, setLocalStamp] = React.useState<ICjApprovalStamp | null>(null);
@@ -193,6 +199,23 @@ const OrderDetail: React.FC = () => {
     }
   };
 
+  const onConfirmRequeue = async () => {
+    setActionMsg(null);
+    const res = await requeuePlacement(id as string);
+    const msg = orderOpMessage(res);
+    if (msg) {
+      setActionMsg({ ok: false, text: msg });
+    } else {
+      const data = (res as { data?: { data?: { message?: string } } }).data?.data;
+      setActionMsg({
+        ok: true,
+        text: `Order ${order.orderSn || `#${order.id}`}: ${data?.message || 'requeued for CJ placement — the sweep retries it on its next tick.'}`,
+      });
+      setRequeueOpen(false);
+      refetch();
+    }
+  };
+
   const onConfirmApprove = async () => {
     setActionMsg(null);
     const res = await approvePlacement(id as string);
@@ -245,6 +268,11 @@ const OrderDetail: React.FC = () => {
               <Tag tag='info'>Approved — awaiting CJ placement</Tag>
             </span>
           )}
+          {placement === 'parked' && (
+            <span className='ms-2'>
+              <Tag tag='danger'>{parkedLabel(order.cjOrderStatus) ?? 'Parked'}</Tag>
+            </span>
+          )}
           {isPickup && (
             <span className='ms-2'>
               <Tag tag='info'>Pickup</Tag>
@@ -255,6 +283,11 @@ const OrderDetail: React.FC = () => {
           {placement === 'awaiting-approval' && (
             <button className='btn btn-warning btn-sm me-2' disabled={approving || approveOpen} onClick={() => setApproveOpen(true)}>
               Approve for CJ fulfilment
+            </button>
+          )}
+          {placement === 'parked' && (
+            <button className='btn btn-warning btn-sm me-2' disabled={requeuing || requeueOpen} onClick={() => setRequeueOpen(true)}>
+              Requeue for CJ placement
             </button>
           )}
           {isUnpaid && (
@@ -284,6 +317,38 @@ const OrderDetail: React.FC = () => {
           {approvalStamp.approvedBy ? ` by ${approvalStamp.approvedBy}` : ''}
           {approvalStamp.approvedTime ? ` at ${approvalStamp.approvedTime.replace('T', ' ')}` : ''}.
           {placement === 'approved-awaiting-placement' && ' Not yet placed at CJ — the placement sweep submits it on its next tick.'}
+          {placement === 'parked' && ' The approval stands, but the order is parked — approval alone does nothing; use Requeue once the cause is fixed.'}
+        </div>
+      )}
+
+      {placement === 'parked' && (
+        <div className='alert alert-danger py-2'>
+          <strong>{parkedLabel(order.cjOrderStatus) ?? 'Parked'}.</strong>{' '}
+          {order.cjOrderStatus === 'PLACEMENT_STALLED'
+            ? 'Placement kept failing and was parked after the stall window.'
+            : 'CJ refused the fulfilment order.'}{' '}
+          Fix the cause, then requeue — the placement sweep retries it on its next tick. CJ&apos;s exact words are on the pending tab
+          (hold reason) and the order timeline.
+        </div>
+      )}
+
+      {requeueOpen && (
+        <div className='box-card mb-3' style={{ borderLeft: '4px solid #E6A23C' }}>
+          <h6>Requeue for CJ placement</h6>
+          <p className='mb-1'>
+            Retry sending order <strong>{order.orderSn || `#${order.id}`}</strong> ({money(order.actualPrice)}) to CJ? Fix the cause first.
+          </p>
+          <p className='text-danger fw-bold mb-1'>
+            The approval stamp is kept. If CJ accepts the order this time, the placement spends real fulfilment money from the CJ balance.
+          </p>
+          <div className='d-flex align-items-center gap-2 mt-2'>
+            <button className='btn btn-warning btn-sm' disabled={requeuing} onClick={onConfirmRequeue}>
+              {requeuing ? 'Requeuing…' : 'Confirm requeue'}
+            </button>
+            <button className='btn btn-outline-secondary btn-sm' disabled={requeuing} onClick={() => setRequeueOpen(false)}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
