@@ -1,11 +1,4 @@
 import { Elements } from '@stripe/react-stripe-js';
-import type { Stripe } from '@stripe/stripe-js';
-// '/pure', NOT the main entry: importing '@stripe/stripe-js' directly INJECTS js.stripe.com
-// as an import side effect, so merely bundling it would hit Stripe (and its
-// m.stripe.network fingerprinting endpoints) on page load — with no publishable key, no
-// card selected, and no consent. '/pure' defers all of that until loadStripe() is called.
-// Verified: with this import the unconfigured checkout makes ZERO requests to stripe.com.
-import { loadStripe } from '@stripe/stripe-js/pure';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Form } from 'react-bootstrap';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -15,6 +8,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { Trans, useTranslation } from 'app/i18n';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
+import { STRIPE_ELEMENTS_CURRENCY, stripePromiseFor } from 'app/shared/payment/stripeLoader';
 import { classifyIntentRefusal } from 'app/shared/payment/paymentOutcome';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
@@ -66,23 +60,6 @@ const COUNTRIES = SHIPPING_COUNTRIES;
 
 const isCjItem = (it: { source?: string; goodsId?: string }) =>
   it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
-
-/**
- * Stripe.js is loaded once per page, lazily, and ONLY when a publishable key exists —
- * an unconfigured deployment must make no Stripe request at all, the same discipline the
- * Matomo tracker follows. Cached because loadStripe() must not run per render.
- */
-let stripeJs: Promise<Stripe | null> | null = null;
-const stripePromiseFor = (publishableKey: string): Promise<Stripe | null> => {
-  stripeJs = stripeJs ?? loadStripe(publishableKey);
-  return stripeJs;
-};
-
-/**
- * Must match `litemall.order.stripe.currency` (order's default). A mismatch is safe rather
- * than silent: the server asserts the PaymentIntent's currency at pay time and rejects.
- */
-const STRIPE_CURRENCY = 'usd';
 
 /**
  * Render a server-computed amount. `undefined` shows a placeholder rather than €0.00 —
@@ -676,7 +653,7 @@ const CheckoutView: React.FC = () => {
   const stripeElementsOptions = useMemo(
     () =>
       totals && totals.actualPrice > 0
-        ? { mode: 'payment' as const, amount: Math.round(totals.actualPrice * 100), currency: STRIPE_CURRENCY }
+        ? { mode: 'payment' as const, amount: Math.round(totals.actualPrice * 100), currency: STRIPE_ELEMENTS_CURRENCY }
         : null,
     [totals],
   );

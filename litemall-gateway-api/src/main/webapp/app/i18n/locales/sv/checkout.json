@@ -173,22 +173,13 @@
     "methodWallet": "digital plånbok",
     "methodCard": "kort"
   },
-  "pay": {
-    "title": "Betalning",
-    "order": "Order",
-    "orderNo": "Ordernummer",
-    "amountDue": "Att betala",
-    "method": "Betalsätt",
-    "wallet": "Digital plånbok",
-    "payNow": "Betala nu"
-  },
   "status": {
+    "failed": "Betalningen misslyckades",
+    "viewOrders": "Visa ordrar",
     "order": "Order #{{id}}",
     "viewOrder": "Visa order",
-    "viewOrders": "Visa ordrar",
     "success": "Betalningen lyckades",
     "redirectingOrder": "Tar dig till din order…",
-    "failed": "Betalningen misslyckades",
     "failedBody": "Inget har debiterats. Du kan försöka igen med ett annat betalsätt.",
     "tryAgain": "Försök igen",
     "cancelled": "Den här ordern avbröts",
@@ -200,5 +191,15 @@
     "confirming": "Bekräftar din betalning…",
     "confirmingBody": "Vi kontrollerar med betalningsleverantören. Det tar oftast några sekunder.",
     "redirecting": "Skickar dig vidare till dina ordrar…"
+  },
+  "pay": {
+    "title": "Betalning",
+    "loadFailed": "Vi kunde inte läsa in den här ordern. Öppna dina ordrar och försök igen därifrån.",
+    "order": "Order",
+    "orderNo": "Ordernummer",
+    "amountDue": "Att betala",
+    "method": "Betalsätt",
+    "wallet": "Digital plånbok",
+    "payNow": "Betala nu"
   }
 }
