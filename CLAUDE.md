@@ -2607,7 +2607,65 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — order lifecycle honesty MERGED to master (SPA half of order packages A–C); deploy = MAIN
+### Worktree: `gateway-api` — delivery-form sync + pay page (Stripe) + review refusals BUILT on the branch (2026-10-03); merge + deploy pending
+- **Status 2026-10-03 — THREE COMMITS ON `fix/gateway-api`, NOT merged (awaiting the user's
+  go), deploy = MAIN.** Branch fast-forwarded to master `8a71f78e7` first. SPA only: no
+  migration, no backend, no env. jest **65 suites / 451 tests** (was 57/392), tsc 0,
+  `i18n:check` 0, prod build clean. Each commit was rendered headless from the BUILT bundle
+  against a stub edge (`puppeteer-core` + google-chrome; stub answers the DTO shapes).
+  1. **`f11979839` Delivery form: Country ⇄ Mobile ⇄ Region** (user report 2026-10-03: "no
+     synchronization between Country and Mobile" on the checkout Delivery section). Cause,
+     read off the code: Country NEVER drove the dial code; the phone drove Country only until
+     Country was first touched (`countryTouchedRef`); a region survived a country change; a
+     region-less browser language (`sv`, `da`) started on +1 / "United States". Rules now
+     live in ONE module, `app/shared/util/deliverySync.ts`, called by checkout AND the
+     address book: selecting a Country sets the dial code (digits kept); PICKING a dial code
+     sets the Country when we ship there, and leaves it when we do not; the selector's
+     start-up default and a number typed in full international form only fill an EMPTY
+     country; a full number (typed or stored) is never re-prefixed by a later country change;
+     a region is kept only if it belongs to the new country. `PhoneInput` gained
+     `countryIso2` and reports every change with a reason (`init|pick|typed|external`) —
+     that reason is what stops the two controls echoing each other. Fields carry standard
+     `autocomplete` tokens so a browser's saved address fills the block coherently.
+     Headless on the real `/checkout` form in sv-SE, sv, da, de-DE: 15/15 each.
+     ⚠ **RAISED, user decisions, NOT built:** (a) **Denmark is not in `SHIPPING_COUNTRIES`**
+     (US, GB, SE, NO, DE, FR, CA, AU) although Danish is an enabled language and DK is a named
+     market — a Danish browser opens on +45 with Country blank and cannot pick Denmark; no
+     backend allowlist blocks it (`AddressSaveRequest` only length-checks), it is one line +
+     5 regions, but it is a commercial decision (freight, VAT). (b) **There are NO city
+     suggestions at all** — City / Kommune is a plain field; `placesApiKey` is null in prod
+     (verified live), and the Places integration (already built, env-gated) is what would
+     fill city + region + postcode from one address pick, for every country. A static
+     kommun list is the alternative. (c) `eu`-market visitors with a plain `en` browser still
+     start on US.
+  2. **`e0f4f85d6` Pay page: "Pay now" charges the card.** `/pay/:orderId` offered card with
+     no Stripe form mounted (dead end since Wave 7). Now: read the order → mint the intent →
+     mount `StripeCardForm` with the INTENT's own amount + currency → validate → confirm →
+     report the real intent id. Already-paid / cancelled orders get no form; "already been
+     paid" is success; a bank debit in flight hands over to the status page; a succeeded
+     intent is never confirmed twice (a failed report re-sends the same id); no key ⇒ card
+     unavailable, wallet pays. Headless 26/26 incl. the real Stripe.js Payment Element iframe
+     mounting from a stubbed intent. **No live Stripe payment was made** (no test key).
+     ⚠ **FOUND + FIXED: the checkout mounted its Payment Element with a hardcoded `'usd'`**
+     (`STRIPE_CURRENCY`, never touched by the Wave-24 EUR flip) while prod mints EUR intents.
+     Stripe picks the payment methods it presents from that currency (SEPA, iDEAL, Bancontact
+     need `eur`), and its docs say Elements options that disagree with the intent "can result
+     in unexpected behavior or errors". It now reads the store's display currency
+     (`shared/payment/stripeLoader.ts`). NOT proven that card payments were failing — prod has
+     had zero EUR payments to show either way; the first real EUR card order is the proof.
+     ⚠ RAISED for order: `litemall.order.stripe.currency` still DEFAULTS to `usd` in yml
+     (prod sets eur by env) — a dev stack with a Stripe test key now mismatches the other way.
+  3. **`7b6287e9e` Reviews: F17 refusals verbatim.** errno 670 / 671 close the form on the
+     server's words (errors.json `byCode`, en/sv/da); other refusals verbatim + retryable;
+     the order page sends `orderId` (pins the purchase check) and tracks review state per
+     order LINE. Headless 24/24 (en + sv). ⚠ RAISED for order (unchanged from F17): the
+     customer detail has no per-line review marker, so a reviewed line offers the button
+     again after a reload (the server answers 671, which now reads correctly).
+  ⚠ Gotchas: `i18n:check` REORDERS keys to first-use order when a file's `t()` calls move
+  (exit 0, files rewritten) — commit the reorder or the tree stays dirty; a jest mock of a
+  module does not break `typeof e.errno === 'number'` the way `instanceof ApiError` can;
+  trovemo.com `/` timed out from this box while `/auth/site-config` answered in 0.35 s —
+  a hung HTML fetch is not proof the site is down.
 - **Status 2026-09-13 — MERGED to master (fast-forward from the worktree), deploy PENDING.**
   Re-verified on the clean tree the same day before merging: jest **57 suites / 392 tests**,
   tsc 0, `i18n:check` exit 0, branch 0 behind master (`fd5bb911f`). No code change since
