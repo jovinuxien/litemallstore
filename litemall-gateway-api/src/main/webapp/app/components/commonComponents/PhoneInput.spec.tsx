@@ -13,7 +13,7 @@ const dial = () => dialButton().textContent?.match(/\+\d+/)?.[0];
 const numberField = () => document.querySelector('input[type=tel]') as HTMLInputElement;
 const type = (text: string) => fireEvent.change(numberField(), { target: { value: text } });
 const pickCountry = (name: string) => {
-  fireEvent.click(dialButton());
+  if (!document.querySelector('div[role=listbox]')) fireEvent.click(dialButton());
   // Scoped to the dial-code dropdown: a form's own Country <select> has options too.
   const dropdown = document.querySelector('div[role=listbox]') as HTMLElement;
   fireEvent.click(within(dropdown).getByRole('option', { name: new RegExp(name) }));
@@ -137,5 +137,91 @@ describe('PhoneInput country sync', () => {
     expect(dial()).toBe('+33');
     expect(select.value).toBe('FR');
     expect(seen).toEqual(['SE:init', 'DE:pick', 'FR:external']);
+  });
+});
+
+/**
+ * Only a dial code from the form's own country list can move its Country field. Before
+ * this, the 8 delivery countries sat unmarked among ~200 and a pick outside them did
+ * nothing and said nothing — reported from production as "the dial number does not
+ * synchronize with the country".
+ */
+describe('PhoneInput delivery countries', () => {
+  const DELIVERY = ['SE', 'DE', 'FR'];
+  const note = () => document.querySelector('[data-delivery-note]')?.textContent ?? null;
+  const openList = () => {
+    fireEvent.click(dialButton());
+    return document.querySelector('div[role=listbox]') as HTMLElement;
+  };
+
+  it('lists the delivery countries first, under their own heading', () => {
+    render(<PhoneInput onChange={jest.fn()} countryIso2='SE' deliveryCountries={DELIVERY} />);
+    const list = openList();
+    expect(within(list).getByText('We deliver to')).toBeTruthy();
+    expect(within(list).getByText('Other countries')).toBeTruthy();
+    const names = within(list)
+      .getAllByRole('option')
+      .map(o => o.querySelector('.flex-grow-1')?.textContent);
+    expect(names.slice(0, 3)).toEqual(['France', 'Germany', 'Sweden']);
+    expect(names).toContain('Denmark');
+    expect(names.indexOf('Denmark')).toBeGreaterThan(2);
+    expect(new Set(names).size).toBe(names.length); // nobody is listed twice
+  });
+
+  it('searching shows one flat list of matches, no headings', () => {
+    render(<PhoneInput onChange={jest.fn()} countryIso2='SE' deliveryCountries={DELIVERY} />);
+    const list = openList();
+    fireEvent.change(within(list).getByPlaceholderText('Search country…'), { target: { value: 'den' } });
+    expect(within(list).queryByText('We deliver to')).toBeNull();
+    expect(within(list).getByRole('option', { name: /Denmark/ })).toBeTruthy();
+  });
+
+  it('a pick outside the list says why the country did not follow', () => {
+    const onCountryChange = jest.fn();
+    render(<PhoneInput onChange={jest.fn()} countryIso2='SE' deliveryCountries={DELIVERY} onCountryChange={onCountryChange} />);
+    expect(note()).toBeNull();
+    pickCountry('Denmark');
+    expect(dial()).toBe('+45');
+    expect(onCountryChange).toHaveBeenLastCalledWith('DK', 'pick'); // the form decides; the field explains
+    expect(note()).toContain('We don’t deliver to Denmark yet, so the delivery country stays Sweden');
+  });
+
+  it('asks for a delivery country when the form has none yet', () => {
+    render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} defaultIso2='SE' />);
+    pickCountry('Denmark');
+    expect(note()).toContain('please choose a delivery country');
+  });
+
+  it('a number typed in full from outside the list gets the same note', () => {
+    render(<PhoneInput onChange={jest.fn()} countryIso2='SE' deliveryCountries={DELIVERY} />);
+    type('+45 12 34 56 78');
+    expect(note()).toContain('Denmark');
+  });
+
+  it('says nothing for a delivery country, and the note goes once one is chosen', () => {
+    const { rerender } = render(<PhoneInput onChange={jest.fn()} countryIso2='SE' deliveryCountries={DELIVERY} />);
+    pickCountry('Germany');
+    expect(note()).toBeNull();
+    pickCountry('Denmark');
+    expect(note()).not.toBeNull();
+    // The customer then changes the form's country: the dial code follows it again.
+    rerender(<PhoneInput onChange={jest.fn()} countryIso2='FR' deliveryCountries={DELIVERY} />);
+    expect(dial()).toBe('+33');
+    expect(note()).toBeNull();
+  });
+
+  it('a start-up default outside the list is not commented on', () => {
+    // A Danish browser opens on +45 by default. Nobody chose that, so it earns no remark.
+    render(<PhoneInput onChange={jest.fn()} defaultIso2='DK' deliveryCountries={DELIVERY} />);
+    expect(dial()).toBe('+45');
+    expect(note()).toBeNull();
+  });
+
+  it('a form with no country field (registration) keeps the plain list', () => {
+    render(<PhoneInput onChange={jest.fn()} />);
+    const list = openList();
+    expect(within(list).queryByText('We deliver to')).toBeNull();
+    pickCountry('Denmark');
+    expect(note()).toBeNull();
   });
 });

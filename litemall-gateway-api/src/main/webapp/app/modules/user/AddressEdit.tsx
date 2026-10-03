@@ -13,6 +13,9 @@ import { regionsFor } from 'app/shared/data/regions';
 import { CountryRegion, PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
 import './user.scss';
 
+/** The Country field's options, for the phone selector: only these can move that field. */
+const DELIVERY_ISO2 = SHIPPING_COUNTRIES.map(c => c.code);
+
 const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '', addressDetail: '', postalCode: '', countryCode: '', isDefault: false };
 
 /**
@@ -136,6 +139,7 @@ const AddressEdit: React.FC = () => {
                   value={form.tel}
                   onChange={tel => setForm(prev => ({ ...prev, tel }))}
                   countryIso2={form.countryCode || undefined}
+                  deliveryCountries={DELIVERY_ISO2}
                   onCountryChange={followPhoneCountry}
                   onValidityChange={setTelValid}
                 />

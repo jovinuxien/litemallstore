@@ -73,6 +73,10 @@
     "phone": {
       "unknownCode": "Unknown country code — check the digits after \"+\".",
       "lengthDetail": "{{kind}} for {{country}} (+{{dial}}) — {{expected}} digits expected, you entered {{entered}}.",
+      "deliverTo": "We deliver to",
+      "otherCountries": "Other countries",
+      "notDelivered": "We don’t deliver to {{phoneCountry}} yet, so the delivery country stays {{country}}. Your number is fine as it is.",
+      "notDeliveredChoose": "We don’t deliver to {{phoneCountry}} yet — please choose a delivery country. Your number is fine as it is.",
       "selectCode": "Select country code",
       "placeholder": "Phone number",
       "search": "Search country…",

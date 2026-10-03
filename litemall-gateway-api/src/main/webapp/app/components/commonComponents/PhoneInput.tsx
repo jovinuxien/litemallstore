@@ -45,6 +45,13 @@ interface Props {
    * form is never re-prefixed.
    */
   countryIso2?: string;
+  /**
+   * The countries the form's own Country field offers (ISO2). Only a dial code from this
+   * list can move that field — so they are listed FIRST in the selector, and a pick
+   * outside it says why the country did not follow instead of silently doing nothing.
+   * Omit on forms with no country field (registration).
+   */
+  deliveryCountries?: string[];
   /** Fires whenever the number's validity (per-country digit count) changes. Empty input counts as valid. */
   onValidityChange?: (ok: boolean) => void;
   defaultIso2?: string;
@@ -70,6 +77,7 @@ const PhoneInput: React.FC<Props> = ({
   onCountryChange,
   onValidityChange,
   countryIso2,
+  deliveryCountries,
   defaultIso2,
   isInvalid,
   placeholder,
@@ -103,6 +111,10 @@ const PhoneInput: React.FC<Props> = ({
   // "+46 70…" under a German address is a Swedish mobile, not a typo. A selector pick
   // or clearing the field resets it.
   const typedIntlRef = useRef(!!initial.iso2);
+  // The customer chose this phone country themselves (selector pick or a number typed in
+  // full) — as opposed to a start-up default or a follow of the form's country. Only an
+  // explicit choice earns the "we do not deliver there" note below.
+  const [explicit, setExplicit] = useState(false);
 
   const countryChangeRef = useRef(onCountryChange);
   countryChangeRef.current = onCountryChange;
@@ -154,6 +166,7 @@ const PhoneInput: React.FC<Props> = ({
     if (typedIntlRef.current && hasDigits) return; // a number typed in full stays as typed
     sourceRef.current = 'external';
     typedIntlRef.current = false;
+    setExplicit(false);
     setIso2(target.iso2);
     if (intl) setNational(intl.national); // drop a bare "+49" so text and selector agree
     emit(target.dial, effectiveNational);
@@ -164,8 +177,10 @@ const PhoneInput: React.FC<Props> = ({
     setNational(raw);
     sourceRef.current = 'typed';
     const split = splitInternational(raw, iso2);
-    if (split) typedIntlRef.current = true;
-    else if (!raw.trim()) typedIntlRef.current = false;
+    if (split) {
+      typedIntlRef.current = true;
+      setExplicit(true);
+    } else if (!raw.trim()) typedIntlRef.current = false;
     if (split) {
       emit(split.country.dial, split.national);
     } else if (raw.trim().startsWith('+') || raw.trim().startsWith('00')) {
@@ -191,12 +206,36 @@ const PhoneInput: React.FC<Props> = ({
     const nat = intl ? intl.national : national;
     sourceRef.current = 'pick';
     typedIntlRef.current = false;
+    setExplicit(true);
     setIso2(c.iso2);
     if (intl) setNational(nat); // explicit pick wins over stale "+…" text
     setOpen(false);
     setFilter('');
     emit(c.dial, nat);
   };
+
+  // With a filter typed, one flat list of matches. Without one, the countries the form can
+  // deliver to come first under their own heading: they are the ones that move the form's
+  // Country field, and burying 8 of them among ~200 made the pairing look broken.
+  const delivers = (iso: string) => !!deliveryCountries?.includes(iso);
+  const grouped = !!deliveryCountries?.length && !filter.trim();
+  const sections: { heading: string | null; items: DialCountry[] }[] = grouped
+    ? [
+        { heading: t('common:forms.phone.deliverTo'), items: countries.filter(c => delivers(c.iso2)) },
+        { heading: t('common:forms.phone.otherCountries'), items: countries.filter(c => !delivers(c.iso2)) },
+      ]
+    : [{ heading: null, items: filtered }];
+
+  // The customer picked (or typed) a number from a country the form cannot deliver to.
+  // That is a perfectly good phone number — but the Country field did not follow it, and
+  // saying nothing made the two fields look out of step.
+  const formCountryName = countries.find(c => c.iso2 === countryIso2)?.name;
+  const outsideDelivery = explicit && !!deliveryCountries?.length && !delivers(effectiveIso2);
+  const deliveryNote = !outsideDelivery
+    ? null
+    : formCountryName
+      ? t('common:forms.phone.notDelivered', { phoneCountry: selected.name, country: formCountryName })
+      : t('common:forms.phone.notDeliveredChoose', { phoneCountry: selected.name });
 
   return (
     <div className='position-relative' ref={wrapRef}>
@@ -223,6 +262,12 @@ const PhoneInput: React.FC<Props> = ({
         />
       </div>
       {showError && lengthMessage && <div className='invalid-feedback d-block'>{lengthMessage}</div>}
+      {deliveryNote && (
+        <div className='form-text' data-delivery-note>
+          <i className='bi bi-info-circle me-1' />
+          {deliveryNote}
+        </div>
+      )}
       {open && (
         <div
           className='position-absolute bg-white border rounded shadow-sm mt-1 w-100'
@@ -239,19 +284,28 @@ const PhoneInput: React.FC<Props> = ({
               autoFocus
             />
           </div>
-          {filtered.map(c => (
-            <button
-              key={c.iso2}
-              type='button'
-              role='option'
-              aria-selected={c.iso2 === effectiveIso2}
-              className={`dropdown-item d-flex align-items-center gap-2 py-1 ${c.iso2 === effectiveIso2 ? 'active' : ''}`}
-              onClick={() => pick(c)}
-            >
-              <span aria-hidden>{c.flag}</span>
-              <span className='flex-grow-1 text-truncate small'>{c.name}</span>
-              <span className='text-muted small'>+{c.dial}</span>
-            </button>
+          {sections.map(section => (
+            <React.Fragment key={section.heading ?? 'matches'}>
+              {section.heading && section.items.length > 0 && (
+                <div className='px-3 pt-2 pb-1 small fw-semibold text-muted' role='presentation'>
+                  {section.heading}
+                </div>
+              )}
+              {section.items.map(c => (
+                <button
+                  key={c.iso2}
+                  type='button'
+                  role='option'
+                  aria-selected={c.iso2 === effectiveIso2}
+                  className={`dropdown-item d-flex align-items-center gap-2 py-1 ${c.iso2 === effectiveIso2 ? 'active' : ''}`}
+                  onClick={() => pick(c)}
+                >
+                  <span aria-hidden>{c.flag}</span>
+                  <span className='flex-grow-1 text-truncate small'>{c.name}</span>
+                  <span className='text-muted small'>+{c.dial}</span>
+                </button>
+              ))}
+            </React.Fragment>
           ))}
           {filtered.length === 0 && <div className='text-muted small p-2'>{t('common:forms.phone.noMatch')}</div>}
         </div>
