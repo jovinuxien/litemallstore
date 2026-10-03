@@ -4,25 +4,62 @@ import { Alert, Button, Form } from 'react-bootstrap';
 import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { userApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
+import { describeError } from 'app/i18n/errors';
+
+/** Reviews are purchase-gated: only a customer who received the product may review it. */
+export const ERRNO_NOT_PURCHASED = 670;
+/** …and each purchase can be reviewed once. */
+export const ERRNO_ALREADY_REVIEWED = 671;
+
+/** How a review attempt ended for good — nothing left for the customer to retry. */
+export type ReviewOutcome = 'submitted' | 'already-reviewed' | 'not-eligible';
 
 /**
  * Post-purchase review form feeding `POST /srv/comment/post` (type 0 = goods).
  * Used on the product page (Reviews CTA) and on the order-detail "Unrated"
  * flow.
+ *
+ * The endpoint is purchase-gated (goods-management F17) and answers two typed
+ * refusals: 670 "Only customers who received this product can review it" and 671
+ * "You have already reviewed this purchase". Both are FINAL — retrying cannot change
+ * them — so the form closes on the server's own words instead of the generic "could
+ * not be submitted, try again" it used to show for every error. Anything else stays
+ * a retryable failure, in the server's words when it gave any.
  */
 interface Props {
   goodsId: number | string;
+  /**
+   * The order this review is written from. Sent as `orderId`, which PINS the purchase
+   * check to that order (it never falls back to another purchase of the same product).
+   * Omitted on the product page, where the server picks the oldest unreviewed purchase.
+   */
+  orderId?: number | string;
   /** Called after a successful submit (e.g. refresh the review list). */
   onSubmitted?: () => void;
+  /** Called once when the attempt is over for good, with the text the form now shows. */
+  onSettled?: (outcome: ReviewOutcome, message: string) => void;
 }
 
-const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
+/** The typed errno and customer text of a failed post, whichever way it arrived. */
+const refusalOf = (error: unknown): { errno?: number; text?: string } => {
+  const thrown = error as { errno?: unknown; message?: string; response?: { data?: { errno?: unknown; errmsg?: string } } };
+  // `unwrap` rethrows an errno envelope as ApiError: errno + already-localised text.
+  if (typeof thrown?.errno === 'number') return { errno: thrown.errno, text: thrown.message };
+  // The same envelope on a non-2xx response.
+  const data = thrown?.response?.data;
+  if (typeof data?.errno === 'number') return { errno: data.errno, text: describeError(data.errno, data.errmsg) };
+  return {};
+};
+
+const ReviewForm: React.FC<Props> = ({ goodsId, orderId, onSubmitted, onSettled }) => {
   const { t } = useTranslation('product');
   const [star, setStar] = useState(5);
   const [content, setContent] = useState('');
   const [picUrls, setPicUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // A final refusal (670 / 671): the form is replaced by the server's words.
+  const [refused, setRefused] = useState<{ variant: 'info' | 'warning'; text: string } | null>(null);
   const [notice, setNotice] = useState<{ variant: 'info' | 'danger'; text: string } | null>(null);
 
   const submit = async (e: React.FormEvent) => {
@@ -38,11 +75,22 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
         content: content.trim(),
         hasPicture: picUrls.length > 0,
         picUrls,
+        ...(orderId != null ? { orderId } : {}),
       });
       setDone(true);
       onSubmitted?.();
-    } catch {
-      setNotice({ variant: 'danger', text: t('reviewForm.failed') });
+      onSettled?.('submitted', t('reviewForm.thanks'));
+    } catch (error) {
+      const { errno, text } = refusalOf(error);
+      if (errno === ERRNO_ALREADY_REVIEWED || errno === ERRNO_NOT_PURCHASED) {
+        const message = text || t('reviewForm.failed');
+        const already = errno === ERRNO_ALREADY_REVIEWED;
+        setRefused({ variant: already ? 'info' : 'warning', text: message });
+        onSettled?.(already ? 'already-reviewed' : 'not-eligible', message);
+      } else {
+        // Retryable. The server's words when it gave any; a dropped connection gets ours.
+        setNotice({ variant: 'danger', text: text || t('reviewForm.failed') });
+      }
     } finally {
       setBusy(false);
     }
@@ -52,6 +100,14 @@ const ReviewForm: React.FC<Props> = ({ goodsId, onSubmitted }) => {
     return (
       <Alert variant='success' className='mb-0'>
         {t('reviewForm.thanks')}
+      </Alert>
+    );
+  }
+
+  if (refused) {
+    return (
+      <Alert variant={refused.variant} className='mb-0'>
+        {refused.text}
       </Alert>
     );
   }

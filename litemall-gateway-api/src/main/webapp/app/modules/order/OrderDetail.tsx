@@ -34,8 +34,14 @@ const OrderDetailView: React.FC = () => {
   const [pending, setPending] = useState(false);
   // A refused action's reason, the server's words (lifecycle contract §3: verbatim).
   const [actionError, setActionError] = useState<string | null>(null);
-  // Which goods line has its review form open (handleOption.comment orders).
-  const [reviewingGoodsId, setReviewingGoodsId] = useState<number | string | null>(null);
+  // Which order LINE has its review form open (handleOption.comment orders). Keyed by
+  // the line, not the goods: two lines of one product (different variants) are two
+  // purchases, each reviewed on its own.
+  const [reviewingLine, setReviewingLine] = useState<number | string | null>(null);
+  // Lines whose review is over for good in this visit (submitted, or the server said
+  // "already reviewed" / "not eligible"), with the text to keep showing. The order
+  // payload carries no per-line review marker yet, so this lasts until a reload.
+  const [settledLines, setSettledLines] = useState<Record<string, string>>({});
   // Pickup orders carry only storeId — the store card is fetched separately
   // (handoff-gateway-api-pickup.md). Fetch failure/hidden store → no card.
   const [pickupStore, setPickupStore] = useState<IStore | null>(null);
@@ -131,10 +137,20 @@ const OrderDetailView: React.FC = () => {
               />
               {opt?.comment && g.goodsId != null && (
                 <div className='px-3 pb-3'>
-                  {reviewingGoodsId === g.goodsId ? (
-                    <ReviewForm goodsId={g.goodsId} />
+                  {reviewingLine === (g.id ?? g.goodsId) ? (
+                    // orderId pins the purchase check to THIS order (never another purchase).
+                    <ReviewForm
+                      goodsId={g.goodsId}
+                      orderId={orderId}
+                      onSettled={(_outcome, message) => setSettledLines(prev => ({ ...prev, [String(g.id ?? g.goodsId)]: message }))}
+                    />
+                  ) : settledLines[String(g.id ?? g.goodsId)] ? (
+                    <span className='small text-muted' data-review-settled>
+                      <i className='bi bi-check2 me-1' />
+                      {settledLines[String(g.id ?? g.goodsId)]}
+                    </span>
                   ) : (
-                    <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => setReviewingGoodsId(g.goodsId ?? null)}>
+                    <button type='button' className='btn btn-sm btn-lm-outline' onClick={() => setReviewingLine(g.id ?? g.goodsId ?? null)}>
                       <i className='bi bi-star me-1' />
                       {t('actions.writeReview')}
                     </button>

@@ -83,6 +83,11 @@ export interface ICommentPost {
   content: string;
   hasPicture?: boolean;
   picUrls?: string[];
+  /**
+   * Optional (goods-management F17): pins the purchase check to this order. Absent ⇒ the
+   * server consumes the caller's oldest unreviewed delivered purchase of the goods.
+   */
+  orderId?: number | string;
 }
 
 export interface PageParams {
