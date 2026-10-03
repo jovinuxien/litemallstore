@@ -173,22 +173,13 @@
     "methodWallet": "digital wallet",
     "methodCard": "card"
   },
-  "pay": {
-    "title": "Payment",
-    "order": "Order",
-    "orderNo": "Order no.",
-    "amountDue": "Amount due",
-    "method": "Payment method",
-    "wallet": "Digital wallet",
-    "payNow": "Pay now"
-  },
   "status": {
+    "failed": "Payment failed",
+    "viewOrders": "View orders",
     "order": "Order #{{id}}",
     "viewOrder": "View order",
-    "viewOrders": "View orders",
     "success": "Payment successful",
     "redirectingOrder": "Taking you to your order…",
-    "failed": "Payment failed",
     "failedBody": "Nothing was charged. You can try again with another payment method.",
     "tryAgain": "Try again",
     "cancelled": "This order was cancelled",
@@ -200,5 +191,15 @@
     "confirming": "Confirming your payment…",
     "confirmingBody": "We are checking with the payment provider. This usually takes a few seconds.",
     "redirecting": "Redirecting to your orders…"
+  },
+  "pay": {
+    "title": "Payment",
+    "loadFailed": "We could not load this order. Open your orders and try again from there.",
+    "order": "Order",
+    "orderNo": "Order no.",
+    "amountDue": "Amount due",
+    "method": "Payment method",
+    "wallet": "Digital wallet",
+    "payNow": "Pay now"
   }
 }

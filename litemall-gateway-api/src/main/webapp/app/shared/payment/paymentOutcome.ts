@@ -56,3 +56,16 @@ export const settlementOf = (detail: IOrderDetail | null | undefined): Settlemen
   if (/cancel/i.test(detail?.orderStatusText ?? '')) return 'cancelled';
   return 'paid';
 };
+
+/**
+ * The server's own words for a failed payment call, or '' when it gave none. Order
+ * operations answer a refusal as a non-2xx body (`message`), envelope endpoints as
+ * `errmsg`, and `unwrap` rethrows an errno envelope as an ApiError whose text is on
+ * `.message`. The contract says to show that text verbatim, and
+ * {@link classifyIntentRefusal} reads it.
+ */
+export const paymentErrorText = (error: unknown): string => {
+  const data = (error as { response?: { data?: { message?: string; errmsg?: string } } })?.response?.data;
+  const apiError = (error as { name?: string; message?: string })?.name === 'ApiError' ? (error as { message?: string }).message : undefined;
+  return data?.message ?? data?.errmsg ?? (error as { errmsg?: string })?.errmsg ?? apiError ?? '';
+};
