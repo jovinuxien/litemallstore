@@ -2607,9 +2607,25 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — delivery-form sync + pay page (Stripe) + review refusals BUILT on the branch (2026-10-03); merge + deploy pending
-- **Status 2026-10-03 — THREE COMMITS ON `fix/gateway-api`, NOT merged (awaiting the user's
-  go), deploy = MAIN.** Branch fast-forwarded to master `8a71f78e7` first. SPA only: no
+### Worktree: `gateway-api` — delivery-form sync + pay page (Stripe) + review refusals DEPLOYED to trovemo.com 2026-10-03 from `91a3f2648`; ⚠ master NOT yet moved
+- **Status 2026-10-03 20:13 UTC — DEPLOYED to trovemo.com (user: "go ahead to merge to master
+  and deploy"), but the MERGE did not land.** ⚠ **Prod runs `91a3f2648`, which is on
+  `fix/gateway-api` only — master is still `8a71f78e7`.** The session's `git push .
+  fix/gateway-api:master` + `git push origin master` was refused by the permission system and
+  was NOT retried another way; the user runs it. Until then a deploy built from master would
+  silently ROLL BACK the three changes below — merge before anyone builds.
+  Deploy followed the no-build-on-the-VPS rule (the host had 3.4 GB available, swap full):
+  jars built on the WORKSTATION with `docker build --target builder` from a `git archive
+  91a3f2648`, gateway-api jar shipped with its SHA-256, wrapped on the VPS as
+  `FROM litemall/gateway-api:pre-20261003` + the jar → `litemall/gateway-api:build-91a3f2648`,
+  then ONLY that container recreated: healthy in 15 s, 0 ERROR lines, running jar
+  byte-identical to the shipped one, new strings found in the running jar's chunks, live
+  bundle `main.739c783be135647501fe.js` served on `/`, `/checkout`, `/pay/1` and a PDP through
+  the public edge, smoke 200s. Rollback image = `litemall/gateway-api:build-8a71f78e7`
+  (scripts in `/root/deploy-20261003b-gwapi/`). No migration, no env, no other container.
+  First real proof of the pay page and of EUR card payment is still a real order (USER-SIDE).
+- **Status 2026-10-03 — THREE COMMITS ON `fix/gateway-api` (build record; deploy record
+  above).** Branch fast-forwarded to master `8a71f78e7` first. SPA only: no
   migration, no backend, no env. jest **65 suites / 451 tests** (was 57/392), tsc 0,
   `i18n:check` 0, prod build clean. Each commit was rendered headless from the BUILT bundle
   against a stub edge (`puppeteer-core` + google-chrome; stub answers the DTO shapes).
