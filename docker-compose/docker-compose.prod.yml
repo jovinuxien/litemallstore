@@ -754,6 +754,14 @@ services:
       <<: [*litemall-discovery, *litemall-db]
       SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
       LITEMALL_KAFKA_BROKERS: kafka:9092
+      # ⚠ THIS is the key promotion actually reads: its application.yml binds the Kafka
+      # binder to ${KAFKA_BROKERS:localhost:9092}, NOT to litemall.kafka.brokers (order's
+      # key, which the line above feeds). Without it promotion dialled localhost:9092 for
+      # its whole life in prod: never one Kafka connection, health check failing (the
+      # binder health indicator blocks past the 5 s probe), GROUP_EXPIRED never published
+      # (group-buy auto-refund dead), ~400 WARN lines/min whose pipe grew the container's
+      # shim to ~1.7 GB of host memory. Keep BOTH lines until the yml key is unified.
+      KAFKA_BROKERS: kafka:9092
       # Wave-6 marketing ACLs: absent ⇒ disabled, which is the safe default.
       MATOMO_AUTH_TOKEN: ${MATOMO_AUTH_TOKEN:-}
       MAUTIC_USERNAME: ${MAUTIC_USERNAME:-}
