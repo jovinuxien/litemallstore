@@ -107,8 +107,8 @@
   },
   "recent": "Nyligen visade produkter",
   "reviewForm": {
-    "failed": "Din recension kunde inte skickas. Försök igen.",
     "thanks": "Tack! Din recension har skickats.",
+    "failed": "Din recension kunde inte skickas. Försök igen.",
     "ratingAria": "Betyg",
     "star_one": "{{count}} stjärna",
     "star_other": "{{count}} stjärnor",

@@ -107,8 +107,8 @@
   },
   "recent": "Your recently viewed items",
   "reviewForm": {
-    "failed": "Your review could not be submitted. Please try again.",
     "thanks": "Thanks! Your review has been submitted.",
+    "failed": "Your review could not be submitted. Please try again.",
     "ratingAria": "Rating",
     "star_one": "{{count}} star",
     "star_other": "{{count}} stars",
