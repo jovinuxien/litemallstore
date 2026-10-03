@@ -126,7 +126,7 @@ const AddressAutocompleteInput: React.FC<Props> = ({ value, onChange, onResolved
         onBlur={() => window.setTimeout(() => setOpen(false), 200)}
         placeholder={placeholder}
         required={required}
-        autoComplete='street-address'
+        autoComplete='address-line1'
       />
       {open && (
         <div className='position-absolute bg-white border rounded shadow-sm mt-1 w-100' style={{ zIndex: 1060 }} role='listbox'>

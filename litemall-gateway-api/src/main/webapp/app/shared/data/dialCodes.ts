@@ -115,11 +115,32 @@ export const splitInternational = (
   return { country: best, national: digits.slice(best.dial.length) };
 };
 
-/** Browser-locale region when it is a country we know, else 'US'. */
+/**
+ * Languages that name one country of the store's market closely enough to guess a
+ * dial code from. A browser set to plain `sv` (no region) is far likelier to be in
+ * Sweden than in the United States, which is what the bare fallback used to guess.
+ */
+const LANGUAGE_COUNTRY: Record<string, string> = { sv: 'SE', da: 'DK', nb: 'NO', nn: 'NO', no: 'NO', de: 'DE', fr: 'FR', fi: 'FI', nl: 'NL' };
+
+/**
+ * Best start-up guess for the visitor's country, from the browser's languages in
+ * preference order: a region we know (`sv-SE`, `en-GB`) or a region-less language
+ * that names one country (`sv`, `da`, `de`); 'US' when nothing matches. Only ever a
+ * default — the customer's own pick always wins.
+ */
 export const localeIso2 = (): string => {
   try {
-    const region = (navigator.language.split('-')[1] ?? '').toUpperCase();
-    return DIAL[region] ? region : 'US';
+    const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
+    // One pass in the browser's own preference order: `['sv', 'en-US']` is a Swedish
+    // browser with an English fallback, so `sv` must win over the later `en-US`.
+    for (const lang of langs) {
+      const [language, region] = lang.split('-');
+      const iso2 = (region ?? '').toUpperCase();
+      if (DIAL[iso2]) return iso2;
+      const guess = LANGUAGE_COUNTRY[(language ?? '').toLowerCase()];
+      if (guess && DIAL[guess]) return guess;
+    }
+    return 'US';
   } catch {
     return 'US'; // no navigator (tests/SSR)
   }

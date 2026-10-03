@@ -9,6 +9,7 @@ import {
   splitInternational,
   toE164,
 } from 'app/shared/data/dialCodes';
+import { PhoneCountrySource } from 'app/shared/util/deliverySync';
 
 /**
  * Phone input with a searchable country dial-code selector (Wave 16).
@@ -20,12 +21,30 @@ import {
  * country and, on blur, normalizes the field back to the national digits —
  * the two controls can never disagree. Digit counts are validated against the
  * selected country's numbering plan (blur-time message, live validity out).
+ *
+ * Two-way country sync. A form that also has a Country field passes it as
+ * `countryIso2`: when that country changes, the dial code follows and the digits
+ * are kept. The one exception is a number the customer typed in full international
+ * form — that is their number as they wrote it, and a later country change must not
+ * silently re-prefix it. In the other direction `onCountryChange` reports every
+ * change with WHY it happened (see {@link PhoneCountrySource}), so the form can
+ * follow an explicit pick without being dragged around by a start-up default.
  */
 interface Props {
   value?: string;
   onChange: (e164: string) => void;
-  /** Fires with the selected ISO2 on mount and on every country pick, so callers can follow the phone country. */
-  onCountryChange?: (iso2: string) => void;
+  /**
+   * Fires with the selected ISO2 on mount and on every change, with the reason:
+   * `init` (start-up default), `pick` (chosen in the selector), `typed` (derived from
+   * a typed international number) or `external` (followed `countryIso2`).
+   */
+  onCountryChange?: (iso2: string, source: PhoneCountrySource) => void;
+  /**
+   * The form's own country. The dial code follows it whenever it changes; a stored
+   * number keeps its own country at mount, and a number typed in full international
+   * form is never re-prefixed.
+   */
+  countryIso2?: string;
   /** Fires whenever the number's validity (per-country digit count) changes. Empty input counts as valid. */
   onValidityChange?: (ok: boolean) => void;
   defaultIso2?: string;
@@ -50,13 +69,17 @@ const PhoneInput: React.FC<Props> = ({
   onChange,
   onCountryChange,
   onValidityChange,
+  countryIso2,
   defaultIso2,
   isInvalid,
   placeholder,
 }) => {
   const { t } = useTranslation();
   const [initial] = useState(() => parseInitial(value));
-  const [iso2, setIso2] = useState<string>(() => initial.iso2 ?? defaultIso2 ?? localeIso2());
+  const [iso2, setIso2] = useState<string>(() => {
+    const known = (code?: string) => (code && dialCountries().some(c => c.iso2 === code) ? code : undefined);
+    return initial.iso2 ?? known(countryIso2) ?? known(defaultIso2) ?? localeIso2();
+  });
   const [national, setNational] = useState(initial.national);
   const [touched, setTouched] = useState(false);
   const [open, setOpen] = useState(false);
@@ -72,10 +95,19 @@ const PhoneInput: React.FC<Props> = ({
   const selected = countries.find(c => c.iso2 === effectiveIso2) ?? countries[0];
   const effectiveNational = intl ? intl.national : national;
 
+  // Why the country last changed — read by the single emit below.
+  const sourceRef = useRef<PhoneCountrySource>('init');
+  // True while the number on screen is a FULL international number: typed that way
+  // (also after blur folded it into selector + national digits) or loaded from a stored
+  // E.164 value. Such a number is not re-prefixed when the form's country changes —
+  // "+46 70…" under a German address is a Swedish mobile, not a typo. A selector pick
+  // or clearing the field resets it.
+  const typedIntlRef = useRef(!!initial.iso2);
+
   const countryChangeRef = useRef(onCountryChange);
   countryChangeRef.current = onCountryChange;
   useEffect(() => {
-    countryChangeRef.current?.(effectiveIso2); // mount + every pick/dial-sync — one code path
+    countryChangeRef.current?.(effectiveIso2, sourceRef.current); // mount + every change — one code path
   }, [effectiveIso2]);
 
   // "+999…" that matches no dial is its own error; length errors come from the plan table.
@@ -110,9 +142,30 @@ const PhoneInput: React.FC<Props> = ({
 
   const emit = (dial: string, nat: string) => onChange(toE164(dial, nat));
 
+  // Follow the form's country. Runs on CHANGES of the prop only — at mount a stored
+  // number's own country wins (see the initial state above).
+  const followedRef = useRef(countryIso2);
+  useEffect(() => {
+    if (countryIso2 === followedRef.current) return;
+    followedRef.current = countryIso2;
+    const target = countries.find(c => c.iso2 === countryIso2);
+    if (!target || target.iso2 === effectiveIso2) return;
+    const hasDigits = effectiveNational.replace(/\D/g, '').length > 0;
+    if (typedIntlRef.current && hasDigits) return; // a number typed in full stays as typed
+    sourceRef.current = 'external';
+    typedIntlRef.current = false;
+    setIso2(target.iso2);
+    if (intl) setNational(intl.national); // drop a bare "+49" so text and selector agree
+    emit(target.dial, effectiveNational);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countryIso2]);
+
   const handleText = (raw: string) => {
     setNational(raw);
+    sourceRef.current = 'typed';
     const split = splitInternational(raw, iso2);
+    if (split) typedIntlRef.current = true;
+    else if (!raw.trim()) typedIntlRef.current = false;
     if (split) {
       emit(split.country.dial, split.national);
     } else if (raw.trim().startsWith('+') || raw.trim().startsWith('00')) {
@@ -136,6 +189,8 @@ const PhoneInput: React.FC<Props> = ({
 
   const pick = (c: DialCountry) => {
     const nat = intl ? intl.national : national;
+    sourceRef.current = 'pick';
+    typedIntlRef.current = false;
     setIso2(c.iso2);
     if (intl) setNational(nat); // explicit pick wins over stale "+…" text
     setOpen(false);
@@ -159,6 +214,7 @@ const PhoneInput: React.FC<Props> = ({
         </button>
         <input
           type='tel'
+          autoComplete='tel'
           className={`form-control${isInvalid || showError ? ' is-invalid' : ''}`}
           value={national}
           placeholder={placeholder ?? t('common:forms.phone.placeholder')}
