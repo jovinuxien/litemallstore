@@ -79,6 +79,8 @@ describe('AddressEdit country, phone and region sync', () => {
     pickDialCode('Japan');
     expect(dial()).toBe('+81');
     expect(countrySelect().value).toBe('SE');
+    // …and says so, rather than leaving the two fields silently out of step.
+    expect(document.querySelector('[data-delivery-note]')?.textContent).toContain('We don’t deliver to Japan yet, so the delivery country stays Sweden');
   });
 
   it('clears a region that belongs to the country that was left', async () => {

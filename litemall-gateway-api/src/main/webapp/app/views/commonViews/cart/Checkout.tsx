@@ -57,6 +57,8 @@ import './Checkout.scss';
 // Supported destination countries (CJ createOrder needs a real country + ISO code).
 // Shared with the address book; the selected option supplies name + countryCode.
 const COUNTRIES = SHIPPING_COUNTRIES;
+/** Their ISO codes, for the phone selector: only these can move the Country field. */
+const DELIVERY_ISO2 = COUNTRIES.map(c => c.code);
 
 const isCjItem = (it: { source?: string; goodsId?: string }) =>
   it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
@@ -1287,6 +1289,7 @@ const CheckoutView: React.FC = () => {
                   value={shipping.mobile}
                   onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
                   countryIso2={country.code || undefined}
+                  deliveryCountries={DELIVERY_ISO2}
                   onCountryChange={followPhoneCountry}
                   onValidityChange={setPhoneValid}
                 />
@@ -1418,6 +1421,7 @@ const CheckoutView: React.FC = () => {
                     value={shipping.mobile}
                     onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
                     countryIso2={country.code || undefined}
+                    deliveryCountries={DELIVERY_ISO2}
                     onCountryChange={followPhoneCountry}
                     onValidityChange={setPhoneValid}
                   />
