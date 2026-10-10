@@ -12,11 +12,18 @@
     "list": "Normalpris:",
     "endsIn": "⏱ Slutter om {{remaining}}",
     "claimed": "{{pct}} % udnyttet",
+    "seasonTitle": "Med i vores samling {{collection}}.",
     "euStockTitle": "Var på et EU-lager ved vores seneste lagertjek.",
     "euStock": "EU-lager",
     "freeShipping": "🚚 Gratis fragt",
     "added": "Tilføjet ✓",
-    "addToCart": "Læg i kurv"
+    "addToCart": "Læg i kurv",
+    "seasons": {
+      "autumn": "Efterår",
+      "winter": "Vinter",
+      "spring": "Forår",
+      "summer": "Sommer"
+    }
   },
   "rating": {
     "aria": "{{rating}} ud af 5 stjerner",
@@ -107,8 +114,8 @@
   },
   "recent": "Senest viste produkter",
   "reviewForm": {
-    "failed": "Din anmeldelse kunne ikke sendes. Prøv igen.",
     "thanks": "Tak! Din anmeldelse er sendt.",
+    "failed": "Din anmeldelse kunne ikke sendes. Prøv igen.",
     "ratingAria": "Bedømmelse",
     "star_one": "{{count}} stjerne",
     "star_other": "{{count}} stjerner",

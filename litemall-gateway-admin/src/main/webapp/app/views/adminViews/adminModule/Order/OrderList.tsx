@@ -3,8 +3,10 @@ import { useListOrdersQuery } from 'app/shared/reducers/private/services/adminCa
 import {
   IPendingCjRow,
   downloadOrderExport,
+  orderOpMessage,
   pendingItemsSummary,
   useGetCjPlacementPendingQuery,
+  useRequeueCjPlacementMutation,
 } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { money } from 'app/shared/util/money';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
@@ -79,6 +81,31 @@ const OrderList: React.FC = () => {
   const pendingTotal = pendingQ.isError || pendingData?.errmsg ? 0 : pendingData?.total ?? 0;
   const pendingErrStatus = (pendingQ.error as { status?: number | string })?.status;
 
+  // Lifecycle package B: a parked row (CJ rejected it, or placement stalled) is
+  // requeued from here — inline confirm, server message verbatim, then refetch
+  // so a cleared row leaves the list. Approve stays on the detail page.
+  const [requeuePlacement, { isLoading: requeuing }] = useRequeueCjPlacementMutation();
+  const [requeueTarget, setRequeueTarget] = React.useState<IPendingCjRow | null>(null);
+  const [requeueMsg, setRequeueMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const onConfirmRequeue = async () => {
+    if (!requeueTarget?.orderId) return;
+    setRequeueMsg(null);
+    const res = await requeuePlacement(requeueTarget.orderId);
+    const msg = orderOpMessage(res);
+    const label = requeueTarget.orderSn || `#${requeueTarget.orderId}`;
+    if (msg) {
+      setRequeueMsg({ ok: false, text: `${label}: ${msg}` });
+    } else {
+      const data = (res as { data?: { data?: { message?: string } } }).data?.data;
+      setRequeueMsg({
+        ok: true,
+        text: `${label}: ${data?.message || 'requeued for CJ placement — the sweep retries it on its next tick.'}`,
+      });
+      setRequeueTarget(null);
+      pendingQ.refetch();
+    }
+  };
+
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
@@ -128,6 +155,40 @@ const OrderList: React.FC = () => {
             </div>
           )}
           {pendingData?.errmsg && <div className='alert alert-danger'>{pendingData.errmsg}</div>}
+          {requeueMsg && (
+            <div className={`alert ${requeueMsg.ok ? 'alert-success' : 'alert-danger'} d-flex justify-content-between align-items-start`}>
+              <span>{requeueMsg.text}</span>
+              <button type='button' className='btn-close' aria-label='Dismiss' onClick={() => setRequeueMsg(null)} />
+            </div>
+          )}
+          {requeueTarget && (
+            <div className='box-card mb-3' style={{ borderLeft: '4px solid #E6A23C' }} data-testid='requeue-confirm'>
+              <h6>Requeue for CJ placement</h6>
+              <p className='mb-1'>
+                Retry sending order <strong>{requeueTarget.orderSn || `#${requeueTarget.orderId}`}</strong> to CJ? Fix the cause first
+                {requeueTarget.parkReason ? (
+                  <>
+                    {' '}
+                    — CJ said: <em>{requeueTarget.parkReason}</em>
+                  </>
+                ) : (
+                  '.'
+                )}
+              </p>
+              <p className='text-muted small mb-1'>
+                The approval stamp is kept; the placement sweep retries the order on its next tick and spends real money from the CJ
+                balance if CJ accepts it.
+              </p>
+              <div className='d-flex align-items-center gap-2 mt-2'>
+                <button type='button' className='btn btn-warning btn-sm' disabled={requeuing} onClick={onConfirmRequeue}>
+                  {requeuing ? 'Requeuing…' : 'Confirm requeue'}
+                </button>
+                <button type='button' className='btn btn-outline-secondary btn-sm' disabled={requeuing} onClick={() => setRequeueTarget(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           <table className='el-table'>
             <thead>
               <tr>
@@ -167,9 +228,37 @@ const OrderList: React.FC = () => {
                       {r.country && <div className='text-muted small'>{r.country}</div>}
                     </td>
                     <td className='small'>{pendingItemsSummary(r.items)}</td>
-                    <td>{r.cjReady == null ? '—' : r.cjReady ? <Tag tag='success'>Ready</Tag> : <Tag tag='warning'>Not ready</Tag>}</td>
-                    <td className='text-muted small'>{r.holdReason || '—'}</td>
+                    <td>
+                      {r.parked ? (
+                        // The row carries no sentinel (rejected vs stalled) — the hold
+                        // sentence says which; the detail page has the exact badge.
+                        <Tag tag='danger'>Parked</Tag>
+                      ) : r.cjReady == null ? (
+                        '—'
+                      ) : r.cjReady ? (
+                        <Tag tag='success'>Ready</Tag>
+                      ) : (
+                        <Tag tag='warning'>Not ready</Tag>
+                      )}
+                    </td>
+                    <td className={`small ${r.parked ? 'text-danger' : 'text-muted'}`}>
+                      {/* holdReason already quotes CJ's words for a parked row; parkReason alone is the defensive fallback */}
+                      {r.holdReason || r.parkReason || '—'}
+                    </td>
                     <td className='text-end'>
+                      {r.parked && (
+                        <button
+                          type='button'
+                          className='btn btn-sm btn-warning me-1'
+                          disabled={requeuing || requeueTarget?.orderId === r.orderId}
+                          onClick={() => {
+                            setRequeueMsg(null);
+                            setRequeueTarget(r);
+                          }}
+                        >
+                          Requeue
+                        </button>
+                      )}
                       <Link to={`/admin/mall/order/${r.orderId}`} className='btn btn-sm btn-outline-primary'>
                         Review
                       </Link>

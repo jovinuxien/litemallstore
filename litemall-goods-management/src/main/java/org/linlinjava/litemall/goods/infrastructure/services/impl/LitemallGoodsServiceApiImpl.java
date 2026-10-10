@@ -44,12 +44,9 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
     private LitemallBrandServiceApi brandService;
     @Autowired
     private org.linlinjava.litemall.db.service.LitemallBrandService brandRowService;
+    // Wave 28: the ONE warehouse-measurement rule, shared with GET /srv/goods/origin.
     @Autowired
-    private org.linlinjava.litemall.db.service.LitemallGoodsService goodsRowService;
-    @Autowired
-    private org.linlinjava.litemall.db.service.LitemallCjProductService cjProductRowService;
-    @Autowired
-    private org.linlinjava.litemall.goods.infrastructure.configuration.CJDropshippingConfig cjConfig;
+    private org.linlinjava.litemall.goods.application.goods.WarehouseOriginService warehouseOriginService;
     @Autowired
     private LitemallCatalogService catalogService;
     @Autowired
@@ -190,41 +187,21 @@ public class LitemallGoodsServiceApiImpl implements LitemallGoodsServiceApi {
      * <p>Coverage grows slowly with the enrichment rotation, so for a long while MOST products
      * will legitimately have no key. That is the honest outcome: a delivery claim is per-SKU and
      * per-measurement, never a storewide promise (Wave 26 spec). Any failure degrades to no key.
+     *
+     * <p>Wave 28: the rule itself lives in {@code WarehouseOriginService} so this badge and the
+     * checkout's origin row can never disagree about the same measurement.
      */
     private void attachEuStock(Map<String, Object> data, LitemallGoodsId goodsId) {
         try {
-            org.linlinjava.litemall.db.domain.LitemallGoods goods =
-                    goodsRowService.findById(Integer.valueOf(goodsId.getId()));
-            if (goods == null || goods.getCjPid() == null || goods.getCjPid().isBlank()) {
-                return;
-            }
-            org.linlinjava.litemall.db.domain.LitemallCjProduct snapshot =
-                    cjProductRowService.findByPid(goods.getCjPid());
-            if (snapshot == null || snapshot.getEuStockNum() == null || snapshot.getEuStockNum() <= 0) {
-                return;
-            }
-            Map<String, Object> euStock = new HashMap<>();
-            euStock.put("units", snapshot.getEuStockNum());
-            euStock.put("countries", euCountriesOf(snapshot.getWarehouseCountries()));
-            data.put("euStock", euStock);
+            warehouseOriginService.measuredEuStock(Integer.valueOf(goodsId.getId())).ifPresent(reading -> {
+                Map<String, Object> euStock = new HashMap<>();
+                euStock.put("units", reading.units());
+                euStock.put("countries", reading.countries());
+                data.put("euStock", euStock);
+            });
         } catch (RuntimeException ex) {
             // a delivery signal is decoration — never let it break the PDP
         }
-    }
-
-    /** The configured EU countries actually seen for this product, so the badge names real ones. */
-    private java.util.List<String> euCountriesOf(String warehouseCountries) {
-        java.util.List<String> seen = new java.util.ArrayList<>();
-        if (warehouseCountries == null || warehouseCountries.isBlank()) {
-            return seen;
-        }
-        for (String cc : warehouseCountries.split(",")) {
-            String code = cc.trim().toUpperCase(java.util.Locale.ROOT);
-            if (!code.isEmpty() && cjConfig.getEuWarehouseCountries().contains(code)) {
-                seen.add(code);
-            }
-        }
-        return seen;
     }
 
     /**

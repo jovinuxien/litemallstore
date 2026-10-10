@@ -13,7 +13,7 @@ import * as React from 'react';
 import { Line } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
 
-import { DASHBOARD_PENDING_ROWS, dashboardPendingRows, pendingOverflow, pendingTileState } from './pendingApproval';
+import { DASHBOARD_PENDING_ROWS, dashboardPendingRows, parkedNote, pendingOverflow, pendingTileState } from './pendingApproval';
 
 // Order-statistics dashboard, styled to the upstream litemall-admin look:
 // .app-container of colored stat tiles + .box-card chart panels + an .el-table
@@ -64,6 +64,8 @@ const PendingApprovalCard: React.FC = () => {
   const state = pendingTileState(q);
   const rows = dashboardPendingRows(q.data);
   const overflow = pendingOverflow(state, rows.length);
+  // "of which parked" — counted over the rows this request returned (see parkedNote).
+  const parked = parkedNote(q.data);
 
   if (state.kind === 'empty') {
     return null; // nothing waiting — the tile already says so; no empty table
@@ -73,7 +75,9 @@ const PendingApprovalCard: React.FC = () => {
     <div className='box-card'>
       <div className='box-card-header d-flex align-items-center justify-content-between'>
         <span>
-          Awaiting your approval {q.isFetching && <span className='spinner-border spinner-border-sm text-primary ms-2' role='status' />}
+          Awaiting your approval
+          {parked && <span className='badge text-bg-danger ms-2'>{parked}</span>}
+          {q.isFetching && <span className='spinner-border spinner-border-sm text-primary ms-2' role='status' />}
         </span>
         <Link to={PENDING_TAB} className='btn btn-sm btn-outline-primary'>
           {overflow > 0 ? `View all ${state.count}` : 'Open orders'}
@@ -116,7 +120,11 @@ const PendingApprovalCard: React.FC = () => {
                     </td>
                     <td className='small'>{pendingItemsSummary(r.items)}</td>
                     <td>
-                      {r.cjReady === false ? (
+                      {r.parked ? (
+                        <span className='badge text-bg-danger' title={r.holdReason || r.parkReason || undefined}>
+                          Parked
+                        </span>
+                      ) : r.cjReady === false ? (
                         <span className='badge text-bg-warning' title={r.holdReason || undefined}>
                           Check
                         </span>
@@ -133,7 +141,9 @@ const PendingApprovalCard: React.FC = () => {
                 +{overflow} more waiting — <Link to={PENDING_TAB}>see all {state.count}</Link>
               </div>
             )}
-            <div className='text-muted small mt-2'>Approving an order sends it to CJ and spends real money from the CJ balance.</div>
+            <div className='text-muted small mt-2'>
+              Approving an order sends it to CJ and spends real money from the CJ balance. A parked order needs Requeue, not approval.
+            </div>
           </>
         )}
       </div>
@@ -305,7 +315,11 @@ const Dashboard: React.FC = () => {
           <StatTile value={cjBalanceValue} label='CJ dropship balance' color='#F56C6C' />
         </div>
         <div className='col-sm-3 mt-3'>
-          <Link to={PENDING_TAB} className='text-decoration-none' title='Paid orders held for CJ fulfilment approval'>
+          <Link
+            to={PENDING_TAB}
+            className='text-decoration-none'
+            title={`Paid orders held for CJ fulfilment approval${pendingTile.note ? ` — ${pendingTile.note}` : ''}`}
+          >
             <StatTile value={pendingTile.display} label='Pending CJ approval' color={pendingTile.kind === 'pending' ? '#E6A23C' : '#909399'} />
           </Link>
         </div>

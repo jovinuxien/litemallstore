@@ -73,6 +73,10 @@
     "phone": {
       "unknownCode": "Ukendt landekode – tjek cifrene efter \"+\".",
       "lengthDetail": "{{kind}} for {{country}} (+{{dial}}) – {{expected}} cifre forventes, du indtastede {{entered}}.",
+      "deliverTo": "Vi leverer til",
+      "otherCountries": "Øvrige lande",
+      "notDelivered": "Vi leverer ikke til {{phoneCountry}} endnu, så leveringslandet er stadig {{country}}. Dit nummer er fint, som det er.",
+      "notDeliveredChoose": "Vi leverer ikke til {{phoneCountry}} endnu – vælg et leveringsland. Dit nummer er fint, som det er.",
       "selectCode": "Vælg landekode",
       "placeholder": "Telefonnummer",
       "search": "Søg land…",

@@ -36,6 +36,9 @@ target/
 ### logs ####
 /logs/
 *.log
+# Rotated logback archives (SizeAndTimeBasedRollingPolicy gzips them) — `*.log` alone
+# does not cover `*.log.gz`, and a `git add -A` swept two into a feature commit once.
+*.log.gz
 
 ### temp ignore ###
 *.cache

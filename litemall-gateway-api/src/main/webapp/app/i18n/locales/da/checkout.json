@@ -173,22 +173,13 @@
     "methodWallet": "digital pung",
     "methodCard": "kort"
   },
-  "pay": {
-    "title": "Betaling",
-    "order": "Ordre",
-    "orderNo": "Ordrenummer",
-    "amountDue": "Beløb at betale",
-    "method": "Betalingsmetode",
-    "wallet": "Digital pung",
-    "payNow": "Betal nu"
-  },
   "status": {
+    "failed": "Betalingen mislykkedes",
+    "viewOrders": "Se ordrer",
     "order": "Ordre #{{id}}",
     "viewOrder": "Se ordre",
-    "viewOrders": "Se ordrer",
     "success": "Betalingen lykkedes",
     "redirectingOrder": "Sender dig til din ordre…",
-    "failed": "Betalingen mislykkedes",
     "failedBody": "Der er ikke trukket noget. Du kan prøve igen med en anden betalingsmetode.",
     "tryAgain": "Prøv igen",
     "cancelled": "Denne ordre blev annulleret",
@@ -200,5 +191,15 @@
     "confirming": "Bekræfter din betaling…",
     "confirmingBody": "Vi tjekker hos betalingsudbyderen. Det tager som regel et par sekunder.",
     "redirecting": "Sender dig videre til dine ordrer…"
+  },
+  "pay": {
+    "title": "Betaling",
+    "loadFailed": "Vi kunne ikke indlæse denne ordre. Åbn dine ordrer, og prøv igen derfra.",
+    "order": "Ordre",
+    "orderNo": "Ordrenummer",
+    "amountDue": "Beløb at betale",
+    "method": "Betalingsmetode",
+    "wallet": "Digital pung",
+    "payNow": "Betal nu"
   }
 }

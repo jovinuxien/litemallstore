@@ -19,6 +19,8 @@
     "paymentSlow": "Betalingen tager længere tid end forventet. Tjek Mine ordrer, før du prøver igen – ordren kan allerede være betalt."
   },
   "byCode": {
+    "670": "Kun kunder, der har modtaget dette produkt, kan anmelde det",
+    "671": "Du har allerede anmeldt dette køb",
     "700": "Den nuværende adgangskode er forkert.",
     "701": "Nulstilling af adgangskode via e-mail er ikke tilgængelig.",
     "703": "Koden er ugyldig eller udløbet.",

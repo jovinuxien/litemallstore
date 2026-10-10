@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotNull;
 import org.linlinjava.litemall.core.util.ResponseUtil;
 import org.linlinjava.litemall.goods.application.comment.CommentPostService;
 import org.linlinjava.litemall.goods.application.comment.CommentQueryService;
+import org.linlinjava.litemall.goods.domain.model.dto.goods.GoodsServiceResponseCode;
 import org.linlinjava.litemall.goods.utils.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,6 +27,10 @@ import java.util.Map;
  * <p>{@code valueId} is a String: a numeric goods id, or the {@code cj_&lt;pid&gt;} doc id the
  * index-only CJ detail page navigates with — CJ-sourced goods are served their CJ reviews
  * transparently (see {@link CommentQueryService}).
+ *
+ * <p>{@code /post} is purchase-gated (F17): errno {@code 670} = the caller never received this
+ * product, {@code 671} = every purchase of it is already reviewed. The optional body field
+ * {@code orderId} pins the check to one order; a non-numeric one is a bad argument.
  */
 @RestController
 @RequestMapping("/srv/comment")
@@ -68,12 +73,20 @@ public class LitemallCommentController {
         return ResponseUtil.ok(commentQueryService.count(type, valueId));
     }
 
-    /** Body: {@code {type: 0, valueId, star, content, hasPicture?, picUrls?}} (SPA ICommentPost). */
+    /** Body: {@code {type: 0, valueId, star, content, hasPicture?, picUrls?, orderId?}} (SPA ICommentPost). */
     @PostMapping("/post")
     public Object post(@RequestBody Map<String, Object> body) {
         Integer userId = UserContext.getUserIdAsInt();
         if (userId == null) {
             return ResponseUtil.unlogin();
+        }
+        Integer orderId = null;
+        if (body.get("orderId") != null && !String.valueOf(body.get("orderId")).isBlank()) {
+            try {
+                orderId = Integer.valueOf(String.valueOf(body.get("orderId")).trim());
+            } catch (NumberFormatException e) {
+                return ResponseUtil.badArgumentValue();
+            }
         }
         Byte type = body.get("type") != null ? Byte.valueOf(String.valueOf(body.get("type"))) : 0;
         String valueId = body.get("valueId") != null ? String.valueOf(body.get("valueId")) : null;
@@ -88,12 +101,23 @@ public class LitemallCommentController {
         if (body.get("picUrls") instanceof List<?> pics) {
             picUrls = pics.stream().map(String::valueOf).toArray(String[]::new);
         }
-        Integer id = commentPostService.post(userId, type, valueId, star, content, picUrls);
-        if (id == null) {
-            return ResponseUtil.badArgumentValue();
+        CommentPostService.PostResult result;
+        try {
+            result = commentPostService.post(userId, type, valueId, star, content, picUrls, orderId);
+        } catch (CommentPostService.ReviewSlotTakenException e) {
+            result = new CommentPostService.PostResult(null, CommentPostService.Refusal.ALREADY_REVIEWED);
+        }
+        if (!result.ok()) {
+            return switch (result.refusal()) {
+                case NOT_PURCHASED -> ResponseUtil.fail(GoodsServiceResponseCode.REVIEW_NOT_PURCHASED,
+                        "Only customers who received this product can review it");
+                case ALREADY_REVIEWED -> ResponseUtil.fail(GoodsServiceResponseCode.REVIEW_ALREADY_POSTED,
+                        "You have already reviewed this purchase");
+                case INVALID -> ResponseUtil.badArgumentValue();
+            };
         }
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("id", id);
+        data.put("id", result.id());
         return ResponseUtil.ok(data);
     }
 }

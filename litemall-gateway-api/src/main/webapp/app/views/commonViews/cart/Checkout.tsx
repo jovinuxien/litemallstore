@@ -1,11 +1,4 @@
 import { Elements } from '@stripe/react-stripe-js';
-import type { Stripe } from '@stripe/stripe-js';
-// '/pure', NOT the main entry: importing '@stripe/stripe-js' directly INJECTS js.stripe.com
-// as an import side effect, so merely bundling it would hit Stripe (and its
-// m.stripe.network fingerprinting endpoints) on page load — with no publishable key, no
-// card selected, and no consent. '/pure' defers all of that until loadStripe() is called.
-// Verified: with this import the unconfigured checkout makes ZERO requests to stripe.com.
-import { loadStripe } from '@stripe/stripe-js/pure';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Form } from 'react-bootstrap';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -15,6 +8,7 @@ import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { Trans, useTranslation } from 'app/i18n';
 import { loadSiteConfig } from 'app/shared/config/siteConfig';
 import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardForm';
+import { STRIPE_ELEMENTS_CURRENCY, stripePromiseFor } from 'app/shared/payment/stripeLoader';
 import { classifyIntentRefusal } from 'app/shared/payment/paymentOutcome';
 import { clearCart, fetchCart } from 'app/shared/reducers/cartSlice';
 import { guestCheckoutThunk } from 'app/auth/customerAuthSlice';
@@ -43,6 +37,7 @@ import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
 import { originCountryName } from 'app/shared/util/euStock';
+import { PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -62,26 +57,11 @@ import './Checkout.scss';
 // Supported destination countries (CJ createOrder needs a real country + ISO code).
 // Shared with the address book; the selected option supplies name + countryCode.
 const COUNTRIES = SHIPPING_COUNTRIES;
+/** Their ISO codes, for the phone selector: only these can move the Country field. */
+const DELIVERY_ISO2 = COUNTRIES.map(c => c.code);
 
 const isCjItem = (it: { source?: string; goodsId?: string }) =>
   it.source === 'cj' || it.source === 'cj_dropshipping' || String(it.goodsId ?? '').startsWith('cj_');
-
-/**
- * Stripe.js is loaded once per page, lazily, and ONLY when a publishable key exists —
- * an unconfigured deployment must make no Stripe request at all, the same discipline the
- * Matomo tracker follows. Cached because loadStripe() must not run per render.
- */
-let stripeJs: Promise<Stripe | null> | null = null;
-const stripePromiseFor = (publishableKey: string): Promise<Stripe | null> => {
-  stripeJs = stripeJs ?? loadStripe(publishableKey);
-  return stripeJs;
-};
-
-/**
- * Must match `litemall.order.stripe.currency` (order's default). A mismatch is safe rather
- * than silent: the server asserts the PaymentIntent's currency at pay time and rejects.
- */
-const STRIPE_CURRENCY = 'usd';
 
 /**
  * Render a server-computed amount. `undefined` shows a placeholder rather than €0.00 —
@@ -213,10 +193,10 @@ const CheckoutView: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('CARD');
   const [message, setMessage] = useState('');
   // Destination country, kept separate so picking a saved address doesn't clear it.
-  // Follows the phone dial-code country until the customer picks one explicitly
-  // (or a saved address supplies its own).
+  // Country and the phone's dial code move together (rules: shared/util/deliverySync):
+  // picking either one sets the other, and the region is dropped when it belongs to
+  // the country that was left.
   const [country, setCountry] = useState<{ name: string; code: string }>({ name: '', code: '' });
-  const countryTouchedRef = useRef(false);
   // Orders created by submit, keyed by cart group — retained so a payment retry
   // pays the SAME order(s) and never re-submits an already-placed group.
   const [placed, setPlaced] = useState<{ local?: PlacedOrder; cj?: PlacedOrder }>({});
@@ -569,10 +549,7 @@ const CheckoutView: React.FC = () => {
           setSelectedAddressId(def.id);
           setShipping(addressToShipping(def));
           const saved = countryOfAddress(def);
-          if (saved) {
-            countryTouchedRef.current = true;
-            setCountry(saved);
-          }
+          if (saved) setCountry(saved);
         } else {
           setSelectedAddressId('new');
         }
@@ -678,7 +655,7 @@ const CheckoutView: React.FC = () => {
   const stripeElementsOptions = useMemo(
     () =>
       totals && totals.actualPrice > 0
-        ? { mode: 'payment' as const, amount: Math.round(totals.actualPrice * 100), currency: STRIPE_CURRENCY }
+        ? { mode: 'payment' as const, amount: Math.round(totals.actualPrice * 100), currency: STRIPE_ELEMENTS_CURRENCY }
         : null,
     [totals],
   );
@@ -698,28 +675,30 @@ const CheckoutView: React.FC = () => {
     const { name, value } = e.target;
     setShipping(prev => ({ ...prev, [name]: value }));
   };
+  // EVERY customer-driven country change lands here, so the region can never be left
+  // behind: a region typed into the new-address form survives only if it belongs to
+  // the new country. A saved address keeps its own fields — only the destination moves.
+  const applyCountry = (next: { country: string; region: string }) => {
+    setCountry({ code: next.country, name: COUNTRIES.find(c => c.code === next.country)?.name ?? '' });
+    if (usingNewAddress) setShipping(prev => (prev.region === next.region ? prev : { ...prev, region: next.region }));
+  };
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    countryTouchedRef.current = true;
-    setCountry({ code, name: COUNTRIES.find(c => c.code === code)?.name ?? '' });
+    applyCountry(withCountry({ country: country.code, region: shipping.region }, e.target.value));
   };
 
-  // The phone selector's country pre-fills the destination country (and with it
-  // the region suggestions) until an explicit choice is made.
-  const followPhoneCountry = (iso2: string) => {
-    if (countryTouchedRef.current) return;
-    const match = COUNTRIES.find(c => c.code === iso2);
-    if (match) setCountry(prev => (prev.code === match.code ? prev : match));
+  // The other direction: a dial code PICKED in the phone selector moves the
+  // destination country to match (when we ship there); the selector's start-up
+  // default or a number typed in full only fills a country that is still empty.
+  const followPhoneCountry = (iso2: string, source: PhoneCountrySource) => {
+    const next = withPhoneCountry({ country: country.code, region: shipping.region }, iso2, source);
+    if (next) applyCountry(next);
   };
 
   const pickAddress = (a: IAddress) => {
     setSelectedAddressId(a.id ?? 'new');
     setShipping(addressToShipping(a));
     const saved = countryOfAddress(a);
-    if (saved) {
-      countryTouchedRef.current = true; // the address's own country is authoritative
-      setCountry(saved);
-    }
+    if (saved) setCountry(saved); // the address's own country is authoritative
   };
 
   const usingNewAddress = selectedAddressId === 'new' || addresses.length === 0;
@@ -1295,7 +1274,7 @@ const CheckoutView: React.FC = () => {
             <div className='row g-3 p-3'>
               <div className='col-md-6'>
                 <Form.Label>{t('delivery.fullName')}</Form.Label>
-                <Form.Control name='name' value={shipping.name} onChange={handleInputChange} required />
+                <Form.Control name='name' value={shipping.name} onChange={handleInputChange} autoComplete='name' required />
               </div>
               <div className='col-md-6'>
                 <Form.Label>{t('delivery.mobile')}{hasCjItems ? ' *' : ''}</Form.Label>
@@ -1303,18 +1282,21 @@ const CheckoutView: React.FC = () => {
                     (litemall_address.tel), copied to the order server-side and
                     backfilled onto the profile at submit. Dial-code + E.164 so
                     checkout stores the same shape as register/address book.
-                    Its dial-code country also pre-fills the destination country
-                    (and the region suggestions) until one is picked explicitly. */}
+                    Kept in step with the Country field in BOTH directions: its
+                    dial code follows the country, and a dial code picked here
+                    moves the country (and with it the region suggestions). */}
                 <PhoneInput
                   value={shipping.mobile}
                   onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
+                  countryIso2={country.code || undefined}
+                  deliveryCountries={DELIVERY_ISO2}
                   onCountryChange={followPhoneCountry}
                   onValidityChange={setPhoneValid}
                 />
               </div>
               <div className='col-md-6'>
                 <Form.Label>{t('delivery.country')}{hasCjItems ? ' *' : ''}</Form.Label>
-                <Form.Select value={country.code} onChange={handleCountryChange} required={hasCjItems}>
+                <Form.Select value={country.code} onChange={handleCountryChange} autoComplete='country' required={hasCjItems}>
                   <option value=''>{t('delivery.selectCountry')}</option>
                   {COUNTRIES.map(c => (
                     <option key={c.code} value={c.code}>
@@ -1340,12 +1322,10 @@ const CheckoutView: React.FC = () => {
                       region: parts.region ?? prev.region,
                       zip: parts.postalCode ?? prev.zip,
                     }));
-                    // A resolved place knows its country better than any default.
+                    // A resolved place knows its country better than any default; its
+                    // region was just filled from the same place, so it is kept as is.
                     const resolved = COUNTRIES.find(c => c.code === parts.countryCode);
-                    if (resolved) {
-                      countryTouchedRef.current = true;
-                      setCountry(resolved);
-                    }
+                    if (resolved) setCountry(resolved);
                   }}
                   countryCode={country.code || undefined}
                   required
@@ -1353,7 +1333,7 @@ const CheckoutView: React.FC = () => {
               </div>
               <div className='col-12'>
                 <Form.Label>{t('delivery.address2')}</Form.Label>
-                <Form.Control name='addressTwo' value={shipping.addressTwo} onChange={handleInputChange} />
+                <Form.Control name='addressTwo' value={shipping.addressTwo} onChange={handleInputChange} autoComplete='address-line2' />
               </div>
               <div className='col-md-4'>
                 <Form.Label>{t('delivery.region')}</Form.Label>
@@ -1370,11 +1350,17 @@ const CheckoutView: React.FC = () => {
               </div>
               <div className='col-md-4'>
                 <Form.Label>{t('delivery.city')}</Form.Label>
-                <Form.Control name='kommune' value={shipping.kommune} onChange={handleInputChange} placeholder={t('delivery.cityPlaceholder')} />
+                <Form.Control
+                  name='kommune'
+                  value={shipping.kommune}
+                  onChange={handleInputChange}
+                  placeholder={t('delivery.cityPlaceholder')}
+                  autoComplete='address-level2'
+                />
               </div>
               <div className='col-md-4'>
                 <Form.Label>{t('delivery.zip')}</Form.Label>
-                <Form.Control name='zip' value={shipping.zip} onChange={handleInputChange} required />
+                <Form.Control name='zip' value={shipping.zip} onChange={handleInputChange} autoComplete='postal-code' required />
               </div>
             </div>
           )}
@@ -1434,7 +1420,9 @@ const CheckoutView: React.FC = () => {
                     key={selectedSavedAddress?.id ?? 'none'}
                     value={shipping.mobile}
                     onChange={m => setShipping(prev => ({ ...prev, mobile: m }))}
-                    defaultIso2={country.code || undefined}
+                    countryIso2={country.code || undefined}
+                    deliveryCountries={DELIVERY_ISO2}
+                    onCountryChange={followPhoneCountry}
                     onValidityChange={setPhoneValid}
                   />
                   <div className='form-text'>{t('delivery.phoneSaveNote')}</div>

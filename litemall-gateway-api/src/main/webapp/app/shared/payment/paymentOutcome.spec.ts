@@ -1,4 +1,4 @@
-import { classifyIntentRefusal, redirectOutcome, settlementOf } from './paymentOutcome';
+import { classifyIntentRefusal, paymentErrorText, redirectOutcome, settlementOf } from './paymentOutcome';
 
 describe('classifyIntentRefusal', () => {
   it('reads the two non-failure 402s by their contract wording', () => {
@@ -45,5 +45,23 @@ describe('settlementOf', () => {
   it('no handleOption ⇒ unknown, never a guess', () => {
     expect(settlementOf(null)).toBe('unknown');
     expect(settlementOf({ orderStatusText: 'PAID' })).toBe('unknown');
+  });
+});
+
+describe('paymentErrorText', () => {
+  it('reads the server words from every shape a payment refusal arrives in', () => {
+    // An order operation refused with a non-2xx body.
+    expect(paymentErrorText({ response: { status: 402, data: { success: false, message: 'Order 7 has already been paid' } } })).toBe(
+      'Order 7 has already been paid',
+    );
+    // An errno envelope on a non-2xx.
+    expect(paymentErrorText({ response: { data: { errno: 503, errmsg: 'Card payments are not enabled' } } })).toBe('Card payments are not enabled');
+    // `unwrap` rethrowing an envelope as ApiError.
+    const apiError = Object.assign(new Error('Stripe is unavailable'), { name: 'ApiError' });
+    expect(paymentErrorText(apiError)).toBe('Stripe is unavailable');
+  });
+  it('gives nothing rather than a transport error text the customer cannot act on', () => {
+    expect(paymentErrorText(new Error('Network Error'))).toBe('');
+    expect(paymentErrorText(undefined)).toBe('');
   });
 });

@@ -61,9 +61,28 @@ export const pendingTileState = (q: PendingQueryView): PendingTileState => {
     };
   }
   const count = q.data.total ?? 0;
-  return count === 0
-    ? { kind: 'empty', count: 0, display: '0', note: 'Nothing waiting' }
-    : { kind: 'pending', count, display: String(count), note: count === 1 ? '1 order needs approval' : `${count} orders need approval` };
+  if (count === 0) {
+    return { kind: 'empty', count: 0, display: '0', note: 'Nothing waiting' };
+  }
+  const base = count === 1 ? '1 order needs approval' : `${count} orders need approval`;
+  const parked = parkedNote(q.data);
+  return { kind: 'pending', count, display: String(count), note: parked ? `${base}, ${parked}` : base };
+};
+
+/**
+ * "of which parked" (handoff-gateway-admin-cj-requeue.md §3) — parked rows need a
+ * human too, so they count in the tile; this names how many. The request only
+ * returns the card's page, so the number is counted over the rows FETCHED: when
+ * the queue overflows the page the wording says so instead of claiming a total
+ * the server never sent. Empty string when nothing fetched is parked.
+ */
+export const parkedNote = (page: IPendingCjPage | undefined): string => {
+  if (!page || page.errmsg) return '';
+  const rows = page.list ?? [];
+  const parked = rows.filter(r => r.parked).length;
+  if (parked === 0) return '';
+  const total = page.total ?? rows.length;
+  return total > rows.length ? `${parked} parked among the ${rows.length} shown` : `${parked} parked`;
 };
 
 /** Rows to list on the dashboard card — capped; the tab owns the full page. */
