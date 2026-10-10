@@ -2607,8 +2607,9 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — season chip on product cards BUILT 2026-10-10 (branch only); prod runs `91a3f2648`; `4c86928bf` dial-code selector + this chip UNDEPLOYED; ⚠ master NOT yet moved
-- **Status 2026-10-10 — SEASON CHIP ON PRODUCT CARDS BUILT (the goods-management raise of
+### Worktree: `gateway-api` — season chip on product cards MERGED to master `544d7fe77` + pushed (2026-10-10); prod runs `91a3f2648` — `4c86928bf` dial-code selector + the chip are UNDEPLOYED; deploy = MAIN (workstation-built jar)
+- **Status 2026-10-10 — SEASON CHIP ON PRODUCT CARDS BUILT + MERGED (master fast-forwarded
+  `74c5b5e72` → `544d7fe77` and pushed; the 2026-10-03 permission block did not recur) (the goods-management raise of
   2026-09-04, user-approved as "item 1" 2026-10-10; items 2 Denmark + 3 default country
   remain USER DECISIONS, not built).** One commit, SPA only: no backend, no migration, no
   env. jest **66 suites / 479 tests** (was 65/459), tsc 0, `i18n:check` 0, prod build clean;
