@@ -2607,7 +2607,32 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — season chip on product cards MERGED to master `544d7fe77` + pushed (2026-10-10); prod runs `91a3f2648` — `4c86928bf` dial-code selector + the chip are UNDEPLOYED; deploy = MAIN (workstation-built jar)
+### Worktree: `gateway-api` — season chip + dial-code selector DEPLOYED to trovemo.com from master `96978ece4` (2026-10-10 13:54 UTC, workstation-built jar); no active assignment
+- **Status 2026-10-10 13:54 UTC — DEPLOYED to trovemo.com from master `96978ece4`** (user: "go
+  ahead"). Same no-build-on-the-VPS recipe as 2026-10-03: `git archive 96978ece4` → workstation
+  `docker build --target builder` (BUILD SUCCESS, 9:57 min) → gateway-api jar shipped with its
+  SHA-256 (`1886aa4b…`) → wrapped on the VPS as `FROM litemall/gateway-api:pre-20261003` + the jar
+  → `litemall/gateway-api:build-96978ece4` (image jar `cmp`-identical to the shipped one) → ONLY
+  that container recreated: healthy in 15 s, `Started GatewayApiApplication` in 5.8 s, 0 ERROR
+  lines, running jar's SHA-256 == shipped; VPS MemAvailable ≈5 GB throughout. Live through the
+  public edge: `/` serves `main.44173fa3caa8975ad059.js`; card chunk `8225.42d63ba0….js` carries
+  `lm-card__season`; `/srv/page/season` = page 5 "Autumns Deal", rail `seasonKey: "autumn"`,
+  `resolvedFrom: "season"`; headless Chrome on `/search?q=rug` rendered **2 "Autumn" chips with the
+  tooltip "In our Autumns Deal collection."**, none inside `.lm-card__media`, 0 page errors.
+  Rollback image = `litemall/gateway-api:build-91a3f2648` (scripts in
+  `/root/deploy-20261010-gwapi/`). No migration, no env, no other container. The 4c86928bf
+  dial-code strings ("We deliver to") are in the running main bundle.
+  ⚠ **Known limit, RAISED for goods-management (not an SPA bug):** the season page and the home
+  season rail render **0 chips on 24 cards** — both are `byIds` rails resolved through
+  `POST /srv/goods/batch`, whose aggregate has NO `seasons` field (verified live: top keys are the
+  goods row only). The chip states what the payload says, so the products most certainly in the
+  season carry no chip while the same products in a search grid do. Fix belongs in the batch
+  aggregate (emit `seasons` like `toGoodsListItem`); the SPA alternative — treating every item of a
+  `resolvedFrom: "season"` rail as a member by construction — is a design decision, not taken
+  here. `/srv/goods/index` and `/srv/goods/list` DO carry `seasons` (sampled: spring/summer/winter
+  values, no autumn in the first page), so home/category cards chip correctly when the data says so.
+  ⚠ The four "not healthy" containers in the recreate report (indexer, matomo, searcher, suggest)
+  simply have no healthcheck — unchanged from before.
 - **Status 2026-10-10 — SEASON CHIP ON PRODUCT CARDS BUILT + MERGED (master fast-forwarded
   `74c5b5e72` → `544d7fe77` and pushed; the 2026-10-03 permission block did not recur) (the goods-management raise of
   2026-09-04, user-approved as "item 1" 2026-10-10; items 2 Denmark + 3 default country
