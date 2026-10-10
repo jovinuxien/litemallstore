@@ -10,7 +10,11 @@ import RegionInput from 'app/components/commonComponents/RegionInput';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
 import { regionsFor } from 'app/shared/data/regions';
+import { CountryRegion, PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
 import './user.scss';
+
+/** The Country field's options, for the phone selector: only these can move that field. */
+const DELIVERY_ISO2 = SHIPPING_COUNTRIES.map(c => c.code);
 
 const EMPTY: IAddress = { name: '', tel: '', province: '', city: '', county: '', addressDetail: '', postalCode: '', countryCode: '', isDefault: false };
 
@@ -56,6 +60,18 @@ const AddressEdit: React.FC = () => {
   }, [id, isNew]);
 
   const set = (k: keyof IAddress) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  // Country, phone dial code and region move together — the SAME rules as checkout
+  // (shared/util/deliverySync). Functional updates: the phone reports its start-up
+  // country from an effect, before this render's `form` would be current.
+  const countryRegionOf = (a: IAddress): CountryRegion => ({ country: a.countryCode ?? '', region: a.province ?? '' });
+  const applyCountry = (prev: IAddress, next: CountryRegion): IAddress => ({ ...prev, countryCode: next.country, province: next.region });
+  const selectCountry = (code: string) => setForm(prev => applyCountry(prev, withCountry(countryRegionOf(prev), code)));
+  const followPhoneCountry = (iso2: string, source: PhoneCountrySource) =>
+    setForm(prev => {
+      const next = withPhoneCountry(countryRegionOf(prev), iso2, source);
+      return next ? applyCountry(prev, next) : prev;
+    });
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +123,7 @@ const AddressEdit: React.FC = () => {
             <div className='row g-3 p-3'>
               <div className='col-md-6'>
                 <Form.Label>{t('addressEdit.recipient')}</Form.Label>
-                <Form.Control value={form.name ?? ''} onChange={set('name')} required />
+                <Form.Control value={form.name ?? ''} onChange={set('name')} autoComplete='name' required />
               </div>
               <div className='col-md-6'>
                 <Form.Label>{t('addressEdit.phone')}</Form.Label>
@@ -116,17 +132,23 @@ const AddressEdit: React.FC = () => {
                     editing keeps the saved number visible (a legacy non-E.164
                     value keeps its digits and normalizes on retype). The form
                     renders only after the record loads (spinner gate above),
-                    so mount-time seeding sees the saved value. */}
-                <PhoneInput value={form.tel} onChange={tel => setForm(prev => ({ ...prev, tel }))} onValidityChange={setTelValid} />
+                    so mount-time seeding sees the saved value. Kept in step
+                    with the Country field in both directions; a saved number
+                    keeps its own dial code when the country is changed. */}
+                <PhoneInput
+                  value={form.tel}
+                  onChange={tel => setForm(prev => ({ ...prev, tel }))}
+                  countryIso2={form.countryCode || undefined}
+                  deliveryCountries={DELIVERY_ISO2}
+                  onCountryChange={followPhoneCountry}
+                  onValidityChange={setTelValid}
+                />
               </div>
               <div className='col-md-6'>
                 <Form.Label>{t('addressEdit.country')}</Form.Label>
                 {/* Same list as checkout (V48 country_code); powers the region
                     type-ahead below and pre-fills checkout's destination country. */}
-                <Form.Select
-                  value={form.countryCode ?? ''}
-                  onChange={e => setForm(prev => ({ ...prev, countryCode: e.target.value }))}
-                >
+                <Form.Select value={form.countryCode ?? ''} onChange={e => selectCountry(e.target.value)} autoComplete='country'>
                   <option value=''>{t('addressEdit.selectCountry')}</option>
                   {SHIPPING_COUNTRIES.map(c => (
                     <option key={c.code} value={c.code}>
@@ -207,7 +229,7 @@ const AddressEdit: React.FC = () => {
                   </div>
                   <div className='col-md-4'>
                     <Form.Label>{t('addressEdit.city')}</Form.Label>
-                    <Form.Control value={form.city ?? ''} onChange={set('city')} />
+                    <Form.Control value={form.city ?? ''} onChange={set('city')} autoComplete='address-level2' />
                   </div>
                   <div className='col-md-4'>
                     <Form.Label>{t('addressEdit.district')}</Form.Label>
@@ -238,7 +260,7 @@ const AddressEdit: React.FC = () => {
               </div>
               <div className='col-md-6'>
                 <Form.Label>{t('addressEdit.postalCode')}</Form.Label>
-                <Form.Control value={form.postalCode ?? ''} onChange={set('postalCode')} />
+                <Form.Control value={form.postalCode ?? ''} onChange={set('postalCode')} autoComplete='postal-code' />
               </div>
               <div className='col-md-6 d-flex align-items-end'>
                 <Form.Check

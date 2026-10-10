@@ -1928,7 +1928,105 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — season follow-ups SHIPPED + DEPLOYED + autumn terms tuned (2026-09-05)
+### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint MERGED to master (2026-09-20); deploy = MAIN
+- **Status 2026-09-13 — F17 BUILT: `POST /srv/comment/post` is PURCHASE-GATED and stamps the
+  order line.** Plan approved by the user the same day (decisions: goods-management writes
+  `litemall_order_goods.comment` directly via CAS in the review's own transaction; absent
+  `orderId` consumes the OLDEST unreviewed delivered line so the PDP form keeps working; kill
+  switch default true). Branch merged onto master `22a8d0390` first. What changed:
+  1. `application/comment/PurchaseVerificationService` — reads `litemall_order` +
+     `litemall_order_goods` READ-ONLY through the shared litemall-db mappers (the
+     Coupon/GrouponSignalResolver precedent); eligible = caller's non-deleted order at 401/402
+     holding the goods with `comment` 0/NULL, oldest first; `deleted` bound as a literal
+     (`andLogicalDeleted` is inverted). `markReviewed` = `update … set comment=<id> where id=? and
+     (comment=0 or comment is null)`; a lost race throws `ReviewSlotTakenException` INSIDE the
+     `@Transactional` post so the review insert rolls back — two posts can never both land on one
+     purchase. That column had had NO writer since the Wave-4 wx-api decommission.
+  2. Typed refusals (new family, `GoodsServiceResponseCode`): **670** "Only customers who
+     received this product can review it", **671** "You have already reviewed this purchase"
+     (also the concurrent-claim outcome); junk `orderId` = 402; unlogin unchanged. Optional body
+     `orderId` PINS the check to that order (never falls back to another purchase).
+  3. `litemall.comment.require-purchase` (env `LITEMALL_COMMENT_REQUIRE_PURCHASE`, yml
+     placeholder + prod compose passthrough, default true); false = the 2026-07-07 v1 behaviour
+     byte-for-byte (no check, no stamp), container recreate only.
+  Tests: `PurchaseVerificationServiceTest` 8, `CommentPostServiceTest` 8,
+  `LitemallCommentControllerPostTest` 5; module suite **632 run / 0 failures / 8 skipped** (was
+  611). **LIVE DEV ACCEPTANCE PASSED** on the fresh jar alone on :8082 (JDK 21, no Eureka/rabbit):
+  user 3 (paid, never delivered) → 670; user 1 (delivered orders 68 + 70, both goods 1055022) →
+  200 twice with lines 64/66 stamped with the new comment ids, third post → 671; `orderId:68` →
+  671, `orderId:999` → 670, `orderId:"abc"` → 402, no identity → 501; `/srv/comment/list`
+  serves the new rows unchanged; restart with the switch false → the non-buyer's post lands
+  with no stamp touched. Dev rows then restored exactly (comments deleted, lines back to 0,
+  goods 1055022 review_count/rating back to 1/5.0). ⚠ The rollback-on-lost-race path is proven
+  at the unit seam only (no live way to race two posts by hand). ⚠ Generated Example criteria
+  quote the reserved column: the text is `` `comment` is null ``. NO migration, NO litemall-db
+  change, NO index field, NO reindex. Deploy = goods-management container only.
+  **RAISED (needed before "Unrated" visibly clears):** order — expose `orderGoods[].comment`
+  in the detail DTO, derive `handleOption.comment` + the Unrated tab (showType 4) from lines
+  with `comment = 0` instead of status alone, and stop hardcoding `litemall_order.comments` to 0
+  at creation (`LitemallOrderServiceImpl:415`); gateway-api — ReviewForm renders errno 670/671
+  verbatim (today every error is a generic "failed"), hides the per-line "Write review" once
+  the line is stamped, and passes `orderId` from OrderDetail. Existing pre-gate comment rows
+  stay (no purchase to attribute them to).
+- **Status 2026-09-20 — BOTH BUILT ITEMS MERGED to master + pushed (F17 `042803cee` + Wave-28
+  origin `eaf1ea625`), deploy PENDING = MAIN.** Master was merged into the branch first (clean
+  auto-merge; the prod compose file now carries BOTH order's `LOGGING_LEVEL_ORG_LINLINJAVA_
+  LITEMALL_DB` line and F17's `LITEMALL_COMMENT_REQUIRE_PURCHASE` passthrough); module suite on
+  the merged tree **632 run / 0 failures / 8 skipped** (shared modules built in the reactor, JDK
+  21), then the ref was moved with `git push . fix/goods-management:master` (MAIN's checkout was
+  STILL dirty with a peer's CLAUDE.md + compose + gateway-api edits, so its working tree was never
+  touched — the 2026-09-13 precedent). ⚠ **Caught before merging: the two gzip log archives
+  under `litemall-goods-management/logs/` were NEVER tracked on master** — `eaf1ea625` swept
+  them in with `git add -A`, F17 dropped them, and `6f3b46302` "restored" them on the wrong
+  premise; merging as-is would have baked a 10.5 MB dev log into history. Untracked again
+  (`2cf76dd3d`, files kept on disk) and root `.gitignore` gains `*.log.gz` (it had only `*.log`).
+  Correct the earlier "tracked archives" note: they were not. **MAIN reconciliation:** its
+  `git status` now shows the 17 merged paths as phantom staged reverse-diffs — `git checkout
+  HEAD -- .gitignore litemall-goods-management/ litemall-gateway-api/docs/spec-wave28-eu-origin-
+  freight.md` clears the 15 with no peer edits; CLAUDE.md and `docker-compose.prod.yml` carry
+  REAL peer edits and need a hand merge (do NOT `git commit -a` there before that — it would
+  revert this merge). **Deploy = goods-management container only**: no migration, no litemall-db
+  change, no index field, no reindex, no new env (the F17 switch defaults true;
+  `LITEMALL_COMMENT_REQUIRE_PURCHASE=false` + recreate is the kill switch). First live positive
+  proof of `/srv/goods/origin` = the prod checkout after deploy (dev has 0 measured rows).
+- **Status 2026-09-06 — WAVE 28 goods-management half BUILT: `GET /srv/goods/origin` + the
+  `/srv/goods/batch` cap.** No Task line was active when this session opened; the assignment was
+  picked from the raised items and user-approved (origin endpoint + batch cap). Coded to the FROZEN
+  contract `litemall-gateway-api/docs/spec-wave28-eu-origin-freight.md` §3.1 (as-built note added
+  there). The storefront has called this endpoint on every checkout load since 2026-08-19 and got a
+  404 (fail-open); it now answers `{list:[{goodsId, originCountry}]}` with a row ONLY for goods
+  whose last probe measured non-zero stock in a configured EU warehouse country (`DE` today) —
+  unprobed, probed-zero, local, unknown and off-sale goods are ABSENT, never `"CN"`, never null.
+  1. **One rule, two surfaces.** `application/goods/WarehouseOriginService` now holds the
+     measurement predicate; the PDP's `attachEuStock` badge (Wave 26 Phase 1b) reads the SAME
+     `measuredEuStock` so the PDP and the checkout can never disagree about one product. PDP
+     payload unchanged (`euStock:{units, countries}`). Reads are the two the PDP always did (goods
+     row, then snapshot by pid) — NO litemall-db change, NO migration, NO index field, NO reindex.
+  2. **Fail-closed and fail-soft, deliberately both:** a reading with units but no configured EU
+     country yields NO origin row (we cannot name an origin we did not measure); a lookup that
+     throws on one id drops that row only (an origin note must never break a checkout).
+  3. **Bounds:** `ids` parsed whitespace-tolerant, deduplicated, junk tokens dropped, empty ⇒
+     `{list:[]}`; more than 100 distinct ids ⇒ errno 402 typed refusal, never silent truncation.
+     The same 100 cap now guards `POST /srv/goods/batch` (raised by gateway-api 2026-08-22 as an
+     uncapped amplification surface; its callers are byIds rails the validator limits to 24) —
+     within the cap the raw `{goodsId: aggregate}` map is byte-identical.
+  4. **No security change needed** — verified, not assumed: goods-management `public-paths` lists
+     `/srv/goods/**` and the edge's `CATALOG_GET` lists `/srv/goods/**` for GET only, so the spec's
+     "needs a PublicPaths entry" was already satisfied.
+  Tests: `WarehouseOriginServiceTest` 9 + `LitemallGoodsControllerOriginTest` 6 (Mockito +
+  `ReflectionTestUtils` on the field-injected controller). ⚠ **Dev has ZERO measured rows**
+  (`eu_stock_num > 0` count = 0 on dev — no CJ creds, no enrichment), so dev can only prove the
+  empty/junk/cap paths live; the positive path is proven at the unit seam and its first live proof
+  is the prod checkout after deploy, where `eu_flag=1` covers ~24% of the catalogue (the Wave-24.1
+  precedent). **Live dev check PASSED 2026-09-06** (goods-management booted alone with JDK 21 —
+  Eureka absent is fine — and probed on :8082, which its `public-paths` serve anonymously): no
+  ids ⇒ `{list:[]}`; real ids + junk + duplicate ⇒ `{list:[]}` (dev has no measured rows); 100
+  ids ⇒ 200 / 101 ids ⇒ errno 402 verbatim; `POST /batch` 2 ids ⇒ the raw map keyed by id, 101
+  ids ⇒ 402; `GET /detail` still errno 0 with its usual keys. Module suite **611 run / 0
+  failures / 8 skipped** (was 596). Deploy = goods-management container only. Order's §3.2 half
+  (per-shipment DE quoting, `LITEMALL_ORDER_CJ_EU_ORIGIN_ENABLED`) stays UNSTARTED — `order`
+  worktree, not this one. ⚠ Boot gotcha: `exec mvn` inside a `setsid` launcher makes the
+  launcher pid vanish while the forked app JVM lives on — watch the PORT, not the pid.
 - **RAISED by order 2026-09-05 (lifecycle audit F17):** `POST /srv/comment/post`
   has no purchase check (any authenticated user, any goods, unlimited) and never
   marks `litemall_order_goods.comment` / `litemall_order.comments`, so the
@@ -2523,7 +2621,120 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — order lifecycle honesty MERGED to master (SPA half of order packages A–C); deploy = MAIN
+### Worktree: `gateway-api` — season chip on product cards MERGED to master `544d7fe77` + pushed (2026-10-10); prod runs `91a3f2648` — `4c86928bf` dial-code selector + the chip are UNDEPLOYED; deploy = MAIN (workstation-built jar)
+- **Status 2026-10-10 — SEASON CHIP ON PRODUCT CARDS BUILT + MERGED (master fast-forwarded
+  `74c5b5e72` → `544d7fe77` and pushed; the 2026-10-03 permission block did not recur) (the goods-management raise of
+  2026-09-04, user-approved as "item 1" 2026-10-10; items 2 Denmark + 3 default country
+  remain USER DECISIONS, not built).** One commit, SPA only: no backend, no migration, no
+  env. jest **66 suites / 479 tests** (was 65/459), tsc 0, `i18n:check` 0, prod build clean;
+  the built card chunk carries `lm-card__season`, `main` the `seasonKey` reader, the sv/da
+  product chunks `Höst`/`Efterår`. The 13 act() warnings in a full run are the SAME 13 on
+  HEAD's files (measured by swapping them in) — none added.
+  Design, settled by the live data: hits and list items carry `seasons: ["autumn","winter"]`
+  (every season is scored nightly, so a product belongs to several), and the served season
+  rail carries `seasonKey: "autumn"` + `resolvedFrom: "season"` (verified on prod
+  `/srv/page/season`). The chip therefore names ONE season — the one the store is RUNNING
+  — so nothing says "Summer" in October and nothing shows while no season runs; a
+  hand-curated rail (no key) ⇒ no chip; a key goods-management adds later renders
+  capitalised. It is context, not an offer: same facts line as the EU-stock chip, teal
+  tint, never the overlay slot, never displaces a deal. Tooltip names the collection by its
+  admin-given page name.
+  ⚠ **Cards LISTEN, they never ASK:** `season.ts` now publishes `loadSeason`'s answer to a
+  `useSyncExternalStore` snapshot (`getLoadedSeason`/`subscribeSeason`, `useLoadedSeason`);
+  the header strip (`Layout`, always mounted) is what loads it. Otherwise every grid card
+  would open a request and every card spec a real XHR. ⚠ `publish` runs INSIDE the
+  settling `.then`/`.catch`, not a trailing `.then` — the extra microtask shifted
+  `CategoryDrawer`/`GoodsListPage` updates out of their specs' act() windows. ⚠ A `t`
+  passed into a helper is extracted to the DEFAULT namespace — `t('product:card.seasons.
+  autumn')`, the timelineCopy.ts lesson again; the extractor then reorders `card.*` to
+  first-use order (committed). Files: `shared/util/season.ts` (+`seasonKey`), `useSeason.ts`,
+  `card/seasonBadge.ts` + spec (14), `ProductCard.tsx`, `product-card.scss`,
+  `locales/{en,sv,da}/product.json`. First live proof = a prod grid after deploy (dev has no
+  season page active).
+- **Status 2026-10-04 — `4c86928bf` dial-code selector (recorded late; NOT deployed).**
+  Prod report right after the 2026-10-03 deploy: "when I click on dial number it does not
+  synchronize with country". Reproduced with real clicks: DE/FR/SE picks moved Country;
+  Denmark/Belgium did nothing and SAID nothing — by rule (a dial code only moves Country to
+  a delivery country), but with the 8 delivery countries unmarked among ~200 it read as
+  broken. Now the selector lists delivery countries first under "We deliver to", and a pick
+  outside them shows "We don't deliver to Denmark yet, so the delivery country stays Sweden.
+  Your number is fine as it is." Rule unchanged. jest 65/459, 4 new strings en/sv/da,
+  headless real-click run green. Sits on `fix/gateway-api` with the three deployed commits;
+  ships with the next gateway-api container build (MAIN, workstation-built jar).
+- **Status 2026-10-03 20:13 UTC — DEPLOYED to trovemo.com (user: "go ahead to merge to master
+  and deploy"), but the MERGE did not land.** ⚠ **Prod runs `91a3f2648`, which is on
+  `fix/gateway-api` only — master is still `8a71f78e7`.** The session's `git push .
+  fix/gateway-api:master` + `git push origin master` was refused by the permission system and
+  was NOT retried another way; the user runs it. Until then a deploy built from master would
+  silently ROLL BACK the three changes below — merge before anyone builds.
+  Deploy followed the no-build-on-the-VPS rule (the host had 3.4 GB available, swap full):
+  jars built on the WORKSTATION with `docker build --target builder` from a `git archive
+  91a3f2648`, gateway-api jar shipped with its SHA-256, wrapped on the VPS as
+  `FROM litemall/gateway-api:pre-20261003` + the jar → `litemall/gateway-api:build-91a3f2648`,
+  then ONLY that container recreated: healthy in 15 s, 0 ERROR lines, running jar
+  byte-identical to the shipped one, new strings found in the running jar's chunks, live
+  bundle `main.739c783be135647501fe.js` served on `/`, `/checkout`, `/pay/1` and a PDP through
+  the public edge, smoke 200s. Rollback image = `litemall/gateway-api:build-8a71f78e7`
+  (scripts in `/root/deploy-20261003b-gwapi/`). No migration, no env, no other container.
+  First real proof of the pay page and of EUR card payment is still a real order (USER-SIDE).
+- **Status 2026-10-03 — THREE COMMITS ON `fix/gateway-api` (build record; deploy record
+  above).** Branch fast-forwarded to master `8a71f78e7` first. SPA only: no
+  migration, no backend, no env. jest **65 suites / 451 tests** (was 57/392), tsc 0,
+  `i18n:check` 0, prod build clean. Each commit was rendered headless from the BUILT bundle
+  against a stub edge (`puppeteer-core` + google-chrome; stub answers the DTO shapes).
+  1. **`f11979839` Delivery form: Country ⇄ Mobile ⇄ Region** (user report 2026-10-03: "no
+     synchronization between Country and Mobile" on the checkout Delivery section). Cause,
+     read off the code: Country NEVER drove the dial code; the phone drove Country only until
+     Country was first touched (`countryTouchedRef`); a region survived a country change; a
+     region-less browser language (`sv`, `da`) started on +1 / "United States". Rules now
+     live in ONE module, `app/shared/util/deliverySync.ts`, called by checkout AND the
+     address book: selecting a Country sets the dial code (digits kept); PICKING a dial code
+     sets the Country when we ship there, and leaves it when we do not; the selector's
+     start-up default and a number typed in full international form only fill an EMPTY
+     country; a full number (typed or stored) is never re-prefixed by a later country change;
+     a region is kept only if it belongs to the new country. `PhoneInput` gained
+     `countryIso2` and reports every change with a reason (`init|pick|typed|external`) —
+     that reason is what stops the two controls echoing each other. Fields carry standard
+     `autocomplete` tokens so a browser's saved address fills the block coherently.
+     Headless on the real `/checkout` form in sv-SE, sv, da, de-DE: 15/15 each.
+     ⚠ **RAISED, user decisions, NOT built:** (a) **Denmark is not in `SHIPPING_COUNTRIES`**
+     (US, GB, SE, NO, DE, FR, CA, AU) although Danish is an enabled language and DK is a named
+     market — a Danish browser opens on +45 with Country blank and cannot pick Denmark; no
+     backend allowlist blocks it (`AddressSaveRequest` only length-checks), it is one line +
+     5 regions, but it is a commercial decision (freight, VAT). (b) **There are NO city
+     suggestions at all** — City / Kommune is a plain field; `placesApiKey` is null in prod
+     (verified live), and the Places integration (already built, env-gated) is what would
+     fill city + region + postcode from one address pick, for every country. A static
+     kommun list is the alternative. (c) `eu`-market visitors with a plain `en` browser still
+     start on US.
+  2. **`e0f4f85d6` Pay page: "Pay now" charges the card.** `/pay/:orderId` offered card with
+     no Stripe form mounted (dead end since Wave 7). Now: read the order → mint the intent →
+     mount `StripeCardForm` with the INTENT's own amount + currency → validate → confirm →
+     report the real intent id. Already-paid / cancelled orders get no form; "already been
+     paid" is success; a bank debit in flight hands over to the status page; a succeeded
+     intent is never confirmed twice (a failed report re-sends the same id); no key ⇒ card
+     unavailable, wallet pays. Headless 26/26 incl. the real Stripe.js Payment Element iframe
+     mounting from a stubbed intent. **No live Stripe payment was made** (no test key).
+     ⚠ **FOUND + FIXED: the checkout mounted its Payment Element with a hardcoded `'usd'`**
+     (`STRIPE_CURRENCY`, never touched by the Wave-24 EUR flip) while prod mints EUR intents.
+     Stripe picks the payment methods it presents from that currency (SEPA, iDEAL, Bancontact
+     need `eur`), and its docs say Elements options that disagree with the intent "can result
+     in unexpected behavior or errors". It now reads the store's display currency
+     (`shared/payment/stripeLoader.ts`). NOT proven that card payments were failing — prod has
+     had zero EUR payments to show either way; the first real EUR card order is the proof.
+     ⚠ RAISED for order: `litemall.order.stripe.currency` still DEFAULTS to `usd` in yml
+     (prod sets eur by env) — a dev stack with a Stripe test key now mismatches the other way.
+  3. **`7b6287e9e` Reviews: F17 refusals verbatim.** errno 670 / 671 close the form on the
+     server's words (errors.json `byCode`, en/sv/da); other refusals verbatim + retryable;
+     the order page sends `orderId` (pins the purchase check) and tracks review state per
+     order LINE. Headless 24/24 (en + sv). ⚠ RAISED for order (unchanged from F17): the
+     customer detail has no per-line review marker, so a reviewed line offers the button
+     again after a reload (the server answers 671, which now reads correctly).
+  ⚠ Gotchas: `i18n:check` REORDERS keys to first-use order when a file's `t()` calls move
+  (exit 0, files rewritten) — commit the reorder or the tree stays dirty; a jest mock of a
+  module does not break `typeof e.errno === 'number'` the way `instanceof ApiError` can;
+  trovemo.com `/` timed out from this box while `/auth/site-config` answered in 0.35 s —
+  a hung HTML fetch is not proof the site is down.
 - **Status 2026-09-13 — MERGED to master (fast-forward from the worktree), deploy PENDING.**
   Re-verified on the clean tree the same day before merging: jest **57 suites / 392 tests**,
   tsc 0, `i18n:check` exit 0, branch 0 behind master (`fd5bb911f`). No code change since
@@ -3286,11 +3497,50 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — SEO title worklist: live dev acceptance PASSED + blank-draft batch gap FIXED (2026-09-05)
-- **RAISED by order 2026-09-05:** code to
-  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md` — parked rows
-  (`parked`, `parkReason`) in the pending tab, a **Requeue** action on
-  `POST …/cj-placement/requeue`, `[AFTERSALE_OPEN]`/`[PARKED]` approve refusals.
+### Worktree: `gateway-admin` — parked CJ placements + Requeue MERGED (2026-09-23); deploy = MAIN
+- **Status 2026-09-23 — PARKED CJ PLACEMENTS + REQUEUE: BUILT, LIVE-ACCEPTED on dev,
+  MERGED to master `9fcd28726`.** The order raise of 2026-09-05 (lifecycle package B,
+  `litemall-order/docs/handoff-gateway-admin-cj-requeue.md`) is CLOSED. One commit, SPA
+  only, no backend, no migration. Deploy = MAIN (gateway-admin container rebuild only).
+  What it fixes: an order approved and then refused by CJ (prod order 11, the live IOSS
+  rejection) rendered on the detail page as "Approved — awaiting CJ placement" FOREVER,
+  because `cjPlacementState` read the approval stamp before anything else, and the only
+  way to retry it was SQL. Now: `'parked'` state decided BEFORE the stamp
+  (`PLACEMENT_REJECTED` / `PLACEMENT_STALLED` with no cjOrderId); detail page shows the
+  exact badge ("Parked — CJ rejected" / "Parked — placement stalled"), keeps the stamp
+  line with "approval alone does nothing", offers **Requeue** in place of Approve; the
+  pending tab badges parked rows, renders the hold sentence ONCE (it already quotes CJ's
+  words — `parkReason` is NOT rendered a second time; it feeds the confirm dialog), and
+  requeues inline (confirm quotes CJ's reason; server message verbatim; refetch). The
+  dashboard card badges parked rows and its header carries "N parked among the 5 shown"
+  — counted over the rows FETCHED, never a total the server did not send.
+  Tests: jest **15 suites / 170 tests** (was 14/158): +5 model/api, +4 dashboard, +4 in
+  the new `OrderListPending.spec.tsx` (RTK hooks mocked at the seam, MemoryRouter at
+  `?tab=pending`); tsc 0. ⚠ A test caught my own helper: `key in Record` matches
+  `Object.prototype` (`'toString'` read as parked) — own-property lookup now.
+  **LIVE DEV ACCEPTANCE PASSED through :18080** (order + gateway-admin built from this
+  worktree, eureka/authserver = MAIN's July jars, headless Chrome): pending tab 4 parked
+  rows (dev's natural rejects 91/95/102 + order 110 parked as STALLED by SQL = the
+  approved-then-parked case) with 4 Requeue buttons and no Approve; dashboard "2 parked
+  among the 5 shown" + Parked badges; detail 110 badge/stamp/Requeue → confirm → success
+  banner → state flips to "Approved — awaiting CJ placement" (DB: sentinel NULL, approval
+  stamp KEPT, hop "Requeued for CJ placement by admin 1"); detail 91 "Parked — CJ
+  rejected"; tab requeue of 102 with the confirm quoting CJ's words; a stale parked row
+  requeued after an API requeue shows `[NOT_PARKED] order 95 is not parked (cj status
+  null, order status PAID)` verbatim with the confirm kept open; approve of a parked
+  order answers `[PARKED] …` 422 verbatim. 0 page errors. Dev rows restored as found.
+  ⚠ **Acceptance lesson:** an UNAPPROVED order that is requeued STAYS in the pending list
+  (it is approvable again); only an APPROVED one leaves it — badge 15 → 14 was order 110,
+  not 102. My first assertion expected 102 to vanish; the page was right, the test wrong.
+  ⚠ **Prettier gotcha (admin):** `.prettierrc` has `singleQuote` but NOT `jsxSingleQuote`,
+  and the repo's TSX uses single-quoted JSX attributes — `prettier --write` flips every
+  JSX quote in the file (my first commit carried 876/371 lines of churn). Format with
+  `--jsx-single-quote`, or reapply edits onto the original; check `git diff --numstat`.
+  ⚠ Dev boot: a jar rebuilt UNDER a running JVM dies on restart with
+  `ClassNotFoundException: ch.qos.logback…ThrowableProxy` — kill first, then build (the
+  landmine list already says so; I hit it anyway). `pgrep -af '^/usr/lib/jvm/…'` anchored,
+  kill by pid. Not built here (no admin timeline view exists): the handoff's `cj_stall` /
+  `cj_sync` hop wording has no render site in this SPA.
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to

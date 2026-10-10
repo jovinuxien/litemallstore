@@ -19,6 +19,8 @@
     "paymentSlow": "Payment is taking longer than expected. Check My Orders before retrying — the order may already be paid."
   },
   "byCode": {
+    "670": "Only customers who received this product can review it",
+    "671": "You have already reviewed this purchase",
     "700": "The current password is incorrect.",
     "701": "Password reset by email is not available.",
     "703": "This code is invalid or has expired.",

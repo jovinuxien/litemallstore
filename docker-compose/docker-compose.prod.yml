@@ -704,6 +704,11 @@ services:
       # Unlike the floor this has NO ordering dependency on the margin: raising the margin can
       # only push more rows over a ceiling, and off-sale is reversible either way.
       LITEMALL_GOODS_PRICE_CEILING: ${LITEMALL_GOODS_PRICE_CEILING:-0}
+      # F17 (2026-09-13): product reviews require a delivered purchase of the goods (default
+      # true). Set to false to restore the old any-authenticated-user behaviour without a
+      # rebuild. Same passthrough trap as the floor: without this line .env.prod cannot
+      # reach the container.
+      LITEMALL_COMMENT_REQUIRE_PURCHASE: ${LITEMALL_COMMENT_REQUIRE_PURCHASE:-true}
       # L1 root ids the storefront is narrowed to (comma-separated; empty = OFF). Narrowing
       # off-sales today's goods, but the CJ pipeline keeps mirroring all 14 L1s and the nightly
       # promote lands every NEW product on sale — one night after narrowing, 328 new non-anchor
@@ -749,6 +754,14 @@ services:
       <<: [*litemall-discovery, *litemall-db]
       SPRING_PROFILES_ACTIVE: prod,db,core,elastic,admin,wx
       LITEMALL_KAFKA_BROKERS: kafka:9092
+      # ⚠ THIS is the key promotion actually reads: its application.yml binds the Kafka
+      # binder to ${KAFKA_BROKERS:localhost:9092}, NOT to litemall.kafka.brokers (order's
+      # key, which the line above feeds). Without it promotion dialled localhost:9092 for
+      # its whole life in prod: never one Kafka connection, health check failing (the
+      # binder health indicator blocks past the 5 s probe), GROUP_EXPIRED never published
+      # (group-buy auto-refund dead), ~400 WARN lines/min whose pipe grew the container's
+      # shim to ~1.7 GB of host memory. Keep BOTH lines until the yml key is unified.
+      KAFKA_BROKERS: kafka:9092
       # Wave-6 marketing ACLs: absent ⇒ disabled, which is the safe default.
       MATOMO_AUTH_TOKEN: ${MATOMO_AUTH_TOKEN:-}
       MAUTIC_USERNAME: ${MAUTIC_USERNAME:-}

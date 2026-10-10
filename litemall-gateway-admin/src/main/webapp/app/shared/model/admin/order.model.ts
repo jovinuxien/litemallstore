@@ -54,6 +54,9 @@ export interface IOrderDetail {
     source?: string; // 'local' | 'cj'
     cjOrderId?: string;
     cjOrderNum?: string;
+    // CJ-side status, or one of the LOCAL park sentinels (PLACEMENT_REJECTED /
+    // PLACEMENT_STALLED) while the order is unplaced — see cjPlacementState.
+    cjOrderStatus?: string;
     trackNumber?: string;
     // Wave-23 manual-placement approval stamp (V59). May arrive as an ISO
     // string OR a LocalDateTime array — render through fromServerDateTime.
@@ -95,20 +98,41 @@ export const ORDER_STATUS: Record<number, { label: string; tag: 'info' | 'succes
 export const orderStatusInfo = (code?: number): { label: string; tag: 'info' | 'success' | 'warning' | 'danger' | 'primary' } =>
   (code != null && ORDER_STATUS[code]) || { label: code != null ? `Status ${code}` : '—', tag: 'info' };
 
+// Local park sentinels litemall-order writes into cj_order_status while an order
+// is NOT placed (handoff-gateway-admin-cj-requeue.md). Both mean "a human must
+// act": approval alone does nothing, the action is Requeue.
+export const CJ_PARK_LABELS: Record<string, string> = {
+  PLACEMENT_REJECTED: 'Parked — CJ rejected',
+  PLACEMENT_STALLED: 'Parked — placement stalled',
+};
+
+export const isParkedCjStatus = (cjOrderStatus?: string): boolean =>
+  cjOrderStatus != null && Object.prototype.hasOwnProperty.call(CJ_PARK_LABELS, cjOrderStatus);
+
+/** Badge text for a parked order; undefined when the status is not a park sentinel. */
+export const parkedLabel = (cjOrderStatus?: string): string | undefined =>
+  isParkedCjStatus(cjOrderStatus) ? CJ_PARK_LABELS[cjOrderStatus as string] : undefined;
+
 // Wave-23 manual CJ placement lifecycle, derived from the detail payload.
 // Only 'awaiting-approval' offers the approve action (paid 201 only — a 202
 // refund-applied order must never be approvable); 'placed' requires a real
 // cjOrderId — an approval stamp alone is "approved, awaiting the sweep".
-export type CjPlacementState = 'not-applicable' | 'not-paid' | 'awaiting-approval' | 'approved-awaiting-placement' | 'placed';
+// 'parked' (lifecycle package B) is decided BEFORE the stamp: a parked order
+// usually IS approved (it was placed after approval and CJ refused it), and
+// reading the stamp first is exactly how it rendered as "awaiting placement"
+// forever. Only Requeue is offered for it.
+export type CjPlacementState = 'not-applicable' | 'not-paid' | 'awaiting-approval' | 'approved-awaiting-placement' | 'placed' | 'parked';
 
 export const cjPlacementState = (o?: {
   source?: string;
   orderStatus?: number;
   cjOrderId?: string;
+  cjOrderStatus?: string;
   cjPlacementApprovedTime?: string | number[];
 }): CjPlacementState => {
   if (!o || o.source !== 'cj') return 'not-applicable';
   if (o.cjOrderId) return 'placed';
+  if (isParkedCjStatus(o.cjOrderStatus)) return 'parked';
   if (o.cjPlacementApprovedTime != null && o.cjPlacementApprovedTime !== '') return 'approved-awaiting-placement';
   if (o.orderStatus === 201) return 'awaiting-approval';
   return 'not-paid';

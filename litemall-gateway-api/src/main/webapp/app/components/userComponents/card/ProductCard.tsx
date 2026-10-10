@@ -6,8 +6,11 @@ import { useTranslation } from 'app/i18n';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
 import { EURO, moneyAmount, moneyParts } from 'app/shared/util/money';
+import { seasonLabel } from 'app/shared/util/season';
+import { useLoadedSeason } from 'app/shared/util/useSeason';
 import { productPath } from 'app/shared/util/slug';
 import { starIcons } from 'app/shared/util/stars';
+import { seasonChip, seasonName } from './seasonBadge';
 import './product-card.scss';
 
 /**
@@ -105,6 +108,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
     grouponFlag?: number | string;
     eu_flag?: number | string;
     euFlag?: number | string;
+    seasons?: unknown;
   };
   const id = goodId(p);
   const name = p.name ?? p.goodsName ?? '';
@@ -142,6 +146,15 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
   // counterpart. The hit carries NO country (verified against the live index),
   // which is why this cannot borrow the PDP's "Ships from Germany" phrasing.
   const inEuStock = Number(p.eu_flag ?? p.euFlag ?? 0) === 1;
+  // Season membership (`seasons: ["autumn","winter"]`, scored nightly for every
+  // season) is a merchandising fact like EU stock, not an offer: same line,
+  // never the overlay slot. The chip names only the season the store is
+  // RUNNING — read from the active season page the header already loaded
+  // (cards listen, never ask — see season.ts) — so nothing says "Summer" in
+  // October and nothing shows at all while no season runs.
+  const season = useLoadedSeason();
+  const seasonTag = seasonChip(p, season);
+  const seasonCollection = seasonLabel(season);
   const dealEnd = p.dealActive && typeof p.dealEndEpoch === 'number' ? p.dealEndEpoch : undefined;
   const now = useNow(dealEnd != null);
   const remaining = dealEnd != null ? fmtRemaining(dealEnd, now, { d: t('card.units.d'), h: t('card.units.h'), m: t('card.units.m') }) : null;
@@ -257,6 +270,12 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         {remaining && claimedPct != null && claimedPct > 0 && (
           <div style={{ height: 4, borderRadius: 2, background: '#f1f3f5', overflow: 'hidden', margin: '2px 0 4px' }}>
             <div style={{ width: `${claimedPct}%`, height: '100%', background: '#CC0C39' }} />
+          </div>
+        )}
+
+        {seasonTag && (
+          <div className="lm-card__season" title={seasonCollection ? t('card.seasonTitle', { collection: seasonCollection }) : undefined}>
+            {seasonName(seasonTag, t)}
           </div>
         )}
 

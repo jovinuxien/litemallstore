@@ -19,6 +19,8 @@
     "paymentSlow": "Betalningen tar längre tid än väntat. Kontrollera Mina ordrar innan du försöker igen – ordern kan redan vara betald."
   },
   "byCode": {
+    "670": "Bara kunder som har fått den här produkten kan recensera den",
+    "671": "Du har redan recenserat det här köpet",
     "700": "Det nuvarande lösenordet är fel.",
     "701": "Återställning av lösenord via e-post är inte tillgänglig.",
     "703": "Koden är ogiltig eller har gått ut.",
