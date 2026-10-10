@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 import { IPageView } from 'app/shared/api';
-import { loadSeason } from './season';
+import { getLoadedSeason, loadSeason, subscribeSeason } from './season';
 
 /**
  * Wave 27 — the running season for the header strip, the "☰ All" drawer and
@@ -45,5 +45,14 @@ export const useSeason = (): IPageView | null => {
 
   return season;
 };
+
+/**
+ * The running season for surfaces that must not ASK for it — the product card.
+ * Reads whatever `loadSeason` has published (the header strip loads it on
+ * every page; `season.ts` explains why cards only listen) and re-renders the
+ * caller when the answer lands. `null` both before the answer and when there
+ * is no season: a card renders the same absence for both.
+ */
+export const useLoadedSeason = (): IPageView | null => useSyncExternalStore(subscribeSeason, getLoadedSeason) ?? null;
 
 export default useSeason;
