@@ -12,11 +12,18 @@
     "list": "List:",
     "endsIn": "⏱ Ends in {{remaining}}",
     "claimed": "{{pct}}% claimed",
+    "seasonTitle": "In our {{collection}} collection.",
     "euStockTitle": "In an EU warehouse at our last stock check.",
     "euStock": "EU stock",
     "freeShipping": "🚚 Free shipping",
     "added": "Added ✓",
-    "addToCart": "Add to cart"
+    "addToCart": "Add to cart",
+    "seasons": {
+      "autumn": "Autumn",
+      "winter": "Winter",
+      "spring": "Spring",
+      "summer": "Summer"
+    }
   },
   "rating": {
     "aria": "{{rating}} of 5 stars",

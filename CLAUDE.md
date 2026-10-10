@@ -2607,7 +2607,45 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — delivery-form sync + pay page (Stripe) + review refusals DEPLOYED to trovemo.com 2026-10-03 from `91a3f2648`; ⚠ master NOT yet moved
+### Worktree: `gateway-api` — season chip on product cards BUILT 2026-10-10 (branch only); prod runs `91a3f2648`; `4c86928bf` dial-code selector + this chip UNDEPLOYED; ⚠ master NOT yet moved
+- **Status 2026-10-10 — SEASON CHIP ON PRODUCT CARDS BUILT (the goods-management raise of
+  2026-09-04, user-approved as "item 1" 2026-10-10; items 2 Denmark + 3 default country
+  remain USER DECISIONS, not built).** One commit, SPA only: no backend, no migration, no
+  env. jest **66 suites / 479 tests** (was 65/459), tsc 0, `i18n:check` 0, prod build clean;
+  the built card chunk carries `lm-card__season`, `main` the `seasonKey` reader, the sv/da
+  product chunks `Höst`/`Efterår`. The 13 act() warnings in a full run are the SAME 13 on
+  HEAD's files (measured by swapping them in) — none added.
+  Design, settled by the live data: hits and list items carry `seasons: ["autumn","winter"]`
+  (every season is scored nightly, so a product belongs to several), and the served season
+  rail carries `seasonKey: "autumn"` + `resolvedFrom: "season"` (verified on prod
+  `/srv/page/season`). The chip therefore names ONE season — the one the store is RUNNING
+  — so nothing says "Summer" in October and nothing shows while no season runs; a
+  hand-curated rail (no key) ⇒ no chip; a key goods-management adds later renders
+  capitalised. It is context, not an offer: same facts line as the EU-stock chip, teal
+  tint, never the overlay slot, never displaces a deal. Tooltip names the collection by its
+  admin-given page name.
+  ⚠ **Cards LISTEN, they never ASK:** `season.ts` now publishes `loadSeason`'s answer to a
+  `useSyncExternalStore` snapshot (`getLoadedSeason`/`subscribeSeason`, `useLoadedSeason`);
+  the header strip (`Layout`, always mounted) is what loads it. Otherwise every grid card
+  would open a request and every card spec a real XHR. ⚠ `publish` runs INSIDE the
+  settling `.then`/`.catch`, not a trailing `.then` — the extra microtask shifted
+  `CategoryDrawer`/`GoodsListPage` updates out of their specs' act() windows. ⚠ A `t`
+  passed into a helper is extracted to the DEFAULT namespace — `t('product:card.seasons.
+  autumn')`, the timelineCopy.ts lesson again; the extractor then reorders `card.*` to
+  first-use order (committed). Files: `shared/util/season.ts` (+`seasonKey`), `useSeason.ts`,
+  `card/seasonBadge.ts` + spec (14), `ProductCard.tsx`, `product-card.scss`,
+  `locales/{en,sv,da}/product.json`. First live proof = a prod grid after deploy (dev has no
+  season page active).
+- **Status 2026-10-04 — `4c86928bf` dial-code selector (recorded late; NOT deployed).**
+  Prod report right after the 2026-10-03 deploy: "when I click on dial number it does not
+  synchronize with country". Reproduced with real clicks: DE/FR/SE picks moved Country;
+  Denmark/Belgium did nothing and SAID nothing — by rule (a dial code only moves Country to
+  a delivery country), but with the 8 delivery countries unmarked among ~200 it read as
+  broken. Now the selector lists delivery countries first under "We deliver to", and a pick
+  outside them shows "We don't deliver to Denmark yet, so the delivery country stays Sweden.
+  Your number is fine as it is." Rule unchanged. jest 65/459, 4 new strings en/sv/da,
+  headless real-click run green. Sits on `fix/gateway-api` with the three deployed commits;
+  ships with the next gateway-api container build (MAIN, workstation-built jar).
 - **Status 2026-10-03 20:13 UTC — DEPLOYED to trovemo.com (user: "go ahead to merge to master
   and deploy"), but the MERGE did not land.** ⚠ **Prod runs `91a3f2648`, which is on
   `fix/gateway-api` only — master is still `8a71f78e7`.** The session's `git push .

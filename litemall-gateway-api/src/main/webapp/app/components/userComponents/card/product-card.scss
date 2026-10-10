@@ -281,6 +281,22 @@
     flex: none;
   }
 
+  // Season membership chip (seasonBadge.ts): the collection the store is
+  // running, as a quiet tinted tag on the same facts line as EU stock. Teal
+  // tint, not the coral/primary pills — it is context, not an offer, and must
+  // read quieter than a deal or coupon above it.
+  &__season {
+    align-self: flex-start;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    padding: 1px 8px;
+    border-radius: 999px;
+    color: var(--lm-primary-dark, #0a5d65);
+    background: var(--lm-primary-soft, #e3f2f3);
+    white-space: nowrap;
+  }
+
   // Footer: single CTA pinned to the card bottom so footers align across a
   // grid row regardless of title/meta height. Layered above the stretched
   // title link so the button, not navigation, wins the click.

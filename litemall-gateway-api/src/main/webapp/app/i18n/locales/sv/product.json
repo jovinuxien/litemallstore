@@ -12,11 +12,18 @@
     "list": "Ord. pris:",
     "endsIn": "⏱ Slutar om {{remaining}}",
     "claimed": "{{pct}} % utnyttjat",
+    "seasonTitle": "Ingår i vår samling {{collection}}.",
     "euStockTitle": "Fanns i ett EU-lager vid vår senaste lagerkontroll.",
     "euStock": "EU-lager",
     "freeShipping": "🚚 Fri frakt",
     "added": "Tillagd ✓",
-    "addToCart": "Lägg i varukorgen"
+    "addToCart": "Lägg i varukorgen",
+    "seasons": {
+      "autumn": "Höst",
+      "winter": "Vinter",
+      "spring": "Vår",
+      "summer": "Sommar"
+    }
   },
   "rating": {
     "aria": "{{rating}} av 5 stjärnor",

@@ -13,7 +13,17 @@ jest.mock('app/config/axiosinstance', () => ({
 
 import { baseAxios } from 'app/config/axiosinstance';
 import { IPageView } from 'app/shared/api';
-import { __resetSeason, ERRNO_NO_ACTIVE_SEASON, firstGoodsList, loadSeason, seasonLabel, seasonPath } from './season';
+import {
+  __resetSeason,
+  ERRNO_NO_ACTIVE_SEASON,
+  firstGoodsList,
+  getLoadedSeason,
+  loadSeason,
+  seasonKey,
+  seasonLabel,
+  seasonPath,
+  subscribeSeason,
+} from './season';
 
 const mockGet = baseAxios.get as jest.Mock;
 
@@ -109,5 +119,57 @@ describe('firstGoodsList', () => {
   it('is null when the season carries no product rail at all', () => {
     expect(firstGoodsList({ ...PAGE, components: [{ type: 'rich-text', config: {} }] })).toBeNull();
     expect(firstGoodsList(null)).toBeNull();
+  });
+});
+
+describe('seasonKey', () => {
+  const withRail = (config: Record<string, unknown>): IPageView => ({ ...PAGE, components: [{ type: 'goods-list', config }] });
+
+  it('is the key goods-management left on a resolved season rail', () => {
+    expect(seasonKey(withRail({ mode: 'byIds', seasonKey: 'autumn', goodsIds: [1], resolvedFrom: 'season' }))).toBe('autumn');
+  });
+
+  it('normalises the key the way the index does (lowercase, trimmed)', () => {
+    expect(seasonKey(withRail({ mode: 'byIds', seasonKey: ' Winter ', goodsIds: [1] }))).toBe('winter');
+  });
+
+  it('is null for a hand-curated rail, a blank key, a non-string key, or no season', () => {
+    expect(seasonKey(PAGE)).toBeNull();
+    expect(seasonKey(withRail({ mode: 'byIds', seasonKey: '   ', goodsIds: [1] }))).toBeNull();
+    expect(seasonKey(withRail({ mode: 'byIds', seasonKey: 7, goodsIds: [1] }))).toBeNull();
+    expect(seasonKey(null)).toBeNull();
+  });
+});
+
+describe('the loaded-season snapshot (what cards listen to)', () => {
+  it('is undefined until someone loads the season — listeners must not take that for an answer', () => {
+    expect(getLoadedSeason()).toBeUndefined();
+  });
+
+  it('publishes the loaded page, and "no season" as null, to subscribers', async () => {
+    const seen: unknown[] = [];
+    const off = subscribeSeason(() => seen.push(getLoadedSeason()));
+    mockGet.mockReturnValue(envelope(PAGE));
+    await loadSeason();
+    expect(getLoadedSeason()).toEqual(PAGE);
+    expect(seen).toEqual([PAGE]);
+
+    __resetSeason();
+    expect(getLoadedSeason()).toBeUndefined();
+    const again: unknown[] = [];
+    subscribeSeason(() => again.push(getLoadedSeason()));
+    mockGet.mockReturnValue(errno(ERRNO_NO_ACTIVE_SEASON));
+    await loadSeason();
+    expect(again).toEqual([null]);
+    off();
+  });
+
+  it('stops notifying after unsubscribe', async () => {
+    const seen: unknown[] = [];
+    const off = subscribeSeason(() => seen.push(1));
+    off();
+    mockGet.mockReturnValue(envelope(PAGE));
+    await loadSeason();
+    expect(seen).toEqual([]);
   });
 });
