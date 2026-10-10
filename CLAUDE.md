@@ -1535,7 +1535,21 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — lifecycle assignment CLOSED (D5 ops alert BUILT + MERGED 2026-09-20; F13 documented); deploy = MAIN (one order rebuild carries `2cc0ba6a4` + this)
+### Worktree: `order` — lifecycle assignment CLOSED + DEPLOYED (prod order container on master `8a71f78e7` since 2026-10-03/04); as-built report `doc/order-lifecycle-e2e-report-2026-10-10.pdf`; no active assignment
+- **Status 2026-10-10 — RECORD CLOSED: as-built PDF written, deploy note corrected.**
+  `doc/order-lifecycle-e2e-report-2026-10-10.pdf` (8 pages: summary, decisions
+  D1–D6, all 18 findings with disposition, packages A/B/C + follow-ups + D5
+  close-out, operator reference of knobs/endpoints/mails/sentinels, prod state,
+  open items, lessons). Generated with reportlab from the three plan docs; every
+  class, endpoint, knob and sentinel it names was grepped in the tree first.
+  Correction to the 2026-09-20 entry below: `2cc0ba6a4` + the D5 alert DO have a
+  deploy record — the 2026-10-03/04 prod audit session recreated order,
+  gateway-api and gateway-admin from master `8a71f78e7` (contains both; images
+  `build-8a71f78e7`, rollback tags `pre-20261003`, order SQL DEBUG lines 0) and
+  fixed the missing `LITEMALL_CUSTOMERMAIL_USERNAME`. Branch was 0 ahead / 11
+  behind master with none of the 11 touching order/core/db. Still USER-SIDE:
+  CJ balance top-up, IOSS in the CJ dashboard, orders 7/9/10 (test-mode
+  intents — never approve), order 11 Requeue after IOSS, one real EUR order.
 - **Task — order lifecycle E2E (user-commissioned 2026-09-05, all six decisions
   approved).** Code to `litemall-order/docs/plan-order-lifecycle-e2e.md` (the
   contract: findings F1–F18, packages A→B→C, raises D). Decisions: D1 late
