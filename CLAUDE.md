@@ -1496,6 +1496,26 @@
 > storefront shows no empty/dead category surfaces; module tests green
 > with real "Tests run:" counts.
 >
+> **BREVO SMTP KEEP-ALIVE (MAIN, 2026-10-18).** Brevo mailed contact@ that
+> the account's key(s) "will be marked inactive after 7 days if no activity
+> is detected". Cause: the ONE SMTP key wired into prod (shared by order and
+> gateway-api) had been used exactly once — the 2026-10-03 test mail; the
+> outbox was still empty and no order had been paid since. Fixed:
+> `docker-compose/brevo-smtp-keepalive.sh`, installed on the VPS as
+> `/usr/local/bin/brevo-smtp-keepalive.sh` and run by
+> `/etc/cron.d/brevo-smtp-keepalive` every **Monday 06:00 UTC**, sends one
+> plain mail noreply@ → contact@ through the order container's OWN SMTP env
+> (nothing is read from `.env.prod`; the key is never printed). Log
+> `/var/log/brevo-smtp-keepalive.log`; exit 0 ONLY on SMTP 250; a stopped
+> container or any other reply logs `FAIL` (negative control proven). First
+> run OK/250 at 04:22 UTC; cron pickup proven with a throwaway one-minute
+> entry (removed). If Brevo warns again, read that log first: a FAIL line
+> means the container was down or the key is already revoked (create a new
+> SMTP key in Brevo → swap `LITEMALL_CUSTOMERMAIL_PASSWORD` → recreate order
+> + gateway-api). Whether a separate unused API key was also flagged is
+> UNVERIFIED (the mail's top was cut off) — user-side check in Brevo's
+> SMTP & API page; nothing in the shop uses one.
+>
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
 > webhook still to be user-verified; `CJ_CATALOG_*` (goods-management
