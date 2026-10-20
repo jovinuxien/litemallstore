@@ -5,6 +5,8 @@
  * FREE TEXT (these only power the type-ahead), so a country missing here or a
  * region outside its list degrades to plain typing.
  */
+import { SHIPPING_COUNTRIES } from './countries';
+
 export const REGIONS_BY_COUNTRY: Record<string, string[]> = {
   US: [
     'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware',
@@ -50,3 +52,24 @@ export const REGIONS_BY_COUNTRY: Record<string, string[]> = {
 
 export const regionsFor = (iso2?: string): string[] =>
   iso2 ? REGIONS_BY_COUNTRY[iso2.toUpperCase()] ?? [] : [];
+
+/** A region of one delivery country, labelled with it ("Skåne · Sweden") for lists that span countries. */
+export interface LabelledRegion {
+  region: string;
+  /** ISO2 of the delivery country the region belongs to. */
+  country: string;
+  label: string;
+}
+
+let labelled: LabelledRegion[] | null = null;
+
+/**
+ * Every region of every delivery country, in the delivery list's order — the
+ * suggestions to offer while the form's Country is still EMPTY, so a typed or picked
+ * region can name the country instead of being ignored. Computed once.
+ */
+export const deliveryRegions = (): LabelledRegion[] => {
+  if (labelled) return labelled;
+  labelled = SHIPPING_COUNTRIES.flatMap(c => regionsFor(c.code).map(region => ({ region, country: c.code, label: `${region} · ${c.name}` })));
+  return labelled;
+};

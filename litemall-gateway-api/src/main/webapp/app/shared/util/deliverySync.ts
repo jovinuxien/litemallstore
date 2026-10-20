@@ -1,5 +1,5 @@
 import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
-import { regionsFor } from 'app/shared/data/regions';
+import { deliveryRegions, LabelledRegion, regionsFor } from 'app/shared/data/regions';
 
 /**
  * The ONE set of rules that keeps a delivery form's Country, phone dial code and
@@ -72,6 +72,19 @@ export const regionAfterCountryChange = (region: string | undefined | null, prev
   return prevCountry ? '' : current;
 };
 
+/**
+ * The delivery country a typed region names, or `null`: an exact (accent-folded) match
+ * that is UNIQUE across the delivery countries' region lists. "Bayern" is Germany;
+ * "Atlantis" is nobody's; a name two countries share names neither. Free text in every
+ * other respect — the region field never rejects anything.
+ */
+export const countryFromRegion = (regionText: string | undefined | null, list: LabelledRegion[] = deliveryRegions()): string | null => {
+  const q = fold(regionText ?? '');
+  if (!q) return null;
+  const hits = list.filter(r => fold(r.region) === q);
+  return hits.length === 1 ? hits[0].country : null;
+};
+
 /** The two fields of a delivery form that must move together. */
 export interface CountryRegion {
   country: string;
@@ -83,6 +96,21 @@ export const withCountry = (state: CountryRegion, nextCountry: string): CountryR
   country: nextCountry,
   region: regionAfterCountryChange(state.region, state.country, nextCountry),
 });
+
+/**
+ * The form after the region changed: the text as typed, and — ONLY while the country is
+ * still empty — the country that region names (a pick from the cross-country list
+ * supplies `pickedCountry`; a typed exact unique match is looked up). A chosen country
+ * is never overridden by the region: "Bayern" under Sweden is the customer's business.
+ * When the region fills the country it takes the list's own spelling ("skane" → "Skåne").
+ */
+export const withRegion = (state: CountryRegion, regionText: string, pickedCountry?: string | null): CountryRegion => {
+  if (state.country) return { country: state.country, region: regionText };
+  const country = (isShippingCountry(pickedCountry) ? (pickedCountry as string) : null) ?? countryFromRegion(regionText);
+  if (!country) return { country: '', region: regionText };
+  const canonical = regionsFor(country).find(r => fold(r) === fold(regionText)) ?? regionText;
+  return { country, region: canonical };
+};
 
 /** The form after the phone's country changed, or `null` when the destination stays put. */
 export const withPhoneCountry = (state: CountryRegion, phoneIso2: string, source: PhoneCountrySource): CountryRegion | null => {

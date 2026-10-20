@@ -18,7 +18,7 @@ import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import OriginNote from 'app/components/commonComponents/OriginNote';
 import RegionInput from 'app/components/commonComponents/RegionInput';
 import { SHIPPING_COUNTRIES, shippingCountryName } from 'app/shared/data/countries';
-import { regionsFor } from 'app/shared/data/regions';
+import { deliveryRegions, regionsFor } from 'app/shared/data/regions';
 import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
   CheckoutPaymentMethod,
@@ -37,7 +37,7 @@ import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
 import { originCountryName } from 'app/shared/util/euStock';
-import { countryOfSavedAddress, PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
+import { countryOfSavedAddress, PhoneCountrySource, withCountry, withPhoneCountry, withRegion } from 'app/shared/util/deliverySync';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -703,6 +703,15 @@ const CheckoutView: React.FC = () => {
     if (next) applyCountry(next);
   };
 
+  // And the third direction: a region typed or picked while Country is still EMPTY names
+  // the country ("Bayern" ⇒ Germany, with its dial code). A chosen country is never
+  // overridden by the region.
+  const applyRegion = (text: string, pickedCountry?: string) => {
+    const next = withRegion({ country: country.code, region: shipping.region }, text, pickedCountry);
+    if (next.country && next.country !== country.code) applyCountry(next);
+    else setShipping(prev => (prev.region === next.region ? prev : { ...prev, region: next.region }));
+  };
+
   const pickAddress = (a: IAddress) => {
     setSelectedAddressId(a.id ?? 'new');
     setShipping(addressToShipping(a));
@@ -1357,12 +1366,16 @@ const CheckoutView: React.FC = () => {
               <div className='col-md-4'>
                 <Form.Label>{t('delivery.region')}</Form.Label>
                 {/* Type-ahead over the selected country's regions (static data);
-                    free text stays valid for anything outside the list. */}
+                    free text stays valid for anything outside the list. With no
+                    country chosen yet, every delivery country's regions are offered,
+                    labelled, and a pick sets the country too. */}
                 <RegionInput
                   name='region'
                   value={shipping.region}
-                  onChange={text => setShipping(prev => ({ ...prev, region: text }))}
+                  onChange={text => applyRegion(text)}
+                  onPick={applyRegion}
                   suggestions={regionsFor(country.code)}
+                  labelled={country.code ? undefined : deliveryRegions()}
                   placeholder={country.code ? t('delivery.regionPlaceholder') : t('delivery.regionShort')}
                   required
                 />

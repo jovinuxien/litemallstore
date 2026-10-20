@@ -9,8 +9,8 @@ import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import RegionInput from 'app/components/commonComponents/RegionInput';
 import { CellGroup, Page, PageHead } from 'app/components/commonComponents/storefront';
 import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
-import { regionsFor } from 'app/shared/data/regions';
-import { CountryRegion, PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
+import { deliveryRegions, regionsFor } from 'app/shared/data/regions';
+import { CountryRegion, PhoneCountrySource, withCountry, withPhoneCountry, withRegion } from 'app/shared/util/deliverySync';
 import './user.scss';
 
 /** The Country field's options, for the phone selector: only these can move that field. */
@@ -72,6 +72,8 @@ const AddressEdit: React.FC = () => {
       const next = withPhoneCountry(countryRegionOf(prev), iso2, source);
       return next ? applyCountry(prev, next) : prev;
     });
+  // A region typed or picked while Country is empty names the country (same rule as checkout).
+  const applyRegion = (text: string, pickedCountry?: string) => setForm(prev => applyCountry(prev, withRegion(countryRegionOf(prev), text, pickedCountry)));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,8 +225,10 @@ const AddressEdit: React.FC = () => {
                         stays valid (countries without data = plain input). */}
                     <RegionInput
                       value={form.province ?? ''}
-                      onChange={text => setForm(prev => ({ ...prev, province: text }))}
+                      onChange={text => applyRegion(text)}
+                      onPick={applyRegion}
                       suggestions={regionsFor(form.countryCode)}
+                      labelled={form.countryCode ? undefined : deliveryRegions()}
                     />
                   </div>
                   <div className='col-md-4'>
