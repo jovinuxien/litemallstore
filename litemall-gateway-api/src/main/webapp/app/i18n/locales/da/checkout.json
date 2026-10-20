@@ -37,10 +37,11 @@
   "errors": {
     "totals": "Vi kan ikke beregne din kurv lige nu – prøv igen.",
     "saveAddress": "Leveringsadressen kunne ikke gemmes. Tjek de obligatoriske felter, og prøv igen.",
-    "savePhone": "Telefonnummeret kunne ikke gemmes på din leveringsadresse – prøv igen.",
     "saveEmail": "E-mailadressen kunne ikke gemmes på din konto – ordren bliver stadig afgivet.",
     "cardUnavailable": "Kortbetaling er ikke tilgængelig lige nu. Din ordre er gemt, men ikke betalt.",
-    "retry": "Prøv igen"
+    "retry": "Prøv igen",
+    "savePhone": "Telefonnummeret kunne ikke gemmes på din leveringsadresse – prøv igen.",
+    "saveCountry": "Leveringslandet kunne ikke gemmes på din adresse – prøv igen."
   },
   "title": "Kasse",
   "emptyCart": "Din kurv er tom.",
@@ -68,6 +69,7 @@
     "cityPlaceholder": "By",
     "zip": "Postnummer *",
     "warehouseNote": "Disse varer sendes direkte fra lageret – angiv <1>land</1> og <2>telefonnummer</2>, så fragtfirmaet kan levere.",
+    "deliveringTo": "Leveres til <1>{{country}}</1> – landet, der er gemt på denne adresse.",
     "destinationCountry": "Destinationsland *",
     "checkingLogistics": "Tjekker leveringsmuligheder…",
     "shipsVia": "Sendes med <1>{{carrier}}</1>",

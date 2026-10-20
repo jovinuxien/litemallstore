@@ -24,6 +24,14 @@ export const isShippingCountry = (iso2: string | undefined | null): boolean =>
   !!iso2 && SHIPPING_COUNTRIES.some(c => c.code === iso2);
 
 /**
+ * The destination a SELECTED SAVED ADDRESS dictates: its own country when it is one we
+ * deliver to, else '' — never the previous pick or the start-up guess. A legacy
+ * (country-less) address used to inherit whatever the field held, and that inherited
+ * value was what the CJ order was submitted with.
+ */
+export const countryOfSavedAddress = (countryCode: string | undefined | null): string => (isShippingCountry(countryCode) ? (countryCode as string) : '');
+
+/**
  * The destination country a phone-country change should set, or `null` to leave the
  * current one alone. A dial code for a country we do not ship to never changes the
  * destination — the customer simply has a foreign number.

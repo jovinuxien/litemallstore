@@ -37,10 +37,11 @@
   "errors": {
     "totals": "Vi kan inte räkna ut din varukorg just nu – försök igen.",
     "saveAddress": "Leveransadressen kunde inte sparas. Kontrollera de obligatoriska fälten och försök igen.",
-    "savePhone": "Telefonnumret kunde inte sparas på din leveransadress – försök igen.",
     "saveEmail": "E-postadressen kunde inte sparas på ditt konto – ordern läggs ändå.",
     "cardUnavailable": "Kortbetalning är inte tillgänglig just nu. Din order är sparad men inte betald.",
-    "retry": "Försök igen"
+    "retry": "Försök igen",
+    "savePhone": "Telefonnumret kunde inte sparas på din leveransadress – försök igen.",
+    "saveCountry": "Leveranslandet kunde inte sparas på din adress – försök igen."
   },
   "title": "Kassa",
   "emptyCart": "Din varukorg är tom.",
@@ -68,6 +69,7 @@
     "cityPlaceholder": "Ort",
     "zip": "Postnummer *",
     "warehouseNote": "De här varorna skickas direkt från lagret – ange <1>land</1> och <2>telefonnummer</2> så att transportören kan leverera.",
+    "deliveringTo": "Levereras till <1>{{country}}</1> – landet som är sparat på den här adressen.",
     "destinationCountry": "Destinationsland *",
     "checkingLogistics": "Kontrollerar leveransalternativ…",
     "shipsVia": "Skickas med <1>{{carrier}}</1>",

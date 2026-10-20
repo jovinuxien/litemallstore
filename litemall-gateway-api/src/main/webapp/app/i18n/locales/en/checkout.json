@@ -37,10 +37,11 @@
   "errors": {
     "totals": "We can’t total your cart right now — please try again.",
     "saveAddress": "Could not save the delivery address. Check the required fields and try again.",
-    "savePhone": "Could not save the phone number to your delivery address — please try again.",
     "saveEmail": "Could not save this email to your account — the order will still be placed.",
     "cardUnavailable": "Card payment is unavailable right now. Your order is saved but not paid.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "savePhone": "Could not save the phone number to your delivery address — please try again.",
+    "saveCountry": "Could not save the delivery country to your address — please try again."
   },
   "title": "Checkout",
   "emptyCart": "Your cart is empty.",
@@ -68,6 +69,7 @@
     "cityPlaceholder": "City",
     "zip": "Zip *",
     "warehouseNote": "These items ship direct from the warehouse — please provide a <1>country</1> and a <2>phone number</2> so the carrier can deliver.",
+    "deliveringTo": "Delivering to <1>{{country}}</1> — the country saved on this address.",
     "destinationCountry": "Destination country *",
     "checkingLogistics": "Checking logistics…",
     "shipsVia": "Ships via <1>{{carrier}}</1>",

@@ -1,4 +1,4 @@
-import { countryFromPhone, isShippingCountry, regionAfterCountryChange, withCountry, withPhoneCountry } from './deliverySync';
+import { countryFromPhone, countryOfSavedAddress, isShippingCountry, regionAfterCountryChange, withCountry, withPhoneCountry } from './deliverySync';
 
 /**
  * The rules that keep Country, the phone's dial code and Region together on the
@@ -34,6 +34,23 @@ describe('deliverySync', () => {
 
     it('reports nothing when both already agree', () => {
       expect(countryFromPhone('SE', 'pick', 'SE')).toBeNull();
+    });
+  });
+
+  describe('countryOfSavedAddress', () => {
+    it('is the address’s own country when we deliver there', () => {
+      expect(countryOfSavedAddress('SE')).toBe('SE');
+      expect(countryOfSavedAddress('DK')).toBe('DK');
+    });
+
+    it('is EMPTY for a country-less (legacy) address — never an inherited pick', () => {
+      expect(countryOfSavedAddress(undefined)).toBe('');
+      expect(countryOfSavedAddress('')).toBe('');
+      expect(countryOfSavedAddress(null)).toBe('');
+    });
+
+    it('treats a country we do not deliver to like no country (the customer picks one)', () => {
+      expect(countryOfSavedAddress('JP')).toBe('');
     });
   });
 
