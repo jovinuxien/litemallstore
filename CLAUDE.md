@@ -2641,7 +2641,36 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — ACTIVE: checkout delivery sync pass 2 (Country / Region / Mobile), plan approved 2026-10-20, NOT started; spec `litemall-gateway-api/docs/spec-checkout-delivery-sync-2.md`
+### Worktree: `gateway-api` — checkout delivery sync pass 2 BUILT on `fix/gateway-api` (2026-10-20, four commits D/A/B/C, accepted headless 69/69); merge + deploy PENDING (user decision)
+- **Status 2026-10-20 — PASS 2 BUILT, all four items, NOT merged, NOT deployed.** Branch
+  (master merged in first, `5af07e72e`): `17ff4b36f` D Denmark, `507e874f4` A saved-address
+  honesty, `c291c555d` B honest start-up guess, `1391f3864` C region informs country. SPA
+  only, no backend, no migration, no env. jest **68 suites / 516 tests** (was 66/479), tsc 0,
+  `i18n:check` 0 (no reorder this time), prod build clean (the two warnings are the known
+  bundle-size ones). **Headless real-click acceptance of the BUILT bundle against a stub
+  edge: 69/69 assertions, 0 page errors** across browser profiles en, sv-SE (site sv), da
+  (site da), de-DE — every spec §3 case: saved-with-country ⇒ read-only "Delivering to
+  Sweden", no select, submit body `countryCode:"SE"`, no addressSave; legacy country-less
+  address ⇒ select starts EMPTY, pick DE ⇒ the stub observed `POST /srv/address/save` with
+  `countryCode:"DE"` on row 6 BEFORE `/srv/order/submit` (which carried DE); DE address →
+  country-less ⇒ Country empty, back ⇒ read-only again; plain `en` ⇒ "-- Country --" + +1
+  + no note; site language sv on an en-US browser ⇒ Sweden/+46; fi-FI browser ⇒ blank
+  Country + +358 + "We don't deliver to Finland yet — please choose a delivery country";
+  "Bay" → pick "Bayern · Germany" ⇒ Germany/+49/Bayern, typed "skane" ⇒ Sweden/"Skåne";
+  Danish browser ⇒ Denmark/+45 + the 5 regions unlabelled. Harness committed:
+  `litemall-gateway-api/docs/headless/checkout-delivery-sync-2/` (README has the recipe).
+  Decisions taken inside the spec: the ACTIVE site language is the first guess (same
+  answer as the explicit cookie whenever they differ in origin, simpler seam); the phone
+  and country write-backs are ONE `addressSave` (one failure path, `errors.saveCountry`
+  when the country was part of it); the card country name shows on the address-book list
+  too; a saved address WITH a country is never moved by a dial-code pick either (a foreign
+  mobile is not a new destination). ⚠ Gotchas: æ/ø are letters, not accents — the fold
+  keeps them ("sjæ" matches Sjælland, "sja" does not; ä/å/ö DO fold); a jest test and a
+  headless case both had to learn it. Headless: one browser context PER case or the
+  `lm_lang` cookie leaks into later cases and flips their site language. Next: user says
+  merge (`git push . fix/gateway-api:master` + origin) → deploy = gateway-api container
+  from a WORKSTATION-built jar (never build on the VPS; rollback = previous image tag) →
+  rewrite this header + the memory note.
 - **Task — checkout delivery sync, pass 2 (user-approved 2026-10-20, four items A–D).**
   Code to the FROZEN spec `litemall-gateway-api/docs/spec-checkout-delivery-sync-2.md`
   (read it in full; this line is only the index). SPA only, no backend, no migration,
