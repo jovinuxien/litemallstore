@@ -15,6 +15,7 @@ export const SHIPPING_COUNTRIES: ShippingCountry[] = [
   { name: 'Sweden', code: 'SE' },
   { name: 'Norway', code: 'NO' },
   { name: 'Germany', code: 'DE' },
+  { name: 'Denmark', code: 'DK' },
   { name: 'France', code: 'FR' },
   { name: 'Canada', code: 'CA' },
   { name: 'Australia', code: 'AU' },
