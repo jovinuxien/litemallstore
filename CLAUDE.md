@@ -2621,7 +2621,38 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — season chip + dial-code selector DEPLOYED to trovemo.com from master `96978ece4` (2026-10-10 13:54 UTC, workstation-built jar); no active assignment
+### Worktree: `gateway-api` — ACTIVE: checkout delivery sync pass 2 (Country / Region / Mobile), plan approved 2026-10-20, NOT started; spec `litemall-gateway-api/docs/spec-checkout-delivery-sync-2.md`
+- **Task — checkout delivery sync, pass 2 (user-approved 2026-10-20, four items A–D).**
+  Code to the FROZEN spec `litemall-gateway-api/docs/spec-checkout-delivery-sync-2.md`
+  (read it in full; this line is only the index). SPA only, no backend, no migration,
+  no env. Audit (2026-10-20, tree `73ca7d0ee`) found four places the Delivery section
+  still drifts AFTER the 2026-10-03 sync: (1) the saved-address path renders an EDITABLE
+  "Destination country" select that can disagree with the saved address's own country
+  and is what the CJ order is submitted with (`Checkout.tsx` ~:1385 / :869), a
+  country-less legacy address inherits the previous pick, and address cards show no
+  country; (2) the dial selector's bare `'US'` fallback (`dialCodes.ts:131`) is written
+  into an empty Country as if it were a guess, and the chosen SITE language (sv/da) is
+  never consulted; (3) Region never informs Country (no suggestions while Country is
+  empty); (4) Denmark is missing from `SHIPPING_COUNTRIES` although `da` is enabled and
+  Wave 24 names DK in the market. Deliverables, one commit each: **A** saved-address
+  honesty (read-only "Delivering to X" when the address has a country; select + submit
+  write-back ONLY for country-less addresses, mirroring the phone write-back; reset on
+  picking a country-less address; country on `AddressCard`); **B** honest start-up guess
+  (confident guess = browser region / language-named country / site language first;
+  the fallback never fills Country; a confident non-delivery guess shows the existing
+  note); **C** Region informs Country (cross-country labelled suggestions while Country
+  is empty; pick or unique exact match fills Country via the fill-only-empty rule;
+  `countryFromRegion` helper in `deliverySync.ts`); **D** Denmark + its 5 regions.
+  Do NOT re-add per-form sync logic — every rule goes through `deliverySync.ts`.
+- **Acceptance:** as written in the spec §3 — jest + tsc + `i18n:check` green with real
+  counts (baseline 66 suites / 479 tests; new `RegionInput.spec.tsx`); headless
+  real-click run of the BUILT bundle against the stub edge in en, sv-SE, da, de-DE
+  covering the seven cases listed there (saved-with-country read-only + submitted
+  country; legacy address select + observed `addressSave` write-back; reset on
+  country-less pick; plain `en` leaves Country empty; site language `sv` ⇒ Sweden;
+  "Bayern" pick ⇒ Germany; Danish browser ⇒ Denmark), 0 page errors; en/sv/da strings
+  land together. Deploy = gateway-api container from a workstation-built jar (MAIN or
+  this session); then rewrite this header + the memory note.
 - **Status 2026-10-10 13:54 UTC — DEPLOYED to trovemo.com from master `96978ece4`** (user: "go
   ahead"). Same no-build-on-the-VPS recipe as 2026-10-03: `git archive 96978ece4` → workstation
   `docker build --target builder` (BUILD SUCCESS, 9:57 min) → gateway-api jar shipped with its
