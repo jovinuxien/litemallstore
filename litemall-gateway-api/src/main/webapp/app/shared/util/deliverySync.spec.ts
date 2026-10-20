@@ -21,6 +21,15 @@ describe('deliverySync', () => {
       expect(countryFromPhone('SE', 'typed', 'DE')).toBeNull();
     });
 
+    it('never fills a country from the bare fallback — nothing named it', () => {
+      // A plain `en` browser lands the selector on +1. The form must stay on "-- Country --".
+      expect(countryFromPhone('US', 'fallback', '')).toBeNull();
+      expect(countryFromPhone('US', 'fallback', 'SE')).toBeNull();
+      expect(withPhoneCountry({ country: '', region: '' }, 'US', 'fallback')).toBeNull();
+      // Whereas the same code as a confident guess does fill an empty country.
+      expect(countryFromPhone('US', 'init', '')).toBe('US');
+    });
+
     it('never echoes a change the country itself caused', () => {
       expect(countryFromPhone('DE', 'external', 'SE')).toBeNull();
       expect(countryFromPhone('DE', 'external', '')).toBeNull();

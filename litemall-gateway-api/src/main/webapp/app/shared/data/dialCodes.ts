@@ -122,29 +122,53 @@ export const splitInternational = (
  */
 const LANGUAGE_COUNTRY: Record<string, string> = { sv: 'SE', da: 'DK', nb: 'NO', nn: 'NO', no: 'NO', de: 'DE', fr: 'FR', fi: 'FI', nl: 'NL' };
 
-/**
- * Best start-up guess for the visitor's country, from the browser's languages in
- * preference order: a region we know (`sv-SE`, `en-GB`) or a region-less language
- * that names one country (`sv`, `da`, `de`); 'US' when nothing matches. Only ever a
- * default — the customer's own pick always wins.
- */
-export const localeIso2 = (): string => {
+/** The dial selector's default when nothing names a country. A fallback, not a guess. */
+const FALLBACK_ISO2 = 'US';
+
+export interface LocaleGuess {
+  iso2: string;
+  /**
+   * True when something actually named the country: the site language the visitor
+   * chose, a browser region (`sv-SE`, `en-GB`) or a language that names one country
+   * (`sv`, `da`, `de`). False for the bare fallback — a plain `en` browser says
+   * nothing about where the parcel goes, and a form must not pre-select a country
+   * on the strength of it.
+   */
+  confident: boolean;
+}
+
+const browserLanguages = (): readonly string[] => {
   try {
-    const langs = navigator.languages?.length ? navigator.languages : [navigator.language];
-    // One pass in the browser's own preference order: `['sv', 'en-US']` is a Swedish
-    // browser with an English fallback, so `sv` must win over the later `en-US`.
-    for (const lang of langs) {
-      const [language, region] = lang.split('-');
-      const iso2 = (region ?? '').toUpperCase();
-      if (DIAL[iso2]) return iso2;
-      const guess = LANGUAGE_COUNTRY[(language ?? '').toLowerCase()];
-      if (guess && DIAL[guess]) return guess;
-    }
-    return 'US';
+    return navigator.languages?.length ? navigator.languages : [navigator.language];
   } catch {
-    return 'US'; // no navigator (tests/SSR)
+    return []; // no navigator (tests/SSR)
   }
 };
+
+/**
+ * Best start-up guess for the visitor's country, and whether it IS a guess or just the
+ * fallback. Order: the SITE language the visitor chose first (`sv` → SE, `da` → DK — an
+ * explicit choice outranks the browser's list; English names nothing), then the
+ * browser's languages in preference order: a region we know, or a region-less
+ * language that names one country. `['sv', 'en-US']` is a Swedish browser with an
+ * English fallback, so `sv` wins over the later `en-US`. Only ever a default — the
+ * customer's own pick always wins.
+ */
+export const localeGuess = (opts: { siteLang?: string | null; languages?: readonly string[] } = {}): LocaleGuess => {
+  const site = LANGUAGE_COUNTRY[(opts.siteLang ?? '').toLowerCase()];
+  if (site && DIAL[site]) return { iso2: site, confident: true };
+  for (const lang of opts.languages ?? browserLanguages()) {
+    const [language, region] = String(lang ?? '').split('-');
+    const iso2 = (region ?? '').toUpperCase();
+    if (DIAL[iso2]) return { iso2, confident: true };
+    const guess = LANGUAGE_COUNTRY[(language ?? '').toLowerCase()];
+    if (guess && DIAL[guess]) return { iso2: guess, confident: true };
+  }
+  return { iso2: FALLBACK_ISO2, confident: false };
+};
+
+/** The browser-only guess as a bare code ('US' when nothing matches) — for tie-breaks. */
+export const localeIso2 = (): string => localeGuess().iso2;
 
 export interface DialCountry {
   iso2: string;

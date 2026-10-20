@@ -1,11 +1,12 @@
 import { useTranslation } from 'app/i18n';
+import { useLocale } from 'app/i18n/locale';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DialCountry,
   checkPhoneLength,
   dialCountries,
-  localeIso2,
+  localeGuess,
   splitInternational,
   toE164,
 } from 'app/shared/data/dialCodes';
@@ -35,8 +36,11 @@ interface Props {
   onChange: (e164: string) => void;
   /**
    * Fires with the selected ISO2 on mount and on every change, with the reason:
-   * `init` (start-up default), `pick` (chosen in the selector), `typed` (derived from
-   * a typed international number) or `external` (followed `countryIso2`).
+   * `init` (start-up default that something named — a stored number, the form's
+   * country, the site language or the browser's locale), `fallback` (start-up default
+   * that nothing named: the selector shows +1 but no country should be inferred),
+   * `pick` (chosen in the selector), `typed` (derived from a typed international
+   * number) or `external` (followed `countryIso2`).
    */
   onCountryChange?: (iso2: string, source: PhoneCountrySource) => void;
   /**
@@ -83,11 +87,22 @@ const PhoneInput: React.FC<Props> = ({
   placeholder,
 }) => {
   const { t } = useTranslation();
+  const { lang: siteLang } = useLocale();
   const [initial] = useState(() => parseInitial(value));
-  const [iso2, setIso2] = useState<string>(() => {
+  // The start-up country and what it is worth. Something the form or a stored number
+  // supplied is a fact (`init`, no remark). Otherwise the visitor's locale is asked:
+  // a confident answer (site language, browser region/language) is a guess the form
+  // may act on (`init`) and that earns the "we do not deliver there" note when it
+  // falls outside the delivery list — a blank Country must be explained. The bare
+  // fallback is reported as such (`fallback`) and never fills anything.
+  const [start] = useState<{ iso2: string; source: PhoneCountrySource; guessed: boolean }>(() => {
     const known = (code?: string) => (code && dialCountries().some(c => c.iso2 === code) ? code : undefined);
-    return initial.iso2 ?? known(countryIso2) ?? known(defaultIso2) ?? localeIso2();
+    const supplied = initial.iso2 ?? known(countryIso2) ?? known(defaultIso2);
+    if (supplied) return { iso2: supplied, source: 'init', guessed: false };
+    const guess = localeGuess({ siteLang });
+    return { iso2: guess.iso2, source: guess.confident ? 'init' : 'fallback', guessed: guess.confident };
   });
+  const [iso2, setIso2] = useState<string>(start.iso2);
   const [national, setNational] = useState(initial.national);
   const [touched, setTouched] = useState(false);
   const [open, setOpen] = useState(false);
@@ -104,7 +119,7 @@ const PhoneInput: React.FC<Props> = ({
   const effectiveNational = intl ? intl.national : national;
 
   // Why the country last changed — read by the single emit below.
-  const sourceRef = useRef<PhoneCountrySource>('init');
+  const sourceRef = useRef<PhoneCountrySource>(start.source);
   // True while the number on screen is a FULL international number: typed that way
   // (also after blur folded it into selector + national digits) or loaded from a stored
   // E.164 value. Such a number is not re-prefixed when the form's country changes —
@@ -229,8 +244,12 @@ const PhoneInput: React.FC<Props> = ({
   // The customer picked (or typed) a number from a country the form cannot deliver to.
   // That is a perfectly good phone number — but the Country field did not follow it, and
   // saying nothing made the two fields look out of step.
+  // A confident locale guess the customer has not touched yet counts too, while the
+  // form still has no country: a Finnish browser opens on +358 with Country blank, and
+  // without the note that blank looks like a bug.
   const formCountryName = countries.find(c => c.iso2 === countryIso2)?.name;
-  const outsideDelivery = explicit && !!deliveryCountries?.length && !delivers(effectiveIso2);
+  const standingGuess = start.guessed && !countryIso2 && effectiveIso2 === start.iso2;
+  const outsideDelivery = (explicit || standingGuess) && !!deliveryCountries?.length && !delivers(effectiveIso2);
   const deliveryNote = !outsideDelivery
     ? null
     : formCountryName
