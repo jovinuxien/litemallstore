@@ -17,7 +17,7 @@ import AddressAutocompleteInput from 'app/components/commonComponents/AddressAut
 import PhoneInput from 'app/components/commonComponents/PhoneInput';
 import OriginNote from 'app/components/commonComponents/OriginNote';
 import RegionInput from 'app/components/commonComponents/RegionInput';
-import { SHIPPING_COUNTRIES } from 'app/shared/data/countries';
+import { SHIPPING_COUNTRIES, shippingCountryName } from 'app/shared/data/countries';
 import { regionsFor } from 'app/shared/data/regions';
 import { trackBeginCheckout } from 'app/shared/tracking/ecommerce';
 import {
@@ -37,7 +37,7 @@ import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
 import { originCountryName } from 'app/shared/util/euStock';
-import { PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
+import { countryOfSavedAddress, PhoneCountrySource, withCountry, withPhoneCountry } from 'app/shared/util/deliverySync';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
   Cell,
@@ -121,6 +121,12 @@ const shippingToAddress = (s: ShippingInfo, countryCode?: string): IAddress => (
 /** The country a saved address carries, when it is one we ship to. */
 const countryOfAddress = (a: IAddress | undefined): { name: string; code: string } | undefined =>
   COUNTRIES.find(c => c.code === a?.countryCode);
+
+/** The destination to hold once a saved address is selected (rule: {@link countryOfSavedAddress}). */
+const countryForAddress = (a: IAddress | undefined): { name: string; code: string } => {
+  const code = countryOfSavedAddress(a?.countryCode);
+  return { code, name: COUNTRIES.find(c => c.code === code)?.name ?? '' };
+};
 
 type StepState = 'locked' | 'open' | 'complete';
 
@@ -548,8 +554,7 @@ const CheckoutView: React.FC = () => {
         if (def?.id != null) {
           setSelectedAddressId(def.id);
           setShipping(addressToShipping(def));
-          const saved = countryOfAddress(def);
-          if (saved) setCountry(saved);
+          setCountry(countryForAddress(def));
         } else {
           setSelectedAddressId('new');
         }
@@ -689,7 +694,11 @@ const CheckoutView: React.FC = () => {
   // The other direction: a dial code PICKED in the phone selector moves the
   // destination country to match (when we ship there); the selector's start-up
   // default or a number typed in full only fills a country that is still empty.
+  // A saved address that carries a country is the destination, full stop: the phone's
+  // dial code cannot move it (a German mobile on a Swedish address is a foreign number,
+  // not a new destination), and no select is rendered for it below.
   const followPhoneCountry = (iso2: string, source: PhoneCountrySource) => {
+    if (savedAddressCountry) return;
     const next = withPhoneCountry({ country: country.code, region: shipping.region }, iso2, source);
     if (next) applyCountry(next);
   };
@@ -697,8 +706,7 @@ const CheckoutView: React.FC = () => {
   const pickAddress = (a: IAddress) => {
     setSelectedAddressId(a.id ?? 'new');
     setShipping(addressToShipping(a));
-    const saved = countryOfAddress(a);
-    if (saved) setCountry(saved); // the address's own country is authoritative
+    setCountry(countryForAddress(a)); // the address's own country is authoritative; none ⇒ empty
   };
 
   const usingNewAddress = selectedAddressId === 'new' || addresses.length === 0;
@@ -708,6 +716,11 @@ const CheckoutView: React.FC = () => {
   // submit, so it is asked exactly once, ever.
   const selectedSavedAddress = typeof selectedAddressId === 'number' ? addresses.find(a => a.id === selectedAddressId) : undefined;
   const savedAddressNeedsPhone = selectedSavedAddress != null && !(selectedSavedAddress.tel ?? '').trim();
+  // The delivery country a saved address carries. Defined ⇒ shown read-only and submitted
+  // as-is; undefined (legacy, country-less) ⇒ the customer picks one and it is written back
+  // to that address at submit, so it is asked exactly once — the phone write-back pattern.
+  const savedAddressCountry = !usingNewAddress ? countryOfAddress(selectedSavedAddress) : undefined;
+  const savedAddressNeedsCountry = !usingNewAddress && selectedSavedAddress != null && !savedAddressCountry;
   // Saved address is pre-validated; a new address needs the core fields. CJ orders
   // additionally need a phone and a destination country.
   const baseValid = usingNewAddress ? !!(shipping.name && shipping.address && shipping.region && shipping.zip) : selectedAddressId != null;
@@ -777,16 +790,22 @@ const CheckoutView: React.FC = () => {
     //     checkout's single phone field written back to it BEFORE submit — the
     //     order (and CJ placement) read the phone from litemall_address.tel
     //     server-side, so skipping this write would silently place a phone-less
-    //     order and discard what the customer typed.
-    if (!isPickup && selectedSavedAddress != null && savedAddressNeedsPhone && shipping.mobile.trim()) {
-      const tel = shipping.mobile.trim();
-      try {
-        await userApi.addressSave({ ...selectedSavedAddress, tel });
-        setAddresses(prev => prev.map(a => (a.id === selectedSavedAddress.id ? { ...a, tel } : a)));
-      } catch {
-        setAddrError(t('errors.savePhone'));
-        setOpenStep(1);
-        return;
+    //     order and discard what the customer typed. A saved address stored
+    //     without a COUNTRY gets the picked destination written back the same
+    //     way, in the same save: one write, one failure path, asked once ever.
+    if (!isPickup && selectedSavedAddress != null) {
+      const patch: Partial<IAddress> = {};
+      if (savedAddressNeedsPhone && shipping.mobile.trim()) patch.tel = shipping.mobile.trim();
+      if (savedAddressNeedsCountry && country.code) patch.countryCode = country.code;
+      if (Object.keys(patch).length > 0) {
+        try {
+          await userApi.addressSave({ ...selectedSavedAddress, ...patch });
+          setAddresses(prev => prev.map(a => (a.id === selectedSavedAddress.id ? { ...a, ...patch } : a)));
+        } catch {
+          setAddrError(t(patch.countryCode ? 'errors.saveCountry' : 'errors.savePhone'));
+          setOpenStep(1);
+          return;
+        }
       }
     }
 
@@ -1251,7 +1270,7 @@ const CheckoutView: React.FC = () => {
                   key={a.id}
                   name={a.name}
                   tel={a.tel}
-                  detail={[a.province, a.city, a.county, a.addressDetail].filter(Boolean).join(' ')}
+                  detail={[a.province, a.city, a.county, a.addressDetail, shippingCountryName(a.countryCode)].filter(Boolean).join(' ')}
                   isDefault={a.isDefault}
                   active={selectedAddressId === a.id}
                   onClick={() => pickAddress(a)}
@@ -1366,8 +1385,11 @@ const CheckoutView: React.FC = () => {
           )}
 
           {/* CJ Dropshipping needs a destination country + phone regardless of which
-              address is used. The country select renders here only for the
-              saved-address path — a new address already carries the field above. */}
+              address is used. A saved address that carries a country IS the destination:
+              it is stated read-only here and submitted as-is, so the address text, the
+              review summary and the CJ order can never name three different countries.
+              The select renders only for a saved address stored WITHOUT a country (legacy
+              rows) — a new address already carries the field above. */}
           {hasCjItems && (
             <div className='px-3 pb-3'>
               {/* Wave-28: this used to name our internal supplier ("CJ Dropshipping") to
@@ -1378,7 +1400,13 @@ const CheckoutView: React.FC = () => {
               <Alert variant='info' className='mb-2'>
                 <Trans t={t} i18nKey='delivery.warehouseNote' components={{ 1: <strong />, 2: <strong /> }} />
               </Alert>
-              {!usingNewAddress && (
+              {savedAddressCountry && (
+                <div className='small' data-delivering-to>
+                  <i className='bi bi-geo-alt me-1' />
+                  <Trans t={t} i18nKey='delivery.deliveringTo' values={{ country: savedAddressCountry.name }} components={{ 1: <strong /> }} />
+                </div>
+              )}
+              {savedAddressNeedsCountry && (
                 <>
                   <Form.Label>{t('delivery.destinationCountry')}</Form.Label>
                   <Form.Select value={country.code} onChange={handleCountryChange} required>

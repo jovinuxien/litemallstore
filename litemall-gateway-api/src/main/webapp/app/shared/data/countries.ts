@@ -20,3 +20,11 @@ export const SHIPPING_COUNTRIES: ShippingCountry[] = [
   { name: 'Canada', code: 'CA' },
   { name: 'Australia', code: 'AU' },
 ];
+
+/**
+ * The name to show for a saved address's country: the delivery list's own name, else
+ * the raw code (an address from before the list changed still says WHERE it is), else
+ * nothing — a country-less address shows no country rather than a guessed one.
+ */
+export const shippingCountryName = (code: string | undefined | null): string =>
+  code ? (SHIPPING_COUNTRIES.find(c => c.code === code)?.name ?? code) : '';

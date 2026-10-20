@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { IAddress, userApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { AddressCard, CellGroup, EmptyState, Page, PageHead } from 'app/components/commonComponents/storefront';
+import { shippingCountryName } from 'app/shared/data/countries';
 import './user.scss';
 
 /**
@@ -75,7 +76,7 @@ const AddressList: React.FC = () => {
                   key={a.id}
                   name={a.name}
                   tel={a.tel}
-                  detail={[a.province, a.city, a.county, a.addressDetail].filter(Boolean).join(' ')}
+                  detail={[a.province, a.city, a.county, a.addressDetail, shippingCountryName(a.countryCode)].filter(Boolean).join(' ')}
                   isDefault={a.isDefault}
                   trailing={
                     <span className='d-inline-flex gap-2'>
