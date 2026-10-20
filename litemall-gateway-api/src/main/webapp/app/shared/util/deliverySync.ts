@@ -13,12 +13,18 @@ import { regionsFor } from 'app/shared/data/regions';
  *               That is a fact about their NUMBER, not about where the parcel goes
  *               (people keep a foreign mobile after moving), so it only fills a
  *               country that is still empty.
- *  - `init`     the selector's start-up default (browser locale or a stored number).
- *               A guess: it may fill an empty country, never overwrite a chosen one.
+ *  - `init`     the selector's start-up default when something NAMED the country: a
+ *               stored number, the form's own country, the site language, a browser
+ *               region or a language that names one country. A guess: it may fill an
+ *               empty country, never overwrite a chosen one.
+ *  - `fallback` the selector's start-up default when NOTHING named a country (a plain
+ *               `en` browser lands on +1). The selector has to show something; the
+ *               form's Country must not pretend that something was a guess, so it
+ *               never fills anything.
  *  - `external` the selector moved BECAUSE the form's country changed. Echoing that
  *               back would loop, so it changes nothing.
  */
-export type PhoneCountrySource = 'init' | 'pick' | 'typed' | 'external';
+export type PhoneCountrySource = 'init' | 'fallback' | 'pick' | 'typed' | 'external';
 
 export const isShippingCountry = (iso2: string | undefined | null): boolean =>
   !!iso2 && SHIPPING_COUNTRIES.some(c => c.code === iso2);
@@ -37,7 +43,7 @@ export const countryOfSavedAddress = (countryCode: string | undefined | null): s
  * destination — the customer simply has a foreign number.
  */
 export const countryFromPhone = (phoneIso2: string, source: PhoneCountrySource, currentCountry: string | undefined | null): string | null => {
-  if (source === 'external') return null;
+  if (source === 'external' || source === 'fallback') return null;
   if (!isShippingCountry(phoneIso2)) return null;
   if (phoneIso2 === currentCountry) return null;
   if (source === 'pick') return phoneIso2;

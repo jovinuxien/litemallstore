@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 
+// The site language is read through the locale store; the specs below set it directly.
+let mockLocale = { lang: 'en', enabled: ['en'] };
+jest.mock('app/i18n/locale', () => ({
+  ...jest.requireActual('app/i18n/locale'),
+  useLocale: () => mockLocale,
+}));
+
 import PhoneInput from './PhoneInput';
 
 /**
@@ -222,6 +229,76 @@ describe('PhoneInput delivery countries', () => {
     const list = openList();
     expect(within(list).queryByText('We deliver to')).toBeNull();
     pickCountry('Denmark');
+    expect(note()).toBeNull();
+  });
+});
+
+/**
+ * The start-up guess, and how honest it is. `init` is reported only when something
+ * named the country; the bare +1 fallback is reported as `fallback`, which the form
+ * never acts on — so a plain `en` browser no longer opens an EU checkout on "United
+ * States".
+ */
+describe('PhoneInput start-up guess', () => {
+  const DELIVERY = ['SE', 'DE', 'FR'];
+  const note = () => document.querySelector('[data-delivery-note]')?.textContent ?? null;
+  const original = { languages: navigator.languages, language: navigator.language };
+  const setLanguages = (languages: string[], language = languages[0] ?? '') => {
+    Object.defineProperty(navigator, 'languages', { value: languages, configurable: true });
+    Object.defineProperty(navigator, 'language', { value: language, configurable: true });
+  };
+  afterEach(() => {
+    setLanguages(original.languages as string[], original.language);
+    mockLocale = { lang: 'en', enabled: ['en'] };
+  });
+
+  it('a plain `en` browser is reported as the FALLBACK, with no note', () => {
+    setLanguages(['en']);
+    const onCountryChange = jest.fn();
+    render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} onCountryChange={onCountryChange} />);
+    expect(dial()).toBe('+1');
+    expect(onCountryChange).toHaveBeenCalledWith('US', 'fallback');
+    expect(note()).toBeNull(); // nobody guessed anything, so there is nothing to explain
+  });
+
+  it('the site language the visitor chose outranks the browser list', () => {
+    setLanguages(['en-US']);
+    mockLocale = { lang: 'sv', enabled: ['en', 'sv'] };
+    const onCountryChange = jest.fn();
+    render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} onCountryChange={onCountryChange} />);
+    expect(dial()).toBe('+46');
+    expect(onCountryChange).toHaveBeenCalledWith('SE', 'init');
+  });
+
+  it('a browser region is a confident guess', () => {
+    setLanguages(['de-DE']);
+    const onCountryChange = jest.fn();
+    render(<PhoneInput onChange={jest.fn()} onCountryChange={onCountryChange} />);
+    expect(onCountryChange).toHaveBeenCalledWith('DE', 'init');
+  });
+
+  it('a confident guess outside the delivery list explains the blank Country', () => {
+    setLanguages(['fi-FI']);
+    const onCountryChange = jest.fn();
+    render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} onCountryChange={onCountryChange} />);
+    expect(dial()).toBe('+358');
+    expect(onCountryChange).toHaveBeenCalledWith('FI', 'init');
+    expect(note()).toContain('We don’t deliver to Finland yet — please choose a delivery country');
+  });
+
+  it('the note goes once the form has a country', () => {
+    setLanguages(['fi-FI']);
+    const { rerender } = render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} />);
+    expect(note()).not.toBeNull();
+    rerender(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} countryIso2='SE' />);
+    expect(dial()).toBe('+46');
+    expect(note()).toBeNull();
+  });
+
+  it('a form-supplied country is a fact, not a guess — no note even outside the list', () => {
+    setLanguages(['fi-FI']);
+    render(<PhoneInput onChange={jest.fn()} deliveryCountries={DELIVERY} defaultIso2='DK' />);
+    expect(dial()).toBe('+45');
     expect(note()).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { localeIso2 } from './dialCodes';
+import { localeGuess, localeIso2 } from './dialCodes';
 
 /**
  * The phone selector's start-up country. It used to read only `navigator.language`
@@ -37,5 +37,37 @@ describe('localeIso2', () => {
   it('still works on a browser without navigator.languages', () => {
     setLanguages(undefined, 'fr-FR');
     expect(localeIso2()).toBe('FR');
+  });
+});
+
+/**
+ * The same guess with its confidence attached. The form's Country reads the confidence:
+ * a plain `en` browser used to pre-select "United States" on an EU store because the
+ * bare fallback was indistinguishable from a real guess.
+ */
+describe('localeGuess', () => {
+  it('consults the site language the visitor chose FIRST', () => {
+    expect(localeGuess({ siteLang: 'sv', languages: ['en-US'] })).toEqual({ iso2: 'SE', confident: true });
+    expect(localeGuess({ siteLang: 'da', languages: ['de-DE'] })).toEqual({ iso2: 'DK', confident: true });
+  });
+
+  it('English as site language names nothing — the browser list decides', () => {
+    expect(localeGuess({ siteLang: 'en', languages: ['de-DE'] })).toEqual({ iso2: 'DE', confident: true });
+    expect(localeGuess({ siteLang: 'en', languages: ['sv', 'en-US'] })).toEqual({ iso2: 'SE', confident: true });
+  });
+
+  it('is confident for a browser region or a language that names one country', () => {
+    expect(localeGuess({ languages: ['en-GB'] })).toEqual({ iso2: 'GB', confident: true });
+    expect(localeGuess({ languages: ['fi'] })).toEqual({ iso2: 'FI', confident: true });
+  });
+
+  it("the bare 'US' fallback is NOT confident", () => {
+    expect(localeGuess({ languages: ['en'] })).toEqual({ iso2: 'US', confident: false });
+    expect(localeGuess({ languages: [] })).toEqual({ iso2: 'US', confident: false });
+    expect(localeGuess({ siteLang: 'en', languages: ['xx-ZZ'] })).toEqual({ iso2: 'US', confident: false });
+  });
+
+  it('an actual US browser is a confident US', () => {
+    expect(localeGuess({ languages: ['en-US'] })).toEqual({ iso2: 'US', confident: true });
   });
 });
