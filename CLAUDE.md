@@ -2699,6 +2699,34 @@
   history rewrite was NOT done. No container deploy needed for the build fix (it changes
   how images are BUILT; prod admin is current at `8a71f78e7`). Bump webpack in all three
   places together from now on.
+- **Status 2026-10-20 — HISTORY REWRITTEN: every `node_modules` path dropped from all 876
+  commits (user decision).** Done in a disposable `--no-local` mirror with `git filter-repo`
+  (installed user-local, `~/.local/bin`; `--force` needed only because the mirror carried
+  `refs/stash`), two passes: the two live roots, then `--path-regex '(^|/)node_modules/'`
+  — history ALSO held `litemall-all-react-war/node_modules` (61,830 objects) and
+  `litemall-auth-server/node_modules` (3,567). Result: pack **777 MiB → 43 MiB**, 0
+  node_modules objects, 859 commits rewritten, all 16 branch tips verified TREE-IDENTICAL
+  to their pre-rewrite tips. **Every SHA quoted in this file / docs / memory from
+  2026-05-16 onward now names the OLD history**; master `e867fe369` → `06fc1b67f` (full
+  old→new tip map: `backup-pre-history-rewrite-2026-10-20/refs-before.txt` beside the
+  repo + the mirror's commit-map). Backups: bundle of ALL old refs at
+  `/home/bimeni/shopping_apps/litemall_app/backup-pre-history-rewrite-2026-10-20/
+  litemall-all-refs.bundle` (671 MB) and the VPS bare repo copy
+  `/root/litemall.git.bak-20261020`. Local repo: branches re-pointed with `update-ref`
+  (CAS on the old tip) + an INDEX-ONLY `git reset` per worktree — no working file
+  touched; MAIN's uncommitted peer edits (compose ymls, open-fix-worktrees.sh,
+  CLAUDE.md, untracked pdfs/csv) are intact; old objects stay in the live `.git` until
+  someone runs `git reflog expire --expire=now --all && git gc --prune=now` there (not
+  done — reflog recovery for other sessions preserved). VPS bare repo `/opt/litemall.git`
+  force-updated + gc'd (645 → 43 MiB); its checkout `/opt/litemall` is on the new master
+  (detached) but its stale local `master`/`fix/prod-stack-runtime` + `refs/remotes/*`
+  still pin the old pack (643 MiB) — the classifier refused the cleanup; user-side.
+  **GitHub NOT yet rewritten** — the force-push was refused by the classifier; user runs
+  `git push --force origin master fix/gateway-admin fix/gateway-api fix/goods-management
+  fix/order fix/platform fix/prod-stack-runtime fix/promotion` from any worktree (local
+  refs are already the rewritten ones). Any other clone must re-clone or hard-reset to
+  origin. Still in history, NOT node_modules: `litemall-goods-management/logs/
+  log-2026-08-10.0.log.gz` (10 MB) and `litemall-all/backup/*.sql` (3 × 2 MB).
 - **Status 2026-10-20 — PASS 2 BUILT, all four items (build record; deploy record above).** Branch
   (master merged in first, `5af07e72e`): `17ff4b36f` D Denmark, `507e874f4` A saved-address
   honesty, `c291c555d` B honest start-up guess, `1391f3864` C region informs country. SPA
