@@ -1,8 +1,10 @@
 # Checkout delivery sync, pass 2 — Country / Region / Mobile refinement
 
-**Status:** PLAN APPROVED by the user 2026-10-20 (four items A–D). Execution starts in the
-`gateway-api` worktree (branch `fix/gateway-api`). This document is the contract; the
-CLAUDE.md block is only its index.
+**Status:** BUILT 2026-10-20 on `fix/gateway-api` — four commits in the order D `17ff4b36f`,
+A `507e874f4`, B `c291c555d`, C `1391f3864` (D first because every later test needs Denmark
+to exist). jest 68 suites / 516 tests, tsc 0, `i18n:check` 0, headless acceptance 69/69 with
+0 page errors (§6). Merge + deploy pending. This document is the contract; the CLAUDE.md
+block is only its index.
 
 Scope: storefront SPA only (`litemall-gateway-api/src/main/webapp`). No backend, no
 migration, no env. Deploy = the gateway-api container from a WORKSTATION-built jar
@@ -134,3 +136,42 @@ Specs: `deliverySync.spec.ts` (12), `PhoneInput.spec.tsx` (17), `dialCodes.spec.
   accurate default, but browser + site language cover this market; revisit if the
   fallback case stays common.
 - City suggestions need the Places API key (`placesApiKey` null in prod).
+
+## 6. As built (2026-10-20)
+
+- **A.** `deliverySync.countryOfSavedAddress(countryCode)` is the reset rule (own country when
+  we deliver there, else `''`), used by `pickAddress` AND the initial default-address load.
+  The CJ block renders `[data-delivering-to]` ("Delivering to <strong>Sweden</strong> — the
+  country saved on this address", `checkout:delivery.deliveringTo`) when the saved address
+  carries a delivery country, the select only when it does not. The phone's dial-code pick
+  cannot move a saved address's country either (`followPhoneCountry` returns early). Submit
+  step 1a is ONE write-back patch `{tel?, countryCode?}` → one `addressSave`; failure ⇒
+  `errors.saveCountry` when the country was part of it, else `errors.savePhone`.
+  `countries.shippingCountryName(code)` feeds `AddressCard` detail in checkout and the
+  address book.
+- **B.** `dialCodes.localeGuess({ siteLang?, languages? })` → `{ iso2, confident }`; site
+  language first (`LANGUAGE_COUNTRY`; `en` names nothing), then browser region, then
+  language; bare `'US'` ⇒ `confident:false`. `localeIso2()` = `localeGuess().iso2` (kept for
+  `splitInternational`). `PhoneCountrySource` gains `'fallback'`; `countryFromPhone` returns
+  null for it. `PhoneInput` reads `useLocale().lang`, computes the start-up country once
+  (`start` state: supplied by form/stored number ⇒ `init`, no note; locale guess ⇒ `init`
+  when confident else `fallback`), and shows `notDeliveredChoose` for a confident guess
+  outside the delivery list while the form has no country (`standingGuess`).
+- **C.** `regions.deliveryRegions()` (cached `{region, country, label}` list, "Skåne ·
+  Sweden", delivery-list order); `deliverySync.countryFromRegion(text, list?)` (fold, exact,
+  unique) + `withRegion(state, text, pickedCountry?)` (fill-only-empty; canonical spelling
+  when it fills). `RegionInput` props `labelled` + `onPick(region, country?)`; single-country
+  behaviour unchanged. Checkout `applyRegion` and AddressEdit `applyRegion` route every
+  region change through `withRegion`. No new strings (labels use the delivery list's English
+  country names, as the Country select does). `countries.spec` pins region-name uniqueness
+  across delivery countries.
+- **D.** Denmark + 5 regions; `countries.spec` pins dial + length rule + regions for every
+  delivery country.
+- Tests added: countries.spec 5 (new), dialCodes +5, deliverySync +12, PhoneInput +6,
+  RegionInput.spec 6 (new), AddressEdit +3.
+- Headless: `docs/headless/checkout-delivery-sync-2/` (stub + driver + README). All seven §3
+  cases plus fi-FI (confident non-delivery guess) and typed-exact "skane"; profiles en /
+  sv-SE+site sv / da+site da / de-DE; 69/69, 0 page errors.
+- Not changed, by design: the "Use new address" button keeps the previous saved address's
+  country as the new form's starting value (§2.A only asked for the country-less saved
+  address to reset; a customer adding a second address is likelier in the same country).
