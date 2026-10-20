@@ -73,6 +73,18 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
 # workspace root, so `npm install` re-resolves ALL THREE workspace members from
 # scratch — including gateway-admin's 113-package JHipster tree — on every build.
 # Uncached that is tens of minutes and is at the mercy of registry throughput.
+#
+# ONE webpack for the whole workspace, or the admin build dies. Both SPAs pin the
+# SAME exact webpack version and the root package.json `overrides` enforces it,
+# because npm decides which copy is hoisted to /build/node_modules — and the
+# hoisted copy is the one webpack-cli runs, while each SPA's config instantiates
+# plugins from whatever `require('webpack')` resolves to beside it. With two
+# versions in the tree those can differ, and webpack then throws
+# "The 'compilation' argument must be an instance of Compilation" (seen
+# 2026-10-20: schema-utils 4.8.0 shipped a peer dep on webpack ^5.112.0, npm
+# moved 5.112.0 to the root and nested the admin's 5.74.0 — a registry change
+# alone broke a build that was green on 2026-10-10). Bump webpack in all three
+# places together.
 # BOTH flags, and they are not redundant:
 #   -Dmaven.test.skip=true  stops test COMPILATION (images must not build tests).
 #   -DskipTests             is what frontend-maven-plugin actually honours for
