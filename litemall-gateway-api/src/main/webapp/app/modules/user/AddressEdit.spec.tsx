@@ -96,6 +96,35 @@ describe('AddressEdit country, phone and region sync', () => {
     expect(regionField().value).toBe('');
   });
 
+  it('a region typed while Country is empty names the country, and the dial code follows', async () => {
+    await renderAt('/user/address/new');
+    selectCountry(''); // the jsdom browser is en-US; start from no country
+    expect(countrySelect().value).toBe('');
+    fireEvent.change(regionField(), { target: { value: 'Bayern' } });
+    expect(countrySelect().value).toBe('DE');
+    expect(dial()).toBe('+49');
+    expect(regionField().value).toBe('Bayern');
+  });
+
+  it('a pick from the cross-country region list sets the country', async () => {
+    await renderAt('/user/address/new');
+    selectCountry('');
+    fireEvent.change(regionField(), { target: { value: 'hoved' } });
+    const dropdown = regionField().parentElement!.querySelector('div[role=listbox]') as HTMLElement;
+    fireEvent.click(within(dropdown).getByRole('option', { name: 'Hovedstaden · Denmark' }));
+    expect(countrySelect().value).toBe('DK');
+    expect(dial()).toBe('+45');
+    expect(regionField().value).toBe('Hovedstaden');
+  });
+
+  it('a region never overrides a chosen country', async () => {
+    await renderAt('/user/address/new');
+    selectCountry('SE');
+    fireEvent.change(regionField(), { target: { value: 'Bayern' } });
+    expect(countrySelect().value).toBe('SE');
+    expect(regionField().value).toBe('Bayern');
+  });
+
   it('leaves a saved foreign number alone when the country of a saved address changes', async () => {
     mockAddressDetail.mockResolvedValue({ id: 7, name: 'A', tel: '+46701234567', countryCode: 'DE', province: 'Bayern' });
     await renderAt('/user/address/7');

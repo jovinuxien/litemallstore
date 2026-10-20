@@ -1,4 +1,4 @@
-import { countryFromPhone, countryOfSavedAddress, isShippingCountry, regionAfterCountryChange, withCountry, withPhoneCountry } from './deliverySync';
+import { countryFromPhone, countryFromRegion, countryOfSavedAddress, isShippingCountry, regionAfterCountryChange, withCountry, withPhoneCountry, withRegion } from './deliverySync';
 
 /**
  * The rules that keep Country, the phone's dial code and Region together on the
@@ -60,6 +60,58 @@ describe('deliverySync', () => {
 
     it('treats a country we do not deliver to like no country (the customer picks one)', () => {
       expect(countryOfSavedAddress('JP')).toBe('');
+    });
+  });
+
+  describe('countryFromRegion', () => {
+    it('names the country of an exact, unique region', () => {
+      expect(countryFromRegion('Bayern')).toBe('DE');
+      expect(countryFromRegion('Skåne')).toBe('SE');
+      expect(countryFromRegion('Sjælland')).toBe('DK');
+      expect(countryFromRegion('Ontario')).toBe('CA');
+    });
+
+    it('folds accents and case, ignores surrounding space', () => {
+      expect(countryFromRegion('skane')).toBe('SE');
+      expect(countryFromRegion('  ÎLE-DE-FRANCE ')).toBe('FR');
+    });
+
+    it('names nothing for a partial, unknown or empty text', () => {
+      expect(countryFromRegion('Bay')).toBeNull();
+      expect(countryFromRegion('Atlantis')).toBeNull();
+      expect(countryFromRegion('')).toBeNull();
+      expect(countryFromRegion(null)).toBeNull();
+    });
+
+    it('names nothing for a region two delivery countries share', () => {
+      const list = [
+        { region: 'Victoria', country: 'AU', label: 'Victoria · Australia' },
+        { region: 'Victoria', country: 'CA', label: 'Victoria · Canada' },
+        { region: 'Bayern', country: 'DE', label: 'Bayern · Germany' },
+      ];
+      expect(countryFromRegion('Victoria', list)).toBeNull();
+      expect(countryFromRegion('Bayern', list)).toBe('DE');
+    });
+  });
+
+  describe('withRegion', () => {
+    it('fills an EMPTY country from a typed exact match, in the list’s own spelling', () => {
+      expect(withRegion({ country: '', region: '' }, 'Bayern')).toEqual({ country: 'DE', region: 'Bayern' });
+      expect(withRegion({ country: '', region: 'skan' }, 'skane')).toEqual({ country: 'SE', region: 'Skåne' });
+    });
+
+    it('fills an EMPTY country from a pick off the cross-country list', () => {
+      expect(withRegion({ country: '', region: '' }, 'Hovedstaden', 'DK')).toEqual({ country: 'DK', region: 'Hovedstaden' });
+    });
+
+    it('keeps the text and no country while nothing names one', () => {
+      expect(withRegion({ country: '', region: '' }, 'Bay')).toEqual({ country: '', region: 'Bay' });
+      expect(withRegion({ country: '', region: '' }, 'Atlantis', 'ZZ')).toEqual({ country: '', region: 'Atlantis' });
+    });
+
+    it('NEVER overrides a chosen country — the region is free text under it', () => {
+      expect(withRegion({ country: 'SE', region: '' }, 'Bayern')).toEqual({ country: 'SE', region: 'Bayern' });
+      expect(withRegion({ country: 'SE', region: '' }, 'Bayern', 'DE')).toEqual({ country: 'SE', region: 'Bayern' });
     });
   });
 
