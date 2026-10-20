@@ -2641,7 +2641,7 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — checkout delivery sync pass 2 MERGED to master `ddbfc13e9` + DEPLOYED to trovemo.com 2026-10-20 17:22 UTC; no active assignment
+### Worktree: `gateway-api` — checkout delivery sync pass 2 DEPLOYED 2026-10-20 (`ddbfc13e9`); image-build fix (one workspace webpack, `387c3f067`) merged same day; no active assignment
 - **Status 2026-10-20 17:22 UTC — DEPLOYED to trovemo.com from master `ddbfc13e9`** (user:
   "go-ahead to merge to master and ship the gateway-api"). Merge = fast-forward
   `85265df5b` → `ddbfc13e9` (local ref move + push to the VPS bare repo `/opt/litemall.git`
@@ -2665,9 +2665,36 @@
   `litemall/gateway-api:build-96978ece4`. VPS checkout left detached at `ddbfc13e9`
   (honest record). VPS MemAvailable ≈4.4–4.8 GB throughout, disk 12 G free (85%). The
   four "not healthy" containers (indexer, matomo, searcher, suggest) have no healthcheck —
-  unchanged. USER-SIDE: `git push origin master`; a real signed-in checkout click-through
-  (saved-address read-only line, region → country, Denmark) — dev-stack and headless
-  proofs are complete, prod proof needs a customer session.
+  unchanged. Origin push done by the user via `!` (all refs at `af0bf1ab1`). USER-SIDE: a
+  real signed-in checkout click-through (saved-address read-only line, region → country,
+  Denmark) — dev-stack and headless proofs are complete, prod proof needs a customer session.
+- **Status 2026-10-20 — IMAGE BUILD FIXED: one webpack for the npm workspace (`387c3f067`).**
+  The repo Dockerfile's builder stage had failed on gateway-admin's `npm run webapp:prod`
+  with `TypeError: The 'compilation' argument must be an instance of Compilation` (the
+  fork-ts-checker `write EPIPE` lines after it are only the worker dying). Cause: TWO
+  webpack copies — the admin's pinned 5.74.0 nested under its own node_modules and 5.112.0
+  hoisted to the workspace root; the admin's root `webpack-cli` drove the 5.112 compiler
+  while the admin config instantiated `LoaderOptionsPlugin` from the nested 5.74.
+  **Trigger pinned with `npm install --package-lock-only --before=<date>`:** up to
+  2026-10-18 npm hoisted 5.74.0 (storefront's copy nested, build green); from 2026-10-19
+  the reverse — `schema-utils@4.8.0` (published 2026-10-19, under half the loaders at the
+  root) added `peerDependencies: webpack ^5.112.0`, so npm moved 5.112.0 to the root. NO
+  commit in this repo changed; with no root lockfile (by policy) the resolution floats on
+  every image build. Fix: both SPAs declare `webpack: 5.112.0` exactly + root
+  `package.json` `overrides` enforces it tree-wide (Dockerfile comment explains). Proven:
+  clean workspace install ⇒ ONE webpack on disk; admin + storefront `webapp:prod` both
+  compile; the 5.112-built storefront bundle passes the checkout headless run 69/69;
+  the UNMODIFIED repo Dockerfile builder stage: BUILD EXIT 0, `OK: SPA present` in BOTH
+  jars. Safe past webpack 5.110's minimizer change because the admin's prod config has
+  explicit Terser + CssMinimizer and the storefront its JS-only Terser (2026-09-04).
+  ⚠ An incremental `npm install` does NOT remove an already-nested stale copy (Node
+  resolves from disk) — wipe node_modules to reproduce or verify. ⚠ `litemall-gateway-
+  admin/package-lock.json` (tracked, 2026-05-16) is IGNORED by npm in workspace mode.
+  ⚠ FOUND, NOT TOUCHED (user decision): `litemall-order/node_modules` and
+  `litemall-goods-management/node_modules` are TRACKED in git — 69,831 files each
+  (~1 GB), since `257597a3f` 2026-05-16, despite `.gitignore`'s `**/node_modules/`. No
+  container deploy needed for this fix (it changes how images are BUILT; prod admin is
+  current at `8a71f78e7`). Bump webpack in all three places together from now on.
 - **Status 2026-10-20 — PASS 2 BUILT, all four items (build record; deploy record above).** Branch
   (master merged in first, `5af07e72e`): `17ff4b36f` D Denmark, `507e874f4` A saved-address
   honesty, `c291c555d` B honest start-up guess, `1391f3864` C region informs country. SPA
