@@ -2690,11 +2690,15 @@
   ⚠ An incremental `npm install` does NOT remove an already-nested stale copy (Node
   resolves from disk) — wipe node_modules to reproduce or verify. ⚠ `litemall-gateway-
   admin/package-lock.json` (tracked, 2026-05-16) is IGNORED by npm in workspace mode.
-  ⚠ FOUND, NOT TOUCHED (user decision): `litemall-order/node_modules` and
-  `litemall-goods-management/node_modules` are TRACKED in git — 69,831 files each
-  (~1 GB), since `257597a3f` 2026-05-16, despite `.gitignore`'s `**/node_modules/`. No
-  container deploy needed for this fix (it changes how images are BUILT; prod admin is
-  current at `8a71f78e7`). Bump webpack in all three places together from now on.
+  `litemall-order/node_modules` and `litemall-goods-management/node_modules` had been
+  TRACKED in git — 69,831 files each (~1 GB), since `257597a3f` 2026-05-16, despite
+  `.gitignore`'s `**/node_modules/` — UNTRACKED on the user's decision the same day
+  (`git rm -r --cached`, files kept on disk; the Docker context already excluded
+  `**/node_modules/` and both poms' npm goals run with `-Dskip.npm=true` in the image
+  build, so nothing consumed them). History still carries the blobs (pack ≈777 MiB) — a
+  history rewrite was NOT done. No container deploy needed for the build fix (it changes
+  how images are BUILT; prod admin is current at `8a71f78e7`). Bump webpack in all three
+  places together from now on.
 - **Status 2026-10-20 — PASS 2 BUILT, all four items (build record; deploy record above).** Branch
   (master merged in first, `5af07e72e`): `17ff4b36f` D Denmark, `507e874f4` A saved-address
   honesty, `c291c555d` B honest start-up guess, `1391f3864` C region informs country. SPA
