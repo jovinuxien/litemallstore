@@ -2641,8 +2641,34 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — checkout delivery sync pass 2 BUILT on `fix/gateway-api` (2026-10-20, four commits D/A/B/C, accepted headless 69/69); merge + deploy PENDING (user decision)
-- **Status 2026-10-20 — PASS 2 BUILT, all four items, NOT merged, NOT deployed.** Branch
+### Worktree: `gateway-api` — checkout delivery sync pass 2 MERGED to master `ddbfc13e9` + DEPLOYED to trovemo.com 2026-10-20 17:22 UTC; no active assignment
+- **Status 2026-10-20 17:22 UTC — DEPLOYED to trovemo.com from master `ddbfc13e9`** (user:
+  "go-ahead to merge to master and ship the gateway-api"). Merge = fast-forward
+  `85265df5b` → `ddbfc13e9` (local ref move + push to the VPS bare repo `/opt/litemall.git`
+  both went through; **`git push origin master` was REFUSED by the auto-mode permission
+  classifier twice — USER runs it**; origin/master is still `85265df5b` until then).
+  Deploy = the no-build-on-the-VPS recipe: `git archive ddbfc13e9` → workstation
+  `docker build --target builder`. ⚠ **The repo Dockerfile's builder stage FAILED on
+  gateway-admin** (`fork-ts-checker-webpack-plugin` worker died with `write EPIPE` during
+  `npm run webapp:prod`, 4:34 min in; gateway-api was SKIPPED by the reactor) — a module
+  this wave never touched, and the same Dockerfile built it on 2026-10-10. Rebuilt from a
+  SCRATCHPAD copy of the Dockerfile with `-pl litemall-gateway-api` only (repo untouched):
+  BUILD EXIT 0, `OK: SPA present`. Jar SHA-256 `e82dca3a…`, shipped with SHA256SUMS to
+  `/root/deploy-20261020-gwapi/`, wrapped as `FROM litemall/gateway-api:pre-20261003` + jar →
+  `litemall/gateway-api:build-ddbfc13e9` (image jar `cmp`-identical), ONLY that container
+  recreated: healthy in 15 s, `Started GatewayApiApplication` in 5.6 s, 0 ERROR lines,
+  running jar SHA == shipped, chunks carry `data-delivering-to` / `Hovedstaden` /
+  `Levereras till` / `Leveres til`; local smoke 200s. Public edge (browser UA): `/` serves
+  `main.c9c95fd635637aef72f8.js`; chunk `5036.98cca6c3…` and both sv/da checkout chunks
+  fetched 200 through Cloudflare with the new strings inside; `/`, `/checkout`, `/help`,
+  `/robots.txt`, `/sitemap.xml`, search and site-config all 200. Rollback image =
+  `litemall/gateway-api:build-96978ece4`. VPS checkout left detached at `ddbfc13e9`
+  (honest record). VPS MemAvailable ≈4.4–4.8 GB throughout, disk 12 G free (85%). The
+  four "not healthy" containers (indexer, matomo, searcher, suggest) have no healthcheck —
+  unchanged. USER-SIDE: `git push origin master`; a real signed-in checkout click-through
+  (saved-address read-only line, region → country, Denmark) — dev-stack and headless
+  proofs are complete, prod proof needs a customer session.
+- **Status 2026-10-20 — PASS 2 BUILT, all four items (build record; deploy record above).** Branch
   (master merged in first, `5af07e72e`): `17ff4b36f` D Denmark, `507e874f4` A saved-address
   honesty, `c291c555d` B honest start-up guess, `1391f3864` C region informs country. SPA
   only, no backend, no migration, no env. jest **68 suites / 516 tests** (was 66/479), tsc 0,

@@ -3,8 +3,11 @@
 **Status:** BUILT 2026-10-20 on `fix/gateway-api` — four commits in the order D `17ff4b36f`,
 A `507e874f4`, B `c291c555d`, C `1391f3864` (D first because every later test needs Denmark
 to exist). jest 68 suites / 516 tests, tsc 0, `i18n:check` 0, headless acceptance 69/69 with
-0 page errors (§6). Merge + deploy pending. This document is the contract; the CLAUDE.md
-block is only its index.
+0 page errors (§6). **MERGED to master `ddbfc13e9` + DEPLOYED to trovemo.com 2026-10-20
+17:22 UTC** (image `litemall/gateway-api:build-ddbfc13e9`, rollback `build-96978ece4`; the
+repo Dockerfile's gateway-admin SPA build failed with an EPIPE in fork-ts-checker — unrelated
+module — so the jar was built from a gateway-api-only Dockerfile copy). This document is the
+contract; the CLAUDE.md block is only its index.
 
 Scope: storefront SPA only (`litemall-gateway-api/src/main/webapp`). No backend, no
 migration, no env. Deploy = the gateway-api container from a WORKSTATION-built jar
