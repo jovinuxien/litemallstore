@@ -11,13 +11,19 @@ REPO_ROOT="$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel
 WT_BASE="$(readlink -f "$REPO_ROOT/..")/litemall-wt"
 BASE_BRANCH="master"
 
-# Active worktrees (2026-08-10, Wave 25.1: per-variant image backfill).
+# Active worktrees (2026-08-26).
 # Launch with FRESH=1 when a NEW wave is commissioned so the assignment
 # prompt is delivered instead of resuming a finished session.
 # Each name must have a matching '### Worktree: `<short>`' block in CLAUDE.md.
-MODULES=(
-  "goods-management"  # CJ variant image capture -> variants_json -> product url
-)
+# ⚠ The block is `gateway-admin` — NOT `gateway-admin-api`. A short name with no
+# matching block sends the session hunting for an assignment that does not exist.
+#
+# Override without editing this file:  MODULES="order promotion" ./open-fix-worktrees.sh
+#
+# 2026-08-26: swapped gateway-admin out for promotion. ⚠ gateway-admin's worktree
+# and branch still exist and fix/gateway-admin is 1 commit AHEAD of master —
+# dropping it from this list does not merge or discard that work.
+read -r -a MODULES <<< "${MODULES:-goods-management gateway-api order promotion}"
 
 mkdir -p "$WT_BASE"
 

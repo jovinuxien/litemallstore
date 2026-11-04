@@ -1,3 +1,10 @@
+# Pinned so this stack owns a namespace of its own. Without it Compose derives
+# the project name from the containing DIRECTORY — `docker-compose` — which is
+# also the directory name used by other projects on the same machine. Identical
+# derived names mean shared ownership, and a `docker compose down` in one of them
+# removes containers, networks and volumes belonging to another.
+name: litemall
+
 version: '3.5'
 
 # extends the docker-compose.base.yml

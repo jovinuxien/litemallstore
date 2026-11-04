@@ -1496,6 +1496,36 @@
 > storefront shows no empty/dead category surfaces; module tests green
 > with real "Tests run:" counts.
 >
+> **PROD ORDER-FLOW AUDIT + DEPLOY (MAIN, 2026-10-03/04).** Read-only audit of
+> pay → CJ → customer on prod: Stripe side HEALTHY (live account, webhook
+> enabled, ONE live payment ever = order 11), but **nothing after payment had
+> ever run** — 0 CJ placements, 0 shipments, 0 mails. Found + fixed:
+> - **Mail never sent:** `.env.prod` had NO `LITEMALL_CUSTOMERMAIL_USERNAME`
+>   (nor any of its 20 backups) — both senders skip SMTP AUTH on a blank login
+>   and Brevo answers `502 Please authenticate first`. Added (backup
+>   `.env.prod.bak-mailuser-20261003`); test mail from inside the order
+>   container accepted by Brevo.
+> - **order + gateway-api + gateway-admin now run master `8a71f78e7`** (D5 ops
+>   alert, SQL DEBUG pin, lifecycle SPA half, Requeue button). Images =
+>   `pre-20261003` + a jar built on the WORKSTATION (`build-8a71f78e7`).
+> - **promotion-service HEALTHY for the first time** (`74c5b5e72`: compose
+>   `KAFKA_BROKERS: kafka:9092` — the key its yml reads; recreate only). Shim
+>   1.7 GB → 11 MB, host MemAvailable 3.5 → 5.7 GB. ⚠ Kafka connection is
+>   LAZY (first StreamBridge send) and prod has 0 coupons / 0 group-buys, so
+>   the publish path is still unexercised.
+> - ⚠ **NEVER BUILD ON THE VPS.** `docker compose build order` (whole reactor
+>   + both webpack builds) OOM'd the host 2026-10-03: site down ~04:22–04:29
+>   UTC, kernel killed Elasticsearch + goods-management (auto-restarted).
+>   Build on the workstation, scp the jars, wrap as `FROM <svc>:pre-<date>` +
+>   `COPY app.jar`, `up -d --no-deps` one service at a time.
+> - STILL OPEN, user-side: **CJ balance 0.00**; **IOSS** (user registering with
+>   Skatteverket, paused); orders 7/9/10 are TEST-MODE payments (never approve
+>   / refund via Stripe), order 11 real $8.90 parked; one real EUR order e2e.
+>   goods-management (F17 + Wave-28 origin) NOT deployed.
+> - Tools: `docker-compose/order-flow-check.sh` (read-only, OK/WARN/FAIL, exit
+>   = FAIL count; 3 FAILs today, all user-side) and
+>   `doc/trovemo-order-flow-guide-2026-10-03.pdf`.
+>
 > **BREVO SMTP KEEP-ALIVE (MAIN, 2026-10-18).** Brevo mailed contact@ that
 > the account's key(s) "will be marked inactive after 7 days if no activity
 > is detected". Cause: the ONE SMTP key wired into prod (shared by order and
@@ -1515,6 +1545,24 @@
 > + gateway-api). Whether a separate unused API key was also flagged is
 > UNVERIFIED (the mail's top was cut off) — user-side check in Brevo's
 > SMTP & API page; nothing in the shop uses one.
+>
+> **MAIN CHECKOUT RECONCILED (MAIN, 2026-11-04).** The checkout had been left with a
+> working tree STALE against its own HEAD by the `git push . fix/x:master` ref moves:
+> 55 paths were older copies (gateway-api files from 2026-09-05, plus 13 files HEAD
+> adds that were missing on disk — the reverse of pass 2 / season chip / pay page),
+> and CLAUDE.md was split both ways (disk held the 2026-10-03 prod audit block, HEAD
+> held the 2026-10-20 blocks). A `git commit -a` here would have reverted that work on
+> master. Method: match every dirty file to the commit its content equals (hash over
+> the file's history) — 7 files matched NO commit = real local edits (six compose ymls
+> gained a top-level `name: litemall` project pin, mirroring prod.yml's
+> `litemall-prod`; `open-fix-worktrees.sh` takes `MODULES` from env), everything else
+> restored from HEAD; CLAUDE.md 3-way merged from base `ec97f2561` (0 conflicts, +57).
+> Also: dead `_integration-order` worktree + `integration/order-to-master` branch (0
+> ahead of master) removed; the read-only `docker-compose/order-flow-check.sh`, the
+> three `doc/trovemo-*.pdf` guides and the men's DE probe CSVs committed. Still
+> untracked on purpose: `litemall-gateway-api/.mvn/` + `mvnw` (other modules track
+> theirs — add if wanted). ⚠ `origin/master` on GitHub is STILL the pre-rewrite
+> history (`e867fe369`) until the force-push lands.
 >
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
@@ -2991,6 +3039,18 @@
   batch done; legal pages English by design). Other candidates: i18n phase 2 `lang_key`
   on the user (V65, litemall-db shared-module discipline, order mails in the buyer's
   language); native sv/da review (user-side).
+- **DEPLOYED to trovemo.com 2026-09-05 21:38 UTC** from master `fd5bb911f` (MAIN session):
+  gateway-api container only, built via the mirror-patched `/root/Dockerfile.i18n2` copy
+  (still byte-identical to `docker/Dockerfile` except the apt-mirror line) with compose's
+  target + tag, build 2m23s, `up -d --no-deps`, healthy in 20 s, `Started
+  GatewayApiApplication` in 5 s, 0 errors. Live bundle `main.db2bd868…`; all 24
+  `i18n-{sv,da}-<ns>-json` chunks in the runtime map; 8 new-batch chunks (checkout/order/
+  help/user/content) fetched through the edge and verified BY CONTENT; smoke 14/14 200s;
+  `i18nLanguages` still `en,sv,da`. VPS checkout detached at `fd5bb911f`. Disk 19 G → 16 G
+  free after the build (below the script's 30 G full-build guard; a single-service build
+  fits — do NOT prune, it evicts the runtime apt layer). ⚠ The same range carried
+  gateway-admin's blank-draft batch fix (`seoTitleBatch.ts`) — NOT deployed here; the admin
+  container still needs its own rebuild.
 - **Status 2026-09-05 — i18n batches 3–7 + slice fallbacks MERGED to master.** Six
   commits (`57ea2abfe` checkout/coupons, `59dd8a42d` orders/cookies, `24d884d39` user
   area/shared forms, `f3571861d` home/content pages, `a59d6a439` help centre/FAQ,
@@ -3731,6 +3791,21 @@
   landmine list already says so; I hit it anyway). `pgrep -af '^/usr/lib/jvm/…'` anchored,
   kill by pid. Not built here (no admin timeline view exists): the handoff's `cj_stall` /
   `cj_sync` hop wording has no render site in this SPA.
+- **DEPLOYED to trovemo.com 2026-09-05 23:07 UTC** (MAIN session) from master `fd5bb911f`:
+  gateway-admin container only. Carries ALL FIVE admin commits since the 2026-08-26 image
+  (`10ca91595` applyResult fix, `c7c79d4fa`+`311db0256` deep-link 401 fixes, `70fd0dd22`
+  bulk apply SPA, `1887cb0f1` blank-draft fix); the bulk-apply BACKEND half was already
+  live in goods-management (`3e784648d` contains `70fd0dd22`). Build took 4 s — the
+  earlier gateway-api build had compiled the whole reactor, so the admin target was fully
+  cached (verified by IMAGE CONTENT, not by build time: new image `ba0768e25a03`, jar
+  bundle `main.6b79dd96.js` carries `title must not be blank` / `saved, not reindexed` /
+  `Apply selected` / `apply-batch`). Container healthy in 15 s, `Started` in 5 s, 0
+  errors. Live via admin.trovemo.com: shell 200, deep links `/admin/goods/seo-titles` +
+  `/admin/mall/order` 200 (the 401 fix is live), served bundle matches the jar and
+  carries all three markers, `/srv/private/admin/seo/titles` 401 (routed + auth-gated),
+  storefront unaffected. ⚠ Nested ssh+docker exec+python quoting failed — verification
+  ran from a scp'd script file (`/root/verify-admin.sh`, docker cp the jar + host python
+  zipfile; the VPS has no unzip). USER-SIDE: prod click-through of the worklist.
 - **Status 2026-09-04 — the worklist is LIVE in prod; this pass closes its open items.**
   The 2026-08-24 block below said "NOT merged, NOT run against a live stack". Both were
   stale when this session opened: the worklist merged as `19b3d496d` and was deployed to
