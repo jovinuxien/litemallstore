@@ -1996,7 +1996,28 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint MERGED (2026-09-20); deploy bundle PREPARED 2026-11-04 (`~/litemall-deploys/goods-9682b298f/`, user runs `ship.sh`)
+### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint DEPLOYED to trovemo.com 2026-11-04 (image `build-9682b298f`, rollback tag `pre-20261104`); no active assignment
+- **Status 2026-11-04 20:58 UTC — DEPLOYED to trovemo.com from master `9682b298f` (user: "go ahead and
+  run ship.sh"; checkout at `23bc7e89e`).** `ship.sh` ran from the workstation: master pushed to
+  `/opt/litemall.git`, bundle scp'd to `/root/deploy-20261104-goods/`, `deploy.sh` preflight OK
+  (MemAvailable 4,685 MB, disk 11 G, container healthy, running image `a7eb294c…` of 2026-09-05 tagged
+  `pre-20261104`), COPY-only wrap → `litemall/goods-management:build-9682b298f` (`0074a087…`, image jar
+  `cmp`-identical to the shipped one), ONLY goods-management recreated: healthy in 15 s, `Started` in
+  9.0 s, Flyway validated 64 / nothing applied, 0 ERROR + 0 DEBUG lines, env inside the container
+  COMMENT_REQUIRE_PURCHASE=true / PRICE_FLOOR=5.00 / ANCHOR=1036143,1036495 / ENRICH=200 / DBLOG=INFO,
+  running jar == shipped (PurchaseVerificationService 3, WarehouseOriginService 3,
+  ReviewSlotTakenException 1, positive control 1). ⚠ `verify.sh` 30 s after start saw every `/srv/**`
+  probe answer **503 from the gateway** — the known Eureka registry warm-up after a container swap (the
+  edge still held the old instance); ~90 s later all 200. **First LIVE proof of `/srv/goods/origin`:**
+  5 `eu_flag=1` search hits → `{goodsId, originCountry:"DE"}` for all 5 (1,456 EU-flagged in the
+  index); 2 unflagged ids → `{list:[]}`; 101 ids → errno 402 "at most 100 ids per request";
+  `POST /srv/goods/batch` 2 ids → the raw map; unauthenticated comment/post → 401 at the edge.
+  Memory 1.06 GiB / 1.5 GiB (71%) at +1 min, host MemAvailable 5.3 GB. The startup catalog refresh was
+  scheduled for ~21:09 UTC; right after boot `/sitemap.xml` served the HOMEPAGE ONLY (the cached
+  artifact is empty until the first refresh regenerates it — `cf-cache-status: DYNAMIC`, no-store, so
+  nothing stale is pinned at the edge). ⚠ The junk-brand cleanup (`junk-brand-cleanup.sh`, brand
+  1046002 "{}") was NOT run: the ssh for it was refused by the classifier ("Production Reads") — user
+  runs the dry run, then `--apply`. Rollback = `bash /root/deploy-20261104-goods/rollback.sh`.
 - **Status 2026-11-04 — DEPLOY PREPARED, NOT SHIPPED (MAIN).** Prod goods-management still runs
   the 2026-09-05 image (live proof: `GET /srv/goods/origin` answers a raw 404 through the edge).
   Jar built on the WORKSTATION from master `9682b298f` (pass 1 only, `-pl litemall-goods-management
