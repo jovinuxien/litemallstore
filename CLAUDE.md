@@ -1996,7 +1996,20 @@
   paid.** (Merged + deployed 2026-07-26, `77c55e027`; activation done —
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
-### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint MERGED to master (2026-09-20); deploy = MAIN
+### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint MERGED (2026-09-20); deploy bundle PREPARED 2026-11-04 (`~/litemall-deploys/goods-9682b298f/`, user runs `ship.sh`)
+- **Status 2026-11-04 — DEPLOY PREPARED, NOT SHIPPED (MAIN).** Prod goods-management still runs
+  the 2026-09-05 image (live proof: `GET /srv/goods/origin` answers a raw 404 through the edge).
+  Jar built on the WORKSTATION from master `9682b298f` (pass 1 only, `-pl litemall-goods-management
+  -am`; sha256 `a10f5f5e…`), new classes verified against a positive control, booted alone on dev
+  :8082 (JDK 21): Flyway validated 65 with nothing to apply, origin `{list:[]}` (dev has no
+  measured EU rows), 101 ids → errno 402 on origin AND batch, unauthenticated comment/post → 501,
+  detail/comment list/sitemap unchanged. NO migration, NO reindex, NO new env. Bundle
+  `~/litemall-deploys/goods-9682b298f/`: `ship.sh` (push master to the VPS bare repo, scp, run
+  `deploy.sh`), `vps/deploy.sh` (checksum, MemAvailable>2500 MB, rollback tag `pre-20261104` from the
+  RUNNING image id, COPY-only wrap, image-jar `cmp`, ff-only checkout refresh, `up -d --no-deps`,
+  wait healthy), `verify.sh`, `rollback.sh`, `junk-brand-cleanup.sh` (brand 1046002 "{}" soft-delete +
+  brand_id reset; dry run by default). ⚠ Prod ssh/scp are refused in-session — the USER runs
+  `ship.sh`. Expect the ~10-min-after-boot startup catalog refresh (CJ points).
 - **Status 2026-09-13 — F17 BUILT: `POST /srv/comment/post` is PURCHASE-GATED and stamps the
   order line.** Plan approved by the user the same day (decisions: goods-management writes
   `litemall_order_goods.comment` directly via CAS in the review's own transaction; absent
