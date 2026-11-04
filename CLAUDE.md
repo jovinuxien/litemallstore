@@ -2013,9 +2013,9 @@
   index); 2 unflagged ids → `{list:[]}`; 101 ids → errno 402 "at most 100 ids per request";
   `POST /srv/goods/batch` 2 ids → the raw map; unauthenticated comment/post → 401 at the edge.
   Memory 1.06 GiB / 1.5 GiB (71%) at +1 min, host MemAvailable 5.3 GB. The startup catalog refresh was
-  scheduled for ~21:09 UTC; right after boot `/sitemap.xml` served the HOMEPAGE ONLY (the cached
-  artifact is empty until the first refresh regenerates it — `cf-cache-status: DYNAMIC`, no-store, so
-  nothing stale is pinned at the edge). ⚠ The junk-brand cleanup (`junk-brand-cleanup.sh`, brand
+  scheduled for ~21:09 UTC; right after boot `/sitemap.xml` served the HOMEPAGE ONLY for ~2 min (the
+  cached artifact is empty until its first build — 19,182 URLs / 19,158 products by 21:00:50 UTC;
+  `cf-cache-status: DYNAMIC`, no-store, so nothing stale is pinned at the edge). ⚠ The junk-brand cleanup (`junk-brand-cleanup.sh`, brand
   1046002 "{}") was NOT run: the ssh for it was refused by the classifier ("Production Reads") — user
   runs the dry run, then `--apply`. Rollback = `bash /root/deploy-20261104-goods/rollback.sh`.
 - **Status 2026-11-04 — DEPLOY PREPARED, NOT SHIPPED (MAIN).** Prod goods-management still runs
