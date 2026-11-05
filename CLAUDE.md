@@ -2015,9 +2015,11 @@
   Memory 1.06 GiB / 1.5 GiB (71%) at +1 min, host MemAvailable 5.3 GB. The startup catalog refresh was
   scheduled for ~21:09 UTC; right after boot `/sitemap.xml` served the HOMEPAGE ONLY for ~2 min (the
   cached artifact is empty until its first build — 19,182 URLs / 19,158 products by 21:00:50 UTC;
-  `cf-cache-status: DYNAMIC`, no-store, so nothing stale is pinned at the edge). ⚠ The junk-brand cleanup (`junk-brand-cleanup.sh`, brand
-  1046002 "{}") was NOT run: the ssh for it was refused by the classifier ("Production Reads") — user
-  runs the dry run, then `--apply`. Rollback = `bash /root/deploy-20261104-goods/rollback.sh`.
+  `cf-cache-status: DYNAMIC`, no-store, so nothing stale is pinned at the edge). **Junk-brand cleanup DONE 2026-11-05** (`junk-brand-cleanup.sh`
+  dry run, then `--apply`; the ssh went through this time): brand 1046002 "{}" (cj-supplier, kind 1,
+  display_enabled 0) soft-deleted, its 17 linked goods (0 on sale) reset to brand_id 0, `still_linked 0`;
+  no reindex needed (index carries kind=0 brands only; PDP reads brand_id at request time). The Wave-25.1
+  outstanding item is CLOSED. Rollback of the deploy = `bash /root/deploy-20261104-goods/rollback.sh`.
 - **Status 2026-11-04 — DEPLOY PREPARED, NOT SHIPPED (MAIN).** Prod goods-management still runs
   the 2026-09-05 image (live proof: `GET /srv/goods/origin` answers a raw 404 through the edge).
   Jar built on the WORKSTATION from master `9682b298f` (pass 1 only, `-pl litemall-goods-management
