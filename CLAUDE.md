@@ -1997,6 +1997,22 @@
   Brevo SMTP live since 2026-08-02. Spec in git history.)
 
 ### Worktree: `goods-management` — F17 reviews + Wave-28 origin endpoint DEPLOYED to trovemo.com 2026-11-04 (image `build-9682b298f`, rollback tag `pre-20261104`); no active assignment
+- **Status 2026-11-05 03:30 UTC — MEMORY PRESSURE FOUND, NEXT STEP SAVED (MAIN).** The junk-brand
+  cleanup is done (see below). Checked goods-management after the catalog refreshes: BOTH big runs on
+  the new image completed cleanly (startup 21:09–21:30 UTC: 378 new / 1,775 updated, promoted 85,735,
+  reindexed 19,483; nightly 03:00–03:21: 47 new / 2,101 updated, promoted 85,782, failed 0, reindexed
+  19,504; sitemap 19,528 URLs; restarts 0, `oom_kill 0`). ⚠ BUT the container sits at **1.48 GiB /
+  1.5 GiB (98.7%)** even idle, and cgroup `memory.events max` went 0 → **34** during the nightly — it
+  hit the ceiling 34 times and survived only because the kernel could reclaim file pages. It is JVM
+  anon (1.56 GB; file 39 MB, log 3.9 MB — NOT the tmpfs-log vector of 2026-08-15). Cause: Dockerfile
+  `MaxRAMPercentage=75` × `mem_limit: 1536m` (Wave-7 value, never revisited) leaves ~380 MB for
+  metaspace/threads/GC. No jcmd in the JRE image. **NEXT SESSION:** (1) read
+  `~/litemall-deploys/goods-9682b298f/memwatch-enrich-20261105.log` (03:29–03:49 watch over the
+  03:30 enrichment — the step that OOM-killed it in August) + restart count; (2) raise the limit to
+  **2048m** in `docker-compose/docker-compose.prod.yml` and RECREATE only (no rebuild; host has 5.2 GB
+  available; compose limits already sum to 17.5 GB on a 15.2 GB host, real use ≈10 GB); (3) confirm
+  `max` stops incrementing after the next 03:00 run. Full note in memory
+  `project_goods_mgmt_memory_pressure_2026_11_05.md`.
 - **Status 2026-11-04 20:58 UTC — DEPLOYED to trovemo.com from master `9682b298f` (user: "go ahead and
   run ship.sh"; checkout at `23bc7e89e`).** `ship.sh` ran from the workstation: master pushed to
   `/opt/litemall.git`, bundle scp'd to `/root/deploy-20261104-goods/`, `deploy.sh` preflight OK
