@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -74,6 +75,15 @@ public class CjCreateOrderRequest {
     /** Customer contact email — required by createOrderV2 (CJ error 3001 without it). */
     @JsonProperty("email")
     private String email;
+
+    /**
+     * Store order amount (createOrderV2 optional "Order amount"). With the CJ dashboard
+     * Declaration Amount = "Store Order Amount", CJ declares THIS figure to customs/IOSS
+     * and falls back to its own cost amount when it is absent. Omitted (NON_NULL) when the
+     * store does not know or does not want to declare it — never sent as {@code 0}.
+     */
+    @JsonProperty("shopAmount")
+    private BigDecimal shopAmount;
 
     @JsonProperty("products")
     private List<CjOrderProduct> products;
