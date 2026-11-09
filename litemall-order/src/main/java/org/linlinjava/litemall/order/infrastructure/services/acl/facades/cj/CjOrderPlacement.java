@@ -3,6 +3,7 @@ package org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -34,13 +35,27 @@ public class CjOrderPlacement {
      */
     private String preferredLogisticName;
 
+    /**
+     * Store order amount to declare to CJ, in STORE currency (EUR), or null when unknown.
+     * Filled by {@code CjFulfillmentService} as the goods value the customer actually paid
+     * ({@code actualPrice − freightPrice − taxPrice}; coupon/group-buy/integral discounts
+     * are already inside actualPrice). The facade converts it to CJ's currency and sends
+     * it as createOrderV2 {@code shopAmount}; null ⇒ the field is omitted and CJ declares
+     * its own amount (plan-cj-declared-amount-2026-11-09.md D1).
+     */
+    private BigDecimal declaredAmount;
+
     private List<Line> lines;
 
-    /** One CJ line: the CJ variant id and quantity. */
+    /** One CJ line: the CJ variant id and quantity, plus the optional store-side price facts. */
     @Data
     @Builder
     public static class Line {
         private String vid;
         private int quantity;
+        /** Unit price the line was sold at, store currency; null when unknown (field omitted). */
+        private BigDecimal unitPrice;
+        /** Our {@code litemall_order_goods.id}; null for callers without an order line. */
+        private Integer lineId;
     }
 }
