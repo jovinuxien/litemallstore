@@ -42,6 +42,27 @@ CJ create-order endpoint: `POST {base-url}/shopping/order/createOrder`, header
 `CJ-Access-Token`. Note CJ also requires `fromCountryCode` (warehouse source) and may need a
 freight/`logisticName` step — exposed on the request DTO; populate at checkout-routing time.
 
+### Declared amount (2026-11-09)
+
+The request carried **no prices** until 2026-11-09. CJ's dashboard rule for Declaration
+Amount = "Store Order Amount" is *"your store order amount (if available) will be declared,
+otherwise CJ order amount"*, so every EU declaration made in our name used CJ's own cost
+price. Now (`plan-cj-declared-amount-2026-11-09.md`, decisions D1–D4):
+
+- `CjFulfillmentService.placeForPaidOrder` sets `CjOrderPlacement.declaredAmount` =
+  `actualPrice − freightPrice − taxPrice` (store currency; discounts are already inside
+  `actualPrice`, freight/tax excluded because the €150 IOSS ceiling is on goods value) and
+  per line `unitPrice` = `order_goods.price`, `lineId` = `order_goods.id`. Any missing
+  component or a non-positive result ⇒ `null` (field omitted), never `0`.
+- `CjDeclaredAmountConverter` (the only reader of the knobs) turns them into createOrderV2
+  `shopAmount` / `products[].unitPrice` / `products[].storeLineItemId`:
+  `litemall.order.cj.declare-store-amount` (env `LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT`,
+  default true — off = pre-change request byte for byte) and
+  `litemall.order.cj.declared-amount-currency` = `usd` (default; EUR ÷ `fx-usd-eur`, 2dp
+  HALF_UP) | `store`. Both have prod compose passthroughs. One INFO line per placement
+  states the declared figure for comparison with CJ's order view.
+- The manual `POST /srv/order/cj/orders` path sets none of these, so its request is unchanged.
+
 ## Verification (live, no real order placed — per decision)
 
 Exercised against the live CJ API on 2026-06-13 (mirrors the Feign clients exactly):

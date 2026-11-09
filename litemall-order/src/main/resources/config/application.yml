@@ -185,6 +185,20 @@ litemall:
       stall-warn-minutes: ${LITEMALL_ORDER_CJ_STALL_WARN_MINUTES:60}
       stall-park-hours: ${LITEMALL_ORDER_CJ_STALL_PARK_HOURS:24}
       lifecycle-alert-hours: ${LITEMALL_ORDER_CJ_LIFECYCLE_ALERT_HOURS:24}
+      # Declared store amount (2026-11-09, plan-cj-declared-amount-2026-11-09.md). With the
+      # CJ dashboard set to Declaration Amount = "Store Order Amount", CJ declares the
+      # createOrderV2 shopAmount we send to customs/IOSS and falls back to ITS OWN cost
+      # amount when the field is absent. CjFulfillmentService sends the goods value the
+      # customer paid (actualPrice − freightPrice − taxPrice) plus per-line unitPrice and
+      # storeLineItemId; CjDeclaredAmountConverter applies these two knobs at the CJ
+      # boundary. declare-store-amount=false = kill switch: every price field omitted,
+      # request byte-identical to before (container recreate, no rebuild).
+      declare-store-amount: ${LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT:true}
+      # usd (default) = convert EUR→USD with the inverse of litemall.order.fx-usd-eur
+      # (every amount CJ returns is documented USD; the docs are silent on shopAmount —
+      # ask CJ support, then flip here if they say "store currency"); store = send the
+      # store (EUR) amount as-is. Unknown value ⇒ usd.
+      declared-amount-currency: ${LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY:usd}
     # Ops mailbox for CJ fulfilment attention signals (terminal placement rejection,
     # CJ-side cancellation of a paid order). Blank = log-only (mail rows need the
     # litemall.customer-mail seam enabled anyway).

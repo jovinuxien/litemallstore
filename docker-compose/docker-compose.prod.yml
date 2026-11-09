@@ -577,6 +577,13 @@ services:
       # dev stays harmless; prod .env.prod sets false — an approved order must
       # REALLY place, a simulation answering an approval is a fake success.
       LITEMALL_ORDER_CJ_SANDBOX: ${LITEMALL_ORDER_CJ_SANDBOX:-true}
+      # Declared store amount on CJ createOrderV2 (2026-11-09): CJ's "Store Order
+      # Amount" declaration uses the shopAmount we send, else CJ's own cost amount.
+      # Defaults are the recommended values (on, USD via the inverse of
+      # LITEMALL_FX_USD_EUR); set in .env.prod only to turn it OFF (kill switch,
+      # recreate only) or to flip the currency after CJ support answers.
+      LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT: ${LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT:-true}
+      LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY: ${LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY:-usd}
       # Wave 24: Stripe charge currency (litemall.order.stripe.currency,
       # application.yml:204). Without this passthrough a deploy-day .env flip to
       # eur would silently no-op — the container would keep charging usd.
