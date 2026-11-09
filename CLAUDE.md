@@ -1603,7 +1603,67 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — lifecycle assignment CLOSED + DEPLOYED (prod order container on master `8a71f78e7` since 2026-10-03/04); as-built report `doc/order-lifecycle-e2e-report-2026-10-10.pdf`; no active assignment
+### Worktree: `order` — CJ DECLARED STORE AMOUNT built + merged 2026-11-09 (deploy bundle `~/litemall-deploys/order-cj-declared-amount/`, ship = USER via `ship.sh`); report `doc/order-cj-declared-amount-report-2026-11-09.pdf`; prod order container still on `8a71f78e7`
+- **Status 2026-11-09 — CJ DECLARED STORE AMOUNT BUILT (plan `litemall-order/docs/
+  plan-cj-declared-amount-2026-11-09.md`, decisions D1–D4 approved by the user the same day).**
+  Trigger: the user funded the CJ account (100 USD) and set the CJ dashboard IOSS Option to
+  "Declare with CJ's IOSS" for all 27 EU countries with Declaration Amount = **Store Order
+  Amount**; CJ's rule for that option is "store order amount if available, else CJ order
+  amount" — and our createOrderV2 request carried NO prices, so every EU declaration would
+  have used CJ's own cost price. Six commits on `fix/order` (`774e0b33f`…`b253cce88`), module
+  suite **415 run / 0 failures** (+15 over the 400 baseline), NO migration, no core/db change,
+  order container only.
+  1. DTOs: `CjCreateOrderRequest.shopAmount`; `CjOrderProduct.unitPrice` + `storeLineItemId`
+     (class now `@JsonInclude(NON_NULL)`; two-arg ctor kept for freight quotes / manual path).
+  2. `CjOrderPlacement.declaredAmount` + `Line.unitPrice/lineId` (store currency).
+  3. `CjFulfillmentService.placeForPaidOrder` fills them: **declared = actualPrice −
+     freightPrice − taxPrice** (D1; discounts are already inside actualPrice, freight/tax
+     excluded because the €150 IOSS ceiling is on goods value), line unitPrice =
+     `order_goods.price`, lineId = `order_goods.id`. Any missing money ⇒ null; a non-positive
+     result ⇒ WARN + null — **never 0** (a 0 would be a false declaration).
+  4. `CjDeclaredAmountConverter` (new, the ONLY reader of the knobs) + facade: **D2** currency
+     `litemall.order.cj.declared-amount-currency` = `usd` (default: EUR ÷ `fx-usd-eur`, 2dp
+     HALF_UP, the inverse of the Wave-24 freight seam — 8.90 EUR ⇒ 10.28 USD at 0.866) |
+     `store`; **D4** kill switch `litemall.order.cj.declare-store-amount` (default true; false
+     ⇒ shopAmount, unitPrice AND storeLineItemId omitted — the request is byte-identical to
+     before, asserted by serialising the captured request). fx ≤ 0 ⇒ identity + WARN; unknown
+     mode ⇒ usd. ONE INFO line per placement: `CJ placement <sn>: declared shopAmount <x> USD
+     (store <y> EUR, fx-usd-eur 0.866, mode usd, n/m lines priced)` + one boot line
+     `CJ declared store amount: ENABLED (...)`. The manual `POST /srv/order/cj/orders` path
+     sets no prices ⇒ unchanged.
+  5. Config: yml placeholders `LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT` /
+     `LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY` + prod compose passthroughs beside
+     `LITEMALL_ORDER_CJ_SANDBOX` (docker-compose.prod.yml:585-586) + ADR §"Declared amount".
+  ⚠ **The first test run CAUGHT a real gap:** with the kill switch off, `storeLineItemId` still
+  went out — fixed before commit; "byte-identical" is now a serialised-JSON assertion, not a
+  claim. **Dev boot on :18085 PASSED** (exec jar alone, JDK 21, dev DB): Started 19.7 s,
+  Flyway validated 65 / nothing applied, boot knob line present, 0 ERRORs, health 200 — and
+  the placement sweep ran once against dev's Wave-23-approved test orders 112/114: the CJ call
+  failed on the dummy dev creds exactly as before (both still `cj_order_id NULL`), but the
+  audit line fired with REAL figures that match the DB to the cent (order 114: 8.58 − 8.00 −
+  0.00 = **0.58 EUR ⇒ 0.67 USD**; order 112: 19.23 − 8.00 = **11.23 EUR ⇒ 12.97 USD**, line
+  prices 0.58 / 11.23). That is the pipeline DB → placement → facade proven on real rows,
+  short of CJ accepting it. ⚠ Dev yml defaults make the sweep ATTEMPT CJ calls on dev
+  approved orders within a minute of boot — stop a dev order JVM as soon as the boot proof is in.
+  **Deploy = order container only, USER-SIDE via `bash ~/litemall-deploys/
+  order-cj-declared-amount/ship.sh`** (pushes master to `/opt/litemall.git` — the compose
+  passthroughs ride with it — scp's the workstation jar sha `c8b84c27…`, runs `deploy.sh`:
+  preflight, checkout ff-refresh BEFORE the recreate + a grep that the passthrough landed,
+  rollback tag `pre-20261109`, COPY-only wrap `litemall/order:build-<sha>`, image-jar cmp,
+  `up -d --no-deps order`, wait healthy; then `verify.sh`). No `.env.prod` change (defaults =
+  recommended values). Soft rollback = `LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT=false` +
+  recreate; hard = `rollback.sh`. **POSITIVE PROOF = prod**: the first order an admin
+  approves/requeues after deploy — `docker logs … | grep 'declared shopAmount'` vs the CJ
+  dashboard's store order amount + `iossTaxes`. Order 11 (€8.90 SE, parked on IOSS) is the
+  natural first case if Requeued AFTER this deploys.
+  USER-SIDE, unchanged: ask CJ support "is createOrderV2 shopAmount interpreted in USD?" (flip
+  the currency knob by env if not); Requeue order 11; cancel/refund orders 7/10 + the order 9
+  refund request (test-mode intents, never approve); decide the €150 customs copy (2,796 of
+  20,505 live products are above €150, no storefront page mentions duties) and the Stripe Tax
+  posture (OFF in prod, no `LITEMALL_ORDER_TAX_*` passthrough; CJ bills VAT + 3% of VAT per
+  IOSS order from the balance, out of margin).
+- **Previously (2026-10-10):** lifecycle assignment CLOSED + DEPLOYED (prod order container on
+  master `8a71f78e7` since 2026-10-03/04); as-built report `doc/order-lifecycle-e2e-report-2026-10-10.pdf`.
 - **Status 2026-10-10 — RECORD CLOSED: as-built PDF written, deploy note corrected.**
   `doc/order-lifecycle-e2e-report-2026-10-10.pdf` (8 pages: summary, decisions
   D1–D6, all 18 findings with disposition, packages A/B/C + follow-ups + D5
