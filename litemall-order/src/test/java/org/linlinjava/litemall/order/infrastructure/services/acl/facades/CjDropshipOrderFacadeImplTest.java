@@ -13,9 +13,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -48,9 +51,50 @@ class CjDropshipOrderFacadeImplTest {
         }
     };
 
+    /** Prod-shaped declared-amount policy: on, USD, the Wave-24 rate, EUR store. */
+    private static CjDeclaredAmountConverter prodConverter() {
+        return new CjDeclaredAmountConverter(true, "usd", new BigDecimal("0.866"), "eur");
+    }
+
     private CjDropshipOrderFacadeImpl facade() {
-        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, "CN", "CJPacket Ordinary",
+        return facade(prodConverter());
+    }
+
+    private CjDropshipOrderFacadeImpl facade(CjDeclaredAmountConverter converter) {
+        return new CjDropshipOrderFacadeImpl(cjOrderFeignClient, tokenStub, converter, "CN", "CJPacket Ordinary",
                 true, 0, "", "orders@litemall.dev");
+    }
+
+    /** A paid-order placement as CjFulfillmentService builds it: EUR amounts + line ids. */
+    private static CjOrderPlacement pricedPlacement() {
+        return CjOrderPlacement.builder()
+                .orderNumber("ORD-11")
+                .customerName("Jovi")
+                .phone("0700000000")
+                .country("Sweden")
+                .countryCode("SE")
+                .declaredAmount(new BigDecimal("8.90"))
+                .lines(List.of(CjOrderPlacement.Line.builder()
+                        .vid("VID-9").quantity(2).unitPrice(new BigDecimal("4.45")).lineId(17).build()))
+                .build();
+    }
+
+    private CjCreateOrderRequest capturePlacement(CjDropshipOrderFacadeImpl facade, CjOrderPlacement placement) {
+        CjCreateOrderResponse ok = new CjCreateOrderResponse();
+        ok.setResult(true);
+        CjCreateOrderResponse.Data data = new CjCreateOrderResponse.Data();
+        data.setOrderId("CJ-1");
+        data.setOrderNum("CJ-NUM-1");
+        data.setOrderStatus("CREATED");
+        ok.setData(data);
+        ArgumentCaptor<CjCreateOrderRequest> captor = ArgumentCaptor.forClass(CjCreateOrderRequest.class);
+        when(cjOrderFeignClient.createOrderV2(eq("tok"), captor.capture())).thenReturn(ok);
+        facade.placeOrder(placement);
+        return captor.getValue();
+    }
+
+    private static String json(CjCreateOrderRequest request) throws Exception {
+        return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request);
     }
 
     private static CjOrderPlacement placement() {
@@ -147,5 +191,83 @@ class CjDropshipOrderFacadeImplTest {
 
         assertThrows(LitemallCjOrderException.class, () -> facade().placeOrder(empty));
         verify(cjOrderFeignClient, never()).createOrderV2(any(), any());
+    }
+
+    // ---- Declared store amount → createOrderV2 shopAmount / unitPrice (plan D2 / D3 / D4) ----
+
+    @Test
+    void declaredAmount_usdMode_convertsEurToUsdAtTheInverseFxRate_2dpHalfUp() throws Exception {
+        CjCreateOrderRequest sent = capturePlacement(facade(), pricedPlacement());
+
+        assertEquals(new BigDecimal("10.28"), sent.getShopAmount());               // 8.90 / 0.866 = 10.277…
+        assertEquals(new BigDecimal("5.14"), sent.getProducts().get(0).getUnitPrice()); // 4.45 / 0.866 = 5.138…
+        assertEquals("17", sent.getProducts().get(0).getStoreLineItemId());
+        String json = json(sent);
+        assertTrue(json.contains("\"shopAmount\":10.28"), json);
+        assertTrue(json.contains("\"unitPrice\":5.14"), json);
+        assertTrue(json.contains("\"storeLineItemId\":\"17\""), json);
+    }
+
+    @Test
+    void declaredAmount_storeMode_sendsTheStoreAmountUnchanged() {
+        CjCreateOrderRequest sent = capturePlacement(
+                facade(new CjDeclaredAmountConverter(true, "store", new BigDecimal("0.866"), "eur")),
+                pricedPlacement());
+
+        assertEquals(new BigDecimal("8.90"), sent.getShopAmount());
+        assertEquals(new BigDecimal("4.45"), sent.getProducts().get(0).getUnitPrice());
+    }
+
+    @Test
+    void declaredAmount_killSwitchOff_omitsEveryPriceField_requestIdenticalToBefore() throws Exception {
+        CjCreateOrderRequest sent = capturePlacement(
+                facade(new CjDeclaredAmountConverter(false, "usd", new BigDecimal("0.866"), "eur")),
+                pricedPlacement());
+
+        assertNull(sent.getShopAmount());
+        assertNull(sent.getProducts().get(0).getUnitPrice());
+        assertNull(sent.getProducts().get(0).getStoreLineItemId()); // reconciliation id rides the switch too
+        String json = json(sent);
+        assertFalse(json.contains("shopAmount"), json);
+        assertFalse(json.contains("unitPrice"), json);
+        assertFalse(json.contains("storeLineItemId"), json);
+        // the pre-change line shape, byte for byte
+        assertTrue(json.contains("\"products\":[{\"vid\":\"VID-9\",\"quantity\":2}]"), json);
+    }
+
+    @Test
+    void declaredAmount_nullOnThePlacement_omitsShopAmountFromJson_nonNullProven() throws Exception {
+        CjOrderPlacement noAmount = pricedPlacement();
+        noAmount.setDeclaredAmount(null);
+
+        CjCreateOrderRequest sent = capturePlacement(facade(), noAmount);
+
+        assertNull(sent.getShopAmount());
+        String json = json(sent);
+        assertFalse(json.contains("shopAmount"), json);
+        assertTrue(json.contains("\"unitPrice\":5.14"), json); // lines keep what they know
+    }
+
+    @Test
+    void declaredAmount_nonPositiveFx_fallsBackToIdentity_notZeroOrInfinity() {
+        CjCreateOrderRequest sent = capturePlacement(
+                facade(new CjDeclaredAmountConverter(true, "usd", BigDecimal.ZERO, "eur")),
+                pricedPlacement());
+
+        assertEquals(new BigDecimal("8.90"), sent.getShopAmount());
+        assertEquals(new BigDecimal("4.45"), sent.getProducts().get(0).getUnitPrice());
+    }
+
+    @Test
+    void declaredAmount_manualControllerPlacementWithoutPrices_sendsNoPriceFields() throws Exception {
+        // LitemallCjOrderController.toPlacement never sets declaredAmount / unitPrice / lineId
+        CjCreateOrderRequest sent = capturePlacement(facade(), placement());
+
+        assertNull(sent.getShopAmount());
+        assertNull(sent.getProducts().get(0).getUnitPrice());
+        assertNull(sent.getProducts().get(0).getStoreLineItemId());
+        String json = json(sent);
+        assertFalse(json.contains("shopAmount"), json);
+        assertFalse(json.contains("unitPrice"), json);
     }
 }

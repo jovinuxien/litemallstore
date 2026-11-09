@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class CjLogisticsChoiceTest {
 
     private CjDropshipOrderFacadeImpl facade(String defaultLine) {
-        return new CjDropshipOrderFacadeImpl(null, null, "CN", defaultLine, false, 0, "", "orders@test");
+        return new CjDropshipOrderFacadeImpl(null, null, new CjDeclaredAmountConverter(true, "usd", java.math.BigDecimal.ONE, "eur"), "CN", defaultLine, false, 0, "", "orders@test");
     }
 
     private static CjLogisticsOption line(String name, String price) {

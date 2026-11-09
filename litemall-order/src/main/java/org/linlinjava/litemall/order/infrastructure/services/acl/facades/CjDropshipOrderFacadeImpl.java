@@ -70,8 +70,11 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
     private final String iossNumber;
     /** Store contact used when the ordering customer has no email on file (CJ error 3001). */
     private final String customerEmailFallback;
+    /** Store-amount → declared-amount policy (shopAmount / unitPrice; kill switch + currency). */
+    private final CjDeclaredAmountConverter declaredAmounts;
 
     public CjDropshipOrderFacadeImpl(CjOrderFeignClient cjOrderFeignClient, CjTokenService cjTokenService,
+                                     CjDeclaredAmountConverter declaredAmounts,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.from-country-code:CN}") String fromCountryCode,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.logistic-name:CJPacket Ordinary}") String logisticName,
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.sandbox:false}") boolean sandbox,
@@ -80,6 +83,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                                      @org.springframework.beans.factory.annotation.Value("${spring.cjdropship.api.customer-email-fallback:orders@litemall.dev}") String customerEmailFallback) {
         this.cjOrderFeignClient = cjOrderFeignClient;
         this.cjTokenService = cjTokenService;
+        this.declaredAmounts = declaredAmounts;
         this.fromCountryCode = fromCountryCode;
         this.logisticName = logisticName;
         this.sandbox = sandbox;
@@ -107,6 +111,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
             CjLogisticsOption option = chooseLogistics(options, placement.getPreferredLogisticName());
             String logistic = option != null ? option.getLogisticName() : logisticName;
             CjCreateOrderRequest request = toRequest(placement, products, logistic);
+            logDeclaredAmount(placement, request);
             response = cjOrderFeignClient.createOrderV2(token, request);
             placedLogistic = logistic;
         } catch (LitemallCjDisabledException e) {
@@ -166,8 +171,31 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
 
     private List<CjOrderProduct> toProducts(CjOrderPlacement p) {
         return p.getLines().stream()
-                .map(l -> new CjOrderProduct(l.getVid(), l.getQuantity()))
+                .map(l -> new CjOrderProduct(l.getVid(), l.getQuantity(),
+                        declaredAmounts.toCjAmount(l.getUnitPrice()),
+                        // the reconciliation id rides the same kill switch: off = pre-change wire shape
+                        declaredAmounts.isEnabled() && l.getLineId() != null ? String.valueOf(l.getLineId()) : null))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * ONE audit line per placement stating what we declared to CJ — the figure to compare
+     * against the CJ dashboard's store order amount and {@code iossTaxes} on the first
+     * real order. Silent when the kill switch is off or the order carries no amount.
+     */
+    private void logDeclaredAmount(CjOrderPlacement p, CjCreateOrderRequest request) {
+        if (request.getShopAmount() == null) {
+            if (p.getDeclaredAmount() != null) {
+                log.info("CJ placement {}: store amount NOT declared (declare-store-amount=false); CJ declares its own",
+                        p.getOrderNumber());
+            }
+            return;
+        }
+        long priced = request.getProducts().stream().filter(x -> x.getUnitPrice() != null).count();
+        log.info("CJ placement {}: declared shopAmount {} {} (store {} {}, fx-usd-eur {}, mode {}, {}/{} lines priced)",
+                p.getOrderNumber(), request.getShopAmount(), declaredAmounts.declaredCurrencyLabel(),
+                p.getDeclaredAmount(), declaredAmounts.storeCurrencyLabel(), declaredAmounts.getFxUsdEur(),
+                declaredAmounts.getMode(), priced, request.getProducts().size());
     }
 
     @Override
@@ -282,6 +310,8 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .iossNumber(org.springframework.util.StringUtils.hasText(iossNumber) ? iossNumber.trim() : null)
                 .email(org.springframework.util.StringUtils.hasText(p.getEmail())
                         ? p.getEmail().trim() : customerEmailFallback)
+                // Store order amount for CJ's customs/IOSS declaration (null ⇒ omitted).
+                .shopAmount(declaredAmounts.toCjAmount(p.getDeclaredAmount()))
                 .products(products)
                 .build();
     }
