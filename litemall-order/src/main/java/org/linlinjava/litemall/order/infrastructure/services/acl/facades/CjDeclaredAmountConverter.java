@@ -62,6 +62,12 @@ public class CjDeclaredAmountConverter {
         }
         this.storeCurrency = storeCurrency == null || storeCurrency.isBlank()
                 ? "store" : storeCurrency.trim().toUpperCase(Locale.ROOT);
+        if (enabled) {
+            log.info("CJ declared store amount: ENABLED (declared in {}, store {}, fx-usd-eur {})",
+                    declaredCurrencyLabel(), this.storeCurrency, this.fxUsdEur);
+        } else {
+            log.info("CJ declared store amount: DISABLED — createOrderV2 carries no shopAmount/unitPrice (CJ declares its own amount)");
+        }
     }
 
     /** Kill switch state (D4). */
