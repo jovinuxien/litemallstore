@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -103,6 +105,11 @@ public class CjFulfillmentService {
                 .map(g -> CjOrderPlacement.Line.builder()
                         .vid(lineResolver.resolveVid(g.getProductId().getId()))
                         .quantity(g.getNumber())
+                        // Store-side price facts for CJ's customs/IOSS declaration: the
+                        // unit price the line was SOLD at (group-buy lines already carry
+                        // the combination price) and our line id for reconciliation.
+                        .unitPrice(g.getPrice() == null ? null : g.getPrice().getAmount())
+                        .lineId(g.getOrderGoodsId())
                         .build())
                 .collect(Collectors.toList());
 
@@ -123,6 +130,9 @@ public class CjFulfillmentService {
                 // Delivery-option chooser (V52): the checkout pick rides along; the facade
                 // honors it only while CJ still offers that line for this shipment.
                 .preferredLogisticName(order.getCjLogisticName())
+                // Store order amount CJ declares to customs/IOSS (dashboard "Store Order
+                // Amount"); null ⇒ omitted and CJ falls back to its own cost amount.
+                .declaredAmount(declaredAmountOf(order))
                 .lines(lines)
                 .build();
 
@@ -215,6 +225,35 @@ public class CjFulfillmentService {
         statusHistoryRepository.record(new LitemallOrderStatusChange(
                 order.getOrderId(), local, local, CjLifecycleService.CHANGE_TYPE_CJ_SYNC,
                 message, "system", LocalDateTime.now()));
+    }
+
+    /**
+     * The store order amount to declare to CJ, in store currency (plan D1): the goods value
+     * the customer ACTUALLY paid = {@code actualPrice − freightPrice − taxPrice}. Coupon,
+     * group-buy and integral discounts are already inside {@code actualPrice}
+     * ({@code LitemallOrderServiceImpl}: actual = goods + freight − coupon + tax − integral),
+     * so nothing is subtracted twice; freight and tax are excluded because the €150 IOSS
+     * ceiling is on the intrinsic value of the goods. Any missing component ⇒ {@code null}
+     * (the field is omitted — CJ declares its own amount); a non-positive result is a
+     * data problem, logged and ALSO {@code null} — never clamped to 0, which would be a
+     * false declaration. Package-private for the unit test.
+     */
+    static BigDecimal declaredAmountOf(LitemallOrderAggregate order) {
+        if (order.getActualPrice() == null || order.getFreightPrice() == null || order.getTaxPrice() == null) {
+            return null;
+        }
+        BigDecimal goodsValue = order.getActualPrice().getAmount()
+                .subtract(order.getFreightPrice().getAmount())
+                .subtract(order.getTaxPrice().getAmount())
+                .setScale(2, RoundingMode.HALF_UP);
+        if (goodsValue.signum() <= 0) {
+            log.warn("CJ order {}: actual {} − freight {} − tax {} = {} is not a positive goods value;"
+                            + " sending no store amount (CJ declares its own)",
+                    order.getOrderSn(), order.getActualPrice(), order.getFreightPrice(),
+                    order.getTaxPrice(), goodsValue);
+            return null;
+        }
+        return goodsValue;
     }
 
     private LitemallAddressAggregate resolveAddress(LitemallOrderAggregate order) {

@@ -19,9 +19,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -307,5 +309,114 @@ class CjFulfillmentServiceTest {
 
         verify(addressRepository).findDefaultAddress(order.getUserId());
         verify(cjOrderFacade).placeOrder(any());
+    }
+
+    // ---- Declared store amount for CJ's customs/IOSS declaration (plan D1 / D3) ----
+
+    private static org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney money(String v) {
+        return new org.linlinjava.litemall.order.domain.model.valueobjects.LitemallMoney(new BigDecimal(v));
+    }
+
+    private LitemallOrderGoodsAggregate pricedLine(int orderGoodsId, int productId, short quantity, String unitPrice) {
+        LitemallOrderGoodsAggregate goods = line(productId, quantity);
+        goods.setOrderGoodsId(orderGoodsId);
+        goods.setPrice(money(unitPrice));
+        return goods;
+    }
+
+    @Test
+    void declaredAmount_isActualMinusFreightMinusTax_andLinesCarryUnitPriceAndLineId() {
+        LitemallOrderAggregate order = paidCjOrder("SE");
+        order.setActualPrice(money("15.83")); // 8.90 goods + 6.93 freight + 0 tax
+        order.setFreightPrice(money("6.93"));
+        order.setTaxPrice(money("0.00"));
+        when(addressRepository.findAddress(order.getUserId(), order.getAddressId())).thenReturn(bookAddress());
+        when(lineResolver.resolveVid(1043)).thenReturn("vid-abc");
+        when(cjOrderFacade.placeOrder(any()))
+                .thenReturn(new CjOrderResult("cj-id-1", "cj-num-1", "CREATED", "CJPacket Ordinary"));
+
+        service("").placeForPaidOrder(order, List.of(pricedLine(17, 1043, (short) 2, "4.45")));
+
+        ArgumentCaptor<CjOrderPlacement> placement = ArgumentCaptor.forClass(CjOrderPlacement.class);
+        verify(cjOrderFacade).placeOrder(placement.capture());
+        CjOrderPlacement sent = placement.getValue();
+        assertEquals(new BigDecimal("8.90"), sent.getDeclaredAmount()); // store currency, untouched here
+        assertEquals(new BigDecimal("4.45"), sent.getLines().get(0).getUnitPrice());
+        assertEquals(17, sent.getLines().get(0).getLineId());
+    }
+
+    @Test
+    void declaredAmount_couponAlreadyInsideActual_isNotSubtractedTwice() {
+        // actual = goods 20.00 + freight 6.93 − coupon 5.00 + tax 0 − integral 0 = 21.93
+        LitemallOrderAggregate order = paidCjOrder("DE");
+        order.setGoodsPrice(money("20.00"));
+        order.setCouponPrice(money("5.00"));
+        order.setFreightPrice(money("6.93"));
+        order.setTaxPrice(money("0.00"));
+        order.setActualPrice(money("21.93"));
+
+        assertEquals(new BigDecimal("15.00"), CjFulfillmentService.declaredAmountOf(order));
+    }
+
+    @Test
+    void declaredAmount_groupBuyLine_carriesTheCombinationPriceItWasSoldAt() {
+        LitemallOrderAggregate order = paidCjOrder("SE");
+        order.setActualPrice(money("53.24"));
+        order.setFreightPrice(money("6.93"));
+        order.setTaxPrice(money("0.00"));
+        when(addressRepository.findAddress(order.getUserId(), order.getAddressId())).thenReturn(bookAddress());
+        when(lineResolver.resolveVid(2001)).thenReturn("vid-grp");
+        when(cjOrderFacade.placeOrder(any()))
+                .thenReturn(new CjOrderResult("cj-id-2", "cj-num-2", "CREATED", "CJPacket Ordinary"));
+
+        // order_goods.price IS the group price for a pinkId order (Wave 21) — nothing to re-derive
+        service("").placeForPaidOrder(order, List.of(pricedLine(31, 2001, (short) 1, "46.31")));
+
+        ArgumentCaptor<CjOrderPlacement> placement = ArgumentCaptor.forClass(CjOrderPlacement.class);
+        verify(cjOrderFacade).placeOrder(placement.capture());
+        assertEquals(new BigDecimal("46.31"), placement.getValue().getLines().get(0).getUnitPrice());
+        assertEquals(new BigDecimal("46.31"), placement.getValue().getDeclaredAmount());
+    }
+
+    @Test
+    void declaredAmount_anyMissingMoney_isNull_whileKnownLinesStayPriced() {
+        LitemallOrderAggregate order = paidCjOrder("SE"); // no actual/freight/tax set at all
+        when(addressRepository.findAddress(order.getUserId(), order.getAddressId())).thenReturn(bookAddress());
+        when(lineResolver.resolveVid(1043)).thenReturn("vid-abc");
+        when(lineResolver.resolveVid(1044)).thenReturn("vid-def");
+        when(cjOrderFacade.placeOrder(any()))
+                .thenReturn(new CjOrderResult("cj-id-3", "cj-num-3", "CREATED", "CJPacket Ordinary"));
+
+        service("").placeForPaidOrder(order, List.of(
+                pricedLine(1, 1043, (short) 1, "4.45"),
+                line(1044, (short) 1))); // unpriced line
+
+        ArgumentCaptor<CjOrderPlacement> placement = ArgumentCaptor.forClass(CjOrderPlacement.class);
+        verify(cjOrderFacade).placeOrder(placement.capture());
+        CjOrderPlacement sent = placement.getValue();
+        assertNull(sent.getDeclaredAmount());
+        assertEquals(new BigDecimal("4.45"), sent.getLines().get(0).getUnitPrice());
+        assertNull(sent.getLines().get(1).getUnitPrice());
+        assertNull(sent.getLines().get(1).getLineId());
+        // partial knowledge: a missing tax alone is also "unknown", never treated as 0
+        LitemallOrderAggregate partial = paidCjOrder("SE");
+        partial.setActualPrice(money("15.83"));
+        partial.setFreightPrice(money("6.93"));
+        assertNull(CjFulfillmentService.declaredAmountOf(partial));
+    }
+
+    @Test
+    void declaredAmount_nonPositiveResult_isNull_neverZero_andDoesNotThrow() {
+        LitemallOrderAggregate negative = paidCjOrder("SE");
+        negative.setActualPrice(money("5.00"));
+        negative.setFreightPrice(money("6.93"));
+        negative.setTaxPrice(money("0.00"));
+        assertNull(CjFulfillmentService.declaredAmountOf(negative)); // −1.93 ⇒ null + WARN
+
+        LitemallOrderAggregate zero = paidCjOrder("SE"); // fully points-paid goods: 0 is not a goods value
+        zero.setActualPrice(money("6.93"));
+        zero.setFreightPrice(money("6.93"));
+        zero.setTaxPrice(money("0.00"));
+        assertNull(CjFulfillmentService.declaredAmountOf(zero));
     }
 }
