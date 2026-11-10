@@ -1615,8 +1615,9 @@
   fx-usd-eur 0.866)"** / "Stripe payments ENABLED (currency=eur)" / "CJ placement mode: MANUAL".
   Only ERROR = the pre-existing `/app/storage` AccessDenied. Paid-unplaced CJ orders recorded
   before the swap and unchanged by it: 7 (201), 9 (202), 10 (201), 11 (201, approved
-  2026-08-09). `verify.sh` (`bash /root/deploy-20261109-order/verify.sh`) is USER-SIDE (prod
-  ssh refused in-session). Prod order container is now `6fc27c4b6` — the "still on `8a71f78e7`"
+  2026-08-09). `verify.sh` PASSED (user ran it 2026-11-10): running jar == shipped, 3/3 new classes in the
+  jar, env inside the container DECLARE=true CURRENCY=usd FX=0.866 SANDBOX=false MODE=manual,
+  0 SQL DEBUG lines, edge probes 401/200 as expected, container 455 MiB / 1 GiB. Prod order container is now `6fc27c4b6` — the "still on `8a71f78e7`"
   note is history. Soft rollback = `LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT=false` + recreate;
   hard = `bash /root/deploy-20261109-order/rollback.sh`. POSITIVE PROOF still pending: Requeue
   order 11 in the admin pending tab, then `docker logs litemall-prod-order-1 | grep 'declared
