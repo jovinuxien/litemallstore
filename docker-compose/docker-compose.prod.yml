@@ -584,6 +584,14 @@ services:
       # recreate only) or to flip the currency after CJ support answers.
       LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT: ${LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT:-true}
       LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY: ${LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY:-usd}
+      # IOSS declaration sent on createOrderV2 (yml spring.cjdropship.api.ioss-type /
+      # ioss-number). 0 = omit the field. Found live 2026-11-10: with the field
+      # omitted CJ STILL answers 7001 "Please enter a IOSS number" for an SE order
+      # even with the dashboard set to "Declare with CJ's IOSS" — the dashboard
+      # option is not inherited by API orders. 3 = CJ's IOSS service (explicit),
+      # 2 = own IOSS (needs CJ_IOSS_NUMBER). Recreate only, no rebuild.
+      CJ_IOSS_TYPE: ${CJ_IOSS_TYPE:-0}
+      CJ_IOSS_NUMBER: ${CJ_IOSS_NUMBER:-}
       # Wave 24: Stripe charge currency (litemall.order.stripe.currency,
       # application.yml:204). Without this passthrough a deploy-day .env flip to
       # eur would silently no-op — the container would keep charging usd.
