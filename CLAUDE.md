@@ -1603,7 +1603,24 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — CJ DECLARED STORE AMOUNT built + merged 2026-11-09 (deploy bundle `~/litemall-deploys/order-cj-declared-amount/`, ship = USER via `ship.sh`); report `doc/order-cj-declared-amount-report-2026-11-09.pdf`; prod order container still on `8a71f78e7`
+### Worktree: `order` — CJ DECLARED STORE AMOUNT DEPLOYED to trovemo.com 2026-11-10 03:53 UTC (image `litemall/order:build-6fc27c4b6`, rollback tag `pre-20261109`); report `doc/order-cj-declared-amount-report-2026-11-09.pdf`; positive proof = first approved/requeued order
+- **Status 2026-11-10 03:53 UTC — DEPLOYED to trovemo.com from master `6fc27c4b6` (user ran
+  `ship.sh`).** Master pushed to `/opt/litemall.git` (`23bc7e89e..6fc27c4b6`), preflight OK
+  (MemAvailable 4,948 MB, disk 12 G, container healthy, running image `568cfd64…` of 2026-10-03
+  tagged `pre-20261109`), VPS checkout fast-forwarded to `6fc27c4b6` BEFORE the recreate (the two
+  compose passthroughs landed), COPY-only wrap → `litemall/order:build-6fc27c4b6` (`9250d110…`,
+  image jar == shipped jar), ONLY the order container recreated: healthy in 20 s, `Started` in
+  11.1 s, Flyway validated 64 / nothing applied, boot lines "CJ dropshipping ENABLED
+  (sandbox=false)" / **"CJ declared store amount: ENABLED (declared in USD, store EUR,
+  fx-usd-eur 0.866)"** / "Stripe payments ENABLED (currency=eur)" / "CJ placement mode: MANUAL".
+  Only ERROR = the pre-existing `/app/storage` AccessDenied. Paid-unplaced CJ orders recorded
+  before the swap and unchanged by it: 7 (201), 9 (202), 10 (201), 11 (201, approved
+  2026-08-09). `verify.sh` (`bash /root/deploy-20261109-order/verify.sh`) is USER-SIDE (prod
+  ssh refused in-session). Prod order container is now `6fc27c4b6` — the "still on `8a71f78e7`"
+  note is history. Soft rollback = `LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT=false` + recreate;
+  hard = `bash /root/deploy-20261109-order/rollback.sh`. POSITIVE PROOF still pending: Requeue
+  order 11 in the admin pending tab, then `docker logs litemall-prod-order-1 | grep 'declared
+  shopAmount'` vs the CJ dashboard's store order amount + `iossTaxes`.
 - **Status 2026-11-09 — CJ DECLARED STORE AMOUNT BUILT (plan `litemall-order/docs/
   plan-cj-declared-amount-2026-11-09.md`, decisions D1–D4 approved by the user the same day).**
   Trigger: the user funded the CJ account (100 USD) and set the CJ dashboard IOSS Option to
