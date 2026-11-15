@@ -3943,7 +3943,49 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — parked CJ placements + Requeue MERGED (2026-09-23); deploy = MAIN
+### Worktree: `gateway-admin` — season panels + admin order delete BUILT on `fix/gateway-admin` (2026-11-15), dev-accepted; NOT merged (awaiting user confirmation of the paid-order delete tier)
+- **Status 2026-11-15 — TWO FEATURES BUILT, user-commissioned (plan approved same day).**
+  Commits `26b6dbea3` (order delete, litemall-order + SPA) and `52fa796ab` (season panels,
+  SPA only). No migration, no litemall-db/core change. Order suite **437 run / 0 failures**
+  (+12), admin jest **19 suites / 213 tests** (was 15/170), tsc 0 in `app/`. Live dev
+  acceptance through :18080, headless Chrome on the built jar: **23/23, 0 page errors**;
+  API refusals captured verbatim. Dev rows restored afterwards.
+  1. **Season candidates + season rules** (`/admin/goods/season-candidates`,
+     `/admin/goods/season-rules`) over the V64 `/insight/season-*` endpoints. Tabs come from
+     the rule rows; Dismiss/Restore behind an inline confirm; Run scorer now with the
+     per-season summary; rule form edits STRUCTURED values (match/exclude chips, weights
+     1.0–3.0) and sends only changed fields. ⚠ `PUT /season-rules/{key}` validates NOTHING
+     (the spec says "bounded validation") — `seasonFormat.ts` is the only gate. RAISED for
+     goods-management: server-side validation; no `stockTotal` on candidate rows; the patch
+     cannot clear a price bound to NULL; a run whose term lookups all fail still answers
+     `scanned 0` with errno 0 (failures are WARN-logged only).
+  2. **Admin order delete** — `POST /srv/private/admin/order/{id}/delete`, body
+     `{confirmOrderSn?}`. SOFT delete only; no money moves, no stock returns. Tier 1 = the
+     customer's own rule (102/103/203/401/402). Tier 2 = PAID/REFUND_REQUEST never sent to
+     CJ, for test purchases: order number must be repeated, and the order must be out of
+     the sweep's reach (unapproved under the manual gate, or parked) — typed 422s
+     `[NOT_DELETABLE] [CONFIRM_REQUIRED] [PLACED_AT_CJ] [QUEUED_FOR_CJ] [ALREADY_DELETED]
+     [LOST_RACE] [NOT_FOUND]`. CAS on status+deleted; hop `admin_delete` "Deleted by admin N"
+     in the same transaction. Admin list rows now carry `cjOrderId`. Tier 2 went BEYOND the
+     recommendation the user accepted (they then said the goal is deleting their test
+     orders) — confirm before merging. Prod: orders 7/10 (201) and 9 (202) are tier-2
+     deletable; order 11 is live at CJ and is not.
+  **Deploy = MAIN: order + gateway-admin containers.**
+  ⚠ **INCIDENT during acceptance — the workstation shell exports REAL `CJ_EMAIL` +
+  `CJ_API_KEY`.** The dev order JVM inherited them ("CJ dropshipping ENABLED … sandbox=true")
+  and within 60 s its sweep, on the real CJ account: created sandbox orders
+  `SD2611151952530659000` (dev 111) + `SD2611151953070642100` (dev 110), ADOPTED the
+  pre-existing NON-sandbox CJ order `2611092145590652000` (dev 112, created 2026-11-09),
+  and CONFIRMED all three. **No payBalance call ran** (JVM killed before the next sync
+  tick). Dev rows 110/111/112 now hold those ids at CREATED. ⚠ Any dev order JVM booted
+  WITH those creds will try pay-from-balance on them — 112's is a real order. Boot dev
+  with `unset CJ_EMAIL CJ_API_KEY` (boots "CJ dropshipping DISABLED"); the three CJ orders
+  should be deleted in the CJ dashboard (USER-SIDE). ⚠ Also: port 9200 on this machine is
+  another project's Elasticsearch, so litemall's OCS stack is NOT up — the scorer's term
+  lookups 404 against it; do not start `dc-local.sh` without checking for the clash.
+  ⚠ `jest-sonar` is missing from the workspace node_modules — run jest with
+  `--config jest.conf.js --reporters=default`. goods-management needs `-Dskip.npm=true` in
+  a reactor build with gateway-admin (build them in two invocations).
 - **Status 2026-09-23 — PARKED CJ PLACEMENTS + REQUEUE: BUILT, LIVE-ACCEPTED on dev,
   MERGED to master `9fcd28726`.** The order raise of 2026-09-05 (lifecycle package B,
   `litemall-order/docs/handoff-gateway-admin-cj-requeue.md`) is CLOSED. One commit, SPA
