@@ -64,7 +64,8 @@ TOKEN_CACHE = os.path.expanduser("~/.cache/litemall-cj-probe-token")
 RETRIES = 4
 
 FIELDS = ["goods_id", "pid", "vid", "retail_eur", "band", "category", "eu_stock", "variants",
-          "cj_cost_usd", "variant_weight_g", "product_weight", "packing_weight", "country",
+          "cj_cost_usd", "variant_weight_g", "product_weight", "packing_weight", "product_type",
+          "dims_mm", "country",
           "options", "default_name", "default_usd", "default_aging", "cheapest_name",
           "cheapest_usd", "taxes_fee_usd", "error"]
 
@@ -189,7 +190,9 @@ def probe_product(token, s, writer, raw):
     v = variants[0]
     base.update(vid=v.get("vid", ""), variants=len(variants),
                 cj_cost_usd=v.get("variantSellPrice", ""), variant_weight_g=v.get("variantWeight", ""),
-                product_weight=d.get("productWeight", ""), packing_weight=d.get("packingWeight", ""))
+                product_weight=d.get("productWeight", ""), packing_weight=d.get("packingWeight", ""),
+                product_type=d.get("productType", ""),
+                dims_mm="x".join(str(v.get(k) or "") for k in ("variantLength", "variantWidth", "variantHeight")))
     for cc in COUNTRIES:
         body = {"startCountryCode": FROM, "endCountryCode": cc,
                 "products": [{"vid": v.get("vid"), "quantity": 1}]}

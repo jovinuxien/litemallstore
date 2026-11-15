@@ -1,6 +1,12 @@
 # Plan — landed cost: stop selling orders that lose money (2026-11-15)
 
-Status: **WRITTEN, NOT APPROVED, NO CODE YET.** The user asked for this plan on 2026-11-15
+Status: **STEP 0 DONE 2026-11-15 — findings in `findings-freight-probe-2026-11-15.md`. Steps
+1–3 NOT APPROVED, NO CODE YET.** The probe changed the picture: of 223 sampled on-sale products,
+26 are removed at CJ, 112 are supplier-shipped with no courier to SE/DE/DK/FR, 17 ship to Germany
+only, and of the 66 that ship from China 26 lose money on a single-item order. A "stop selling
+what cannot be delivered" step now comes before step 1 (not yet written up as a plan step).
+
+Original status: **WRITTEN, NOT APPROVED, NO CODE YET.** The user asked for this plan on 2026-11-15
 after order 11 cost more at CJ than the customer paid.
 
 ## What the numbers say
