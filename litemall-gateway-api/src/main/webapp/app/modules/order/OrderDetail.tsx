@@ -9,7 +9,7 @@ import { useTranslation } from 'app/i18n';
 import { IOrderDetail, IStore } from 'app/shared/model/order/order.model';
 import { orderAddressLines } from 'app/shared/util/address';
 import { fmtDateTime } from 'app/shared/util/dateTime';
-import { moneyCharged } from 'app/shared/util/money';
+import { money } from 'app/shared/util/money';
 import { QRCodeSVG } from 'qrcode.react';
 
 import ReviewForm from 'app/modules/product/productDetailComponent/ReviewForm';
@@ -128,7 +128,6 @@ const OrderDetailView: React.FC = () => {
           {(order.orderGoods ?? []).map(g => (
             <React.Fragment key={g.id}>
               <GoodsLineCard
-                charged
                 picUrl={g.picUrl}
                 name={g.goodsName}
                 to={g.goodsId ? `/product/${g.goodsId}` : undefined}
@@ -166,16 +165,16 @@ const OrderDetailView: React.FC = () => {
         <CellGroup>
           <OrderSummary
             rows={[
-              { label: t('detail.goodsTotal'), value: moneyCharged(priceNum(order.goodsPrice)) },
+              { label: t('detail.goodsTotal'), value: money(priceNum(order.goodsPrice)) },
               {
                 label: t('detail.shipping'),
-                value: priceNum(order.freightPrice) > 0 ? moneyCharged(priceNum(order.freightPrice)) : t('detail.free'),
+                value: priceNum(order.freightPrice) > 0 ? money(priceNum(order.freightPrice)) : t('detail.free'),
                 variant: 'muted',
               },
               ...(priceNum(order.couponPrice) > 0
-                ? [{ label: t('detail.coupon'), value: `−${moneyCharged(priceNum(order.couponPrice))}`, variant: 'success' as const }]
+                ? [{ label: t('detail.coupon'), value: `−${money(priceNum(order.couponPrice))}`, variant: 'success' as const }]
                 : []),
-              { label: t('detail.totalPaid'), value: moneyCharged(priceNum(order.actualPrice)), variant: 'total' },
+              { label: t('detail.totalPaid'), value: money(priceNum(order.actualPrice)), variant: 'total' },
             ]}
           />
         </CellGroup>

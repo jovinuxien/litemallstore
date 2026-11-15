@@ -52,11 +52,6 @@
     "expand": "Vis {{name}}",
     "collapse": "Skjul {{name}}"
   },
-  "currency": {
-    "label": "Valuta",
-    "note": "Priser i {{currency}} er skøn efter dagens valutakurs. Du betaler i euro.",
-    "chargedInEur": "Opkræves i euro: {{amount}}"
-  },
   "errorPage": {
     "title": "Siden kunne ikke vises",
     "body": "Noget gik galt, da den skulle vises. Resten af butikken er ikke påvirket.",

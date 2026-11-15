@@ -6,7 +6,7 @@ import { t } from 'app/i18n';
 import { baseAxios, contentApi, IArticle, ICombination, IPageComponent, IPageView, promotionApi, SRV, unwrap } from 'app/shared/api';
 import { IGood } from 'app/shared/model/product/product.model';
 import ProductCard, { goodId } from 'app/components/userComponents/card/ProductCard';
-import { money, moneyShort } from 'app/shared/util/money';
+import { EURO, money } from 'app/shared/util/money';
 import { productPath } from 'app/shared/util/slug';
 import { loadGoodsListGoods } from './goodsListSource';
 import 'app/components/userComponents/card/product-card.scss';
@@ -204,10 +204,10 @@ const CouponStripC: React.FC<{ config: Record<string, unknown> }> = ({ config })
         {coupons.map((c, i) => (
           <Link key={c.couponId ?? i} to='/user/coupons' className='lm-coupon text-decoration-none'>
             {/* Percent coupons (Wave-18) show the rate; flat renders exactly as v1. */}
-            <div className='lm-coupon__amount'>{c.discountType === 1 ? `${c.discount}%` : moneyShort(c.discount)}</div>
+            <div className='lm-coupon__amount'>{c.discountType === 1 ? `${c.discount}%` : `${EURO}${c.discount}`}</div>
             <div>
               <div className='lm-coupon__name'>{c.name}</div>
-              {c.min != null && <div className='lm-coupon__min'>Spend {moneyShort(c.min)}</div>}
+              {c.min != null && <div className='lm-coupon__min'>Spend {EURO}{c.min}</div>}
             </div>
           </Link>
         ))}

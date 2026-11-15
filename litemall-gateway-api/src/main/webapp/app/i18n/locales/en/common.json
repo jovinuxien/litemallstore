@@ -52,11 +52,6 @@
     "expand": "Expand {{name}}",
     "collapse": "Collapse {{name}}"
   },
-  "currency": {
-    "label": "Currency",
-    "note": "Prices in {{currency}} are estimates at today’s exchange rate. You pay in euros.",
-    "chargedInEur": "Charged in euros: {{amount}}"
-  },
   "errorPage": {
     "title": "This page didn’t load",
     "body": "Something went wrong displaying it. The rest of the shop is unaffected.",

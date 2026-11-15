@@ -16,7 +16,6 @@
     "inEuStock": "I EU-lager",
     "filters": "Filter",
     "filterByCategory": "Filtrera på kategori",
-    "priceEur": "Pris i euro (€)",
     "price": "Pris",
     "facetFields": {
       "variant_price": "Variantpris"

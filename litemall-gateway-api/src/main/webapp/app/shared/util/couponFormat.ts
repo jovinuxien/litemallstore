@@ -1,6 +1,6 @@
 import { ICoupon, userApi } from 'app/shared/api';
 import { t } from 'app/i18n';
-import { moneyShort } from 'app/shared/util/money';
+import { EURO } from 'app/shared/util/money';
 
 /**
  * Wave-18 coupon rendering helpers — ONE place that knows the flat-vs-percent
@@ -19,19 +19,19 @@ import { moneyShort } from 'app/shared/util/money';
 
 export const isPercentCoupon = (c: ICoupon): boolean => c.discountType === 1;
 
-const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? t('coupon:format.capParen', { amount: moneyShort(c.discountCap) }) : '');
+const cap = (c: ICoupon): string => (isPercentCoupon(c) && c.discountCap ? t('coupon:format.capParen', { amount: `${EURO}${c.discountCap}` }) : '');
 
 /** Compact value for card/strip headings: "15%" or "€5". */
 export const couponValueShort = (c: ICoupon): string =>
-  isPercentCoupon(c) ? `${c.discount ?? 0}%` : moneyShort(c.discount ?? 0);
+  isPercentCoupon(c) ? `${c.discount ?? 0}%` : `${EURO}${c.discount ?? 0}`;
 
 /** Full sentence label: "15% off (up to €20)" or "€5 off". */
 export const couponDiscountLabel = (c: ICoupon): string =>
-  isPercentCoupon(c) ? `${t('coupon:format.percentOff', { rate: c.discount ?? 0 })}${cap(c)}` : t('coupon:format.flatOff', { amount: moneyShort(c.discount ?? 0) });
+  isPercentCoupon(c) ? `${t('coupon:format.percentOff', { rate: c.discount ?? 0 })}${cap(c)}` : t('coupon:format.flatOff', { amount: `${EURO}${c.discount ?? 0}` });
 
 /** Threshold line: "Spend €50" / "No minimum", with the percent cap appended. */
 export const couponConditionLabel = (c: ICoupon): string =>
-  `${c.min ? t('coupon:format.spend', { amount: moneyShort(c.min) }) : t('coupon:format.noMinimum')}${isPercentCoupon(c) && c.discountCap ? ` · ${t('coupon:format.upTo', { amount: moneyShort(c.discountCap) })}` : ''}`;
+  `${c.min ? t('coupon:format.spend', { amount: `${EURO}${c.min}` }) : t('coupon:format.noMinimum')}${isPercentCoupon(c) && c.discountCap ? ` · ${t('coupon:format.upTo', { amount: `${EURO}${c.discountCap}` })}` : ''}`;
 
 /**
  * Checkout-picker option text. `c` comes from selectlist, so `discount` is the
@@ -40,13 +40,13 @@ export const couponConditionLabel = (c: ICoupon): string =>
  */
 export const couponPickerLabel = (c: ICoupon): string => {
   const name = c.name ? `${c.name} — ` : '';
-  const min = c.min ? t('coupon:format.pickerOver', { amount: moneyShort(c.min) }) : '';
+  const min = c.min ? t('coupon:format.pickerOver', { amount: `${EURO}${c.min}` }) : '';
   const kind = isPercentCoupon(c)
     ? c.discountCap
-      ? t('coupon:format.pickerPercentCap', { amount: moneyShort(c.discountCap) })
+      ? t('coupon:format.pickerPercentCap', { amount: `${EURO}${c.discountCap}` })
       : t('coupon:format.pickerPercent')
     : '';
-  return `${name}−${moneyShort(c.discount)}${min}${kind}`;
+  return `${name}−${EURO}${c.discount}${min}${kind}`;
 };
 
 /** Scope target for "shop eligible items": category landing, PDP, or search. */

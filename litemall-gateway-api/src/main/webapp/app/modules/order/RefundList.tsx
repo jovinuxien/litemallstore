@@ -7,7 +7,7 @@ import { EmptyState, GoodsLineCard, Page, PageHead } from 'app/components/common
 import { actionErrorMessage, orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
-import { moneyCharged } from 'app/shared/util/money';
+import { money } from 'app/shared/util/money';
 import './order.scss';
 
 /**
@@ -82,7 +82,6 @@ const RefundList: React.FC = () => {
               <div role='button' tabIndex={0} onClick={() => navigate(`/order/${o.id}`)} onKeyDown={e => e.key === 'Enter' && navigate(`/order/${o.id}`)}>
                 {(o.goodsList ?? []).map(g => (
                   <GoodsLineCard
-                    charged
                     key={g.id}
                     picUrl={g.picUrl}
                     name={g.goodsName}
@@ -98,7 +97,7 @@ const RefundList: React.FC = () => {
                 </Alert>
               )}
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>{t('list.total', { amount: moneyCharged(priceNum(o.actualPrice)) })}</span>
+                <span className='lm-amount'>{t('list.total', { amount: money(priceNum(o.actualPrice)) })}</span>
                 <div className='lm-order-panel__actions'>
                   {o.handleOption?.withdrawRefund && o.id != null && (
                     <button type='button' className='btn btn-sm btn-lm-outline' disabled={pending} onClick={() => withdraw(o.id as number)}>

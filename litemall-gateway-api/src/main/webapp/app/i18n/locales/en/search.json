@@ -16,7 +16,6 @@
     "inEuStock": "In EU stock",
     "filters": "Filters",
     "filterByCategory": "Filter by category",
-    "priceEur": "Price in euros (€)",
     "price": "Price",
     "facetFields": {
       "variant_price": "Variant price"

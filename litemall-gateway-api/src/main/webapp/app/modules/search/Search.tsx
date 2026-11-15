@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { isConverted } from 'app/shared/util/currency';
 import {
   ClearRefinements,
   Configure,
@@ -523,8 +522,7 @@ const SearchView: React.FC = () => {
             <BrandFacet categoryId={params.id} />
 
             <section className="lm-isearch__facet">
-              {/* The index is priced in euros; with a converted display the box still takes euros — say so. */}
-              <h3>{isConverted() ? t('rail.priceEur') : t('rail.price')}</h3>
+              <h3>{t('rail.price')}</h3>
               <RangeInput attribute="price" translations={widget.rangeInput} />
             </section>
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-import { chargedNote, money, moneyCharged } from 'app/shared/util/money';
+import { money } from 'app/shared/util/money';
 import { t } from 'app/i18n';
 
 import './storefront.scss';
@@ -82,13 +82,8 @@ interface GoodsLineCardProps {
    * renders nothing at all, which is the common case (most goods are unmeasured).
    */
   note?: React.ReactNode;
-  /**
-   * The line belongs to an ORDER (a record of what was charged): write the price in
-   * euros, never in the visitor's display currency. Cart and checkout lines omit it.
-   */
-  charged?: boolean;
 }
-export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, specs, price, qty, qtyControl, trailing, note, charged }) => {
+export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, specs, price, qty, qtyControl, trailing, note }) => {
   const title = to ? (
     <Link to={to} className='lm-goods-card__title'>
       {name}
@@ -112,7 +107,7 @@ export const GoodsLineCard: React.FC<GoodsLineCardProps> = ({ picUrl, name, to, 
         )}
         {note != null && <div className='lm-goods-card__note'>{note}</div>}
         <div className='lm-goods-card__footer'>
-          {price != null && <span className='lm-goods-card__price'>{charged ? moneyCharged(price) : money(price)}</span>}
+          {price != null && <span className='lm-goods-card__price'>{money(price)}</span>}
           {qtyControl != null ? qtyControl : qty != null && <span className='lm-goods-card__qty'>× {qty}</span>}
           {trailing}
         </div>
@@ -173,8 +168,6 @@ export const SubmitBar: React.FC<SubmitBarProps> = ({ total, label, buttonText, 
       <div className='lm-submit-bar__totals'>
         <span className='lm-submit-bar__label'>{label ?? t('submitBar.total')} </span>
         <span className='lm-submit-bar__total'>{money(total)}</span>
-        {/* Display currency: a converted total is indicative — say what is charged. */}
-        {chargedNote(total) && <span className='lm-charged-note d-block'>{t('currency.chargedInEur', { amount: chargedNote(total) })}</span>}
       </div>
     )}
     <button type='button' className='btn btn-lm-primary lm-submit-bar__action' onClick={onSubmit} disabled={disabled || loading}>

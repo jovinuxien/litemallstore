@@ -7,7 +7,7 @@ import { EmptyState, GoodsLineCard, Page, PageHead, StatusTabs } from 'app/compo
 import { actionErrorMessage, orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IOrderListItem } from 'app/shared/model/order/order.model';
-import { moneyCharged } from 'app/shared/util/money';
+import { money } from 'app/shared/util/money';
 import './order.scss';
 
 /** litemall-vue order-list showType tabs (index === showType 0–4). */
@@ -97,7 +97,6 @@ const OrderList: React.FC = () => {
               <div role='button' tabIndex={0} onClick={() => navigate(`/order/${o.id}`)}>
                 {(o.goodsList ?? []).map(g => (
                   <GoodsLineCard
-                    charged
                     key={g.id}
                     picUrl={g.picUrl}
                     name={g.goodsName}
@@ -113,7 +112,7 @@ const OrderList: React.FC = () => {
                 </Alert>
               )}
               <div className='lm-order-panel__foot'>
-                <span className='lm-amount'>{t('list.total', { amount: moneyCharged(priceNum(o.actualPrice)) })}</span>
+                <span className='lm-amount'>{t('list.total', { amount: money(priceNum(o.actualPrice)) })}</span>
                 <div className='lm-order-panel__actions'>
                   {o.handleOption?.pay && (
                     <button type='button' className='btn btn-sm btn-lm-primary' disabled={pending} onClick={() => navigate(`/pay/${o.id}`)}>

@@ -13,7 +13,7 @@ import StripeCardForm, { StripeCardHandle } from 'app/shared/payment/StripeCardF
 import { stripePromiseFor } from 'app/shared/payment/stripeLoader';
 import { CheckoutPaymentMethod, payOrder } from 'app/shared/reducers/orderSlice';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { moneyCharged } from 'app/shared/util/money';
+import { money } from 'app/shared/util/money';
 import { Cell, CellGroup, Page, PageHead, PaymentBrandIcons, SubmitBar } from 'app/components/commonComponents/storefront';
 
 /** What the card form is mounted with: the server-minted intent, never a client guess. */
@@ -225,7 +225,7 @@ const Payment: React.FC = () => {
         {/* Order summary */}
         <CellGroup title={t('pay.order')}>
           <Cell title={t('pay.orderNo')} value={orderSn} />
-          <Cell title={t('pay.amountDue')} value={<span className='lm-amount'>{moneyCharged(amountDue)}</span>} />
+          <Cell title={t('pay.amountDue')} value={<span className='lm-amount'>{money(amountDue)}</span>} />
         </CellGroup>
 
         {/* Payment method */}

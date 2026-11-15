@@ -251,18 +251,6 @@ litemall:
   # rebuild. Explicit placeholder on purpose (relaxed binding is not relied on).
   i18n:
     languages: ${LITEMALL_I18N_LANGUAGES:en}
-  # Display currency (stage A): the store CHARGES EUR; this only lists the
-  # currencies the storefront may SHOW prices in, converted with the ECB's
-  # daily reference rate and served by GET /auth/currency. Comma-separated ISO
-  # codes out of EUR,SEK,DKK,NOK,GBP; `EUR` is always on. The default lists
-  # EUR alone = feature OFF (no selector, no conversion, no ECB fetch).
-  # Activation = LITEMALL_CURRENCY_DISPLAY=EUR,SEK,DKK,NOK,GBP in .env +
-  # recreate the container, no rebuild. Explicit placeholders on purpose.
-  currency:
-    display: ${LITEMALL_CURRENCY_DISPLAY:EUR}
-    ecb-url: ${LITEMALL_CURRENCY_ECB_URL:https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml}
-    refresh-hours: ${LITEMALL_CURRENCY_REFRESH_HOURS:6}
-    max-age-days: ${LITEMALL_CURRENCY_MAX_AGE_DAYS:7}
   social:
     facebook-url: "https://www.facebook.com/trovemo"
     instagram-url: ""

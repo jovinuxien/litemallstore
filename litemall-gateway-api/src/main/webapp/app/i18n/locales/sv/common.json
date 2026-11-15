@@ -52,11 +52,6 @@
     "expand": "Visa {{name}}",
     "collapse": "Dölj {{name}}"
   },
-  "currency": {
-    "label": "Valuta",
-    "note": "Priser i {{currency}} är uppskattningar enligt dagens växelkurs. Du betalar i euro.",
-    "chargedInEur": "Debiteras i euro: {{amount}}"
-  },
   "errorPage": {
     "title": "Sidan kunde inte visas",
     "body": "Något gick fel när den skulle visas. Resten av butiken påverkas inte.",
