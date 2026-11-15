@@ -1,4 +1,4 @@
-import { IOrderVo, orderStatusInfo, ORDER_STATUS } from 'app/shared/model/admin/order.model';
+import { IOrderVo, orderDeleteTier, orderStatusInfo, ORDER_STATUS } from 'app/shared/model/admin/order.model';
 import { useListOrdersQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
 import {
   IPendingCjRow,
@@ -10,6 +10,7 @@ import {
 } from 'app/shared/reducers/private/services/adminOrderCjApi';
 import { money } from 'app/shared/util/money';
 import { PAGE_SIZES, Pagination, Spinner, Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import DeleteOrderConfirm from 'app/views/adminViews/adminModule/Order/DeleteOrderConfirm';
 import * as React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
@@ -55,7 +56,7 @@ const OrderList: React.FC = () => {
   const [exportError, setExportError] = React.useState<string | null>(null);
 
   const orderStatusArray = status ? [Number(status)] : undefined;
-  const { data, isLoading, isFetching, isError, error } = useListOrdersQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useListOrdersQuery({
     page,
     limit,
     sort: 'add_time',
@@ -66,6 +67,10 @@ const OrderList: React.FC = () => {
   });
 
   const list = data?.list ?? [];
+  // Admin soft delete: offered per row where the status allows it (the server
+  // is the authority and refuses verbatim); the list refetches on success.
+  const [deleteTarget, setDeleteTarget] = React.useState<IOrderVo | null>(null);
+  const [deleteMsg, setDeleteMsg] = React.useState<string | null>(null);
   const total = data?.total ?? 0;
   const pages = data?.pages ?? 0;
   const errStatus = (error as { status?: number | string })?.status;
@@ -368,6 +373,25 @@ const OrderList: React.FC = () => {
 
       {exportError && <div className='alert alert-danger'>{exportError}</div>}
       {isError && <div className='alert alert-danger'>Failed to load orders{errStatus ? ` (${errStatus})` : ''}.</div>}
+      {deleteMsg && (
+        <div className='alert alert-success d-flex justify-content-between align-items-start'>
+          <span>{deleteMsg}</span>
+          <button type='button' className='btn-close' aria-label='Dismiss' onClick={() => setDeleteMsg(null)} />
+        </div>
+      )}
+      {deleteTarget && (
+        <DeleteOrderConfirm
+          key={deleteTarget.id}
+          order={deleteTarget}
+          onCancel={() => setDeleteTarget(null)}
+          onDeleted={message => {
+            setDeleteTarget(null);
+            setDeleteMsg(message);
+            refetch();
+            pendingQ.refetch();
+          }}
+        />
+      )}
 
       <table className='el-table'>
         <thead>
@@ -421,6 +445,19 @@ const OrderList: React.FC = () => {
                     <Link to={`/admin/mall/order/${o.id}`} className='btn btn-sm btn-outline-primary'>
                       View
                     </Link>
+                    {orderDeleteTier(o) !== 'none' && (
+                      <button
+                        type='button'
+                        className='btn btn-sm btn-outline-danger ms-1'
+                        disabled={deleteTarget?.id === o.id}
+                        onClick={() => {
+                          setDeleteMsg(null);
+                          setDeleteTarget(o);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               );

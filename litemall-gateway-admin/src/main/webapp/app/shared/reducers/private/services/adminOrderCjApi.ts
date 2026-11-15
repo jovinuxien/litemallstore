@@ -361,6 +361,17 @@ export const adminOrderCjApi = createApi({
     requeueCjPlacement: builder.mutation<IEnvelope, number | string>({
       query: orderId => ({ url: `/order/${orderId}/cj-placement/requeue`, method: 'POST' }),
     }),
+    // Admin soft delete. Finished orders need no body; a paid order that was
+    // never sent to CJ needs its order number repeated. Raw envelope — the
+    // typed 422s ([NOT_DELETABLE] / [CONFIRM_REQUIRED] / [PLACED_AT_CJ] /
+    // [QUEUED_FOR_CJ] / [LOST_RACE]) surface verbatim via orderOpMessage().
+    deleteOrder: builder.mutation<IEnvelope, { orderId: number | string; confirmOrderSn?: string }>({
+      query: ({ orderId, confirmOrderSn }) => ({
+        url: `/order/${orderId}/delete`,
+        method: 'POST',
+        body: confirmOrderSn ? { confirmOrderSn } : {},
+      }),
+    }),
     batchApproveAftersales: builder.mutation<IBatchResult, Array<number>>({
       query: ids => ({ url: '/aftersale/batch-approve', method: 'POST', body: { ids } }),
       transformResponse: toBatchResult,
@@ -452,6 +463,7 @@ export const {
   useGetCjPlacementPendingQuery,
   useApproveCjPlacementMutation,
   useRequeueCjPlacementMutation,
+  useDeleteOrderMutation,
   useBatchApproveAftersalesMutation,
   useBatchRejectAftersalesMutation,
 } = adminOrderCjApi;

@@ -82,6 +82,8 @@ public class LitemallAdminOrderController {
     private final org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties;
     // Admin-gated CJ placement (Wave 23, V59): pending list + approval stamp.
     private final org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService cjPlacementApprovalService;
+    // Admin soft delete (finished orders; paid-never-sent-to-CJ behind a repeated order number).
+    private final org.linlinjava.litemall.order.application.internal.OrderAdminDeleteService adminDeleteService;
 
     @Autowired
     public LitemallAdminOrderController(LitemallOrderRepository orderRepository,
@@ -94,7 +96,8 @@ public class LitemallAdminOrderController {
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.ReceiptPrinterPort receiptPrinterPort,
                                         org.linlinjava.litemall.order.infrastructure.services.acl.facades.ExpressQueryPort expressQueryPort,
                                         org.linlinjava.litemall.order.infrastructure.configuration.FulfillmentProperties fulfillmentProperties,
-                                        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService cjPlacementApprovalService) {
+                                        org.linlinjava.litemall.order.application.internal.cj.CjPlacementApprovalService cjPlacementApprovalService,
+                                        org.linlinjava.litemall.order.application.internal.OrderAdminDeleteService adminDeleteService) {
         this.orderRepository = orderRepository;
         this.orderGoodsRepository = orderGoodsRepository;
         this.orchestrator = orchestrator;
@@ -106,6 +109,7 @@ public class LitemallAdminOrderController {
         this.expressQueryPort = expressQueryPort;
         this.fulfillmentProperties = fulfillmentProperties;
         this.cjPlacementApprovalService = cjPlacementApprovalService;
+        this.adminDeleteService = adminDeleteService;
     }
 
     // ---- read surface (admin SPA) ---------------------------------------------------
@@ -600,6 +604,30 @@ public class LitemallAdminOrderController {
                 .body(ResponseUtil.fail(422, "[" + result.status().name() + "] " + result.message()));
     }
 
+    /**
+     * Soft-delete an order from the admin panel. Finished orders (the customer's own delete
+     * rule) need nothing more; a paid order that was never sent to CJ needs its order number
+     * repeated in {@code confirmOrderSn}. No money moves and nothing is undone. Typed 422
+     * {@code [KIND] message} refusals, shown verbatim by the SPA.
+     */
+    @PostMapping("/{orderId}/delete")
+    public Object adminDelete(@PathVariable Integer orderId,
+                              @RequestBody(required = false) Map<String, Object> body,
+                              @RequestHeader(value = "X-User-Id", required = false) String adminUserId) {
+        Object confirm = body == null ? null : body.get("confirmOrderSn");
+        org.linlinjava.litemall.order.application.internal.OrderAdminDeleteService.Result result =
+                adminDeleteService.delete(orderId, confirm == null ? null : confirm.toString(), adminUserId);
+        if (result.status() == org.linlinjava.litemall.order.application.internal.OrderAdminDeleteService.Status.DELETED) {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("orderId", orderId);
+            data.put("status", result.status().name());
+            data.put("message", result.message());
+            return ResponseUtil.ok(data);
+        }
+        return ResponseEntity.unprocessableEntity()
+                .body(ResponseUtil.fail(422, "[" + result.status().name() + "] " + result.message()));
+    }
+
     private Map<String, Object> toRow(LitemallOrderAggregate o) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", o.getOrderId() == null ? null : o.getOrderId().getId());
@@ -614,6 +642,8 @@ public class LitemallAdminOrderController {
         // pickup orders (write-off flow) and dropship orders.
         row.put("deliveryType", o.getDeliveryType());
         row.put("source", o.getSource());
+        // Admin delete: lets the list tell "paid, never sent to CJ" from "live at CJ".
+        row.put("cjOrderId", o.getCjOrderId());
         return row;
     }
 

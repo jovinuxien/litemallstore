@@ -1,4 +1,4 @@
-import { cjPlacementState, orderStatusInfo, parkedLabel } from 'app/shared/model/admin/order.model';
+import { cjPlacementState, orderDeleteTier, orderStatusInfo, parkedLabel } from 'app/shared/model/admin/order.model';
 import { useReadOrderQuery } from 'app/shared/reducers/private/services/adminCatalogApi';
 import {
   ICjApprovalStamp,
@@ -15,6 +15,7 @@ import {
 import { money } from 'app/shared/util/money';
 import { fromServerDateTime } from 'app/shared/util/server-datetime';
 import { Tag } from 'app/views/adminViews/adminModule/_shared/crudUi';
+import DeleteOrderConfirm from 'app/views/adminViews/adminModule/Order/DeleteOrderConfirm';
 import * as React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -133,6 +134,10 @@ const OrderDetail: React.FC = () => {
   // the state on. Approval is never offered for a parked order.
   const [requeuePlacement, { isLoading: requeuing }] = useRequeueCjPlacementMutation();
   const [requeueOpen, setRequeueOpen] = React.useState(false);
+  // Admin soft delete. Afterwards the page keeps showing the record (the row
+  // still exists server-side) and stops offering Delete.
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [deleted, setDeleted] = React.useState(false);
   // Stamp from a just-confirmed approval — keeps the UI honest even before
   // the refetched detail payload projects the V59 columns.
   const [localStamp, setLocalStamp] = React.useState<ICjApprovalStamp | null>(null);
@@ -290,6 +295,11 @@ const OrderDetail: React.FC = () => {
               Requeue for CJ placement
             </button>
           )}
+          {!deleted && placement !== 'approved-awaiting-placement' && orderDeleteTier(order) !== 'none' && (
+            <button className='btn btn-outline-danger btn-sm me-2' disabled={deleteOpen} onClick={() => setDeleteOpen(true)}>
+              Delete order
+            </button>
+          )}
           {isUnpaid && (
             <button className='btn btn-outline-success btn-sm me-2' disabled={paying || payOpen} onClick={() => setPayOpen(true)}>
               Mark paid (offline)
@@ -330,6 +340,18 @@ const OrderDetail: React.FC = () => {
           Fix the cause, then requeue — the placement sweep retries it on its next tick. CJ&apos;s exact words are on the pending tab
           (hold reason) and the order timeline.
         </div>
+      )}
+
+      {deleteOpen && !deleted && (
+        <DeleteOrderConfirm
+          order={order}
+          onCancel={() => setDeleteOpen(false)}
+          onDeleted={message => {
+            setDeleteOpen(false);
+            setDeleted(true);
+            setActionMsg({ ok: true, text: `${message} It no longer appears in the order list.` });
+          }}
+        />
       )}
 
       {requeueOpen && (

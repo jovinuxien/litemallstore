@@ -169,6 +169,16 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
         litemallOrderMapper.logicalDeleteByPrimaryKey(orderId.getId());
     }
 
+    @Override
+    public int softDeleteIfStatus(LitemallOrderId orderId,
+                                  org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus expectedStatus) {
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.or().andIdEqualTo(orderId.getId())
+                .andOrderStatusEqualTo(expectedStatus.getCode())
+                .andDeletedEqualTo(false);
+        return litemallOrderMapper.logicalDeleteByExample(example);
+    }
+
     /**
      * A fresh order_sn: {@code yyyyMMdd} + 6 random digits.
      *

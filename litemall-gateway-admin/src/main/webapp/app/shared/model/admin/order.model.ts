@@ -25,6 +25,10 @@ export interface IOrderVo {
   // Fulfilment channel (Wave 4): 'express' (default) | 'pickup'. Read
   // defensively — older rows/DTOs may not carry it.
   deliveryType?: string;
+  // Fulfilment source + CJ order id (admin delete: tells "paid, never sent to
+  // CJ" from "live at CJ"). Absent on rows from a backend that predates them.
+  source?: string;
+  cjOrderId?: string;
 }
 
 // A line item on an order (litemall-db LitemallOrderGoods).
@@ -137,3 +141,26 @@ export const cjPlacementState = (o?: {
   if (o.orderStatus === 201) return 'awaiting-approval';
   return 'not-paid';
 };
+
+// Admin order delete (POST /srv/private/admin/order/{id}/delete) — always a
+// SOFT delete; the server is the authority and refuses with a typed 422.
+//   'finished' — the statuses a customer may delete too: one click + confirm.
+//   'paid'     — paid or refund-requested and never sent to CJ (test purchases):
+//                the order number must be typed back, because the order
+//                vanishes with its money taken and no refund made.
+//   'none'     — unpaid, shipped, or live at CJ: no delete is offered.
+export type OrderDeleteTier = 'none' | 'finished' | 'paid';
+
+const FINISHED_STATUSES = [102, 103, 203, 401, 402];
+const PAID_STATUSES = [201, 202];
+
+export const orderDeleteTier = (o?: { orderStatus?: number; cjOrderId?: string | null }): OrderDeleteTier => {
+  if (!o || o.orderStatus == null) return 'none';
+  if (FINISHED_STATUSES.includes(o.orderStatus)) return 'finished';
+  if (PAID_STATUSES.includes(o.orderStatus)) return o.cjOrderId ? 'none' : 'paid';
+  return 'none';
+};
+
+/** The paid tier's confirm button unlocks only on an exact order-number match. */
+export const deleteConfirmMatches = (orderSn: string | undefined, typed: string): boolean =>
+  !!orderSn && typed.trim() === orderSn;

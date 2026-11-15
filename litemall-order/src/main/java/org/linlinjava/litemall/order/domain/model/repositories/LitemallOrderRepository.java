@@ -45,6 +45,14 @@ public interface LitemallOrderRepository {
 
     void deleteByOrderId(LitemallOrderId orderId);
 
+    /**
+     * Admin soft delete, as a CAS: flags the row deleted only while it is still live AND
+     * still in {@code expectedStatus}. Returns the rows changed (0 = the order moved on or
+     * was already deleted between the eligibility read and this write).
+     */
+    int softDeleteIfStatus(LitemallOrderId orderId,
+                           org.linlinjava.litemall.order.domain.model.valueobjects.enums.LitemallOrderStatus expectedStatus);
+
     public String generateOrderSn(LitemallUserId userId);
 
     int count();
