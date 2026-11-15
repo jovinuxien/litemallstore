@@ -592,6 +592,14 @@ services:
       # 2 = own IOSS (needs CJ_IOSS_NUMBER). Recreate only, no rebuild.
       CJ_IOSS_TYPE: ${CJ_IOSS_TYPE:-0}
       CJ_IOSS_NUMBER: ${CJ_IOSS_NUMBER:-}
+      # Address sent to CJ when the ordering account has no email (yml
+      # spring.cjdropship.api.customer-email-fallback). Without this passthrough the
+      # .env.prod value never reached the container and prod sent the placeholder
+      # orders@litemall.dev. Recreate only.
+      CJ_CUSTOMER_EMAIL_FALLBACK: ${CJ_CUSTOMER_EMAIL_FALLBACK:-support@trovemo.com}
+      # Submit-time email guarantee (litemall.order.require-buyer-email): an account
+      # with no email is refused at submit. false = kill switch, recreate only.
+      LITEMALL_ORDER_REQUIRE_BUYER_EMAIL: ${LITEMALL_ORDER_REQUIRE_BUYER_EMAIL:-true}
       # Wave 24: Stripe charge currency (litemall.order.stripe.currency,
       # application.yml:204). Without this passthrough a deploy-day .env flip to
       # eur would silently no-op — the container would keep charging usd.

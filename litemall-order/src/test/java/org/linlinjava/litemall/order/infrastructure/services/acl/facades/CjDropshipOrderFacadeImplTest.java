@@ -93,6 +93,35 @@ class CjDropshipOrderFacadeImplTest {
         return captor.getValue();
     }
 
+    @org.junit.jupiter.api.Test
+    void accountWithoutEmail_sendsTheStoreFallback_andLogsIt() {
+        try (org.linlinjava.litemall.order.testsupport.CapturedLogs logs =
+                     new org.linlinjava.litemall.order.testsupport.CapturedLogs(CjDropshipOrderFacadeImpl.class)) {
+            CjCreateOrderRequest request = capturePlacement(facade(), placement());
+
+            org.assertj.core.api.Assertions.assertThat(request.getEmail()).isEqualTo("orders@litemall.dev");
+            org.assertj.core.api.Assertions.assertThat(logs.warnings()).anyMatch(m ->
+                    m.contains("ORD-1") && m.contains("store fallback address") && m.contains("orders@litemall.dev"));
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void accountWithEmail_sendsTheCustomersOwn_andLogsNoFallback() {
+        CjOrderPlacement withEmail = CjOrderPlacement.builder()
+                .orderNumber("ORD-2").customerName("Jane").phone("15555550123")
+                .country("United States").countryCode("US").email(" jane@example.com ")
+                .lines(List.of(CjOrderPlacement.Line.builder().vid("VID-9").quantity(1).build()))
+                .build();
+        try (org.linlinjava.litemall.order.testsupport.CapturedLogs logs =
+                     new org.linlinjava.litemall.order.testsupport.CapturedLogs(CjDropshipOrderFacadeImpl.class)) {
+            CjCreateOrderRequest request = capturePlacement(facade(), withEmail);
+
+            org.assertj.core.api.Assertions.assertThat(request.getEmail()).isEqualTo("jane@example.com");
+            org.assertj.core.api.Assertions.assertThat(logs.warnings())
+                    .noneMatch(m -> m.contains("store fallback address"));
+        }
+    }
+
     private static String json(CjCreateOrderRequest request) throws Exception {
         return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request);
     }

@@ -247,6 +247,21 @@ class CustomerMailEnqueueListenerTest {
     }
 
     @Test
+    void emailLessBuyer_skipIsLoggedWithTheOrder() {
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order(42)));
+        stubBuyerEmail(null);
+
+        try (org.linlinjava.litemall.order.testsupport.CapturedLogs logs =
+                     new org.linlinjava.litemall.order.testsupport.CapturedLogs(CustomerMailEnqueueListener.class)) {
+            listener(true).onOrderPaid(new LitemallOrderPaidEvent(new LitemallOrderId(42)));
+
+            verify(mailOutboxMapper, after(500).never()).insert(any());
+            assertThat(logs.warnings()).anyMatch(m -> m.contains("Customer mail skipped for order 42")
+                    && m.contains("20260726000042") && m.contains("no email address"));
+        }
+    }
+
+    @Test
     void goodsLoadFailure_fallsBackToMinimalBody() {
         when(orderRepository.findById(any())).thenReturn(Optional.of(order(42)));
         when(orderGoodsRepository.findByOId(any())).thenThrow(new RuntimeException("db down"));

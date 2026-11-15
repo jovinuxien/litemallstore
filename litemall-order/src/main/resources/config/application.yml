@@ -92,17 +92,19 @@ spring:
       sandbox: ${LITEMALL_ORDER_CJ_SANDBOX:true}
       auto-pay-balance: true
       # IOSS declaration for EU destinations — createOrderV2 rejects EU orders without
-      # one (100104/7001). 0 (default) = OMIT the field: CJ then applies the account's
-      # dashboard IOSS Option (Profile > IOSS Setting — "Declare with CJ's IOSS" per
-      # country, or an own-IOSS entry), which is CJ's documented flow for orders that
-      # don't carry an IOSS. Explicit values if ever needed: 1 = no IOSS (live-tested:
-      # CJ still demands a number for EU), 2 = own IOSS (set ioss-number too),
-      # 3 = CJ IOSS service (live-tested: also demands a number unless the dashboard
-      # setting is active). Per-deployment decision.
+      # one (100104/7001). 0 (default) = OMIT the field, which is only right for a
+      # deployment that ships outside the EU. Found live 2026-11-10 (order 11, SE):
+      # omitting the field does NOT inherit the account's dashboard IOSS Option — CJ
+      # still answers "7001: Please enter a IOSS number" with the dashboard set to
+      # "Declare with CJ's IOSS". An explicit value is required for EU orders:
+      # 3 = CJ's IOSS service (what prod runs; the dashboard option must be active too),
+      # 2 = own IOSS (set ioss-number too). 1 = no IOSS (CJ still demands a number for EU).
       ioss-type: ${CJ_IOSS_TYPE:0}
       ioss-number: ${CJ_IOSS_NUMBER:}
       # createOrderV2 also rejects a missing/invalid customer email (3001). The ordering
-      # user's email is used when present; this store contact is the fallback.
+      # user's email is used when present; this store contact is the fallback (its use
+      # is logged at WARN). Production must set CJ_CUSTOMER_EMAIL_FALLBACK to a real
+      # store mailbox — the default below is a placeholder nobody reads.
       customer-email-fallback: ${CJ_CUSTOMER_EMAIL_FALLBACK:orders@litemall.dev}
       # CJ credentials come from the environment ONLY (handoff-secrets-wave7: no committed
       # fallback). BOTH empty = CJ DISABLED: payment still settles, paid CJ orders are
@@ -155,6 +157,12 @@ litemall:
     # Days after delivery a return may be requested — stated in the delivered mail; must
     # match the storefront's returns policy copy (30 days since Wave 15).
     return-window-days: ${LITEMALL_ORDER_RETURN_WINDOW_DAYS:30}
+    # Submit-time email guarantee (plan-order-email-guarantee-2026-11-12.md): an account
+    # without an email address is refused at submit with a typed 422, because every
+    # customer mail and the CJ placement are addressed to it. false = kill switch
+    # (previous behaviour: the order is taken and the mails are skipped). Explicit
+    # placeholder; container recreate only.
+    require-buyer-email: ${LITEMALL_ORDER_REQUIRE_BUYER_EMAIL:true}
     unpaid-reconcile:
       processing-defer-minutes: ${LITEMALL_ORDER_UNPAID_PROCESSING_DEFER_MINUTES:60}
       unavailable-defer-minutes: ${LITEMALL_ORDER_UNPAID_UNAVAILABLE_DEFER_MINUTES:5}

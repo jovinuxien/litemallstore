@@ -204,7 +204,11 @@ public class CustomerMailEnqueueListener {
             }
             String email = buyerEmail(order);
             if (email == null) {
-                return; // email-less buyer: silent skip, no row (documented semantics)
+                // No row is written. Logged so a skipped buyer is visible in the order log
+                // (new orders are refused at submit by BuyerEmailGuard; this covers older ones).
+                log.warn("Customer mail skipped for order {} (sn {}): the account has no email address",
+                        orderId, order.getOrderSn());
+                return;
             }
             enqueue.accept(order, email);
         } catch (Throwable t) {

@@ -139,6 +139,12 @@ public class LitemallOrderOrchestratorService {
     @Autowired
     private org.linlinjava.litemall.order.application.internal.cj.CjOrderAvailabilityChecker cjOrderAvailabilityChecker;
 
+    // Submit-time email guarantee (plan-order-email-guarantee-2026-11-12.md): an account
+    // without an email is refused in the pre-check zone. Optional so the unit tests that
+    // build this class by hand keep working without it.
+    @Autowired(required = false)
+    private org.linlinjava.litemall.order.application.internal.BuyerEmailGuard buyerEmailGuard;
+
     // Wallet vertical (absorbed from litemall-wallet-service). Used to debit the
     // user's wallet when PaymentMethod.WALLET is selected — mirrors how groupon
     // flows through grouponServiceLayer.
@@ -234,6 +240,14 @@ public class LitemallOrderOrchestratorService {
                 || checkedItems.stream().allMatch(java.util.Objects::isNull)) {
             return LitemallOrderOperationResult.submitFailed(
                     "Your cart is empty — add at least one item before placing an order.");
+        }
+        // Every customer mail and the CJ placement are addressed to the account's email.
+        // Refuse here (clean 422) rather than take payment from a buyer we cannot reach.
+        if (buyerEmailGuard != null) {
+            java.util.Optional<String> emailRefusal = buyerEmailGuard.refusalFor(command.getUserId());
+            if (emailRefusal.isPresent()) {
+                return LitemallOrderOperationResult.submitFailed(emailRefusal.get());
+            }
         }
         // Same pre-check rationale as the empty-cart guard above: a mixed CJ+local
         // cart must fail as a clean 422 from OUTSIDE the transactional placeOrder

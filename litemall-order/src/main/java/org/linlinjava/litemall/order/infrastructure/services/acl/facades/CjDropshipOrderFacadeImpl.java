@@ -60,10 +60,10 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
     private final boolean sandbox;
     /**
      * IOSS declaration for EU destinations (createOrderV2 rejects EU orders without one,
-     * error 100104/7001). 0 (default) = OMIT the field so CJ falls back to the account's
-     * dashboard IOSS Option ("Declare with CJ's IOSS" / own IOSS per country) — CJ's
-     * documented behavior when no IOSS is supplied on the order. 1/2/3 send explicitly
-     * (2 requires ioss-number). See the ADR.
+     * error 100104/7001). 0 (default) = OMIT the field. Found live 2026-11-10: omitting it
+     * does NOT inherit the account's dashboard IOSS Option — CJ still answers 7001 for an
+     * EU order. An EU deployment must send an explicit value: 3 = CJ's IOSS service
+     * (prod), 2 = own IOSS (requires ioss-number). See the ADR.
      */
     private final int iossType;
     /** Merchant IOSS number, sent when non-blank (required with {@code ioss-type: 2}). */
@@ -290,6 +290,20 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
         return new CjLogisticsOption(o.getLogisticName(), o.getLogisticPrice(), o.getLogisticAging());
     }
 
+    /**
+     * The address sent to CJ: the customer's own, or the store fallback when the account
+     * has none (createOrderV2 rejects a missing email, 3001). The fallback is logged —
+     * CJ's notices for that order then reach the store, not the customer.
+     */
+    private String customerEmailFor(CjOrderPlacement p) {
+        if (org.springframework.util.StringUtils.hasText(p.getEmail())) {
+            return p.getEmail().trim();
+        }
+        log.warn("CJ placement {}: no customer email — sending the store fallback address {}",
+                p.getOrderNumber(), customerEmailFallback);
+        return customerEmailFallback;
+    }
+
     private CjCreateOrderRequest toRequest(CjOrderPlacement p, List<CjOrderProduct> products, String logistic) {
         return CjCreateOrderRequest.builder()
                 .orderNumber(p.getOrderNumber())
@@ -308,8 +322,7 @@ public class CjDropshipOrderFacadeImpl implements CjDropshipOrderFacade {
                 .isSandbox(sandbox ? 1 : null)
                 .iossType(iossType > 0 ? iossType : null)
                 .iossNumber(org.springframework.util.StringUtils.hasText(iossNumber) ? iossNumber.trim() : null)
-                .email(org.springframework.util.StringUtils.hasText(p.getEmail())
-                        ? p.getEmail().trim() : customerEmailFallback)
+                .email(customerEmailFor(p))
                 // Store order amount for CJ's customs/IOSS declaration (null ⇒ omitted).
                 .shopAmount(declaredAmounts.toCjAmount(p.getDeclaredAmount()))
                 .products(products)

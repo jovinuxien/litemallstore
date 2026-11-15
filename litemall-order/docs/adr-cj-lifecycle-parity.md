@@ -46,6 +46,14 @@ enabled account-side for type 3. A rejected EU placement still fails the payment
 cleanly (402, wallet rolled back). Non-EU destinations (GB, NO, US…) are unaffected —
 live-verified 2026-07-13 (order 79 → CJ 20260713619543).
 
+**IOSS correction (found live, 2026-11-10):** omitting `iossType` does NOT inherit the
+account's dashboard IOSS Option. With the dashboard set to "Declare with CJ's IOSS" for
+all EU countries and the field omitted (`CJ_IOSS_TYPE=0`), order 11 (SE) was still refused
+with `7001: Please enter a IOSS number`. It was placed (`SD2611101824320648300`) only after
+an explicit `CJ_IOSS_TYPE=3` was sent — so type 3 needs BOTH the dashboard option active
+and the explicit field on the order. Any note saying "omit the field and the dashboard
+applies" is wrong. Prod runs `CJ_IOSS_TYPE=3` (compose passthrough `3a2436d90`).
+
 **Customer email (found live, 2026-07-13):** createOrderV2 now also rejects a
 missing/invalid `email` (`3001: Please enter your email address`). The placement
 carries the ordering user's `litemall_user.email` when present; otherwise the

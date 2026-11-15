@@ -279,6 +279,8 @@ public class CjFulfillmentService {
                     userMapper.selectByPrimaryKey(order.getUserId().getId());
             return user != null ? user.getEmail() : null;
         } catch (RuntimeException ex) {
+            log.warn("CJ placement {}: customer email lookup failed ({}) — the store fallback address will be sent",
+                    order.getOrderSn(), ex.toString());
             return null;
         }
     }
