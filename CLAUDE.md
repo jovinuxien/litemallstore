@@ -1603,7 +1603,43 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — CJ DECLARED STORE AMOUNT DEPLOYED to trovemo.com 2026-11-10 03:53 UTC (image `litemall/order:build-6fc27c4b6`, rollback tag `pre-20261109`); report `doc/order-cj-declared-amount-report-2026-11-09.pdf`; positive proof = first approved/requeued order
+### Worktree: `order` — EMAIL GUARANTEE BUILT + MERGED 2026-11-15 (master `a2163b9ef`, 425/0); deploy bundle `~/litemall-deploys/order-email-guarantee/` is USER-SIDE and ships AFTER the storefront bundle; prod order container still `build-6fc27c4b6`
+- **Status 2026-11-15 — ORDER EMAIL GUARANTEE BUILT + MERGED, NOT DEPLOYED** (plan
+  `litemall-order/docs/plan-order-email-guarantee-2026-11-12.md`, approved by the user
+  2026-11-15: "go ahead with the four-step plan"). Order commit `0f66c7f27`, storefront
+  commit `21e08079a`, master `a2163b9ef`. NO migration, no core/db change.
+  1. **Submit refusal.** `BuyerEmailGuard` (new, `application/internal`) is called in the
+     orchestrator PRE-CHECK zone, so an account with no email gets a clean 422: "Add an email
+     address to place this order — we send your order confirmation and tracking updates
+     there." Kill switch `litemall.order.require-buyer-email` (env
+     `LITEMALL_ORDER_REQUIRE_BUYER_EMAIL`, default true, yml placeholder + prod compose
+     passthrough; recreate only). A failed user lookup never blocks a sale (WARN + allow).
+     The guard is `@Autowired(required = false)` in the orchestrator because seven unit tests
+     build that class by hand.
+  2. **WARN lines** (grep these on prod): `Order submit refused for user`, `Customer mail
+     skipped for order … no email address`, `customer email lookup failed`, `sending the
+     store fallback address`.
+  3. **CJ fallback address.** `CJ_CUSTOMER_EMAIL_FALLBACK` passthrough added to the prod
+     compose with default `support@trovemo.com` — prod had been sending the placeholder
+     `orders@litemall.dev` because no passthrough existed. No `.env.prod` edit needed.
+  4. **IOSS records corrected** (yml comment, facade javadoc, ADR): omitting `iossType` does
+     NOT inherit the CJ dashboard IOSS option — CJ answers 7001 for an EU order until an
+     explicit `iossType=3` is sent. Prod runs `CJ_IOSS_TYPE=3`. ⚠ The 2026-11-09 and
+     2026-11-10 entries below that say "omit = dashboard applies" are WRONG on this point.
+  Module suite **425 run / 0 failures** (+10; `CapturedLogs` test helper asserts the WARN
+  lines). Dev boot of the jar alone on :18085: Started, Flyway validated 65, boot line
+  "Buyer email at submit: REQUIRED", 0 ERRORs, health 200, stopped again. ⚠ The 422 was NOT
+  exercised against a live dev stack (only MySQL was up) — it is proven at the unit seam and
+  by the storefront's stubbed headless run.
+  **Deploy = USER-SIDE, storefront first:** `bash ~/litemall-deploys/gwapi-email-guarantee/ship.sh`,
+  then `bash ~/litemall-deploys/order-email-guarantee/ship.sh` (jar sha `74b7697f…`, rollback
+  tag `pre-20261115`, `vps/verify.sh` after each). In the other order a customer on the old
+  page whose email save failed would meet the new refusal with no way to fix it.
+  Still open, outside this change: CJ's answers on the shopAmount currency and the $4.00
+  customs duty (order 11 cost $9.60 at CJ against €8.90 charged), landed-cost pricing,
+  address quality (order 11: city "Skåne" for a Malmö postcode, +45 phone on an SE address),
+  order 11's CJ status (`SD2611101824320648300`, Pending on 2026-11-12), test-mode orders
+  7/9/10.
 - **Status 2026-11-10 03:53 UTC — DEPLOYED to trovemo.com from master `6fc27c4b6` (user ran
   `ship.sh`).** Master pushed to `/opt/litemall.git` (`23bc7e89e..6fc27c4b6`), preflight OK
   (MemAvailable 4,948 MB, disk 12 G, container healthy, running image `568cfd64…` of 2026-10-03
@@ -2820,6 +2856,18 @@
   `c5fdae86f`; live feed validated).
 
 ### Worktree: `gateway-api` — checkout delivery sync pass 2 DEPLOYED 2026-10-20 (`ddbfc13e9`); image-build fix (one workspace webpack, `387c3f067`) merged same day; no active assignment
+- **Status 2026-11-15 — CHECKOUT EMAIL GUARANTEE BUILT + MERGED (`21e08079a`, master
+  `a2163b9ef`), NOT DEPLOYED.** Step 1 of `litemall-order/docs/plan-order-email-guarantee-
+  2026-11-12.md`. The contact-email save before submit was best-effort (a refusal showed a
+  note and the order was placed anyway); it now STOPS before placing, reopens the delivery
+  step and shows the server's reason, or a generic line ending "Your order has not been
+  placed" (en/sv/da). The form's email check mirrors the edge's `normalizeEmail` (the old
+  `\S+@\S+\.\S+` accepted `a@b@c.d`, which the server refuses). The order service's new
+  "Add an email address…" 422 shows verbatim and reveals the email field. Helpers:
+  `app/shared/util/checkoutEmail.ts`. jest **69 suites / 523 tests**, tsc 0, `i18n:check` 0;
+  headless run of the BUILT bundle `docs/headless/checkout-email-guarantee/` (stub on :4311)
+  **39/39, 0 page errors** in en/sv/da. Deploy = USER-SIDE
+  `bash ~/litemall-deploys/gwapi-email-guarantee/ship.sh` — BEFORE the order bundle.
 - **Status 2026-10-20 17:22 UTC — DEPLOYED to trovemo.com from master `ddbfc13e9`** (user:
   "go-ahead to merge to master and ship the gateway-api"). Merge = fast-forward
   `85265df5b` → `ddbfc13e9` (local ref move + push to the VPS bare repo `/opt/litemall.git`
