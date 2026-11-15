@@ -37,7 +37,7 @@
   "errors": {
     "totals": "Vi kan ikke beregne din kurv lige nu – prøv igen.",
     "saveAddress": "Leveringsadressen kunne ikke gemmes. Tjek de obligatoriske felter, og prøv igen.",
-    "saveEmail": "E-mailadressen kunne ikke gemmes på din konto – ordren bliver stadig afgivet.",
+    "saveEmail": "E-mailadressen kunne ikke gemmes på din konto – kontrollér adressen, og prøv igen. Din ordre er ikke afgivet.",
     "cardUnavailable": "Kortbetaling er ikke tilgængelig lige nu. Din ordre er gemt, men ikke betalt.",
     "retry": "Prøv igen",
     "savePhone": "Telefonnummeret kunne ikke gemmes på din leveringsadresse – prøv igen.",

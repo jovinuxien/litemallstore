@@ -37,6 +37,7 @@ import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
 import { money as fmtMoney } from 'app/shared/util/money';
 import { originCountryName } from 'app/shared/util/euStock';
+import { emailSaveOutcome, isEmailRequiredRefusal, isValidCheckoutEmail } from 'app/shared/util/checkoutEmail';
 import { countryOfSavedAddress, PhoneCountrySource, withCountry, withPhoneCountry, withRegion } from 'app/shared/util/deliverySync';
 import { IFreightQuote, IStore } from 'app/shared/model/order/order.model';
 import {
@@ -743,7 +744,7 @@ const CheckoutView: React.FC = () => {
   const pickupValid = selectedStoreId != null && !!pickupName && !!pickupMobile;
   // Accounts without a stored email must supply one — it is the confirmation
   // mail's recipient. `undefined` (lookup still in flight) doesn't block.
-  const emailValid = accountEmail !== null || /^\S+@\S+\.\S+$/.test(shipping.email.trim());
+  const emailValid = accountEmail !== null || isValidCheckoutEmail(shipping.email);
   const checkoutValid = (isPickup ? pickupValid : addressValid) && emailValid;
 
   const couponCellValue =
@@ -818,23 +819,27 @@ const CheckoutView: React.FC = () => {
       }
     }
 
-    // 1b. Land the contact email on the account (partial update) BEFORE placing,
-    //     so the order-paid confirmation mail has a recipient. Best-effort: a
-    //     server-side rejection warns inline but never blocks the purchase —
-    //     losing the sale over the mail address would be worse than the skip.
+    // 1b. Land the contact email on the account (partial update) BEFORE placing.
+    //     Every order mail goes to the account's email and the order service
+    //     refuses a submit from an account without one, so a save that did not
+    //     land STOPS here: the delivery step reopens with the server's reason
+    //     and nothing is placed or charged. (Until 2026-11 this was best-effort
+    //     and the order went ahead — a customer could pay and never hear from us.)
     if (accountEmail === null) {
       const email = shipping.email.trim();
+      let outcome: ReturnType<typeof emailSaveOutcome>;
       try {
-        const env = await authApi.profile({ email });
-        if (env.errno === 0) {
-          setAccountEmail(email);
-          setEmailNotice(null);
-        } else {
-          setEmailNotice(env.errmsg ?? t('errors.saveEmail'));
-        }
+        outcome = emailSaveOutcome(await authApi.profile({ email }));
       } catch {
-        setEmailNotice(t('errors.saveEmail'));
+        outcome = { ok: false, reason: null };
       }
+      if (!outcome.ok) {
+        setEmailNotice(outcome.reason ?? t('errors.saveEmail'));
+        setOpenStep(1);
+        return;
+      }
+      setAccountEmail(email);
+      setEmailNotice(null);
     }
 
     // 1c. Same single-entry principle for the phone: the number captured on the
@@ -916,6 +921,13 @@ const CheckoutView: React.FC = () => {
         // start a new one or buy at regular price") with the regular-price
         // fallback action. The slice's own pre-submit rejections (401 sign-in,
         // 400 stale items) are not slot rejections.
+        // The order service found no email on the account (a lookup that never
+        // resolved here, or an account changed elsewhere). Its message shows
+        // verbatim in the page alert; reveal the email field so it can be fixed.
+        if (errno !== 400 && errno !== 401 && isEmailRequiredRefusal(errmsg)) {
+          setAccountEmail(null);
+          setOpenStep(1);
+        }
         if (pinkRides && errno !== 400 && errno !== 401 && errmsg) {
           setGroupError(errmsg);
         }

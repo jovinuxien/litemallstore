@@ -37,7 +37,7 @@
   "errors": {
     "totals": "Vi kan inte räkna ut din varukorg just nu – försök igen.",
     "saveAddress": "Leveransadressen kunde inte sparas. Kontrollera de obligatoriska fälten och försök igen.",
-    "saveEmail": "E-postadressen kunde inte sparas på ditt konto – ordern läggs ändå.",
+    "saveEmail": "E-postadressen kunde inte sparas på ditt konto – kontrollera adressen och försök igen. Din order har inte lagts.",
     "cardUnavailable": "Kortbetalning är inte tillgänglig just nu. Din order är sparad men inte betald.",
     "retry": "Försök igen",
     "savePhone": "Telefonnumret kunde inte sparas på din leveransadress – försök igen.",
