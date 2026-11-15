@@ -37,7 +37,7 @@
   "errors": {
     "totals": "We can’t total your cart right now — please try again.",
     "saveAddress": "Could not save the delivery address. Check the required fields and try again.",
-    "saveEmail": "Could not save this email to your account — the order will still be placed.",
+    "saveEmail": "Could not save this email to your account — please check the address and try again. Your order has not been placed.",
     "cardUnavailable": "Card payment is unavailable right now. Your order is saved but not paid.",
     "retry": "Retry",
     "savePhone": "Could not save the phone number to your delivery address — please try again.",
