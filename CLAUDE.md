@@ -1603,8 +1603,22 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — EMAIL GUARANTEE BUILT + MERGED 2026-11-15 (master `a2163b9ef`, 425/0); deploy bundle `~/litemall-deploys/order-email-guarantee/` is USER-SIDE and ships AFTER the storefront bundle; prod order container still `build-6fc27c4b6`
-- **Status 2026-11-15 — ORDER EMAIL GUARANTEE BUILT + MERGED, NOT DEPLOYED** (plan
+### Worktree: `order` — EMAIL GUARANTEE DEPLOYED to trovemo.com 2026-11-15 15:08 UTC (image `litemall/order:build-a2163b9ef`, rollback tag `pre-20261115`; storefront half deployed 15:02 UTC); `verify.sh` + first live refusal still to be seen
+- **Status 2026-11-15 15:08 UTC — BOTH HALVES DEPLOYED (user ran the two `ship.sh`).**
+  Storefront 15:02 UTC: `litemall/gateway-api:build-a2163b9ef`, healthy in 15 s, image jar ==
+  shipped jar, public edge serves `main.d72dc300…` carrying "Your order has not been placed".
+  Order 15:08 UTC: master `547c0857e` pushed to `/opt/litemall.git`, VPS checkout refreshed
+  BEFORE the recreate (both passthroughs present), `litemall/order:build-a2163b9ef`, healthy
+  in 20 s, Started 11.9 s, Flyway validated 64 / nothing applied, boot lines "CJ dropshipping
+  ENABLED (sandbox=false)" / "CJ declared store amount: ENABLED" / "Stripe payments ENABLED
+  (currency=eur)" / "CJ placement mode: MANUAL" / **"Buyer email at submit: REQUIRED"**; only
+  ERROR = the pre-existing `/app/storage`. Paid-unplaced CJ orders before the swap: 7 (201),
+  9 (202), 10 (201) — order 11 is no longer among them (placed at CJ 2026-11-10). Edge probes
+  after: storefront 200s, order/admin routes 401. NOT yet seen: `verify.sh` output (env inside
+  the container) and a real refusal line (`grep 'Order submit refused'`). Rollback:
+  `bash /root/deploy-20261115-order/rollback.sh` / `…-gwapi/rollback.sh`; soft =
+  `LITEMALL_ORDER_REQUIRE_BUYER_EMAIL=false` + recreate.
+- **Status 2026-11-15 — ORDER EMAIL GUARANTEE BUILT + MERGED** (plan
   `litemall-order/docs/plan-order-email-guarantee-2026-11-12.md`, approved by the user
   2026-11-15: "go ahead with the four-step plan"). Order commit `0f66c7f27`, storefront
   commit `21e08079a`, master `a2163b9ef`. NO migration, no core/db change.
@@ -2857,7 +2871,7 @@
 
 ### Worktree: `gateway-api` — checkout delivery sync pass 2 DEPLOYED 2026-10-20 (`ddbfc13e9`); image-build fix (one workspace webpack, `387c3f067`) merged same day; no active assignment
 - **Status 2026-11-15 — CHECKOUT EMAIL GUARANTEE BUILT + MERGED (`21e08079a`, master
-  `a2163b9ef`), NOT DEPLOYED.** Step 1 of `litemall-order/docs/plan-order-email-guarantee-
+  `a2163b9ef`).** Step 1 of `litemall-order/docs/plan-order-email-guarantee-
   2026-11-12.md`. The contact-email save before submit was best-effort (a refusal showed a
   note and the order was placed anyway); it now STOPS before placing, reopens the delivery
   step and shows the server's reason, or a generic line ending "Your order has not been
@@ -2866,8 +2880,9 @@
   "Add an email address…" 422 shows verbatim and reveals the email field. Helpers:
   `app/shared/util/checkoutEmail.ts`. jest **69 suites / 523 tests**, tsc 0, `i18n:check` 0;
   headless run of the BUILT bundle `docs/headless/checkout-email-guarantee/` (stub on :4311)
-  **39/39, 0 page errors** in en/sv/da. Deploy = USER-SIDE
-  `bash ~/litemall-deploys/gwapi-email-guarantee/ship.sh` — BEFORE the order bundle.
+  **39/39, 0 page errors** in en/sv/da. **DEPLOYED 2026-11-15 15:02 UTC** (user ran
+  `ship.sh`): image `build-a2163b9ef`, rollback tag `pre-20261115`, live bundle
+  `main.d72dc300…` verified by content through the edge; the order half followed at 15:08.
 - **Status 2026-10-20 17:22 UTC — DEPLOYED to trovemo.com from master `ddbfc13e9`** (user:
   "go-ahead to merge to master and ship the gateway-api"). Merge = fast-forward
   `85265df5b` → `ddbfc13e9` (local ref move + push to the VPS bare repo `/opt/litemall.git`
