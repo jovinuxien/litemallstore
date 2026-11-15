@@ -387,6 +387,68 @@ const toDetail = (d?: IInsightGoodsDetail): IInsightGoodsDetail | undefined =>
     deals: (d.deals ?? []).map(x => toDeal(x as unknown as Raw)),
   };
 
+// ---- Seasonal candidacy (goods-management /insight/season-*) ----------------
+// Publishing is automatic, so there is no approve: an admin vetoes a product
+// for a season (dismiss) or undoes that (restore), and tunes the rules.
+// `terms`, `categoryIds` and `weights` travel as RAW JSON strings and the
+// server validates nothing — seasonFormat.ts is the only gate.
+
+export interface ISeasonRule {
+  seasonKey: string;
+  name?: string | null;
+  windowStartMd?: string | null;
+  windowEndMd?: string | null;
+  terms?: string | null;
+  categoryIds?: string | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  weights?: string | null;
+  enabled?: boolean | null;
+}
+
+export interface ISeasonCandidate {
+  goodsId: number;
+  seasonKey: string;
+  day?: string;
+  tier?: string | null;
+  score?: number | null;
+  status?: string | null;
+  reasons?: unknown;
+  name?: string | null;
+  picUrl?: string | null;
+  retailPrice?: number | null;
+  cost?: number | null;
+  marginPct?: number | null;
+}
+
+export interface SeasonCandidateListResponse {
+  seasonKey?: string;
+  day?: string;
+  list: ISeasonCandidate[];
+}
+
+export interface SeasonDecisionCommand {
+  goodsId: number;
+  season: string;
+  day?: string;
+}
+
+export interface SeasonRulePatchCommand {
+  key: string;
+  patch: Record<string, unknown>;
+}
+
+export interface ISeasonRunResult {
+  seasonKey: string;
+  scanned?: number | null;
+  scored?: number | null;
+  published?: number | null;
+  droppedByCap?: number | null;
+  rejections?: Record<string, number> | null;
+  discovery?: { discardedRelaxed?: number | null; discardedOffTitle?: number | null; discardedExcluded?: number | null } | null;
+  tierCuts?: { hot?: number | null; featured?: number | null } | null;
+}
+
 export const insightApi = createApi({
   reducerPath: 'insightApi',
   baseQuery: fetchBaseQuery({
@@ -399,7 +461,7 @@ export const insightApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides', 'PromoCandidates', 'SearchStats'],
+  tagTypes: ['Categories', 'InsightGoods', 'Candidates', 'RetireCandidates', 'MarginOverrides', 'PromoCandidates', 'SearchStats', 'SeasonRules', 'SeasonCandidates'],
   endpoints: builder => ({
     // Sorted potentialProfit desc by the server; L1 roots with on-sale goods only.
     getInsightCategories: builder.query<{ list: ICategoryInsight[] }, void>({
@@ -538,6 +600,41 @@ export const insightApi = createApi({
       query: () => ({ url: '/search-stats/rollup/run', method: 'POST' }),
       invalidatesTags: ['SearchStats'],
     }),
+    // ---- Seasonal candidacy ------------------------------------------------
+    getSeasonRules: builder.query<ISeasonRule[], void>({
+      query: () => '/season-rules',
+      transformResponse: (r: ApiEnvelope<{ list?: ISeasonRule[] }>) => r?.data?.list ?? [],
+      providesTags: ['SeasonRules'],
+    }),
+    updateSeasonRule: builder.mutation<ApiEnvelope<unknown>, SeasonRulePatchCommand>({
+      query: ({ key, patch }) => ({ url: `/season-rules/${encodeURIComponent(key)}`, method: 'PUT', body: patch }),
+      invalidatesTags: ['SeasonRules'],
+    }),
+    getSeasonCandidates: builder.query<SeasonCandidateListResponse, { season: string; day?: string; status?: string }>({
+      query: ({ season, day, status }) => ({
+        url: '/season-candidates',
+        params: { season, ...(day ? { day } : {}), ...(status ? { status } : {}) },
+      }),
+      transformResponse: (r: ApiEnvelope<SeasonCandidateListResponse>) => ({
+        seasonKey: r?.data?.seasonKey,
+        day: typeof r?.data?.day === 'string' ? r.data.day : toDay(r?.data?.day),
+        list: r?.data?.list ?? [],
+      }),
+      providesTags: ['SeasonCandidates'],
+    }),
+    dismissSeasonCandidate: builder.mutation<ApiEnvelope<unknown>, SeasonDecisionCommand>({
+      query: ({ goodsId, ...body }) => ({ url: `/season-candidates/${goodsId}/dismiss`, method: 'POST', body }),
+      invalidatesTags: ['SeasonCandidates'],
+    }),
+    restoreSeasonCandidate: builder.mutation<ApiEnvelope<unknown>, SeasonDecisionCommand>({
+      query: ({ goodsId, ...body }) => ({ url: `/season-candidates/${goodsId}/restore`, method: 'POST', body }),
+      invalidatesTags: ['SeasonCandidates'],
+    }),
+    // Scores EVERY season now (our own search index only — no CJ calls).
+    runSeasonCandidates: builder.mutation<ApiEnvelope<{ seasons?: ISeasonRunResult[] }>, void>({
+      query: () => ({ url: '/season-candidates/run', method: 'POST' }),
+      invalidatesTags: ['SeasonCandidates'],
+    }),
   }),
 });
 
@@ -563,4 +660,10 @@ export const {
   useGetSearchStatsQuery,
   useRefreshSearchTrendingMutation,
   useRunSearchStatsRollupMutation,
+  useGetSeasonRulesQuery,
+  useUpdateSeasonRuleMutation,
+  useGetSeasonCandidatesQuery,
+  useDismissSeasonCandidateMutation,
+  useRestoreSeasonCandidateMutation,
+  useRunSeasonCandidatesMutation,
 } = insightApi;

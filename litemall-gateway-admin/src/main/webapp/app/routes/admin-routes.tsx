@@ -67,6 +67,8 @@ import DealCandidateList from 'app/views/adminViews/adminModule/Insight/DealCand
 import PromoCandidateList from 'app/views/adminViews/adminModule/Insight/PromoCandidateList';
 import RetireCandidateList from 'app/views/adminViews/adminModule/Insight/RetireCandidateList';
 import SeoTitleList from 'app/views/adminViews/adminModule/Insight/SeoTitleList';
+import SeasonCandidateList from 'app/views/adminViews/adminModule/Insight/SeasonCandidateList';
+import SeasonRuleList from 'app/views/adminViews/adminModule/Insight/SeasonRuleList';
 import ArrivalsList from 'app/views/adminViews/adminModule/Insight/ArrivalsList';
 import SearchStatsPanel from 'app/views/adminViews/adminModule/Insight/SearchStatsPanel';
 import CampaignList from 'app/views/adminViews/adminModule/Campaign/CampaignList';
@@ -106,6 +108,9 @@ export const AdminRoutes = () => (
       <Route path='goods/deal-candidates' element={<DealCandidateList />} />
       {/* Wave 19: coupon/groupon promo suggestions — also static before ':id' */}
       <Route path='goods/promo-candidates' element={<PromoCandidateList />} />
+      {/* Seasonal candidacy: veto/restore + rule tuning — also static before ':id' */}
+      <Route path='goods/season-candidates' element={<SeasonCandidateList />} />
+      <Route path='goods/season-rules' element={<SeasonRuleList />} />
       {/* Wave 22: search demand analytics — also static before ':id' */}
       <Route path='goods/search-stats' element={<SearchStatsPanel />} />
       {/* Wave 14: inventory governance — also static before ':id' */}

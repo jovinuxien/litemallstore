@@ -93,6 +93,9 @@ export const ADMIN_MENU: MenuGroup[] = [
       { path: '/admin/goods/deal-candidates', title: 'Deal proposals', wired: true },
       // Wave 19: coupon/groupon promo suggestions (goods-management insight backend).
       { path: '/admin/goods/promo-candidates', title: 'Promo suggestions', wired: true },
+      // Seasonal candidacy (goods-management insight backend): veto/restore + rules.
+      { path: '/admin/goods/season-candidates', title: 'Season candidates', wired: true },
+      { path: '/admin/goods/season-rules', title: 'Season rules', wired: true },
       // Wave 22: search demand analytics (goods-management insight backend).
       { path: '/admin/goods/search-stats', title: 'Search analytics', wired: true },
       // On-page SEO: over-length product titles (goods-management seo backend).
