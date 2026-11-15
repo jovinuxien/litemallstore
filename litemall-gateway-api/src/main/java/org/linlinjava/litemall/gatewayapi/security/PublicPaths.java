@@ -50,6 +50,10 @@ public final class PublicPaths {
             "/auth/reset/request",
             "/auth/reset/confirm",
             "/auth/site-config",
+            // Display currency: the visitor's country, the enabled currencies and
+            // the ECB reference rates. Public read; nothing in it is personal
+            // beyond the country Cloudflare already derived from the request.
+            "/auth/currency",
             // Wave 16: guest provisioning + Google Sign-In are login ENTRY
             // points — public by nature, exactly like /auth/login.
             // /auth/guest/claim is deliberately NOT here: claiming requires the

@@ -120,6 +120,12 @@ class EdgeAuthorizationPolicyTest {
     }
 
     @Test
+    @DisplayName("display-currency read is anonymous (country + ECB rates, nothing personal)")
+    void displayCurrencyReadIsOpen() {
+        anonymous.get().uri("/auth/currency").exchange().expectStatus().isOk();
+    }
+
+    @Test
     @DisplayName("guest claim requires the guest's own session (Wave 16)")
     void guestClaimIsAuthenticatedOnly() {
         // /auth/guest and /auth/google are asserted public by the AUTH_ANY_METHOD
