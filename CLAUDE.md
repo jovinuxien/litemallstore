@@ -1603,7 +1603,7 @@
 >   (order `LitemallGoodsFacadeImpl` maps `onSale`; missing field ⇒ true).
 >   Off-sale goods must stay viewable but unbuyable — don't weaken this.
 
-### Worktree: `order` — EMAIL GUARANTEE DEPLOYED to trovemo.com 2026-11-15 15:08 UTC (image `litemall/order:build-a2163b9ef`, rollback tag `pre-20261115`; storefront half deployed 15:02 UTC); `verify.sh` + first live refusal still to be seen
+### Worktree: `order` — EMAIL GUARANTEE DEPLOYED to trovemo.com 2026-11-15 15:08 UTC (image `litemall/order:build-a2163b9ef`, rollback tag `pre-20261115`; storefront half deployed 15:02 UTC); `verify.sh` green; first live refusal not yet seen
 - **Status 2026-11-15 15:08 UTC — BOTH HALVES DEPLOYED (user ran the two `ship.sh`).**
   Storefront 15:02 UTC: `litemall/gateway-api:build-a2163b9ef`, healthy in 15 s, image jar ==
   shipped jar, public edge serves `main.d72dc300…` carrying "Your order has not been placed".
@@ -1614,8 +1614,11 @@
   (currency=eur)" / "CJ placement mode: MANUAL" / **"Buyer email at submit: REQUIRED"**; only
   ERROR = the pre-existing `/app/storage`. Paid-unplaced CJ orders before the swap: 7 (201),
   9 (202), 10 (201) — order 11 is no longer among them (placed at CJ 2026-11-10). Edge probes
-  after: storefront 200s, order/admin routes 401. NOT yet seen: `verify.sh` output (env inside
-  the container) and a real refusal line (`grep 'Order submit refused'`). Rollback:
+  after: storefront 200s, order/admin routes 401. `verify.sh` PASSED (user ran it): running
+  jar == shipped, `BuyerEmailGuard` in the jar, env inside the container REQUIRE_EMAIL=true
+  CJ_FALLBACK=support@trovemo.com IOSS_TYPE=3 DECLARE=true SANDBOX=false MODE=manual, 0 SQL
+  DEBUG lines, unplaced list unchanged (7/9/10), 448 MiB / 1 GiB. NOT yet seen: a real
+  refusal line (`grep 'Order submit refused'`) — no email-less account has tried to order. Rollback:
   `bash /root/deploy-20261115-order/rollback.sh` / `…-gwapi/rollback.sh`; soft =
   `LITEMALL_ORDER_REQUIRE_BUYER_EMAIL=false` + recreate.
 - **Status 2026-11-15 — ORDER EMAIL GUARANTEE BUILT + MERGED** (plan
