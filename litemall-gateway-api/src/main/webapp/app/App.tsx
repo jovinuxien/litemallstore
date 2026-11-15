@@ -6,6 +6,7 @@ import Layout from 'app/Layout';
 import CustomerProtectedRoute from 'app/shared/auth/CustomerProtectedRoute';
 import CookieBanner from 'app/shared/tracking/CookieBanner';
 import MatomoTracker from 'app/shared/tracking/MatomoTracker';
+import { currencyRenderKey, useCurrency } from 'app/shared/util/currency';
 import { stashInviteCode } from 'app/shared/util/invite';
 
 /**
@@ -84,6 +85,20 @@ const InviteCapture: React.FC = () => {
   return null;
 };
 
+/**
+ * Display currency: prices are written by a plain formatter (`money()`), so most
+ * components that show one do not subscribe to the currency store. Keying the route
+ * tree on the currency re-renders every price at once when it changes — at boot,
+ * when the edge's answer replaces EUR for a non-euro visitor, and when the visitor
+ * picks another currency. Redux state (cart, session) lives above this and survives;
+ * page-local state resets, which is why the selector is absent on checkout/pay.
+ * With the feature off the key never changes.
+ */
+const CurrencyKeyed: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const key = currencyRenderKey(useCurrency());
+  return <React.Fragment key={key}>{children}</React.Fragment>;
+};
+
 const App: React.FC = () => (
   <BrowserRouter>
     <InviteCapture />
@@ -92,6 +107,7 @@ const App: React.FC = () => (
         Wave-7: and not until the visitor accepts — see CookieBanner. */}
     <MatomoTracker />
     <CookieBanner />
+    <CurrencyKeyed>
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route path='/' element={<Layout />}>
@@ -263,6 +279,7 @@ const App: React.FC = () => (
         </Route>
       </Routes>
     </Suspense>
+    </CurrencyKeyed>
   </BrowserRouter>
 );
 

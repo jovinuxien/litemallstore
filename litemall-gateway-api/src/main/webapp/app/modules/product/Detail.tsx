@@ -13,7 +13,7 @@ import { trackAddToCart, trackProductView } from 'app/shared/tracking/ecommerce'
 import { goodsIdFromRoute } from 'app/shared/util/slug';
 import { briefToText } from 'app/shared/util/briefText';
 import { analyzeVariantGroup, dimImageMap, SplitDisplay } from 'app/shared/util/variantDisplay';
-import { EURO, moneyAmount } from 'app/shared/util/money';
+import { chargedNote, money } from 'app/shared/util/money';
 import { DetailProduct } from './productDetailSlice';
 import { getProductDetail } from './productDetailSlice';
 import { getRelatedGoods } from './relatedSlice';
@@ -327,11 +327,11 @@ const ProductDetailView: React.FC = () => {
           <div className='lm-pdp__pricebox'>
             {hasDiscount && <span className='lm-pdp__disc'>-{discountPct}%</span>}
             <span className='lm-pdp__price'>
-              {EURO}{moneyAmount(retail)}
+              {money(retail)}
             </span>
             {hasDiscount && (
               <span className='lm-pdp__orig'>
-                {t('listPrice')} <s>{EURO}{moneyAmount(counter)}</s>
+                {t('listPrice')} <s>{money(counter)}</s>
               </span>
             )}
             {goods.unit && <span className='lm-pdp__unit'>{t('perUnit', { unit: goods.unit })}</span>}
@@ -439,7 +439,9 @@ const ProductDetailView: React.FC = () => {
 
         {/* Buy box */}
         <aside className='lm-pdp__buybox'>
-          <div className='lm-pdp__buyprice'>{EURO}{moneyAmount(retail)}</div>
+          <div className='lm-pdp__buyprice'>{money(retail)}</div>
+          {/* Display currency: the converted price is indicative; the euro price is what is charged. */}
+          {chargedNote(retail) && <div className='lm-charged-note'>{t('common:currency.chargedInEur', { amount: chargedNote(retail) })}</div>}
           <div className={`lm-pdp__stock${inStock ? ' in' : ' out'}`}>
             {!onSale
               ? t('stock.unavailable')

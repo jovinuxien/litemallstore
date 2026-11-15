@@ -7,7 +7,7 @@ import { useTranslation } from 'app/i18n';
 import { contentApi, IPageView } from 'app/shared/api';
 import { IBanner } from 'app/shared/model/home.models';
 import { couponValueShort } from 'app/shared/util/couponFormat';
-import { EURO } from 'app/shared/util/money';
+import { moneyShort } from 'app/shared/util/money';
 import { IGood } from 'app/shared/model/product/product.model';
 import PageRenderer from '../page/PageRenderer';
 import ProductCard, { goodId } from '../../components/userComponents/card/ProductCard';
@@ -234,7 +234,7 @@ const HomeView: React.FC = () => {
                 <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                 <div>
                   <div className="lm-coupon__name">{coupon.name}</div>
-                  {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: `${EURO}${coupon.min}` })}</div>}
+                  {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: moneyShort(coupon.min) })}</div>}
                 </div>
               </div>
             ))}
@@ -250,7 +250,7 @@ const HomeView: React.FC = () => {
                   <div className="lm-coupon__amount">{couponValueShort(coupon)}</div>
                   <div>
                     <div className="lm-coupon__name">{coupon.name}</div>
-                    {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: `${EURO}${coupon.min}` })}</div>}
+                    {coupon.min != null && <div className="lm-coupon__min">{t('home.spend', { amount: moneyShort(coupon.min) })}</div>}
                   </div>
                 </div>
               ))}

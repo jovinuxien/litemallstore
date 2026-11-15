@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { ICoupon, userApi } from 'app/shared/api';
 import { couponValueShort, isPercentCoupon } from 'app/shared/util/couponFormat';
-import { EURO } from 'app/shared/util/money';
+import { moneyShort } from 'app/shared/util/money';
 import { useTranslation } from 'app/i18n';
 
 /**
@@ -59,8 +59,8 @@ const CouponStrip: React.FC<Props> = ({ goodsId }) => {
             <i className='bi bi-tag-fill' /> {t('couponStrip.save', { value: couponValueShort(c) })}
           </span>
           <span className='lm-pdp__coupon-min'>
-            {c.min ? t('couponStrip.over', { amount: `${EURO}${c.min}` }) : t('couponStrip.noMinimum')}
-            {isPercentCoupon(c) && c.discountCap ? ` · ${t('couponStrip.upTo', { amount: `${EURO}${c.discountCap}` })}` : ''}
+            {c.min ? t('couponStrip.over', { amount: moneyShort(c.min) }) : t('couponStrip.noMinimum')}
+            {isPercentCoupon(c) && c.discountCap ? ` · ${t('couponStrip.upTo', { amount: moneyShort(c.discountCap) })}` : ''}
           </span>
           <span className='lm-pdp__coupon-cta'>
             {c.id != null && claimed[c.id] ? (

@@ -5,7 +5,7 @@ import { useAppDispatch } from 'app/config/store';
 import { useTranslation } from 'app/i18n';
 import { addItem } from 'app/shared/reducers/cartSlice';
 import { IGood } from 'app/shared/model/product/product.model';
-import { EURO, moneyAmount, moneyParts } from 'app/shared/util/money';
+import { money, moneyParts } from 'app/shared/util/money';
 import { seasonLabel } from 'app/shared/util/season';
 import { useLoadedSeason } from 'app/shared/util/useSeason';
 import { productPath } from 'app/shared/util/slug';
@@ -175,7 +175,7 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
 
   // Amazon-style price: integer part big, cents superscript. moneyParts keeps
   // the split locale-stable; the List: strikethrough stays locale-formatted.
-  const { int: priceInt, cents: priceCents } = moneyParts(retail);
+  const { before: priceBefore, int: priceInt, cents: priceCents, after: priceAfter } = moneyParts(retail);
 
   // Quick add: drop ONE unit into the (local) cart. SKU/spec selection still
   // happens on the detail page. Carry `source` so a CJ line is recognized at
@@ -240,13 +240,14 @@ const ProductCard: React.FC<Props> = ({ product, nameNode }) => {
         <div className="lm-card__price-row">
           {hasDiscount && overlay !== 'discount' && <span className="lm-card__disc">-{discountPct}%</span>}
           <span className="lm-card__price">
-            <span className="lm-card__cur">{EURO}</span>
+            {priceBefore && <span className="lm-card__cur">{priceBefore}</span>}
             {priceInt}
-            <sup className="lm-card__cents">{priceCents}</sup>
+            {priceCents && <sup className="lm-card__cents">{priceCents}</sup>}
+            {priceAfter && <span className="lm-card__cur lm-card__cur--after">{priceAfter}</span>}
           </span>
           {hasDiscount && (
             <span className="lm-card__orig">
-              {t('card.list')} <s>{EURO}{moneyAmount(counter)}</s>
+              {t('card.list')} <s>{money(counter)}</s>
             </span>
           )}
         </div>

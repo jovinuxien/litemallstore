@@ -5,7 +5,7 @@ import { CellGroup } from 'app/components/commonComponents/storefront';
 import { orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IDispute, IDisputeContext } from 'app/shared/model/order/order.model';
-import { money } from 'app/shared/util/money';
+import { moneyCharged } from 'app/shared/util/money';
 
 /**
  * "Report a problem" panel for a DROPSHIP (source='cj') order: lists the order's CJ
@@ -128,7 +128,7 @@ const DisputePanel: React.FC<{ orderId: number }> = ({ orderId }) => {
                   <span className='badge text-bg-secondary'>{t('dispute.cancelled')}</span>
                 ) : d.resolution ? (
                   <span className={`badge ${d.resolution === 'REJECTED' ? 'text-bg-danger' : 'text-bg-success'}`}>
-                    {d.resolution === 'REFUND' && `${t('dispute.refunded')}${d.refundAmountUsd != null ? ` ${money(d.refundAmountUsd)}` : ''}`}
+                    {d.resolution === 'REFUND' && `${t('dispute.refunded')}${d.refundAmountUsd != null ? ` ${moneyCharged(d.refundAmountUsd)}` : ''}`}
                     {d.resolution === 'REISSUE' && `${t('dispute.reissued')}${d.resendOrderCode ? ` (${d.resendOrderCode})` : ''}`}
                     {d.resolution === 'REJECTED' && t('dispute.rejected')}
                   </span>
@@ -162,7 +162,7 @@ const DisputePanel: React.FC<{ orderId: number }> = ({ orderId }) => {
                   id={`dl-${l.lineItemId}`}
                   checked={(selected[l.lineItemId] ?? 0) > 0}
                   onChange={e => setSelected(prev => ({ ...prev, [l.lineItemId]: e.target.checked ? l.maxQuantity : 0 }))}
-                  label={t('dispute.lineLabel', { name: l.productName ?? t('dispute.item'), price: l.unitPriceUsd != null ? money(l.unitPriceUsd) : '?', max: l.maxQuantity })}
+                  label={t('dispute.lineLabel', { name: l.productName ?? t('dispute.item'), price: l.unitPriceUsd != null ? moneyCharged(l.unitPriceUsd) : '?', max: l.maxQuantity })}
                 />
                 {(selected[l.lineItemId] ?? 0) > 0 && l.maxQuantity > 1 && (
                   <Form.Select

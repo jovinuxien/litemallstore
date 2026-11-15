@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAppSelector } from 'app/config/store';
 import { Trans, useTranslation } from 'app/i18n';
 import { priceNum } from 'app/components/userComponents/card/ProductCard';
-import { money } from 'app/shared/util/money';
+import { moneyCharged } from 'app/shared/util/money';
 import { authApi, orderApi } from 'app/shared/api';
 import { IOrderDetail } from 'app/shared/model/order/order.model';
 import { trackPurchase } from 'app/shared/tracking/ecommerce';
@@ -143,10 +143,10 @@ const OrderConfirmation: React.FC = () => {
     const couponPrice = priceNum(d.couponPrice ?? 0);
     const freightPrice = priceNum(d.freightPrice ?? 0);
     return [
-      { label: t('confirmation.goodsTotal'), value: money(priceNum(d.goodsPrice ?? 0)) },
-      { label: t('confirmation.shipping'), value: freightPrice > 0 ? money(freightPrice) : t('confirmation.free'), variant: 'muted' as const },
-      ...(couponPrice > 0 ? [{ label: t('confirmation.coupon'), value: `−${money(couponPrice)}`, variant: 'success' as const }] : []),
-      { label: t('confirmation.totalChargedRow'), value: money(priceNum(d.actualPrice ?? 0)), variant: 'total' as const },
+      { label: t('confirmation.goodsTotal'), value: moneyCharged(priceNum(d.goodsPrice ?? 0)) },
+      { label: t('confirmation.shipping'), value: freightPrice > 0 ? moneyCharged(freightPrice) : t('confirmation.free'), variant: 'muted' as const },
+      ...(couponPrice > 0 ? [{ label: t('confirmation.coupon'), value: `−${moneyCharged(couponPrice)}`, variant: 'success' as const }] : []),
+      { label: t('confirmation.totalChargedRow'), value: moneyCharged(priceNum(d.actualPrice ?? 0)), variant: 'total' as const },
     ];
   };
   const fetchedDetails = orderIds.map(orderId => details[orderId]).filter((d): d is IOrderDetail => !!d);
@@ -204,7 +204,7 @@ const OrderConfirmation: React.FC = () => {
       ) : (
         totalCharged > 0 && (
           <p className='mb-1'>
-            <Trans t={t} i18nKey='confirmation.totalCharged' values={{ amount: money(totalCharged) }} components={{ 1: <span className='lm-amount' /> }} />
+            <Trans t={t} i18nKey='confirmation.totalCharged' values={{ amount: moneyCharged(totalCharged) }} components={{ 1: <span className='lm-amount' /> }} />
           </p>
         )
       )}

@@ -6,7 +6,7 @@ import ImageUploader from 'app/components/commonComponents/ImageUploader';
 import { orderApi } from 'app/shared/api';
 import { useTranslation } from 'app/i18n';
 import { IAftersale } from 'app/shared/model/order/order.model';
-import { money } from 'app/shared/util/money';
+import { moneyCharged } from 'app/shared/util/money';
 
 const TYPE_KEYS = ['type0', 'type1', 'type2'] as const;
 
@@ -83,7 +83,7 @@ const AftersalePanel: React.FC<{ orderId: number | string; canApply: boolean; on
         <Cell key={a.id} title={`${typeLabel(a.type ?? 1)} · ${a.statusText ?? ''}`}>
           <div className='small text-muted'>
             {a.reason}
-            {a.amount != null && t('aftersale.requested', { amount: money(a.amount) })}
+            {a.amount != null && t('aftersale.requested', { amount: moneyCharged(a.amount) })}
             {a.addTime && <> · {a.addTime}</>}
           </div>
           {a.status === 1 && a.id != null && (

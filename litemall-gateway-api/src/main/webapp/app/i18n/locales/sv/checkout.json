@@ -99,6 +99,8 @@
     "coupon": "Rabattkod",
     "groupPrice": "Gruppris",
     "groupPriceValue": "{{price}}/vara vid betalning",
+    "totalApprox": "Totalt i {{currency}} (uppskattning)",
+    "youPay": "Du betalar",
     "total": "Totalt",
     "title": "Ordersammanfattning",
     "deliveryOption": "Leveransalternativ",

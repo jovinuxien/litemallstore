@@ -152,3 +152,18 @@ h6 {
     margin-bottom: 0.9rem;
   }
 }
+
+// Display currency (docs/spec-display-currency.md): the euro amount shown beside a
+// converted price — small and quiet, but real text (it is the amount charged).
+.lm-charged-note {
+  font-size: 0.8rem;
+  color: var(--lm-muted, #5f6b6f);
+  font-weight: 400;
+}
+.lm-card__cur--after {
+  margin-left: 0.2em;
+}
+.lm-cur__note {
+  max-width: 16rem;
+  white-space: normal;
+}

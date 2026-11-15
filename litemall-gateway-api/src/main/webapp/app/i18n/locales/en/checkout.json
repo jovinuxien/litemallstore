@@ -99,6 +99,8 @@
     "coupon": "Coupon",
     "groupPrice": "Group price",
     "groupPriceValue": "{{price}}/item at payment",
+    "totalApprox": "Total in {{currency}} (estimate)",
+    "youPay": "You pay",
     "total": "Total",
     "title": "Order summary",
     "deliveryOption": "Delivery option",

@@ -35,7 +35,8 @@ import {
 import { authApi, catalogApi, IAddress, ICombination, ICombinationPink, ICoupon, orderApi, promotionApi, userApi } from 'app/shared/api';
 import { couponPickerLabel } from 'app/shared/util/couponFormat';
 import { courierDeltaLabel, parseSelectlist, unusableReasonLabel, UnusableCoupon } from 'app/shared/util/checkoutHonesty';
-import { money as fmtMoney } from 'app/shared/util/money';
+import { chargedNote, money as fmtMoney } from 'app/shared/util/money';
+import { currentCurrency } from 'app/shared/util/currency';
 import { originCountryName } from 'app/shared/util/euStock';
 import { emailSaveOutcome, isEmailRequiredRefusal, isValidCheckoutEmail } from 'app/shared/util/checkoutEmail';
 import { countryOfSavedAddress, PhoneCountrySource, withCountry, withPhoneCountry, withRegion } from 'app/shared/util/deliverySync';
@@ -1152,7 +1153,14 @@ const CheckoutView: React.FC = () => {
           },
         ]
       : []),
-    { label: t('summary.total'), value: money(totals?.actualPrice), variant: 'total' as const },
+    // Display currency: when prices are converted, the converted total is only an
+    // estimate, so the bold "total" row is the euro amount that is actually charged.
+    ...(totals && chargedNote(totals.actualPrice)
+      ? [
+          { label: t('summary.totalApprox', { currency: currentCurrency() }), value: `≈ ${money(totals.actualPrice)}` },
+          { label: t('summary.youPay'), value: chargedNote(totals.actualPrice) as string, variant: 'total' as const },
+        ]
+      : [{ label: t('summary.total'), value: money(totals?.actualPrice), variant: 'total' as const }]),
   ];
 
   const placeButtonText = submitting

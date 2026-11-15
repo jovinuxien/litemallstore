@@ -99,6 +99,8 @@
     "coupon": "Rabatkode",
     "groupPrice": "Gruppepris",
     "groupPriceValue": "{{price}}/vare ved betaling",
+    "totalApprox": "I alt i {{currency}} (skøn)",
+    "youPay": "Du betaler",
     "total": "I alt",
     "title": "Ordreoversigt",
     "deliveryOption": "Leveringsmulighed",

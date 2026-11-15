@@ -11,6 +11,7 @@ import { baseAxios } from 'app/config/axiosinstance';
 import { useAppDispatch, useAppSelector } from 'app/config/store';
 import { getCatalogAllData, getCatalogIndexData } from 'app/modules/Category/categorySlice';
 import { clearSearchHistory, fetchSearchIndex, ISearchIndexData } from 'app/modules/search/searchIndexApi';
+import CurrencySwitcher from 'app/components/commonComponents/CurrencySwitcher';
 import LanguageSwitcher from 'app/components/commonComponents/LanguageSwitcher';
 import { useTranslation } from 'app/i18n';
 import { SUPPORT_HOURS } from 'app/modules/static/faqData';
@@ -424,6 +425,8 @@ const Layout: React.FC = () => {
               )}
               {/* Hidden until more than one language is enabled (LITEMALL_I18N_LANGUAGES). */}
               <LanguageSwitcher variant='header' />
+              {/* Hidden until more than one display currency is enabled (LITEMALL_CURRENCY_DISPLAY). */}
+              <CurrencySwitcher variant='header' />
               <Nav.Link as={Link} to='/orders' className='lm-header__stack d-none d-md-flex'>
                 <small>{t('header.returns')}</small>
                 <strong>{t('header.andOrders')}</strong>
@@ -658,6 +661,7 @@ const Layout: React.FC = () => {
               <small>{t('footer.copyright', { year: new Date().getFullYear() })}</small>
               <div className='d-flex flex-wrap gap-3 align-items-center'>
                 <LanguageSwitcher variant='footer' />
+                <CurrencySwitcher variant='footer' />
                 <Link to='/terms' className='link-secondary text-decoration-none small'>
                   {t('footer.conditions')}
                 </Link>
