@@ -2872,7 +2872,45 @@
 - **Wave 14.1 meta catalogue feed: SHIPPED + DEPLOYED** (2026-07-30,
   `c5fdae86f`; live feed validated).
 
-### Worktree: `gateway-api` — checkout delivery sync pass 2 DEPLOYED 2026-10-20 (`ddbfc13e9`); image-build fix (one workspace webpack, `387c3f067`) merged same day; no active assignment
+### Worktree: `gateway-api` — display currency stage A BUILT 2026-11-15 (show SEK/DKK/NOK/GBP, charge EUR; OFF by default); deploy = user runs the ship bundle; stage B (charge local currency) not started
+- **Status 2026-11-15 — DISPLAY CURRENCY, STAGE A BUILT (user-commissioned + plan approved the same
+  day; spec + as-built record `litemall-gateway-api/docs/spec-display-currency.md`).** User ask:
+  prices in the visitor's own currency by location. Decisions: A (show local, charge EUR) now, B
+  (charge local) later as its own wave; currencies EUR/SEK/DKK/NOK/GBP by country (SE/DK/NO/GB, all
+  else EUR); ECB daily reference rates fetched automatically; rounded shop prices (kronor whole,
+  pounds 2 dp). gateway-api module only: no migration, no other service.
+  - **Edge:** `GET /auth/currency` (public, `no-store`) → `{country, suggested, enabled[], rates{},
+    asOf}` from Cloudflare's `CF-IPCountry` + `EcbRateService` (in-memory last-good copy, boot +
+    lazy 6-hourly refresh, no scheduler; rates older than 7 days are NOT served ⇒ euros).
+  - **Env:** `LITEMALL_CURRENCY_DISPLAY` (default `EUR` = OFF: no selector, no conversion, no ECB
+    fetch; prod value `EUR,SEK,DKK,NOK,GBP`). yml placeholder + prod compose passthrough landed with
+    the feature. Off again = env + recreate, no rebuild.
+  - **Storefront:** `shared/util/currency.ts` (store: `?currency=` → cookie `lm_cur` → country →
+    EUR) and `money.ts` now has TWO families — `money`/`moneyShort`/`moneyParts` write the DISPLAY
+    currency, `moneyCharged` always writes euros. ⚠ **Pick the family by meaning:** anything that is
+    or records a charge (checkout "You pay", order list/detail/confirmation/refunds/pay page AND
+    their line items via `GoodsLineCard charged`) uses `moneyCharged`; a new order-side render that
+    calls `money()` shows a converted figure for a euro charge. `EURO` and `moneyAmount` are GONE —
+    never glue a symbol onto a number again. Stripe Elements, analytics, JSON-LD, feed stay EUR.
+  - `CurrencySwitcher` beside the language switcher, hidden while only EUR is on offer and on
+    `/checkout` + `/pay/*` (a switch re-keys the route tree in `App.tsx` and would wipe the form).
+  - Tests: Java 106 run / 0 failures (+22); jest **71 suites / 552 tests** (was 69/523), tsc 0,
+    `i18n:check` 0, prod build clean; headless real-click run of the built bundle **67/67, 0 page
+    errors** (`docs/headless/display-currency/`); email-guarantee harness regression 39/39.
+  - ⚠ The headless run CAUGHT a real gap: order pages render line items through the cart's
+    `GoodsLineCard`, so line prices were converted while the totals stayed euros — fixed with the
+    `charged` prop. ⚠ Two specs changed on purpose: coupon amounts go through the formatter, so
+    "−€7.5" is now "−€7.50" and Swedish/Danish write "20 €" where they wrote "€20".
+  - Known limits (spec §4): rounded prices do not sum to the rounded total (the euro total is
+    binding); the search price filter still takes euros (heading says so — the plan's "convert
+    typed values back" was NOT built, the stock range widget cannot); first-ever page load of a
+    non-euro visitor paints euros for an instant.
+  - ⚠ Outbound fetches are blocked in-session on the workstation: the edge's own ECB download is
+    UNPROVEN until the prod boot line `ECB reference rates loaded, fixed <date>` (the real file was
+    read through the fetch tool and matches the parser's fixture shape).
+- **Previously:** checkout delivery sync pass 2 DEPLOYED 2026-10-20 (`ddbfc13e9`); image-build fix
+  (one workspace webpack, `387c3f067`) merged same day; checkout email guarantee step 1 DEPLOYED
+  2026-11-15 (`a2163b9ef`).
 - **Status 2026-11-15 — CHECKOUT EMAIL GUARANTEE BUILT + MERGED (`21e08079a`, master
   `a2163b9ef`).** Step 1 of `litemall-order/docs/plan-order-email-guarantee-
   2026-11-12.md`. The contact-email save before submit was best-effort (a refusal showed a
