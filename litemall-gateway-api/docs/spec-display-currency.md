@@ -74,7 +74,7 @@ euro amount as the binding figure.
 
 ## 5. Acceptance (as run 2026-11-15)
 
-- Java (gateway-api): **106 run / 0 failures** (+22: `EcbRatesTest` 4, `EcbRateServiceTest` 7,
+- Java (gateway-api): **108 run / 0 failures** (+24: `EcbRatesTest` 4, `EcbRateServiceTest` 7, `CurrencyWiringTest` 2,
   `CurrencyControllerTest` 10, policy test +1).
 - Storefront: jest **71 suites / 552 tests** (was 69 / 523), tsc 0, `i18n:check` 0, prod build clean.
 - Headless real-click run of the BUILT bundle against a stub edge, one browser context per case

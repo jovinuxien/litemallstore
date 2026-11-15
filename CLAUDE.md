@@ -2894,7 +2894,7 @@
     never glue a symbol onto a number again. Stripe Elements, analytics, JSON-LD, feed stay EUR.
   - `CurrencySwitcher` beside the language switcher, hidden while only EUR is on offer and on
     `/checkout` + `/pay/*` (a switch re-keys the route tree in `App.tsx` and would wipe the form).
-  - Tests: Java 106 run / 0 failures (+22); jest **71 suites / 552 tests** (was 69/523), tsc 0,
+  - Tests: Java 108 run / 0 failures (+24); jest **71 suites / 552 tests** (was 69/523), tsc 0,
     `i18n:check` 0, prod build clean; headless real-click run of the built bundle **67/67, 0 page
     errors** (`docs/headless/display-currency/`); email-guarantee harness regression 39/39.
   - ⚠ The headless run CAUGHT a real gap: order pages render line items through the cart's
