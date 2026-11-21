@@ -3943,7 +3943,20 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — season panels + admin order delete BUILT on `fix/gateway-admin` (2026-11-15), dev-accepted; NOT merged (awaiting user confirmation of the paid-order delete tier)
+### Worktree: `gateway-admin` — season panels + admin order delete MERGED to master 2026-11-21 (tier 2 confirmed by the user); deploy PENDING (order + gateway-admin containers); no active assignment
+- **Status 2026-11-21 — MERGED to master; deploy PENDING.** The user confirmed the paid-order
+  delete tier ("keep tier 2") and gave the go-ahead. Master was merged into the branch first
+  (3 commits, freight-probe script + `litemall-order/docs` only, no overlap, clean). Re-run on
+  the MERGED tree: order module suite **437 run / 0 failures** (reactor with litemall-db 24/0,
+  JDK 21, CJ creds unset), admin jest **19 suites / 213 tests**, tsc 0 errors in `app/`. No code
+  change since 2026-11-15; no dev JVM was booted. Master moved by ref
+  (`git push . fix/gateway-admin:master`) — MAIN's working tree was not touched and will show
+  the merged paths as phantom staged reverse-diffs until it is refreshed from HEAD.
+  **Deploy = MAIN / user: order + gateway-admin containers**, workstation-built jars, no
+  migration, no env. Before a real paid order is deleted, refund it first — the delete moves no
+  money. Still USER-SIDE from the 2026-11-15 incident: delete CJ orders
+  `SD2611151952530659000`, `SD2611151953070642100` (sandbox) and `2611092145590652000`
+  (non-sandbox) in the CJ dashboard.
 - **Status 2026-11-15 — TWO FEATURES BUILT, user-commissioned (plan approved same day).**
   Commits `26b6dbea3` (order delete, litemall-order + SPA) and `52fa796ab` (season panels,
   SPA only). No migration, no litemall-db/core change. Order suite **437 run / 0 failures**
