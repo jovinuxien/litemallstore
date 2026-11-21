@@ -141,6 +141,12 @@ public final class MailHtmlTemplates {
 
     /** Blank {@code trackingNumber} = shipped-without-tracking copy (CJ sometimes lags the number). */
     public static String shipped(String orderSn, String carrier, String trackingNumber, String orderUrl, String logoUrl) {
+        return shipped(orderSn, carrier, trackingNumber, null, orderUrl, logoUrl);
+    }
+
+    /** {@code trackingUrl}: external page to follow the parcel; blank = order-page button only. */
+    public static String shipped(String orderSn, String carrier, String trackingNumber, String trackingUrl,
+                                 String orderUrl, String logoUrl) {
         StringBuilder main = new StringBuilder();
         main.append(heading("Your order is on its way!"));
         main.append(paragraph("Good news — your order <strong>" + esc(orderSn) + "</strong> has shipped."));
@@ -157,8 +163,15 @@ public final class MailHtmlTemplates {
         }
         main.append(panel(inner.toString(), true));
 
-        main.append(paragraph("You can follow the shipment from the order detail page in your account."));
-        main.append(button(orderUrl, "Track your order"));
+        if (notBlank(trackingNumber) && notBlank(trackingUrl)) {
+            main.append(paragraph("Follow the parcel with the carrier — no sign-in needed:"));
+            main.append(button(trackingUrl, "Track your parcel"));
+            main.append(paragraph("The full history is also on the <a href=\"" + escAttr(orderUrl)
+                    + "\" style=\"color:" + PRIMARY + ";\">order page</a> in your account."));
+        } else {
+            main.append(paragraph("You can follow the shipment from the order detail page in your account."));
+            main.append(button(orderUrl, "Track your order"));
+        }
 
         String preheader = notBlank(trackingNumber)
                 ? "Order " + nz(orderSn) + " shipped — tracking " + trackingNumber
@@ -261,10 +274,11 @@ public final class MailHtmlTemplates {
     public static String delivered(String orderSn, String deliveredAt, boolean autoConfirmed,
                                    int returnWindowDays, String orderUrl, String logoUrl) {
         StringBuilder main = new StringBuilder();
-        main.append(heading(autoConfirmed ? "Your order has been delivered" : "Thanks for confirming delivery"));
+        main.append(heading(autoConfirmed ? "Your order is marked as delivered" : "Thanks for confirming delivery"));
         main.append(paragraph(autoConfirmed
-                ? "Your order <strong>" + esc(orderSn) + "</strong> was marked as delivered on "
-                  + esc(deliveredAt) + " &mdash; our carrier reported delivery and we did not hear otherwise."
+                ? "We have marked your order <strong>" + esc(orderSn) + "</strong> as delivered on "
+                  + esc(deliveredAt) + ". If it has not reached you yet, reply to this email and we will "
+                  + "look into it."
                 : "Order <strong>" + esc(orderSn) + "</strong> arrived on " + esc(deliveredAt)
                   + ". We hope you like it!"));
         main.append(panel(panelLine("Something wrong? You have <strong>" + returnWindowDays + " days</strong> from "

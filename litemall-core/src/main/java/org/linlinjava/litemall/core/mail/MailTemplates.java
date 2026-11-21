@@ -107,6 +107,11 @@ public final class MailTemplates {
     }
 
     public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn) {
+        return shipped(orderSn, shipChannel, shipSn, null);
+    }
+
+    /** {@code trackingUrl}: external page to follow the parcel; blank = no link line. */
+    public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn, String trackingUrl) {
         String subject = "Your Trovemo order " + nz(orderSn) + " has shipped";
         StringBuilder body = new StringBuilder("Good news — your order " + nz(orderSn) + " is on its way!\n\n");
         if (notBlank(shipChannel)) {
@@ -116,10 +121,13 @@ public final class MailTemplates {
         // render a blank "Tracking number:" line — promise the follow-up instead.
         if (notBlank(shipSn)) {
             body.append("Tracking number: ").append(shipSn).append('\n');
+            if (notBlank(trackingUrl)) {
+                body.append("Track it here: ").append(trackingUrl).append('\n');
+            }
         } else {
             body.append("Your tracking number is being assigned — we will send it in a follow-up email.\n");
         }
-        body.append("\nYou can follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
+        body.append("\nYou can also follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
         return new RenderedMail(KEY_SHIPPED, subject, body.toString());
     }
 
@@ -157,7 +165,9 @@ public final class MailTemplates {
 
     /**
      * The order closed as delivered — by the customer's confirmation or by the automatic
-     * confirmation after the grace window (lifecycle package C, F14). Names the date the
+     * confirmation (lifecycle package C, F14). The automatic wording states only what we
+     * did ("marked as delivered") and invites a reply: it must never claim a carrier
+     * report, because the close can also come from the safety cap. Names the date the
      * return window started from and how long it lasts; {@code deliveredAt} is already
      * formatted.
      */
@@ -165,8 +175,8 @@ public final class MailTemplates {
                                          int returnWindowDays) {
         String subject = "Your Trovemo order " + nz(orderSn) + " has been delivered";
         String how = autoConfirmed
-                ? "Your order " + nz(orderSn) + " was marked as delivered on " + nz(deliveredAt)
-                  + " (our carrier reported delivery and we did not hear otherwise)."
+                ? "We have marked your order " + nz(orderSn) + " as delivered on " + nz(deliveredAt)
+                  + ". If it has not reached you yet, reply to this email and we will look into it."
                 : "Thanks for confirming that order " + nz(orderSn) + " arrived on " + nz(deliveredAt) + ".";
         String body = how + "\n\n"
                 + "We hope you like it! You can leave a review for each item from the order page.\n\n"

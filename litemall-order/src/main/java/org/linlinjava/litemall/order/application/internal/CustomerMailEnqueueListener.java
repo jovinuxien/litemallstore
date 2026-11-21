@@ -422,10 +422,22 @@ public class CustomerMailEnqueueListener {
         return CURRENCY_SYMBOL + value.getAmount().toPlainString();
     }
 
+    /** External tracking page links; setter-injected so hand-built listeners keep working. */
+    private TrackingLinkBuilder trackingLinks = new TrackingLinkBuilder(TrackingLinkBuilder.DEFAULT_TEMPLATE);
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setTrackingLinks(TrackingLinkBuilder trackingLinks) {
+        this.trackingLinks = trackingLinks;
+    }
+
     private void enqueueShippedMail(LitemallOrderAggregate order, String email) {
-        insertRow(email, MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn()),
+        // Same rule as the order page's tracking payload: CJ parcels get the external link
+        // (the order page sits behind a sign-in; the carrier page does not).
+        String trackingUrl = order.isCjFulfilled() ? trackingLinks.urlFor(order.getShipSn()) : null;
+        insertRow(email,
+                MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(), trackingUrl),
                 MailHtmlTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(),
-                        orderUrl(order), logoUrl()));
+                        trackingUrl, orderUrl(order), logoUrl()));
     }
 
     /**

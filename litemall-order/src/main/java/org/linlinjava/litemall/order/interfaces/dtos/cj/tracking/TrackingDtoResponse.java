@@ -13,9 +13,10 @@ import java.util.List;
  * docs/handoff-gateway-admin-cj-tracking.md.
  *
  * <p>Not shipped yet is a CLEAN payload ({@code shipped=false}, {@code status="NOT_SHIPPED"},
- * empty {@code events}), never an error. CJ reports summary-level tracking only, so
- * {@code events} carries a single entry synthesized from the current status + latest-event
- * time; the list shape leaves room if CJ ever exposes per-hop detail.
+ * empty {@code events}), never an error. For CJ orders {@code events} is CJ's per-hop
+ * history, newest first; when CJ has no history yet it is a single entry synthesized from
+ * the current status. {@code trackingUrl}, the last-mile contact fields and
+ * {@code Event.location} are additive and omitted when unknown.
  */
 @Data
 @Builder
@@ -35,6 +36,14 @@ public class TrackingDtoResponse {
     private String deliveryDay;
     private String lastMileCarrier;
     private String lastTrackNumber;
+    /** Last-mile carrier's customer-service phone, as CJ reports it. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String lastMileCarrierPhone;
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String lastMileCarrierEmail;
+    /** External page where the customer can follow the parcel themselves. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String trackingUrl;
     private List<Event> events;
     /**
      * Advisory hint for LOCAL orders only (Wave 4): {@code "tracking provider disabled"} or
@@ -48,9 +57,16 @@ public class TrackingDtoResponse {
     @Data
     @AllArgsConstructor
     public static class Event {
-        /** "YYYY-MM-DD HH:MM:SS" (CJ's latest-event timestamp). */
+        /** "YYYY-MM-DD HH:MM:SS"; null when the carrier gave no time. */
         private String time;
         private String status;
         private String description;
+        /** Where it happened, in the carrier's words ("HEL"); omitted when unknown. */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String location;
+
+        public Event(String time, String status, String description) {
+            this(time, status, description, null);
+        }
     }
 }
