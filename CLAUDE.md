@@ -3943,7 +3943,17 @@
 - **Task — Wave 9.1: storefront trust surfaces (social links, help center,
   customer-service FAQ).** (Merged + deployed 2026-07-25, `3989e2053`.)
 
-### Worktree: `gateway-admin` — season panels + admin order delete MERGED to master 2026-11-21 (tier 2 confirmed by the user); deploy PENDING (order + gateway-admin containers); no active assignment
+### Worktree: `gateway-admin` — season panels + admin order delete MERGED 2026-11-21; deploy bundles PREPARED 2026-11-22 (`~/litemall-deploys/order-admin-delete`, `gwadmin-season-order-delete`), user ships them; no active assignment
+- **Status 2026-11-22 — DEPLOY BUNDLES PREPARED, NOT SHIPPED (user runs them).** Jars built on the
+  workstation from master `b55dcd921` in the repo Dockerfile's builder stage (BUILD SUCCESS, SPA
+  assertion OK). `~/litemall-deploys/order-admin-delete/` (jar sha256 `d3fcb1bc…`,
+  `OrderAdminDeleteService` in the jar; booted alone on dev :18085 with CJ creds unset: Flyway
+  validated 65, 0 ERRORs, health 200, delete route 401 unauthenticated; stopped) and
+  `~/litemall-deploys/gwadmin-season-order-delete/` (jar sha256 `359da85b…`, bundle
+  `main.dce2936a.js` carries the season + delete strings). Each has `ship.sh` + `vps/{deploy,verify,
+  rollback}.sh`, VPS dirs `/root/deploy-20261122-{order,gwadmin}`, rollback tag `pre-20261122`.
+  **Order FIRST, then gateway-admin.** No migration, no env, no compose change. GitHub was
+  force-pushed by the user the same day (origin now carries the rewritten history).
 - **Status 2026-11-21 — MERGED to master; deploy PENDING.** The user confirmed the paid-order
   delete tier ("keep tier 2") and gave the go-ahead. Master was merged into the branch first
   (3 commits, freight-probe script + `litemall-order/docs` only, no overlap, clean). Re-run on
