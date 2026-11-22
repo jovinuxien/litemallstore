@@ -3954,6 +3954,10 @@
   rollback}.sh`, VPS dirs `/root/deploy-20261122-{order,gwadmin}`, rollback tag `pre-20261122`.
   **Order FIRST, then gateway-admin.** No migration, no env, no compose change. GitHub was
   force-pushed by the user the same day (origin now carries the rewritten history).
+  ⚠ While the jars were building a peer moved master to `23984f365` (order: CJ tracking history,
+  local-carrier mail, three new compose passthroughs). The bundles do NOT contain that work and
+  deliberately do NOT push master or move the VPS checkout. The peer's own order deploy will
+  supersede this order jar (its branch contains `b55dcd921`); the admin bundle is unaffected.
 - **Status 2026-11-21 — MERGED to master; deploy PENDING.** The user confirmed the paid-order
   delete tier ("keep tier 2") and gave the go-ahead. Master was merged into the branch first
   (3 commits, freight-probe script + `litemall-order/docs` only, no overlap, clean). Re-run on
