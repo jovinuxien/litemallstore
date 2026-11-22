@@ -210,6 +210,12 @@ litemall:
       # the window (e.g. 0) turns the delivery check off (calendar-only, as before
       # 2026-11-21). Container recreate only.
       auto-confirm-max-days: ${LITEMALL_ORDER_CJ_AUTO_CONFIRM_MAX_DAYS:45}
+      # One-time "your local carrier is X" mail (2026-11-22): an hourly sweep asks CJ
+      # tracking about shipped CJ orders not yet told, and mails the customer the first
+      # time CJ names the last-mile carrier. false = no sweep, no CJ calls, no mail
+      # (container recreate only).
+      local-carrier-notice-enabled: ${LITEMALL_ORDER_CJ_LOCAL_CARRIER_NOTICE:true}
+      local-carrier-notice-sweep-ms: ${LITEMALL_ORDER_CJ_LOCAL_CARRIER_NOTICE_SWEEP_MS:3600000}
       # usd (default) = convert EUR→USD with the inverse of litemall.order.fx-usd-eur
       # (every amount CJ returns is documented USD; the docs are silent on shopAmount —
       # ask CJ support, then flip here if they say "store currency"); store = send the

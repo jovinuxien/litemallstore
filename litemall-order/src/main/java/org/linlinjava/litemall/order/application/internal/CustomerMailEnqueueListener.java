@@ -156,6 +156,12 @@ public class CustomerMailEnqueueListener {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
+    public void onLocalCarrierAssigned(
+            org.linlinjava.litemall.order.domain.events.order.LitemallOrderLocalCarrierAssignedEvent event) {
+        submit(event.getOrderId().getId(), (order, email) -> enqueueLocalCarrierMail(order, email, event));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onStrayPaymentRefunded(
             org.linlinjava.litemall.order.domain.events.payment.LitemallStrayPaymentRefundedEvent event) {
         // The amount comes from the event (what Stripe actually reversed), not from the
@@ -430,14 +436,35 @@ public class CustomerMailEnqueueListener {
         this.trackingLinks = trackingLinks;
     }
 
+    /**
+     * What the shipped mail calls the carrier of a CJ parcel. CJ's own channel code
+     * ("equick_Standard") means nothing to a customer; the carrier that delivers the parcel
+     * is named later, in the local-carrier mail.
+     */
+    static final String CJ_CARRIER_LABEL = "International tracked shipping";
+
     private void enqueueShippedMail(LitemallOrderAggregate order, String email) {
         // Same rule as the order page's tracking payload: CJ parcels get the external link
         // (the order page sits behind a sign-in; the carrier page does not).
-        String trackingUrl = order.isCjFulfilled() ? trackingLinks.urlFor(order.getShipSn()) : null;
+        boolean cj = order.isCjFulfilled();
+        String trackingUrl = cj ? trackingLinks.urlFor(order.getShipSn()) : null;
+        String carrier = cj ? CJ_CARRIER_LABEL : order.getShipChannel();
         insertRow(email,
-                MailTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(), trackingUrl),
-                MailHtmlTemplates.shipped(order.getOrderSn(), order.getShipChannel(), order.getShipSn(),
-                        trackingUrl, orderUrl(order), logoUrl()));
+                MailTemplates.shipped(order.getOrderSn(), carrier, order.getShipSn(), trackingUrl, cj),
+                MailHtmlTemplates.shipped(order.getOrderSn(), carrier, order.getShipSn(),
+                        trackingUrl, cj, orderUrl(order), logoUrl()));
+    }
+
+    private void enqueueLocalCarrierMail(LitemallOrderAggregate order, String email,
+            org.linlinjava.litemall.order.domain.events.order.LitemallOrderLocalCarrierAssignedEvent event) {
+        String trackingUrl = trackingLinks.urlFor(order.getShipSn());
+        insertRow(email,
+                MailTemplates.localCarrier(order.getOrderSn(), event.getCarrier(), event.getLocalTrackNumber(),
+                        event.getCarrierPhone(), event.getCarrierEmail(), trackingUrl),
+                safeHtml(order, MailTemplates.KEY_LOCAL_CARRIER, () -> MailHtmlTemplates.localCarrier(
+                        order.getOrderSn(), event.getCarrier(), event.getLocalTrackNumber(),
+                        event.getCarrierPhone(), event.getCarrierEmail(), trackingUrl,
+                        orderUrl(order), logoUrl())));
     }
 
     /**

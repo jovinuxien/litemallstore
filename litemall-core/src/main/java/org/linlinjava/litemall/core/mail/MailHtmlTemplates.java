@@ -147,6 +147,12 @@ public final class MailHtmlTemplates {
     /** {@code trackingUrl}: external page to follow the parcel; blank = order-page button only. */
     public static String shipped(String orderSn, String carrier, String trackingNumber, String trackingUrl,
                                  String orderUrl, String logoUrl) {
+        return shipped(orderSn, carrier, trackingNumber, trackingUrl, false, orderUrl, logoUrl);
+    }
+
+    /** {@code localCarrierFollows}: promise the follow-up mail that names the delivering carrier. */
+    public static String shipped(String orderSn, String carrier, String trackingNumber, String trackingUrl,
+                                 boolean localCarrierFollows, String orderUrl, String logoUrl) {
         StringBuilder main = new StringBuilder();
         main.append(heading("Your order is on its way!"));
         main.append(paragraph("Good news — your order <strong>" + esc(orderSn) + "</strong> has shipped."));
@@ -162,6 +168,9 @@ public final class MailHtmlTemplates {
             inner.append(panelLine("Your tracking number is being assigned — we will send it in a follow-up email."));
         }
         main.append(panel(inner.toString(), true));
+        if (localCarrierFollows) {
+            main.append(paragraph(esc(MailTemplates.LOCAL_CARRIER_FOLLOWS)));
+        }
 
         if (notBlank(trackingNumber) && notBlank(trackingUrl)) {
             main.append(paragraph("Follow the parcel with the carrier — no sign-in needed:"));
@@ -177,6 +186,48 @@ public final class MailHtmlTemplates {
                 ? "Order " + nz(orderSn) + " shipped — tracking " + trackingNumber
                 : "Order " + nz(orderSn) + " has shipped";
         return shell("Order " + nz(orderSn) + " shipped", preheader, logoUrl, main.toString());
+    }
+
+    /** HTML twin of {@link MailTemplates#localCarrier}: who delivers the parcel and how to reach them. */
+    public static String localCarrier(String orderSn, String carrier, String localTrackingNumber,
+                                      String carrierPhone, String carrierEmail, String trackingUrl,
+                                      String orderUrl, String logoUrl) {
+        StringBuilder main = new StringBuilder();
+        main.append(heading(nz(carrier) + " will deliver your parcel"));
+        main.append(paragraph("An update on order <strong>" + esc(orderSn) + "</strong>: the local carrier for "
+                + "your parcel is <strong>" + esc(carrier) + "</strong>. They handle the final delivery to "
+                + "your address."));
+
+        StringBuilder inner = new StringBuilder();
+        inner.append(panelLine("Local carrier: <strong>" + esc(carrier) + "</strong>"));
+        if (notBlank(localTrackingNumber)) {
+            inner.append(panelLine("Local tracking number: <strong style=\"font-family:" + MONO + ";\">"
+                    + esc(localTrackingNumber) + "</strong>"));
+        }
+        if (notBlank(carrierPhone)) {
+            inner.append(panelLine("Carrier phone: <a href=\"tel:" + escAttr(carrierPhone.replace(" ", ""))
+                    + "\" style=\"color:" + PRIMARY + ";\">" + esc(carrierPhone) + "</a>"));
+        }
+        if (notBlank(carrierEmail)) {
+            inner.append(panelLine("Carrier email: <a href=\"mailto:" + escAttr(carrierEmail)
+                    + "\" style=\"color:" + PRIMARY + ";\">" + esc(carrierEmail) + "</a>"));
+        }
+        main.append(panel(inner.toString(), true));
+
+        main.append(paragraph("If the carrier asks for a reference, give them the local tracking number. "
+                + "You can always reply to this email."));
+        if (notBlank(trackingUrl)) {
+            main.append(button(trackingUrl, "Track your parcel"));
+            main.append(paragraph("The full history is also on the <a href=\"" + escAttr(orderUrl)
+                    + "\" style=\"color:" + PRIMARY + ";\">order page</a> in your account."));
+        } else {
+            main.append(button(orderUrl, "Track your order"));
+        }
+
+        String preheader = notBlank(localTrackingNumber)
+                ? nz(carrier) + " delivers order " + nz(orderSn) + " — local tracking " + localTrackingNumber
+                : nz(carrier) + " delivers order " + nz(orderSn);
+        return shell("Order " + nz(orderSn) + " — local carrier", preheader, logoUrl, main.toString());
     }
 
     /**

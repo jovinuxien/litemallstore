@@ -53,7 +53,28 @@ class MailHtmlTemplateTest {
                 MailHtmlTemplates.refundApproved("20260826000042", "€44.16", ORDER_URL, LOGO_URL),
                 MailHtmlTemplates.paymentRefunded("20260826000042", "€8.58", "https://trovemo.com", LOGO_URL),
                 MailHtmlTemplates.fulfilmentCancelled("20260826000042", ORDER_URL, LOGO_URL),
-                MailHtmlTemplates.delivered("20260826000042", "2026-09-05", true, 30, ORDER_URL, LOGO_URL));
+                MailHtmlTemplates.delivered("20260826000042", "2026-09-05", true, 30, ORDER_URL, LOGO_URL),
+                MailHtmlTemplates.localCarrier("20260826000042", "CityMail", "BCM123", "0771-40 60 40",
+                        "kund@citymail.example", "https://t.17track.net/en#nums=EQK123", ORDER_URL, LOGO_URL),
+                MailHtmlTemplates.shipped("20260826000042", "International tracked shipping", "EQK123",
+                        "https://t.17track.net/en#nums=EQK123", true, ORDER_URL, LOGO_URL));
+    }
+
+    @Test
+    void localCarrier_statesAnAssignment_neverAnArrivalOrADeliveryDate_andOmitsBlankLines() {
+        String full = MailHtmlTemplates.localCarrier("SN1", "City<Mail>", "BCM1", "0771-40 60 40", "a@b.se",
+                "https://t.17track.net/en#nums=EQK1", ORDER_URL, LOGO_URL);
+        String bare = MailHtmlTemplates.localCarrier("SN1", "CityMail", "", "", "", "", ORDER_URL, LOGO_URL);
+        String text = org.linlinjava.litemall.core.mail.MailTemplates
+                .localCarrier("SN1", "CityMail", "", "", "", "").body();
+
+        assertThat(full).contains("City&lt;Mail&gt;").doesNotContain("City<Mail>")
+                .contains("BCM1").contains("tel:0771-406040").contains("mailto:a@b.se").contains(ORDER_URL);
+        assertThat(bare).doesNotContain("Local tracking number").doesNotContain("Carrier phone")
+                .doesNotContain("Carrier email").contains("Track your order");
+        assertThat(full + text).doesNotContainIgnoringCase("arrived").doesNotContainIgnoringCase("delivered on")
+                .doesNotContainIgnoringCase("will arrive");
+        assertThat(text).doesNotContain("Local tracking number").doesNotContain("Track it here");
     }
 
     @Test

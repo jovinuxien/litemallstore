@@ -243,6 +243,15 @@ public class LitemallOrderRepositoryImpl implements LitemallOrderRepository {
     }
 
     @Override
+    public List<LitemallOrderAggregate> queryShippedWithTracking() {
+        LitemallOrderExample example = new LitemallOrderExample();
+        example.or().andOrderStatusEqualTo(LitemallOrderStatus.SHIPPED.getCode())
+                .andShipSnIsNotNull().andShipSnNotEqualTo("").andDeletedEqualTo(false);
+        return litemallOrderMapper.selectByExample(example)
+                .stream().map(this::convertToDomainModel).collect(Collectors.toList());
+    }
+
+    @Override
     public Map<Object, Object> orderInfo(LitemallUserId userId) {
         LitemallOrderExample example = new LitemallOrderExample();
         example.or().andUserIdEqualTo(userId.getId()).andDeletedEqualTo(false);
