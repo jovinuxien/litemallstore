@@ -8,10 +8,12 @@ import java.util.List;
 /**
  * CJ Dropshipping {@code logistic/trackInfo} response envelope:
  * <pre>{ code, result, message, data:[ { trackingNumber, logisticName, trackingFrom,
- *   trackingTo, deliveryDay, deliveryTime, trackingStatus, lastMileCarrier,
- *   lastTrackNumber } ], requestId }</pre>
- * The endpoint is batch-capable (repeated {@code trackNumber} params), hence the array;
- * CJ reports summary-level tracking (no per-hop event array).
+ *   trackingTo, deliveryDay, trackingStatus, lastMileCarrier, lastMileCarrierPhone,
+ *   lastMileCarrierEmail, lastTrackNumber,
+ *   routes:[ { acceptAddress, acceptTime, remark } ] } ], requestId }</pre>
+ * The endpoint is batch-capable (repeated {@code trackNumber} params), hence the array.
+ * {@code routes} is the per-hop history, NEWEST FIRST (shape verified against a live
+ * response 2026-11-21; {@code deliveryTime} was absent from that payload).
  */
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -38,6 +40,21 @@ public class CjTrackInfoResponse {
         /** Current shipment status, e.g. "In transit". */
         private String trackingStatus;
         private String lastMileCarrier;
+        private String lastMileCarrierPhone;
+        private String lastMileCarrierEmail;
         private String lastTrackNumber;
+        /** Per-hop history, newest first. Null or empty when CJ has none yet. */
+        private List<Route> routes;
+    }
+
+    @lombok.Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class Route {
+        /** Where the event happened; free text ("HEL", "CHINA"), may be blank. */
+        private String acceptAddress;
+        /** "YYYY-MM-DD HH:MM:SS". */
+        private String acceptTime;
+        /** What happened, in CJ's words ("Released from customs"). */
+        private String remark;
     }
 }

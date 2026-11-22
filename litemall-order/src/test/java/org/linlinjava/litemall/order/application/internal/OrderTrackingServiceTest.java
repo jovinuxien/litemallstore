@@ -48,6 +48,9 @@ class OrderTrackingServiceTest {
     @Mock
     private ExpressQueryPort expressQueryPort;
 
+    @org.mockito.Spy
+    private TrackingLinkBuilder trackingLinks = new TrackingLinkBuilder(TrackingLinkBuilder.DEFAULT_TEMPLATE);
+
     @InjectMocks
     private OrderTrackingService service;
 
@@ -103,6 +106,43 @@ class OrderTrackingServiceTest {
         // CJ payloads never carry the Wave-4 local-tracking note.
         assertNull(dto.getNote());
         verify(expressQueryPort, never()).query(any(), any());
+    }
+
+    @Test
+    void shippedCjOrder_withHopHistory_servesEveryHopNewestFirst_plusLastMileContactAndLink() {
+        when(orderRepository.findByIdAndUserId(USER, ORDER))
+                .thenReturn(order(LitemallOrderAggregate.SOURCE_CJ, "EQKPT861YQ", "equick_Standard"));
+        CjTrackingSnapshot cj = new CjTrackingSnapshot("EQKPT861YQ", "CJPacket Euro Sensitive F", "CN", "SE",
+                "8", null, "Arrived Courier Facility", "CityMail", "BCMEQ861YQ");
+        cj.setLastMileCarrierPhone("0771-40 60 40");
+        cj.setLastMileCarrierEmail(" ");
+        cj.setHops(List.of(
+                new CjTrackingSnapshot.Hop("2026-11-18 21:35:56", "HEL", "Released from customs"),
+                new CjTrackingSnapshot.Hop("2026-11-10 18:30:02", "", "Label created")));
+        when(trackingFacade.trackInfo("EQKPT861YQ")).thenReturn(Optional.of(cj));
+
+        TrackingDtoResponse dto = service.getTrackingForUser(USER, ORDER);
+
+        assertEquals("Arrived Courier Facility", dto.getStatus());
+        assertEquals(2, dto.getEvents().size());
+        assertEquals("Released from customs", dto.getEvents().get(0).getDescription());
+        assertEquals("2026-11-18 21:35:56", dto.getEvents().get(0).getTime());
+        assertEquals("HEL", dto.getEvents().get(0).getLocation());
+        assertNull(dto.getEvents().get(1).getLocation()); // blank location is omitted, not ""
+        assertEquals("CityMail", dto.getLastMileCarrier());
+        assertEquals("0771-40 60 40", dto.getLastMileCarrierPhone());
+        assertNull(dto.getLastMileCarrierEmail());
+        assertEquals("https://t.17track.net/en#nums=EQKPT861YQ", dto.getTrackingUrl());
+    }
+
+    @Test
+    void cjUnreachable_stillOffersTheExternalLink() {
+        when(orderRepository.findByIdAndUserId(USER, ORDER))
+                .thenReturn(order(LitemallOrderAggregate.SOURCE_CJ, "CJPKL123", "CJPacket Ordinary"));
+        when(trackingFacade.trackInfo("CJPKL123")).thenReturn(Optional.empty());
+
+        assertEquals("https://t.17track.net/en#nums=CJPKL123",
+                service.getTrackingForUser(USER, ORDER).getTrackingUrl());
     }
 
     @Test

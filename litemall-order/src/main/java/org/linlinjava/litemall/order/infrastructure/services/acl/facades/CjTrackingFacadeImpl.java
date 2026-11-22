@@ -55,11 +55,20 @@ public class CjTrackingFacadeImpl implements CjTrackingFacade {
                 return Optional.empty();
             }
             CjTrackInfoResponse.TrackInfo t = response.getData().get(0);
-            return Optional.of(new CjTrackingSnapshot(
+            CjTrackingSnapshot snapshot = new CjTrackingSnapshot(
                     t.getTrackingNumber() != null ? t.getTrackingNumber() : trackNumber,
                     t.getLogisticName(), t.getTrackingFrom(), t.getTrackingTo(),
                     t.getDeliveryDay(), t.getDeliveryTime(), t.getTrackingStatus(),
-                    t.getLastMileCarrier(), t.getLastTrackNumber()));
+                    t.getLastMileCarrier(), t.getLastTrackNumber());
+            snapshot.setLastMileCarrierPhone(t.getLastMileCarrierPhone());
+            snapshot.setLastMileCarrierEmail(t.getLastMileCarrierEmail());
+            if (t.getRoutes() != null) {
+                snapshot.setHops(t.getRoutes().stream()
+                        .filter(r -> r != null && r.getRemark() != null && !r.getRemark().isBlank())
+                        .map(r -> new CjTrackingSnapshot.Hop(r.getAcceptTime(), r.getAcceptAddress(), r.getRemark()))
+                        .toList());
+            }
+            return Optional.of(snapshot);
         } catch (RuntimeException e) {
             log.warn("CJ trackInfo failed for {}: {}", trackNumber, e.getMessage());
             return Optional.empty();

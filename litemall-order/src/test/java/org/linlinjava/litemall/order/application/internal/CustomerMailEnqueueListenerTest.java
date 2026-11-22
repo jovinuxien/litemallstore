@@ -389,4 +389,75 @@ class CustomerMailEnqueueListenerTest {
         verify(mailOutboxMapper, after(500).never()).insert(any());
         verifyZeroInteractions(orderRepository, orderGoodsRepository, userMapper);
     }
+
+    // ------------------------------------------------------------------
+    // Shipped mail carrier wording + the local-carrier follow-up (2026-11-22)
+    // ------------------------------------------------------------------
+
+    private LitemallMailOutbox onlyRow() {
+        ArgumentCaptor<LitemallMailOutbox> captor = ArgumentCaptor.forClass(LitemallMailOutbox.class);
+        verify(mailOutboxMapper, timeout(VERIFY_TIMEOUT_MS)).insert(captor.capture());
+        return captor.getValue();
+    }
+
+    @Test
+    void shippedMail_forACjOrder_hidesTheRawChannelCode_andPromisesTheLocalCarrierMail() {
+        LitemallOrderAggregate order = order(42);
+        order.setSource(LitemallOrderAggregate.SOURCE_CJ);
+        order.setShipChannel("equick_Standard");
+        order.setShipSn("EQK1");
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderShipped(
+                new org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent(new LitemallOrderId(42)));
+
+        LitemallMailOutbox row = onlyRow();
+        assertThat(row.getBody()).contains("Carrier: International tracked shipping")
+                .contains("we will email you its name and tracking number")
+                .doesNotContain("equick_Standard");
+        assertThat(row.getBodyHtml()).contains("International tracked shipping")
+                .contains("we will email you its name and tracking number")
+                .doesNotContain("equick_Standard");
+    }
+
+    @Test
+    void shippedMail_forALocalOrder_keepsItsOwnCarrier_andPromisesNoFollowUp() {
+        LitemallOrderAggregate order = order(42);
+        order.setShipChannel("PostNord");
+        order.setShipSn("PN1");
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onOrderShipped(
+                new org.linlinjava.litemall.order.domain.events.order.LitemallOrderShippedEvent(new LitemallOrderId(42)));
+
+        LitemallMailOutbox row = onlyRow();
+        assertThat(row.getBody()).contains("Carrier: PostNord").doesNotContain("local carrier");
+        assertThat(row.getBodyHtml()).contains("PostNord").doesNotContain("local carrier");
+    }
+
+    @Test
+    void localCarrierEvent_enqueuesTheLocalCarrierMail_withNumberPhoneAndLink() {
+        LitemallOrderAggregate order = order(42);
+        order.setSource(LitemallOrderAggregate.SOURCE_CJ);
+        order.setShipSn("EQK1");
+        when(orderRepository.findById(any())).thenReturn(Optional.of(order));
+        stubBuyerEmail("buyer@example.com");
+
+        listener(true).onLocalCarrierAssigned(
+                new org.linlinjava.litemall.order.domain.events.order.LitemallOrderLocalCarrierAssignedEvent(
+                        new LitemallOrderId(42), "CityMail", "BCM1", "0771-40 60 40", ""));
+
+        LitemallMailOutbox row = onlyRow();
+        assertThat(row.getTemplateKey()).isEqualTo(MailTemplates.KEY_LOCAL_CARRIER);
+        assertThat(row.getSubject()).contains("20260726000042").contains("CityMail will deliver your parcel");
+        assertThat(row.getBody()).contains("Local carrier: CityMail")
+                .contains("Local tracking number: BCM1")
+                .contains("Carrier phone: 0771-40 60 40")
+                .contains("https://t.17track.net/en#nums=EQK1")
+                .doesNotContain("Carrier email");
+        assertThat(row.getBodyHtml()).contains("CityMail").contains("BCM1").contains("tel:0771-406040")
+                .contains("Track your parcel");
+    }
 }

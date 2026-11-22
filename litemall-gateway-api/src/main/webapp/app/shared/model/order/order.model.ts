@@ -139,7 +139,13 @@ export interface ITracking {
   deliveryDay?: string | null;
   lastMileCarrier?: string | null;
   lastTrackNumber?: string | null;
-  events?: Array<{ time?: string; status?: string | null; description?: string | null }>;
+  /** Last-mile carrier's customer service, as the supplier reports it (optional). */
+  lastMileCarrierPhone?: string | null;
+  lastMileCarrierEmail?: string | null;
+  /** External page to follow the parcel without signing in (optional). */
+  trackingUrl?: string | null;
+  /** Newest first. `location` is the carrier's own wording ("HEL"), when known. */
+  events?: Array<{ time?: string | null; status?: string | null; description?: string | null; location?: string | null }>;
 }
 
 /**

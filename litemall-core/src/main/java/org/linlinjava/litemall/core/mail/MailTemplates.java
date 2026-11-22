@@ -22,6 +22,7 @@ public final class MailTemplates {
     public static final String KEY_PAYMENT_REFUNDED = "payment-refunded";
     public static final String KEY_FULFILMENT_CANCELLED = "fulfilment-cancelled";
     public static final String KEY_DELIVERED = "delivered";
+    public static final String KEY_LOCAL_CARRIER = "local-carrier";
 
     /** A rendered mail: the template key plus the finished subject and plain-text body. */
     public record RenderedMail(String templateKey, String subject, String body) {
@@ -107,6 +108,20 @@ public final class MailTemplates {
     }
 
     public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn) {
+        return shipped(orderSn, shipChannel, shipSn, null);
+    }
+
+    /** {@code trackingUrl}: external page to follow the parcel; blank = no link line. */
+    public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn, String trackingUrl) {
+        return shipped(orderSn, shipChannel, shipSn, trackingUrl, false);
+    }
+
+    /**
+     * {@code localCarrierFollows}: the parcel crosses a border and the carrier that delivers
+     * it is not known yet — promise the follow-up mail ({@link #localCarrier}) that names it.
+     */
+    public static RenderedMail shipped(String orderSn, String shipChannel, String shipSn, String trackingUrl,
+                                       boolean localCarrierFollows) {
         String subject = "Your Trovemo order " + nz(orderSn) + " has shipped";
         StringBuilder body = new StringBuilder("Good news — your order " + nz(orderSn) + " is on its way!\n\n");
         if (notBlank(shipChannel)) {
@@ -116,11 +131,46 @@ public final class MailTemplates {
         // render a blank "Tracking number:" line — promise the follow-up instead.
         if (notBlank(shipSn)) {
             body.append("Tracking number: ").append(shipSn).append('\n');
+            if (notBlank(trackingUrl)) {
+                body.append("Track it here: ").append(trackingUrl).append('\n');
+            }
         } else {
             body.append("Your tracking number is being assigned — we will send it in a follow-up email.\n");
         }
-        body.append("\nYou can follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
+        if (localCarrierFollows) {
+            body.append("\n").append(LOCAL_CARRIER_FOLLOWS).append('\n');
+        }
+        body.append("\nYou can also follow the shipment from the order detail page in your account.\n\n").append(FOOTER);
         return new RenderedMail(KEY_SHIPPED, subject, body.toString());
+    }
+
+    /**
+     * The local (last-mile) carrier of a cross-border parcel is known: who delivers it, the
+     * carrier's own tracking number and how to reach them. Blank number / phone / email /
+     * link lines are omitted. States an assignment, never an arrival or a delivery date.
+     */
+    public static RenderedMail localCarrier(String orderSn, String carrier, String localTrackingNumber,
+                                            String carrierPhone, String carrierEmail, String trackingUrl) {
+        String subject = "Your Trovemo order " + nz(orderSn) + ": " + nz(carrier) + " will deliver your parcel";
+        StringBuilder body = new StringBuilder("An update on order " + nz(orderSn) + ": the local carrier for "
+                + "your parcel is " + nz(carrier) + ". They handle the final delivery to your address.\n\n");
+        body.append("Local carrier: ").append(nz(carrier)).append('\n');
+        if (notBlank(localTrackingNumber)) {
+            body.append("Local tracking number: ").append(localTrackingNumber).append('\n');
+        }
+        if (notBlank(carrierPhone)) {
+            body.append("Carrier phone: ").append(carrierPhone).append('\n');
+        }
+        if (notBlank(carrierEmail)) {
+            body.append("Carrier email: ").append(carrierEmail).append('\n');
+        }
+        if (notBlank(trackingUrl)) {
+            body.append("Track it here: ").append(trackingUrl).append('\n');
+        }
+        body.append("\nIf the carrier asks for a reference, give them the local tracking number. "
+                + "The full history is on the order detail page in your account, and you can always reply "
+                + "to this email.\n\n").append(FOOTER);
+        return new RenderedMail(KEY_LOCAL_CARRIER, subject, body.toString());
     }
 
     /**
@@ -157,7 +207,9 @@ public final class MailTemplates {
 
     /**
      * The order closed as delivered — by the customer's confirmation or by the automatic
-     * confirmation after the grace window (lifecycle package C, F14). Names the date the
+     * confirmation (lifecycle package C, F14). The automatic wording states only what we
+     * did ("marked as delivered") and invites a reply: it must never claim a carrier
+     * report, because the close can also come from the safety cap. Names the date the
      * return window started from and how long it lasts; {@code deliveredAt} is already
      * formatted.
      */
@@ -165,8 +217,8 @@ public final class MailTemplates {
                                          int returnWindowDays) {
         String subject = "Your Trovemo order " + nz(orderSn) + " has been delivered";
         String how = autoConfirmed
-                ? "Your order " + nz(orderSn) + " was marked as delivered on " + nz(deliveredAt)
-                  + " (our carrier reported delivery and we did not hear otherwise)."
+                ? "We have marked your order " + nz(orderSn) + " as delivered on " + nz(deliveredAt)
+                  + ". If it has not reached you yet, reply to this email and we will look into it."
                 : "Thanks for confirming that order " + nz(orderSn) + " arrived on " + nz(deliveredAt) + ".";
         String body = how + "\n\n"
                 + "We hope you like it! You can leave a review for each item from the order page.\n\n"
@@ -206,6 +258,9 @@ public final class MailTemplates {
         return new RenderedMail(KEY_PASSWORD_RESET, subject, body);
     }
 
+    /** Shared by the plain-text and HTML shipped mails. */
+    public static final String LOCAL_CARRIER_FOLLOWS = "Your parcel travels internationally first. As soon as the "
+            + "local carrier that delivers it is assigned, we will email you its name and tracking number.";
     private static final String FOOTER = "— The Trovemo team";
     private static final String SHIP_SOON = "We will let you know as soon as your order ships.";
 

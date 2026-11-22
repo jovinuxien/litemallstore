@@ -51,5 +51,51 @@ describe('TrackingPanel', () => {
     await waitFor(() => expect(screen.getByText('CJ123')).toBeTruthy());
     expect(screen.getByText('Departed facility')).toBeTruthy();
     expect(screen.queryByText(/tracking number on its way/)).toBeNull();
+    // An older backend sends no link and no contact: neither row appears.
+    expect(screen.queryByText('Track with the carrier')).toBeNull();
+    expect(screen.queryByText('Last-mile carrier contact')).toBeNull();
+  });
+
+  it('renders the hop history with places, the last-mile contact and the external link', async () => {
+    mockGet.mockImplementation(() =>
+      envelope({
+        shipped: true,
+        status: 'Arrived Courier Facility',
+        carrier: 'CJPacket Euro Sensitive F',
+        trackNumber: 'EQK861YQ',
+        lastMileCarrier: 'CityMail',
+        lastTrackNumber: 'BCMEQ861YQ',
+        lastMileCarrierPhone: '0771-40 60 40',
+        lastMileCarrierEmail: 'mottagarservice@citymail.se',
+        trackingUrl: 'https://t.17track.net/en#nums=EQK861YQ',
+        events: [
+          { time: '2026-11-18 21:35:56', description: 'Released from customs', location: 'HEL' },
+          { time: '2026-11-10 18:30:02', description: 'Label created' },
+        ],
+      })
+    );
+    render(<TrackingPanel orderId={11} />);
+    await waitFor(() => expect(screen.getByText('Released from customs')).toBeTruthy());
+    expect(screen.getByText('2026-11-18 21:35:56 · HEL')).toBeTruthy();
+    expect(screen.getByText('2026-11-10 18:30:02')).toBeTruthy();
+    expect(screen.getByText('CityMail (BCMEQ861YQ)')).toBeTruthy();
+    expect((screen.getByText('0771-40 60 40') as HTMLAnchorElement).getAttribute('href')).toBe('tel:0771406040');
+    expect((screen.getByText('mottagarservice@citymail.se') as HTMLAnchorElement).getAttribute('href')).toBe('mailto:mottagarservice@citymail.se');
+    const link = screen.getByText('Track with the carrier').closest('a') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://t.17track.net/en#nums=EQK861YQ');
+    expect(link.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('offers the external link even when the event history is unavailable, and never a non-http one', async () => {
+    mockGet.mockImplementation(() => envelope({ shipped: true, status: null, trackNumber: 'EQK1', trackingUrl: 'https://t.17track.net/en#nums=EQK1', events: [] }));
+    const first = render(<TrackingPanel orderId={11} />);
+    await waitFor(() => expect(screen.getByText('Track with the carrier')).toBeTruthy());
+    expect(screen.getByText(/temporarily unavailable/)).toBeTruthy();
+    first.unmount();
+
+    mockGet.mockImplementation(() => envelope({ shipped: true, trackNumber: 'EQK1', trackingUrl: 'javascript:alert(1)', events: [] }));
+    render(<TrackingPanel orderId={12} />);
+    await waitFor(() => expect(screen.getByText('EQK1')).toBeTruthy());
+    expect(screen.queryByText('Track with the carrier')).toBeNull();
   });
 });

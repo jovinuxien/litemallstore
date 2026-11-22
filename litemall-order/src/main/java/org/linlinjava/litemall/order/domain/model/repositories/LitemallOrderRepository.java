@@ -68,6 +68,9 @@ public interface LitemallOrderRepository {
 
     List<LitemallOrderAggregate> queryUnconfirm(int days);
 
+    /** SHIPPED, non-deleted orders that carry a tracking number (any fulfilment source). */
+    List<LitemallOrderAggregate> queryShippedWithTracking();
+
     Map<Object, Object> orderInfo(LitemallUserId userId);
 
     List<LitemallOrderAggregate> queryComment(int days);

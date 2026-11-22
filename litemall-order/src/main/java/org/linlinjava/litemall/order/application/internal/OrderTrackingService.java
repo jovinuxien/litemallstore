@@ -27,7 +27,9 @@ import java.util.List;
  * the {@link ExpressQueryPort} seam (kdniao/OnePass when configured): a hit fills real
  * events; provider disabled / provider miss degrade to the previous carrier+trackNumber
  * payload plus an advisory {@code note} ("tracking provider disabled" /
- * "tracking temporarily unavailable"). CJ payloads never carry a {@code note}.
+ * "tracking temporarily unavailable"). CJ payloads never carry a {@code note}; they carry
+ * CJ's per-hop history, the last-mile carrier's contact details and an external tracking
+ * link ({@link TrackingLinkBuilder}).
  */
 @Service
 public class OrderTrackingService {
@@ -38,12 +40,21 @@ public class OrderTrackingService {
     private final LitemallOrderRepository orderRepository;
     private final CjTrackingFacade trackingFacade;
     private final ExpressQueryPort expressQueryPort;
+    private final TrackingLinkBuilder trackingLinks;
 
     public OrderTrackingService(LitemallOrderRepository orderRepository, CjTrackingFacade trackingFacade,
                                 ExpressQueryPort expressQueryPort) {
+        this(orderRepository, trackingFacade, expressQueryPort,
+                new TrackingLinkBuilder(TrackingLinkBuilder.DEFAULT_TEMPLATE));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OrderTrackingService(LitemallOrderRepository orderRepository, CjTrackingFacade trackingFacade,
+                                ExpressQueryPort expressQueryPort, TrackingLinkBuilder trackingLinks) {
         this.orderRepository = orderRepository;
         this.trackingFacade = trackingFacade;
         this.expressQueryPort = expressQueryPort;
+        this.trackingLinks = trackingLinks;
     }
 
     /** Customer read, owner-scoped via the gateway-injected user id. Null → 404 at the edge. */
@@ -75,12 +86,16 @@ public class OrderTrackingService {
                     .build();
         }
         if (order.isCjFulfilled()) {
-            // CJ branch — byte-identical to Wave 3, including "CJ has no data (yet) /
-            // unreachable" degrading to shipped-without-events with NO note.
+            // CJ branch — "CJ has no data (yet) / unreachable" degrades to
+            // shipped-without-events with NO note. The external link is present either
+            // way: it needs only the number, so the customer can still follow the parcel
+            // when CJ does not answer.
             CjTrackingSnapshot cj = trackingFacade.trackInfo(trackNumber).orElse(null);
-            return cj == null
+            TrackingDtoResponse dto = cj == null
                     ? shippedWithoutEvents(order, trackNumber, null)
                     : buildFromCj(order, trackNumber, cj);
+            dto.setTrackingUrl(trackingLinks.urlFor(trackNumber));
+            return dto;
         }
         // Local order: consult the express seam (Wave 4, Task D).
         if (!expressQueryPort.enabled()) {
@@ -108,10 +123,20 @@ public class OrderTrackingService {
 
     private static TrackingDtoResponse buildFromCj(LitemallOrderAggregate order, String trackNumber,
                                                    CjTrackingSnapshot cj) {
-        List<TrackingDtoResponse.Event> events = StringUtils.hasText(cj.getTrackingStatus())
-                ? List.of(new TrackingDtoResponse.Event(cj.getDeliveryTime(), cj.getTrackingStatus(),
-                        eventDescription(cj)))
-                : List.of();
+        List<TrackingDtoResponse.Event> events;
+        if (cj.getHops() != null && !cj.getHops().isEmpty()) {
+            // CJ's own history, newest first, in the carrier's words.
+            events = cj.getHops().stream()
+                    .map(h -> new TrackingDtoResponse.Event(h.time(), h.remark(), h.remark(),
+                            StringUtils.hasText(h.location()) ? h.location().trim() : null))
+                    .toList();
+        } else if (StringUtils.hasText(cj.getTrackingStatus())) {
+            // No history yet: one entry from the current status, as before.
+            events = List.of(new TrackingDtoResponse.Event(cj.getDeliveryTime(), cj.getTrackingStatus(),
+                    eventDescription(cj)));
+        } else {
+            events = List.of();
+        }
         return TrackingDtoResponse.builder()
                 .shipped(true)
                 .status(cj.getTrackingStatus())
@@ -122,6 +147,8 @@ public class OrderTrackingService {
                 .deliveryDay(cj.getDeliveryDay())
                 .lastMileCarrier(cj.getLastMileCarrier())
                 .lastTrackNumber(cj.getLastTrackNumber())
+                .lastMileCarrierPhone(blankToNull(cj.getLastMileCarrierPhone()))
+                .lastMileCarrierEmail(blankToNull(cj.getLastMileCarrierEmail()))
                 .events(events)
                 .build();
     }
@@ -140,6 +167,10 @@ public class OrderTrackingService {
                 .trackNumber(trackNumber)
                 .events(events)
                 .build();
+    }
+
+    private static String blankToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private static String eventDescription(CjTrackingSnapshot cj) {

@@ -2,12 +2,16 @@ package org.linlinjava.litemall.order.application.internal;
 
 import org.linlinjava.litemall.order.domain.model.agregates.LitemallOrderAggregate;
 import org.linlinjava.litemall.order.domain.model.repositories.LitemallOrderRepository;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.CjTrackingFacade;
+import org.linlinjava.litemall.order.infrastructure.services.acl.facades.cj.CjTrackingSnapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -21,6 +25,15 @@ import java.util.List;
  * {@link LitemallOrderServiceImpl#autoConfirmOrder}), so one failure does not poison
  * the sweep. The guarded UPDATE makes the confirm a no-op if the customer confirmed
  * first (a race the sweep simply skips).
+ *
+ * <p><b>CJ orders close on the carrier's word, not on the calendar</b> (2026-11-21). The
+ * grace window counts from the ship time, and a parcel from China is routinely still in
+ * transit when it runs out: prod order 11 was closed as delivered — mail sent, return
+ * window started — while it was clearing customs. A CJ-fulfilled order past the window is
+ * therefore confirmed only when CJ's tracking says it was delivered. Without that word
+ * (still in transit, no tracking number, CJ unreachable) it stays SHIPPED and is asked
+ * again next sweep, until {@code litemall.order.cj.auto-confirm-max-days} after shipping,
+ * when it closes anyway so no order stays open forever. Local orders are unchanged.
  */
 @Component
 public class AutoConfirmOrderScheduler {
@@ -29,6 +42,16 @@ public class AutoConfirmOrderScheduler {
 
     private final LitemallOrderRepository orderRepository;
     private final LitemallOrderServiceImpl orderServiceImpl;
+    /** Null in hand-built tests: a CJ order then simply waits for the cap. */
+    private final CjTrackingFacade trackingFacade;
+
+    /**
+     * Days after shipping at which a CJ order closes even without a delivery report. A value
+     * at or below the grace window (e.g. 0) turns the delivery check off: every order then
+     * closes on the window alone, as before 2026-11-21.
+     */
+    @Value("${litemall.order.cj.auto-confirm-max-days:45}")
+    private int cjMaxDays = 45;
 
     /**
      * Fallback only. The admin-editable {@code litemall_order_unconfirm} system setting
@@ -52,8 +75,16 @@ public class AutoConfirmOrderScheduler {
 
     public AutoConfirmOrderScheduler(LitemallOrderRepository orderRepository,
                                      LitemallOrderServiceImpl orderServiceImpl) {
+        this(orderRepository, orderServiceImpl, null);
+    }
+
+    @Autowired
+    public AutoConfirmOrderScheduler(LitemallOrderRepository orderRepository,
+                                     LitemallOrderServiceImpl orderServiceImpl,
+                                     CjTrackingFacade trackingFacade) {
         this.orderRepository = orderRepository;
         this.orderServiceImpl = orderServiceImpl;
+        this.trackingFacade = trackingFacade;
     }
 
     @Scheduled(fixedDelayString = "${litemall.order.auto-confirm-sweep-ms:3600000}")
@@ -66,11 +97,44 @@ public class AutoConfirmOrderScheduler {
         log.info("Auto-confirm sweep: {} shipped orders past the {}-day window", due.size(), autoConfirmDays);
         for (LitemallOrderAggregate order : due) {
             try {
+                if (!mayClose(order, autoConfirmDays)) {
+                    continue;
+                }
                 orderServiceImpl.autoConfirmOrder(order.getOrderId());
             } catch (RuntimeException e) {
                 log.warn("Failed to auto-confirm order {}; will retry next sweep",
                         order.getOrderId().getId(), e);
             }
         }
+    }
+
+    /** Local orders close on the window; CJ orders on a delivery report or the cap. */
+    private boolean mayClose(LitemallOrderAggregate order, int windowDays) {
+        if (!order.isCjFulfilled() || cjMaxDays <= windowDays) {
+            return true;
+        }
+        Integer id = order.getOrderId().getId();
+        if (deliveredAccordingToCj(order)) {
+            log.info("Auto-confirming CJ order {}: CJ tracking reports it delivered", id);
+            return true;
+        }
+        LocalDateTime shipped = order.getShipTime();
+        if (shipped != null && shipped.isBefore(LocalDateTime.now().minusDays(cjMaxDays))) {
+            log.warn("Auto-confirming CJ order {} WITHOUT a delivery report: shipped {} days ago or more "
+                    + "(litemall.order.cj.auto-confirm-max-days)", id, cjMaxDays);
+            return true;
+        }
+        log.info("CJ order {} is past the {}-day window but CJ does not report it delivered; left SHIPPED",
+                id, windowDays);
+        return false;
+    }
+
+    private boolean deliveredAccordingToCj(LitemallOrderAggregate order) {
+        String trackNumber = order.getShipSn();
+        if (trackingFacade == null || trackNumber == null || trackNumber.isBlank()) {
+            return false;
+        }
+        // Never throws (the facade answers empty on any CJ failure) and is cached for an hour.
+        return trackingFacade.trackInfo(trackNumber).map(CjTrackingSnapshot::isDelivered).orElse(false);
     }
 }
