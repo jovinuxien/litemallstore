@@ -585,7 +585,10 @@ services:
       LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT: ${LITEMALL_ORDER_CJ_DECLARE_STORE_AMOUNT:-true}
       LITEMALL_ORDER_CJ_AUTO_CONFIRM_MAX_DAYS: ${LITEMALL_ORDER_CJ_AUTO_CONFIRM_MAX_DAYS:-45}
       LITEMALL_ORDER_CJ_LOCAL_CARRIER_NOTICE: ${LITEMALL_ORDER_CJ_LOCAL_CARRIER_NOTICE:-true}
-      LITEMALL_ORDER_TRACKING_URL_TEMPLATE: ${LITEMALL_ORDER_TRACKING_URL_TEMPLATE:-https://t.17track.net/en#nums={trackNumber}}
+      # No default here: compose ends a ${VAR:-default} at the first '}', so a default that
+      # contains {trackNumber} would append a stray brace to any value set in .env.prod.
+      # Empty = the service's built-in 17track template; "none" = no external link.
+      LITEMALL_ORDER_TRACKING_URL_TEMPLATE: ${LITEMALL_ORDER_TRACKING_URL_TEMPLATE:-}
       LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY: ${LITEMALL_ORDER_CJ_DECLARED_AMOUNT_CURRENCY:-usd}
       # IOSS declaration sent on createOrderV2 (yml spring.cjdropship.api.ioss-type /
       # ioss-number). 0 = omit the field. Found live 2026-11-10: with the field

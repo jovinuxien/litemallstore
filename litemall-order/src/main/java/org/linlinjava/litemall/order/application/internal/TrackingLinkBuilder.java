@@ -9,8 +9,9 @@ import java.nio.charset.StandardCharsets;
 /**
  * Builds the external "follow your parcel" link shown on the order page and in the shipped
  * mail. One template for the whole service ({@code litemall.order.tracking-url-template},
- * {@code {trackNumber}} placeholder); a blank template or a blank number yields no link,
- * and callers then simply omit it.
+ * {@code {trackNumber}} placeholder). A blank template means the default (the prod compose
+ * file passes an unset variable through as an empty string); a template without the
+ * placeholder (e.g. {@code none}) or a blank number yields no link, and callers omit it.
  */
 @Component
 public class TrackingLinkBuilder {
@@ -22,7 +23,7 @@ public class TrackingLinkBuilder {
 
     public TrackingLinkBuilder(
             @Value("${litemall.order.tracking-url-template:" + DEFAULT_TEMPLATE + "}") String template) {
-        this.template = template == null ? "" : template.trim();
+        this.template = template == null || template.isBlank() ? DEFAULT_TEMPLATE : template.trim();
     }
 
     /** The link for this tracking number, or null when there is nothing to link to. */
