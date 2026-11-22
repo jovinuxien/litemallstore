@@ -1561,8 +1561,8 @@
 > ahead of master) removed; the read-only `docker-compose/order-flow-check.sh`, the
 > three `doc/trovemo-*.pdf` guides and the men's DE probe CSVs committed. Still
 > untracked on purpose: `litemall-gateway-api/.mvn/` + `mvnw` (other modules track
-> theirs — add if wanted). ⚠ `origin/master` on GitHub is STILL the pre-rewrite
-> history (`e867fe369`) until the force-push lands.
+> theirs — add if wanted). GitHub was force-pushed by the user
+> 2026-11-22 — origin now carries the rewritten history on master and all seven `fix/*` branches.
 >
 > **USER-SIDE PREREQUISITES:** Stripe **LIVE keys are deployed in prod
 > (2026-07-31)** — real card payments enabled; live-mode e2e purchase +
@@ -2965,10 +2965,10 @@
   force-updated + gc'd (645 → 43 MiB); its checkout `/opt/litemall` is on the new master
   (detached) but its stale local `master`/`fix/prod-stack-runtime` + `refs/remotes/*`
   still pin the old pack (643 MiB) — the classifier refused the cleanup; user-side.
-  **GitHub NOT yet rewritten** — the force-push was refused by the classifier; user runs
-  `git push --force origin master fix/gateway-admin fix/gateway-api fix/goods-management
-  fix/order fix/platform fix/prod-stack-runtime fix/promotion` from any worktree (local
-  refs are already the rewritten ones). Any other clone must re-clone or hard-reset to
+  **GitHub REWRITTEN 2026-11-22** — the user ran `git push --force origin master
+  fix/gateway-admin fix/gateway-api fix/goods-management fix/order fix/platform
+  fix/prod-stack-runtime fix/promotion`; all eight refs on origin now carry the rewritten
+  history. Any other clone must re-clone or hard-reset to
   origin. Still in history, NOT node_modules: `litemall-goods-management/logs/
   log-2026-08-10.0.log.gz` (10 MB) and `litemall-all/backup/*.sql` (3 × 2 MB).
 - **Status 2026-10-20 — PASS 2 BUILT, all four items (build record; deploy record above).** Branch
