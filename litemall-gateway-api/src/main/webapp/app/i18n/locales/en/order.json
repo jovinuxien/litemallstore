@@ -142,11 +142,13 @@
     "carrier": "Carrier",
     "trackingNo": "Tracking no.",
     "lastMile": "Last mile",
+    "lastMileContact": "Last-mile carrier contact",
     "route": "Route",
     "estDelivery": "Est. delivery",
     "days_one": "{{count}} day",
     "days_other": "{{count}} days",
     "status": "Status",
-    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later."
+    "detailsUnavailable": "Tracking details are temporarily unavailable — check back later.",
+    "trackExternal": "Track with the carrier"
   }
 }

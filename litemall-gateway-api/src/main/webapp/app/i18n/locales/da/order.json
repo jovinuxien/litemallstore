@@ -142,11 +142,13 @@
     "carrier": "Fragtfirma",
     "trackingNo": "Sporingsnummer",
     "lastMile": "Sidste strækning",
+    "lastMileContact": "Kontakt til fragtfirmaet på sidste strækning",
     "route": "Rute",
     "estDelivery": "Forventet levering",
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dage",
     "status": "Status",
-    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere."
+    "detailsUnavailable": "Sporingsoplysningerne er midlertidigt utilgængelige – kig forbi igen senere.",
+    "trackExternal": "Spor hos fragtfirmaet"
   }
 }

@@ -142,11 +142,13 @@
     "carrier": "Transportör",
     "trackingNo": "Spårningsnummer",
     "lastMile": "Sista sträckan",
+    "lastMileContact": "Kontakt till transportören på sista sträckan",
     "route": "Rutt",
     "estDelivery": "Beräknad leverans",
     "days_one": "{{count}} dag",
     "days_other": "{{count}} dagar",
     "status": "Status",
-    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare."
+    "detailsUnavailable": "Spårningsuppgifterna är tillfälligt otillgängliga – titta in igen senare.",
+    "trackExternal": "Spåra hos transportören"
   }
 }
